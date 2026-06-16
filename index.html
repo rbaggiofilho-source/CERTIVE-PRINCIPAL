@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certive Vistorias — Sistema de Gestão Premium</title>
+    <meta name="description" content="Sistema de Gestão integrado para Certive Vistorias. Controle de OS, Caixa, Faturamento de Parceiros e Contas a Pagar.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- ===== TELA DE LOGIN ===== -->
+<div class="login-overlay" id="login-overlay">
+    <div class="login-card">
+        <div class="login-logo">
+            <!-- Elegant Golden Shield & Car SVG Logo -->
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/>
+            </svg>
+            <h2>CERTIVE</h2>
+            <span>Vistorias Veiculares</span>
+        </div>
+        
+        <div class="login-error" id="login-error">
+            <i class="ri-error-warning-line"></i>
+            <span id="login-error-text">Usuário ou senha inválidos.</span>
+        </div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="login-username">Usuário</label>
+                <input type="text" id="login-username" placeholder="Digite seu usuário" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label for="login-password">Senha</label>
+                <input type="password" id="login-password" placeholder="Digite sua senha" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px;">
+                <i class="ri-login-box-line"></i> Acessar Sistema
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- ===== APLICAÇÃO PRINCIPAL ===== -->
+<div class="app-container">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/>
+            </svg>
+            <div class="sidebar-logo-text">
+                <h1>CERTIVE</h1>
+                <span>Vistorias</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" onclick="navigateTo('atendimento')" id="nav-atendimento">
+                <i class="ri-customer-service-2-line"></i> Atendimento
+            </div>
+            <div class="nav-item" onclick="navigateTo('caixa')" id="nav-caixa">
+                <i class="ri-money-dollar-box-line"></i> Caixa Diário
+            </div>
+            <div class="nav-item" onclick="navigateTo('historico')" id="nav-historico">
+                <i class="ri-history-line"></i> Histórico Geral
+            </div>
+            <div class="nav-item" onclick="navigateTo('faturamento')" id="nav-faturamento">
+                <i class="ri-file-list-3-line"></i> Faturamento
+            </div>
+            <div class="nav-item" onclick="navigateTo('contas')" id="nav-contas">
+                <i class="ri-wallet-3-line"></i> Contas a Pagar
+            </div>
+            <div class="nav-item" onclick="navigateTo('bi')" id="nav-bi">
+                <i class="ri-bar-chart-box-line"></i> Painel BI
+            </div>
+            <div class="nav-item" onclick="navigateTo('config')" id="nav-config">
+                <i class="ri-settings-4-line"></i> Configurações
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            CERTIVE VISTORIAS &copy; 2026<br>Santa Catarina, BR
+        </div>
+    </aside>
+
+    <!-- MAIN SHELL -->
+    <main class="main-content">
+        
+        <!-- TOPBAR -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="unit-selector-wrapper">
+                    <label for="topbar-unit-select">Unidade Ativa:</label>
+                    <select id="topbar-unit-select" class="unit-select" onchange="changeActiveUnit(this.value)">
+                        <!-- Carregado via JS -->
+                    </select>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="user-profile">
+                    <span class="user-name" id="topbar-username">Nome Operador</span>
+                    <span class="user-role" id="topbar-userrole">Função</span>
+                </div>
+                <button class="btn-logout" onclick="handleLogout()" title="Sair do sistema">
+                    <i class="ri-logout-box-r-line"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- PÁGINAS -->
+        <div class="page-container">
+
+            <!-- ================= PÁGINA: ATENDIMENTO ================= -->
+            <section class="section-panel active" id="panel-atendimento">
+                <div class="page-header">
+                    <div>
+                        <h2>🧾 Atendimento & Abertura de OS</h2>
+                        <p>Gerencie vistorias veiculares, preços acordados e emissão de contratos.</p>
+                    </div>
+                </div>
+
+                <div class="kpi-grid" id="atendimento-kpis">
+                    <!-- KPIs do dia atualizados via JS -->
+                </div>
+
+                <div class="atendimento-layout">
+                    <!-- Form de Nova OS -->
+                    <div class="panel-card">
+                        <div class="panel-card-header">
+                            <h3><i class="ri-add-circle-line"></i> Nova Ficha de Vistoria</h3>
+                        </div>
+                        <div class="panel-card-body">
+                            <!-- Tipo de Público -->
+                            <label class="form-section-title"><span>1</span> Tipo de Cliente</label>
+                            <div class="category-switcher">
+                                <button class="cat-btn active" id="btn-cat-particular" onclick="selectClientType('particular')">Particular</button>
+                                <button class="cat-btn" id="btn-cat-parceiro" onclick="selectClientType('parceiro')">Parceiro de Negócios</button>
+                            </div>
+
+                            <!-- Seleção de Parceiro (Oculto se particular) -->
+                            <div class="form-group" id="form-group-parceiro" style="display: none;">
+                                <label for="os-parceiro-select">Parceiro Conveniado</label>
+                                <select id="os-parceiro-select" onchange="loadPartnerServices(this.value)">
+                                    <option value="">Selecione o parceiro...</option>
+                                    <!-- Carregado via JS -->
+                                </select>
+                            </div>
+
+                            <!-- Catálogo de Serviços -->
+                            <label class="form-section-title"><span>2</span> Catálogo de Serviços</label>
+                            <div class="service-selector" id="service-selector">
+                                <!-- Opções geradas via JS -->
+                            </div>
+
+                            <!-- Preço do Serviço -->
+                            <div class="form-group">
+                                <label for="os-valor">Valor cobrado (R$)</label>
+                                <input type="number" step="0.01" id="os-valor" style="font-weight: 700; color: var(--success);" placeholder="0,00">
+                                <small class="form-text" id="os-valor-warning" style="color: var(--text-muted); display: block; margin-top: 4px;">
+                                    Tabela de balcão. Valor editável pelo atendente.
+                                </small>
+                            </div>
+
+                            <!-- Dados do Cliente & Veículo -->
+                            <label class="form-section-title"><span>3</span> Dados Fichados</label>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="os-placa">Placa do Veículo</label>
+                                    <input type="text" id="os-placa" placeholder="ABC1D23" maxlength="8" style="text-transform: uppercase; font-weight: 700;">
+                                </div>
+                                <div class="form-group">
+                                    <label for="os-renavam">Renavam</label>
+                                    <input type="text" id="os-renavam" placeholder="Apenas números" maxlength="11">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="os-nome-cliente">Nome Completo do Solicitante</label>
+                                <input type="text" id="os-nome-cliente" placeholder="Nome completo do condutor/proprietário">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="os-cpf-cliente">CPF ou CNPJ</label>
+                                    <input type="text" id="os-cpf-cliente" placeholder="Apenas números">
+                                </div>
+                                <div class="form-group">
+                                    <label for="os-celular-cliente">Celular (WhatsApp)</label>
+                                    <input type="text" id="os-celular-cliente" placeholder="(48) 99999-9999">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
+                                <input type="text" id="os-obs" placeholder="EX: HONDA CIVIC 2020 CINZA" required>
+                            </div>
+
+                            <!-- Checklist de Documentação -->
+                            <label class="form-section-title"><span>4</span> Validação de Documentos</label>
+                            <label class="form-check">
+                                <input type="checkbox" id="os-doc-veiculo">
+                                <span>Apresentou Documento do Veículo (CRLV / CRLV-e)</span>
+                            </label>
+                            <label class="form-check" style="margin-bottom: 20px;">
+                                <input type="checkbox" id="os-doc-identificacao">
+                                <span>Apresentou Documento de Identificação Oficial do Solicitante</span>
+                            </label>
+
+                            <!-- Forma de Pagamento -->
+                            <label class="form-section-title"><span>5</span> Cobrança</label>
+                            <div class="form-group">
+                                <label for="os-pagamento">Forma de Pagamento</label>
+                                <select id="os-pagamento">
+                                    <option value="pix">Pix (Transferência Online)</option>
+                                    <option value="debito">Cartão de Débito</option>
+                                    <option value="credito">Cartão de Crédito</option>
+                                    <option value="especie">Dinheiro (Espécie)</option>
+                                    <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
+                                </select>
+                            </div>
+
+                            <!-- Marcação DETRAN -->
+                            <label class="form-section-title"><span>6</span> Controle DETRAN-SC</label>
+                            <label class="form-check" style="margin-bottom: 24px;">
+                                <input type="checkbox" id="os-detran">
+                                <span>O.S. Oficial aberta no sistema do DETRAN-SC (Registro manual)</span>
+                            </label>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <button class="btn btn-secondary" onclick="clearOSForm()">
+                                    <i class="ri-eraser-line"></i> Limpar
+                                </button>
+                                <button class="btn btn-primary" onclick="submitOSForm()">
+                                    <i class="ri-save-line"></i> Registrar O.S.
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pipeline/Lista de Serviços do Dia -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+                        <div class="panel-card" style="margin-bottom: 0;">
+                            <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <h3><i class="ri-history-line"></i> Serviços do Dia / Histórico</h3>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1; justify-content: flex-end;">
+                                    <div class="search-box-container" style="position: relative; width: 260px;">
+                                        <i class="ri-search-line" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px;"></i>
+                                        <input type="text" id="os-search-input" placeholder="Buscar O.S., Placa ou Cliente..." oninput="renderOSPipeline()" style="width: 100%; padding: 8px 12px 8px 32px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); text-transform: uppercase;">
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm" onclick="navigateTo('config')">
+                                        <i class="ri-settings-line"></i> Preços e Taxas
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Código</th>
+                                                <th>Hora</th>
+                                                <th>Solicitante / Placa</th>
+                                                <th>Serviço</th>
+                                                <th>Valor</th>
+                                                <th>Forma</th>
+                                                <th>Status</th>
+                                                <th style="text-align: right; padding-right: 20px;">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recent-services-list">
+                                            <!-- Carregado via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: HISTÓRICO GERAL ================= -->
+            <section class="section-panel" id="panel-historico">
+                <div class="page-header">
+                    <div>
+                        <h2>📜 Histórico Geral de Serviços</h2>
+                        <p>Consulte, filtre e gerencie todas as ordens de serviço registradas.</p>
+                    </div>
+                </div>
+
+                <!-- Card de Filtros de Pesquisa -->
+                <div class="panel-card" style="margin-bottom: 20px;">
+                    <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3><i class="ri-filter-3-line"></i> Filtros de Pesquisa</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="clearHistoricoFilters()">
+                            <i class="ri-eraser-line"></i> Limpar Filtros
+                        </button>
+                    </div>
+                    <div class="panel-card-body" style="padding: 16px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-placa">Placa</label>
+                                <input type="text" id="hist-filter-placa" placeholder="EX: ABC1234" oninput="renderHistorico()" style="text-transform: uppercase;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-cliente">Cliente (Nome / CPF / CNPJ)</label>
+                                <input type="text" id="hist-filter-cliente" placeholder="Nome ou Documento" oninput="renderHistorico()" style="text-transform: uppercase;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-servico">Serviço</label>
+                                <select id="hist-filter-servico" onchange="renderHistorico()">
+                                    <option value="">Todos os Serviços</option>
+                                    <!-- Dinâmico via JS -->
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-valor">Valor do Serviço (R$)</label>
+                                <input type="number" id="hist-filter-valor" placeholder="Valor exato" oninput="renderHistorico()" step="0.01">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-data-ini">Data Inicial</label>
+                                <input type="date" id="hist-filter-data-ini" onchange="renderHistorico()">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-data-fim">Data Final</label>
+                                <input type="date" id="hist-filter-data-fim" onchange="renderHistorico()">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-pagamento">Forma de Pagamento</label>
+                                <select id="hist-filter-pagamento" onchange="renderHistorico()">
+                                    <option value="">Todas</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="especie">DINHEIRO (ESPÉCIE)</option>
+                                    <option value="debito">CARTÃO DE DÉBITO</option>
+                                    <option value="credito">CARTÃO DE CRÉDITO</option>
+                                    <option value="faturamento">FATURAMENTO MENSAL</option>
+                                    <option value="isento">ISENTO</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label for="hist-filter-status">Status da O.S.</label>
+                                <select id="hist-filter-status" onchange="renderHistorico()">
+                                    <option value="">Todos</option>
+                                    <option value="aberta">ABERTA</option>
+                                    <option value="paga">PAGA</option>
+                                    <option value="em_execucao">EM VISTORIA</option>
+                                    <option value="concluida_aprovada">APROVADA</option>
+                                    <option value="concluida_reprovada">REPROVADA</option>
+                                    <option value="cancelada">CANCELADA</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de O.S.s Filtradas -->
+                <div class="panel-card">
+                    <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3><i class="ri-file-list-line"></i> Registros Encontrados</h3>
+                        <span id="hist-total-count" style="font-size: 12px; font-weight: 600; color: var(--accent);">0 Ordens de Serviço</span>
+                    </div>
+                    <div class="panel-card-body" style="padding: 0;">
+                        <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Data/Hora</th>
+                                        <th>Cliente / Placa</th>
+                                        <th>Serviço</th>
+                                        <th>Valor</th>
+                                        <th>Forma</th>
+                                        <th>Status</th>
+                                        <th style="text-align: right; padding-right: 20px;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historico-services-list">
+                                    <!-- Carregado via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: CAIXA DIÁRIO ================= -->
+            <section class="section-panel" id="panel-caixa">
+                <div class="page-header">
+                    <div>
+                        <h2>💰 Controle de Caixa Diário</h2>
+                        <p>Acompanhe e realize o fechamento financeiro do caixa da sua unidade.</p>
+                    </div>
+                    <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-secondary" onclick="printActiveCaixa()" id="btn-print-caixa" title="Imprimir fluxo de caixa do dia em PDF">
+                            <i class="ri-printer-line"></i> Imprimir Caixa (PDF)
+                        </button>
+                        <div id="caixa-status-badge">
+                            <!-- JS inserirá badge de Aberto/Fechado -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchCaixaTab('movimentos', this)">Fluxo de Caixa</button>
+                    <button class="tab-btn" onclick="switchCaixaTab('historico', this)">Histórico de Fechamentos</button>
+                </div>
+
+                <!-- Aba: Fluxo de Caixa Atual -->
+                <div id="tab-caixa-movimentos">
+                    <div class="kpi-grid" id="caixa-kpis">
+                        <!-- KPIs de Caixa via JS -->
+                    </div>
+
+                    <div class="atendimento-layout">
+                        <!-- Registrar Movimento (Sangria / Inflow) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-exchange-funds-line"></i> Lançar Movimentação Manual</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="caixa-mov-form" onsubmit="submitCaixaMov(event)">
+                                    <div class="form-group">
+                                        <label for="mov-tipo">Tipo de Operação</label>
+                                        <select id="mov-tipo" onchange="adjustMovForm(this.value)">
+                                            <option value="saida">Saída (Sangria / Pequenas despesas)</option>
+                                            <option value="entrada">Entrada Extra (Faturamento antigo, etc)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group" id="group-mov-parceiro" style="display: none;">
+                                        <label for="mov-parceiro-select">Parceiro Pagador (se faturamento)</label>
+                                        <select id="mov-parceiro-select">
+                                            <option value="">Selecione...</option>
+                                            <!-- JS -->
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="mov-valor">Valor (R$)</label>
+                                        <input type="number" step="0.01" id="mov-valor" placeholder="0,00" required>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="mov-desc">Descrição / Finalidade</label>
+                                        <input type="text" id="mov-desc" placeholder="Ex: Compra de materiais de escritório, etc" required>
+                                    </div>
+
+                                    <div class="form-group" id="group-mov-pag">
+                                        <label for="mov-forma-pag">Forma de Pagamento</label>
+                                        <select id="mov-forma-pag">
+                                            <option value="especie">Espécie (Dinheiro físico)</option>
+                                            <option value="pix">Pix (Transferência Online)</option>
+                                            <option value="debito">Cartão de Débito</option>
+                                            <option value="credito">Cartão de Crédito</option>
+                                        </select>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                        <i class="ri-check-line"></i> Confirmar Lançamento
+                                    </button>
+                                </form>
+
+                                <hr style="border: 0; border-top: 1px solid var(--border); margin: 24px 0;">
+
+                                <!-- Painel de Fechamento -->
+                                <h3 style="font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                    <i class="ri-lock-line" style="color: var(--warning);"></i> Fechamento do Dia
+                                </h3>
+                                <form id="caixa-fechar-form" onsubmit="submitFecharCaixa(event)">
+                                    <div class="form-group">
+                                        <label for="fechar-saldo-fisico">Saldo em Espécie Físico na Gaveta (R$)</label>
+                                        <input type="number" step="0.01" id="fechar-saldo-fisico" placeholder="Insira o valor em dinheiro" required>
+                                        <small style="color: var(--text-secondary); display: block; margin-top: 6px;">
+                                            O sistema calculará eventuais divergências entre o caixa do sistema e o valor físico informado.
+                                        </small>
+                                    </div>
+                                    <button type="submit" class="btn btn-danger" style="width: 100%; font-weight: 700;" id="btn-fechar-caixa">
+                                        <i class="ri-shut-down-line"></i> Fechar Caixa Diário
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Transações -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-list-check"></i> Registro de Lançamentos de Hoje</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Hora</th>
+                                                <th>Descrição / Vistoria</th>
+                                                <th>Forma</th>
+                                                <th style="text-align: right;">Entrada</th>
+                                                <th style="text-align: right;">Saída</th>
+                                                <th>Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="caixa-mov-tbody">
+                                            <!-- Via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba: Histórico de Fechamentos -->
+                <div id="tab-caixa-historico" style="display: none;">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data de Fechamento</th>
+                                    <th>Fechado Por</th>
+                                    <th style="text-align: right;">Entradas Totais</th>
+                                    <th style="text-align: right;">Saídas Totais</th>
+                                    <th style="text-align: right;">Saldo Sistema</th>
+                                    <th style="text-align: right;">Dinheiro Informado</th>
+                                    <th style="text-align: right;">Diferença</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="caixa-historico-tbody">
+                                <!-- Carregado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: FATURAMENTO DE PARCEIROS ================= -->
+            <section class="section-panel" id="panel-faturamento">
+                <div class="page-header">
+                    <div>
+                        <h2>📂 Faturamento de Parceiros</h2>
+                        <p>Consolide as ordens de serviço a prazo de lojistas/despachantes e gerencie faturas.</p>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchFatTab('pendentes', this)">Vistorias Pendentes</button>
+                    <button class="tab-btn" onclick="switchFatTab('faturas', this)">Histórico de Faturas</button>
+                </div>
+
+                <!-- Aba: OS Pendentes de Faturamento -->
+                <div id="tab-fat-pendentes">
+                    <div class="filter-bar">
+                        <div class="form-group" style="margin: 0; min-width: 250px;">
+                            <label for="fat-parceiro-filter">Selecionar Parceiro Conveniado</label>
+                            <select id="fat-parceiro-filter" onchange="renderFatPendentes()">
+                                <option value="">Todos os parceiros...</option>
+                                <!-- JS -->
+                            </select>
+                        </div>
+                        <div style="margin-left: auto; display: flex; align-items: flex-end;">
+                            <button class="btn btn-primary" onclick="openGirarFaturaModal()">
+                                <i class="ri-folder-zip-line"></i> Fechar Lote & Gerar Fatura
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="fat-select-all-os" onchange="toggleSelectAllOS(this)"></th>
+                                    <th>Código OS</th>
+                                    <th>Data / Hora</th>
+                                    <th>Parceiro</th>
+                                    <th>Placa</th>
+                                    <th>Serviço Prestado</th>
+                                    <th style="text-align: right;">Valor Acordado</th>
+                                    <th>Operador</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fat-pendentes-tbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Aba: Faturas Emitidas -->
+                <div id="tab-fat-faturas" style="display: none;">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Código Fat.</th>
+                                    <th>Data Emissão</th>
+                                    <th>Parceiro</th>
+                                    <th>Período Cobrança</th>
+                                    <th style="text-align: center;">Qtd OS</th>
+                                    <th style="text-align: right;">Valor Total</th>
+                                    <th>Status</th>
+                                    <th>Data Baixa</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fat-faturas-tbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: CONTAS A PAGAR ================= -->
+            <section class="section-panel" id="panel-contas">
+                <div class="page-header">
+                    <div>
+                        <h2>💳 Contas a Pagar</h2>
+                        <p>Gerencie as despesas fixas da unidade e consolide os custos de taxas de terceiros (DETRAN).</p>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchContasTab('despesas', this)">Contas da Unidade</button>
+                    <button class="tab-btn" onclick="switchContasTab('variaveis', this)">Consolidação DETRAN-SC</button>
+                </div>
+
+                <!-- Aba: Contas Gerais da Unidade -->
+                <div id="tab-contas-despesas">
+                    <div class="atendimento-layout">
+                        <!-- Novo Lançamento -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-add-line"></i> Registrar Despesa Fixa/Variável</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="despesa-form" onsubmit="submitDespesaForm(event)">
+                                    <div class="form-group">
+                                        <label for="desp-desc">Descrição da Conta</label>
+                                        <input type="text" id="desp-desc" placeholder="Ex: Aluguel da Sala Comercial, Internet, etc" required>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="desp-vencimento">Vencimento</label>
+                                            <input type="date" id="desp-vencimento" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="desp-valor">Valor (R$)</label>
+                                            <input type="number" step="0.01" id="desp-valor" placeholder="0,00" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="desp-anexo">Anexo da Fatura (JPEG / PDF)</label>
+                                        <input type="file" id="desp-anexo" accept="image/jpeg,application/pdf" style="padding: 6px 12px; font-size: 12px;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="desp-obs">Observações / Código de Barras</label>
+                                        <textarea id="desp-obs" placeholder="Digite o código de barras para pagamento ou outras observações..." style="height: 60px; font-family: inherit; font-size: 12px; resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                        <i class="ri-check-line"></i> Salvar Despesa
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Contas -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-file-list-line"></i> Contas em Aberto & Pagas</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Vencimento</th>
+                                                <th>Descrição / Detalhes</th>
+                                                <th>Tipo</th>
+                                                <th style="text-align: right;">Valor</th>
+                                                <th>Status</th>
+                                                <th>Anexo</th>
+                                                <th>Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="contas-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba: Consolidação DETRAN-SC (Variáveis) -->
+                <div id="tab-contas-variaveis" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
+                        
+                        <!-- Consolidador Mensal -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-calculator-line"></i> Calculadora de Taxas DETRAN / Terceiros</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <div class="form-row" style="margin-bottom: 18px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label for="detran-calculo-mes">Mês de Referência</label>
+                                        <select id="detran-calculo-mes" onchange="calcularCustosDetran()">
+                                            <option value="05">Maio / 2026</option>
+                                            <option value="06" selected>Junho / 2026</option>
+                                            <option value="07">Julho / 2026</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; align-items: flex-end;">
+                                        <button class="btn btn-primary" onclick="lancarFaturaDetran()" id="btn-lancar-detran" style="width: 100%;">
+                                            <i class="ri-bill-line"></i> Lançar Contas a Pagar DETRAN
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="table-container" style="margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Serviço Realizado</th>
+                                                <th style="text-align: center;">Quantidade OS</th>
+                                                <th style="text-align: right;">Taxa Ref. Unitária</th>
+                                                <th style="text-align: right;">Total Devido</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="detran-calculo-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info/Config -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-information-line"></i> Sobre os Custos Variáveis</h3>
+                            </div>
+                            <div class="panel-card-body" style="line-height: 1.6; font-size: 13px; color: var(--text-secondary);">
+                                <p style="margin-bottom: 12px;">Para cada Ordem de Serviço concluída pela Certive Vistorias, incide um custo de taxa obrigatória devido ao órgão homologador (ex.: DETRAN-SC).</p>
+                                <p style="margin-bottom: 16px;">Os valores unitários de referência são definidos pela gerência nas <strong>Configurações do Sistema</strong> e podem variar ao longo do tempo. O consolidador sempre usará o valor cadastrado como base no momento da conferência.</p>
+                                <div style="background: rgba(212, 160, 23, 0.08); border: 1px solid rgba(212, 160, 23, 0.2); border-radius: var(--radius-sm); padding: 12px; display: flex; gap: 8px;">
+                                    <i class="ri-lightbulb-line" style="color: var(--accent); font-size: 20px;"></i>
+                                    <span>Ao clicar em "Lançar Contas a Pagar DETRAN", uma conta com o valor consolidado é automaticamente adicionada ao módulo financeiro desta unidade.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: BI / GESTÃO ================= -->
+            <section class="section-panel" id="panel-bi">
+                <div class="page-header">
+                    <div>
+                        <h2>📊 Painel BI & Indicadores de Gestão</h2>
+                        <p>Análise de lucros, faturamento por filial, ticket médio e comportamento do cliente.</p>
+                    </div>
+                </div>
+
+                <div class="bi-layout">
+                    <!-- Barra de Filtros -->
+                    <div class="filter-bar">
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <label for="bi-filtro-periodo">Período de Análise</label>
+                            <select id="bi-filtro-periodo" onchange="renderBI()">
+                                <option value="mes" selected>Este Mês (Junho/26)</option>
+                                <option value="30">Últimos 30 dias</option>
+                                <option value="todos">Todo o Histórico</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 200px; margin-left: 12px;" id="bi-filtro-unit-div">
+                            <label for="bi-filtro-unidade">Filtrar por Unidade</label>
+                            <select id="bi-filtro-unidade" onchange="renderBI()">
+                                <option value="todas">Todas as Unidades</option>
+                                <!-- JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Indicadores Financeiros do BI -->
+                    <div class="kpi-grid" id="bi-kpis">
+                        <!-- JS -->
+                    </div>
+
+                    <div class="bi-charts-grid">
+                        
+                        <!-- Faturamento Semanal -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <h4><i class="ri-line-chart-line"></i> Movimento Semanal (R$)</h4>
+                                <span style="font-size: 11px; color: var(--text-muted);">Por data da OS</span>
+                            </div>
+                            <div class="weekly-bars" id="bi-chart-semanal">
+                                <!-- Colunas geradas via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Share de Vendas -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <h4><i class="ri-pie-chart-line"></i> Representação do Faturamento (%)</h4>
+                                <span style="font-size: 11px; color: var(--text-muted);">Por tipo de cliente</span>
+                            </div>
+                            <div class="horizontal-bars" id="bi-chart-share">
+                                <!-- Barras de share geradas via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px;">
+                        
+                        <!-- Serviços Mais Vendidos -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-bar-chart-fill"></i> Ranking de Serviços Praticados</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 16px;">
+                                <div class="horizontal-bars" id="bi-chart-servicos">
+                                    <!-- Render via JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Melhores Clientes -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-medal-line"></i> Top 5 Parceiros de Negócios (Vol. Serviços)</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Parceiro</th>
+                                                <th style="text-align: center;">Qtd OS</th>
+                                                <th style="text-align: right;">Total Gasto</th>
+                                                <th style="text-align: right;">Ticket Médio</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="bi-partners-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: CONFIGURAÇÕES / CADASTROS ================= -->
+            <section class="section-panel" id="panel-config">
+                <div class="page-header">
+                    <div>
+                        <h2>⚙️ Configurações Gerais do Sistema</h2>
+                        <p>Apenas administradores podem gerenciar preços de tabela, operadores e regras financeiras.</p>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchConfigTab('precos', this)">Preços e Taxas</button>
+                    <button class="tab-btn" onclick="switchConfigTab('parceiros', this)">Parceiros</button>
+                    <button class="tab-btn" onclick="switchConfigTab('operadores', this)">Operadores & Unidades</button>
+                </div>
+
+                <!-- Config Tab: Preços e Taxas -->
+                <div id="tab-cfg-precos">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        
+                        <!-- Tabela de Balcão (Particular) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-price-tag-3-line"></i> Tabela de Balcão (Particulares)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-precos-form" onsubmit="submitConfigPrecos(event)">
+                                    <div id="config-precos-inputs">
+                                        <!-- Inputs via JS -->
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">
+                                        <i class="ri-save-line"></i> Salvar Tabela de Balcão
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Taxas do Órgão (DETRAN) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-calculator-line"></i> Taxas de Referência de Custos (Órgão / Terceiros)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-taxas-form" onsubmit="submitConfigTaxas(event)">
+                                    <div id="config-taxas-inputs">
+                                        <!-- Inputs via JS -->
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">
+                                        <i class="ri-save-line"></i> Salvar Taxas do DETRAN-SC
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Parceiros -->
+                <div id="tab-cfg-parceiros" style="display: none;">
+                    <div class="atendimento-layout">
+                        <!-- Novo Parceiro / Editar Parceiro -->
+                        <div class="panel-card">
+                            <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 id="cfg-partner-form-header-title"><i class="ri-user-add-line"></i> Adicionar Novo Parceiro</h3>
+                                <button type="button" id="cfg-partner-cancel-edit" class="btn btn-danger btn-sm" style="display: none;" onclick="cancelEditPartner()">Cancelar Edição</button>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-partner-form" onsubmit="submitConfigPartner(event)">
+                                    <div class="form-group">
+                                        <label for="cfg-part-nome">Nome Fantasia / Razão Social</label>
+                                        <input type="text" id="cfg-part-nome" placeholder="Ex: Multicar Automóveis Ltda" required>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-cnpj">CPF / CNPJ</label>
+                                            <input type="text" id="cfg-part-cnpj" placeholder="CPF ou CNPJ (apenas números)" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-part-responsavel">Nome do Responsável</label>
+                                            <input type="text" id="cfg-part-responsavel" placeholder="Ex: Marcos Almeida" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-tel">Contato / Celular</label>
+                                            <input type="text" id="cfg-part-tel" placeholder="(48) 99999-9999" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-check" style="margin-top: 28px; margin-bottom: 0;">
+                                                <input type="checkbox" id="cfg-part-faturamento">
+                                                <span>Permitir faturamento (mensal consolidado)</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-part-obs">Observações do Cadastro</label>
+                                        <textarea id="cfg-part-obs" placeholder="Contatos do financeiro, observações gerais de pagamentos, gerência comercial, etc..." style="height: 60px; font-family: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                                    </div>
+
+                                    <!-- Tabela de Preço Acordada -->
+                                    <label class="form-section-title">Valores Acordados por Serviço (R$)</label>
+                                    <div id="config-partner-matrix" style="display: flex; flex-direction: column; gap: 8px;">
+                                        <!-- Matrix JS -->
+                                    </div>
+
+                                    <button type="submit" id="cfg-partner-submit-btn" class="btn btn-primary" style="margin-top: 20px; width: 100%;">
+                                        <i class="ri-user-follow-line"></i> Cadastrar Parceiro
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Parceiros -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-group-line"></i> Parceiros Conveniados</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nome / Razão</th>
+                                                <th>CPF / CNPJ</th>
+                                                <th>Contato / Responsável</th>
+                                                <th>Faturamento</th>
+                                                <th style="text-align: right; padding-right: 20px;">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cfg-partners-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Operadores e Unidades -->
+                <div id="tab-cfg-operadores" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px;">
+                        
+                        <!-- Operadores -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-user-settings-line"></i> Gestão de Operadores (Usuários)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start;">
+                                    
+                                    <!-- Criar Operador -->
+                                    <form id="config-op-form" onsubmit="submitConfigOperator(event)">
+                                        <div class="form-group">
+                                            <label for="cfg-op-nome">Nome do Operador</label>
+                                            <input type="text" id="cfg-op-nome" placeholder="Ex: João da Silva" required>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="cfg-op-login">Login de Acesso</label>
+                                                <input type="text" id="cfg-op-login" placeholder="Ex: joao.atendimento" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="cfg-op-senha">Senha</label>
+                                                <input type="password" id="cfg-op-senha" placeholder="Senha do operador" required>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-op-unidade">Unidade Designada</label>
+                                            <select id="cfg-op-unidade" required>
+                                                <!-- JS -->
+                                            </select>
+                                        </div>
+
+                                        <!-- Permissões Granulares -->
+                                        <label class="form-group"><label>Permissões do Operador</label></label>
+                                        <div class="permission-grid">
+                                            <label class="form-check"><input type="checkbox" value="abertura_os" checked> <span>Abertura OS</span></label>
+                                            <label class="form-check"><input type="checkbox" value="caixa" checked> <span>Caixa Diário</span></label>
+                                            <label class="form-check"><input type="checkbox" value="faturamento"> <span>Faturamento</span></label>
+                                            <label class="form-check"><input type="checkbox" value="contas"> <span>Contas Pagar</span></label>
+                                            <label class="form-check"><input type="checkbox" value="cadastros"> <span>Cadastros</span></label>
+                                            <label class="form-check"><input type="checkbox" value="bi"> <span>Painel BI</span></label>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary" style="margin-top: 18px; width: 100%;">
+                                            <i class="ri-user-add-line"></i> Cadastrar Operador
+                                        </button>
+                                    </form>
+
+                                    <!-- Lista Operadores -->
+                                    <div class="table-container" style="margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Login</th>
+                                                    <th>Nome</th>
+                                                    <th>Unidade</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cfg-operators-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unidades -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-home-gear-line"></i> Unidades Operacionais (Filiais)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-unit-form" onsubmit="submitConfigUnit(event)" style="margin-bottom: 20px;">
+                                    <div class="form-group">
+                                        <label for="cfg-unit-nome">Nome da Unidade / Filial</label>
+                                        <input type="text" id="cfg-unit-nome" placeholder="Ex: Certive Filial - Palhoça" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-unit-endereco">Endereço Completo</label>
+                                        <input type="text" id="cfg-unit-endereco" placeholder="Rua, Número, Bairro, Cidade - SC" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                        <i class="ri-add-line"></i> Cadastrar Filial
+                                    </button>
+                                </form>
+
+                                <div class="table-container" style="margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nome</th>
+                                                <th>Endereço</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cfg-units-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<!-- ===== MODAL DETALHES OS ===== -->
+<div class="modal-overlay" id="modal-os-detalhes" onclick="closeOSModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="detalhes-os-title">Ordem de Serviço OS-0000</h3>
+            <button class="modal-close" onclick="closeOSModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" id="detalhes-os-body">
+            <!-- Renderizado dinamicamente via JS -->
+        </div>
+        <div class="modal-footer" id="detalhes-os-footer">
+            <!-- Botões dinâmicos via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE FATURAMENTO / LOTE DE PARCEIROS ===== -->
+<div class="modal-overlay" id="modal-faturamento-fechar" onclick="closeFatModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Gerar Fatura do Parceiro</h3>
+            <button class="modal-close" onclick="closeFatModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="fat-gerar-form" onsubmit="submitGirarFatura(event)">
+                <div class="form-group">
+                    <label for="fat-modal-parceiro">Parceiro Selecionado</label>
+                    <input type="text" id="fat-modal-parceiro" readonly style="background: var(--bg-secondary); border-color: var(--border);">
+                    <input type="hidden" id="fat-modal-parceiro-id">
+                </div>
+                <div class="form-group">
+                    <label>Período de Fechamento</label>
+                    <div class="form-row">
+                        <div>
+                            <label style="font-size: 9px;">Início</label>
+                            <input type="date" id="fat-modal-inicio" required>
+                        </div>
+                        <div>
+                            <label style="font-size: 9px;">Fim</label>
+                            <input type="date" id="fat-modal-fim" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Vistorias Selecionadas (<span id="fat-modal-qtd">0</span>)</label>
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-weight: 700; color: var(--success); font-size: 16px;">
+                        Valor Total Consolidado: <span id="fat-modal-total">R$ 0,00</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 12px;">
+                    <i class="ri-check-double-line"></i> Fechar Lote & Registrar Fatura
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE EDIÇÃO DE O.S. ===== -->
+<div class="modal-overlay" id="modal-os-editar" onclick="closeEditOSModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Editar Ordem de Serviço</h3>
+            <button class="modal-close" onclick="closeEditOSModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="os-editar-form" onsubmit="submitEditOSForm(event)">
+                <input type="hidden" id="edit-os-id">
+                <div class="form-group">
+                    <label for="edit-os-nome">Nome do Solicitante</label>
+                    <input type="text" id="edit-os-nome" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-cpf">CPF / CNPJ</label>
+                        <input type="text" id="edit-os-cpf" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-celular">Celular</label>
+                        <input type="text" id="edit-os-celular" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-placa">Placa</label>
+                        <input type="text" id="edit-os-placa" required style="text-transform: uppercase;">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-renavam">Renavam</label>
+                        <input type="text" id="edit-os-renavam" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
+                    <input type="text" id="edit-os-obs" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-os-servico">Serviço Contratado</label>
+                    <select id="edit-os-servico" onchange="updateEditOSPrice()" required>
+                        <!-- Dinâmico via JS -->
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-valor">Valor (R$)</label>
+                        <input type="number" step="0.01" id="edit-os-valor" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-pagamento">Forma de Pagamento</label>
+                        <select id="edit-os-pagamento" required>
+                            <option value="pix">Pix (Transferência Online)</option>
+                            <option value="debito">Cartão de Débito</option>
+                            <option value="credito">Cartão de Crédito</option>
+                            <option value="especie">Dinheiro (Espécie)</option>
+                            <option value="faturamento">Faturamento Mensal (Parceiros)</option>
+                            <option value="isento">Isento</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="form-check" style="margin-bottom: 20px;">
+                    <input type="checkbox" id="edit-os-detran">
+                    <span>O.S. Oficial registrada no DETRAN-SC</span>
+                </label>
+                <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700;">
+                    <i class="ri-save-line"></i> Salvar Alterações
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ===== ÁREA DE IMPRESSÃO (CONTRATO) ===== -->
+<div id="print-area">
+    <!-- Gerado dinamicamente no momento da impressão -->
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
