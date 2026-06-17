@@ -365,16 +365,31 @@ function seedHistoricalData() {
 
 // Helper formatting functions
 function formatCurrency(val) {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (val === null || val === undefined || isNaN(val)) return 'R$ 0,00';
+    return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function formatDateBr(isoString) {
     if (!isoString) return "—";
+    // For DATE columns (YYYY-MM-DD), split manually to avoid timezone shift
+    if (typeof isoString === 'string' && isoString.length === 10 && isoString.includes('-')) {
+        const [y, m, d] = isoString.split('-');
+        return `${d}/${m}/${y}`;
+    }
     const date = new Date(isoString);
+    if (isNaN(date.getTime())) return "—";
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
+}
+
+function getLocalToday() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function formatDateTimeBr(isoString) {
@@ -517,7 +532,8 @@ function renderUnitSelectorOptions() {
 
 function changeActiveUnit(unitId) {
     activeUnitId = parseInt(unitId);
-    showToast(`Unidade alterada para: ${db.unidades.find(u => u.id === activeUnitId).nome}`, 'info');
+    const unitObj = db.unidades.find(u => u.id === activeUnitId);
+    showToast(`Unidade alterada para: ${unitObj ? unitObj.nome : 'ID ' + activeUnitId}`, 'info');
     
     // Refresh current active view
     const currentActiveNav = document.querySelector('.nav-item.active');
@@ -547,8 +563,17 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+// Mobile Sidebar Toggle
+function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('active');
+    document.getElementById('sidebar-overlay').classList.toggle('active');
+}
+
 // Navigation Handler
 function navigateTo(pageId) {
+    // Close sidebar on mobile
+    document.querySelector('.sidebar').classList.remove('active');
+    document.getElementById('sidebar-overlay').classList.remove('active');
     // Check permission for navigation
     const navPermissions = {
         'atendimento': 'abertura_os',
@@ -604,7 +629,7 @@ function renderAtendimentoPage() {
 }
 
 function renderAtendimentoKPIs() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     const todayOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
     
     const countTotal = todayOSs.length;
@@ -686,6 +711,7 @@ function loadPartnerServices(partnerId) {
     }
 
     const partner = db.parceiros.find(p => p.id === parseInt(partnerId));
+    if (!partner) { showToast("Parceiro não encontrado.", "error"); return; }
     
     // Enable or disable invoice option based on agreement
     if (partner.usaFaturamento) {
@@ -770,6 +796,7 @@ function clearOSForm() {
     document.getElementById('os-detran').checked = false;
     document.getElementById('os-parceiro-select').value = '';
     selectClientType('particular');
+    window.activeRecheckOrigemId = null;
 }
 
 async function submitOSForm() {
@@ -801,6 +828,11 @@ async function submitOSForm() {
     // Form Validations
     if (!placa || !renavam || !nome || !cpf || !cel || !obs) {
         showToast("Preencha todos os campos do solicitante, veículo e observações.", "error");
+        return;
+    }
+
+    if (currentClientType === 'parceiro' && isNaN(partnerId)) {
+        showToast("Selecione um parceiro válido.", "error");
         return;
     }
 
@@ -901,7 +933,7 @@ function renderOSPipeline() {
              o.clienteNome.toUpperCase().includes(searchVal))
         );
     } else {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalToday();
         filteredOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
     }
 
@@ -1235,9 +1267,8 @@ function openOSDetailsModal(id) {
     modal.classList.add('active');
 }
 
-function closeOSModal() {
-    document.getElementById('modal-os-detalhes').classList.remove('active');
-}
+// closeOSModal with optional event parameter (single definition)
+// (duplicate removed — see below)
 
 function closeOSModal(e) {
     if (e && e.target !== e.currentTarget) return;
@@ -1269,6 +1300,9 @@ async function changeOSStatus(id, newStatus) {
                 };
                 const insertedMov = await sbInsert('caixa_movimentos', movRecord);
                 cacheInsert('caixa_movimentos', insertedMov);
+            } else {
+                showToast("Erro: Caixa fechado. Abra o caixa antes de confirmar pagamento.", "error");
+                return;
             }
         }
 
@@ -1331,6 +1365,9 @@ async function cancelOS(id) {
                 };
                 const insertedMov = await sbInsert('caixa_movimentos', movRecord);
                 cacheInsert('caixa_movimentos', insertedMov);
+            } else {
+                showToast("Erro: O caixa está fechado. Abra o caixa para cancelar uma O.S. já paga.", "error");
+                return;
             }
         }
 
@@ -1492,8 +1529,21 @@ async function deleteOS(id) {
         return;
     }
 
+    // Block deletion if OS is part of an invoice
+    if (os.faturaId) {
+        showToast("Esta O.S. está vinculada a uma fatura. Não é possível excluir.", "error");
+        return;
+    }
+
     if (confirm(`Tem certeza que deseja excluir permanentemente a OS ${os.numero}? Esta ação não poderá ser desfeita.`)) {
         try {
+            // Delete related cash movements
+            const relatedMovs = db.caixa_movimentos.filter(m => m.osId === id);
+            for (const mov of relatedMovs) {
+                await sbDelete('caixa_movimentos', mov.id);
+                cacheDelete('caixa_movimentos', mov.id);
+            }
+
             await sbDelete('ordens_servico', id);
             cacheDelete('ordens_servico', id);
 
@@ -1648,13 +1698,20 @@ function triggerRecheckOS(parentOsId) {
     document.getElementById('os-nome-cliente').value = parentOs.clienteNome;
     document.getElementById('os-cpf-cliente').value = parentOs.clienteCpfCnpj;
     document.getElementById('os-celular-cliente').value = parentOs.clienteCelular;
+    document.getElementById('os-obs').value = parentOs.observacoes || 'REAPRESENTAÇÃO';
     
     document.getElementById('os-doc-veiculo').checked = true;
     document.getElementById('os-doc-identificacao').checked = true;
     
     // Set payment to Isento
     const paymentSelect = document.getElementById('os-pagamento');
-    paymentSelect.innerHTML += `<option value="isento" selected>Isento (Reapresentação)</option>`;
+    // Remove existing isento option if any, then add
+    const existingIsento = paymentSelect.querySelector('option[value="isento"]');
+    if (!existingIsento) {
+        paymentSelect.innerHTML += `<option value="isento" selected>Isento (Reapresentação)</option>`;
+    } else {
+        existingIsento.selected = true;
+    }
     paymentSelect.value = "isento";
 
     // Show Toast
@@ -1767,14 +1824,14 @@ submitOSForm = async function() {
 };
 
 function getRecheckDaysRemaining(finalizedDateIso) {
-    if (!finalizedDateIso) return -1;
+    if (!finalizedDateIso) return 0;
     const finalDate = new Date(finalizedDateIso);
     const today = new Date();
-    
-    // Difference in milliseconds
+    // Normalize both to midnight local time
+    finalDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
     const diffTime = today - finalDate;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
     return 30 - diffDays;
 }
 
@@ -1784,6 +1841,7 @@ function getRecheckDaysRemaining(finalizedDateIso) {
 function printContract(os) {
     const printArea = document.getElementById('print-area');
     const unit = db.unidades.find(u => u.id === os.unidadeId);
+    if (!unit) { showToast("Unidade não encontrada.", "error"); return; }
     
     printArea.innerHTML = `
         <div class="print-header">
@@ -1868,7 +1926,7 @@ function switchCaixaTab(tab, btn) {
 }
 
 function getTodayOpenCaixa() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today && c.status === "aberto");
 }
 
@@ -1899,7 +1957,7 @@ function renderCaixaPage() {
         document.getElementById('btn-fechar-caixa').style.display = 'none';
 
         // Check if there is NO drawer opened/closed today at all, display OPEN DRAWER form
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalToday();
         const todayDrawer = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
         if (!todayDrawer) {
             statusBadgeContainer.innerHTML += `
@@ -1915,7 +1973,7 @@ function renderCaixaPage() {
 }
 
 async function openTodayCaixaDrawer() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     const newDrawer = {
         unidadeId: activeUnitId,
         data: today,
@@ -2041,10 +2099,8 @@ async function submitCaixaMov(event) {
     const forma = document.getElementById('mov-forma-pag').value;
     const partnerId = parseInt(document.getElementById('mov-parceiro-select').value);
 
-    if (valor <= 0) {
-        showToast("Valor do movimento inválido.", "error");
-        return;
-    }
+    if (!desc) { showToast("Informe a descrição do lançamento.", "error"); return; }
+    if (isNaN(valor) || valor <= 0) { showToast("Informe um valor válido.", "error"); return; }
 
     let finalDesc = desc;
     if (tipo === 'entrada' && partnerId) {
@@ -2083,6 +2139,8 @@ async function submitCaixaMov(event) {
 async function deleteCaixaMov(id) {
     const mov = db.caixa_movimentos.find(m => m.id === id);
     if (!mov) return;
+
+    if (!confirm('Tem certeza que deseja excluir este lançamento do caixa?')) return;
 
     try {
         await sbDelete('caixa_movimentos', id);
@@ -2188,7 +2246,7 @@ function renderCaixaHistorico() {
 // Print Active Caixa (Today's Drawer)
 function printActiveCaixa() {
     // Can print open or closed drawer
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     const activeCaixa = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
     if (!activeCaixa) {
         showToast("Não há registro de caixa aberto ou fechado hoje para esta unidade.", "error");
@@ -2497,10 +2555,6 @@ function openGirarFaturaModal() {
     document.getElementById('modal-faturamento-fechar').classList.add('active');
 }
 
-function closeFatModal() {
-    document.getElementById('modal-faturamento-fechar').classList.remove('active');
-}
-
 function closeFatModal(e) {
     if (e && e.target !== e.currentTarget) return;
     document.getElementById('modal-faturamento-fechar').classList.remove('active');
@@ -2619,6 +2673,7 @@ async function liquidateInvoice(invoiceId) {
 
             // Insert cash drawer inflow (Pix by default)
             const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+            if (!partner) { showToast("Parceiro da fatura não encontrado.", "error"); return; }
             const movRecord = {
                 caixaId: activeCaixa.id,
                 tipo: "entrada",
@@ -2652,6 +2707,7 @@ function printInvoiceById(invoiceId) {
     }
 
     const partner = db.parceiros.find(p => p.id === f.parceiroId);
+    if (!partner) { showToast("Parceiro não encontrado.", "error"); return; }
     const unit = db.unidades.find(u => u.id === f.unidadeId);
     
     // Fetch all related OSs
@@ -2823,10 +2879,9 @@ function submitDespesaForm(event) {
     const obs = document.getElementById('desp-obs').value.trim();
     const file = fileInput.files[0];
 
-    if (val <= 0) {
-        showToast("Valor de despesa inválido.", "error");
-        return;
-    }
+    if (!desc) { showToast("Informe a descrição da conta.", "error"); return; }
+    if (!venc) { showToast("Informe a data de vencimento.", "error"); return; }
+    if (isNaN(val) || val <= 0) { showToast("Informe um valor válido.", "error"); return; }
 
     const saveExpense = async (anexoData = null) => {
         const newExpense = {
@@ -2882,7 +2937,7 @@ async function payExpense(id) {
     if (confirm(`Confirmar pagamento da despesa "${expense.descricao}" no valor de ${formatCurrency(expense.valor)}?`)) {
         const updates = {
             pago: true,
-            pagoEm: new Date().toISOString().split('T')[0]
+            pagoEm: getLocalToday()
         };
 
         try {
@@ -3407,6 +3462,7 @@ function renderConfigParceiros() {
 async function submitConfigPartner(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-part-nome').value.trim();
+    if (!nome) { showToast("Informe o nome do parceiro.", "error"); return; }
     const cnpj = document.getElementById('cfg-part-cnpj').value.trim();
     const responsavel = document.getElementById('cfg-part-responsavel').value.trim();
     const tel = document.getElementById('cfg-part-tel').value.trim();
@@ -3619,6 +3675,10 @@ async function submitConfigOperator(event) {
     const login = document.getElementById('cfg-op-login').value.trim();
     const senha = document.getElementById('cfg-op-senha').value.trim();
     const unitId = parseInt(document.getElementById('cfg-op-unidade').value);
+
+    if (!nome) { showToast("Informe o nome do operador.", "error"); return; }
+    if (!login) { showToast("Informe o login do operador.", "error"); return; }
+    if (!senha) { showToast("Informe a senha do operador.", "error"); return; }
     
     // Read selected permissions
     const checkedPerms = Array.from(document.querySelectorAll('#tab-cfg-operadores input[type="checkbox"]:checked')).map(el => el.value);

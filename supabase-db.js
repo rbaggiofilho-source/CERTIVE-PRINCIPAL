@@ -3,11 +3,47 @@
 // Camada de acesso a dados via Supabase
 // ==========================================
 
+// ---- DECIMAL FIELD MAP ----
+// Supabase returns DECIMAL columns as strings. This map defines
+// which fields need parseFloat conversion per table.
+const DECIMAL_FIELDS = {
+    servicos: ['precoBalcao'],
+    taxas_referencia: ['taxa'],
+    ordens_servico: ['valor'],
+    caixa_diario: ['saldoAbertura', 'saldoEspécieInformado'],
+    caixa_movimentos: ['valor'],
+    contas_pagar: ['valor'],
+    faturas: ['valorTotal']
+};
+
+/**
+ * Convert DECIMAL string fields to numbers for a record from a given table.
+ * Supabase returns DECIMAL as "120.00" (string) — this normalizes to 120.00 (number).
+ */
+function normalizeRecord(table, record) {
+    if (!record) return record;
+    const fields = DECIMAL_FIELDS[table];
+    if (fields) {
+        for (const field of fields) {
+            if (record[field] !== undefined) {
+                record[field] = parseFloat(record[field]) || 0;
+            }
+        }
+    }
+    // Special: parceiros.tabelaPrecos JSONB values
+    if (table === 'parceiros' && record.tabelaPrecos && typeof record.tabelaPrecos === 'object' && record.tabelaPrecos !== null) {
+        for (const key in record.tabelaPrecos) {
+            record.tabelaPrecos[key] = parseFloat(record.tabelaPrecos[key]) || 0;
+        }
+    }
+    return record;
+}
+
 // ---- GENERIC CRUD OPERATIONS ----
 
 /**
  * Insert a record into a Supabase table.
- * Returns the inserted record with the auto-generated ID.
+ * Returns the inserted record with the auto-generated ID (normalized).
  */
 async function sbInsert(table, record) {
     const { data, error } = await supabaseClient
@@ -22,12 +58,12 @@ async function sbInsert(table, record) {
         throw error;
     }
     console.log(`✅ sbInsert(${table}): ID ${data.id}`);
-    return data;
+    return normalizeRecord(table, data);
 }
 
 /**
  * Insert multiple records into a Supabase table.
- * Returns the inserted records with auto-generated IDs.
+ * Returns the inserted records with auto-generated IDs (normalized).
  */
 async function sbInsertMany(table, records) {
     const { data, error } = await supabaseClient
@@ -41,12 +77,12 @@ async function sbInsertMany(table, records) {
         throw error;
     }
     console.log(`✅ sbInsertMany(${table}): ${data.length} registros`);
-    return data;
+    return (data || []).map(r => normalizeRecord(table, r));
 }
 
 /**
  * Update a record by ID.
- * Returns the updated record.
+ * Returns the updated record (normalized).
  */
 async function sbUpdate(table, id, updates) {
     const { data, error } = await supabaseClient
@@ -62,7 +98,7 @@ async function sbUpdate(table, id, updates) {
         throw error;
     }
     console.log(`✅ sbUpdate(${table}): ID ${id}`);
-    return data;
+    return normalizeRecord(table, data);
 }
 
 /**
@@ -163,25 +199,14 @@ async function loadAllFromSupabase() {
         db.auditoria = auditoria;
 
         // Fix numeric precision: Supabase returns DECIMAL as strings
-        db.servicos.forEach(s => { s.precoBalcao = parseFloat(s.precoBalcao); });
-        db.taxas_referencia.forEach(t => { t.taxa = parseFloat(t.taxa); });
-        db.ordens_servico.forEach(o => { o.valor = parseFloat(o.valor); });
-        db.caixa_diario.forEach(c => { 
-            c.saldoAbertura = parseFloat(c.saldoAbertura); 
-            c['saldoEspécieInformado'] = parseFloat(c['saldoEspécieInformado'] || 0);
-        });
-        db.caixa_movimentos.forEach(m => { m.valor = parseFloat(m.valor); });
-        db.contas_pagar.forEach(c => { c.valor = parseFloat(c.valor); });
-        db.faturas.forEach(f => { f.valorTotal = parseFloat(f.valorTotal); });
-
-        // Ensure tabelaPrecos values are numbers
-        db.parceiros.forEach(p => {
-            if (p.tabelaPrecos && typeof p.tabelaPrecos === 'object') {
-                for (const key in p.tabelaPrecos) {
-                    p.tabelaPrecos[key] = parseFloat(p.tabelaPrecos[key]);
-                }
-            }
-        });
+        db.servicos.forEach(s => normalizeRecord('servicos', s));
+        db.taxas_referencia.forEach(t => normalizeRecord('taxas_referencia', t));
+        db.ordens_servico.forEach(o => normalizeRecord('ordens_servico', o));
+        db.caixa_diario.forEach(c => normalizeRecord('caixa_diario', c));
+        db.caixa_movimentos.forEach(m => normalizeRecord('caixa_movimentos', m));
+        db.contas_pagar.forEach(c => normalizeRecord('contas_pagar', c));
+        db.faturas.forEach(f => normalizeRecord('faturas', f));
+        db.parceiros.forEach(p => normalizeRecord('parceiros', p));
 
         console.log(`✅ Dados carregados do Supabase: ${ordens_servico.length} OSs, ${caixa_diario.length} caixas, ${faturas.length} faturas`);
         return true;
@@ -192,50 +217,38 @@ async function loadAllFromSupabase() {
     }
 }
 
-// ---- HELPER: Next sequential number ----
+// ---- HELPER: Generate number from ID ----
 
 /**
- * Generate next OS number based on max ID in Supabase.
+ * Generate OS number directly from the Supabase-generated ID.
+ * No extra query needed — eliminates race conditions.
  */
-async function getNextOSNumber() {
-    const { data, error } = await supabaseClient
-        .from('ordens_servico')
-        .select('id')
-        .order('id', { ascending: false })
-        .limit(1)
-        .single();
-    
-    const nextId = (data && !error) ? data.id + 1 : 1;
-    return "OS-" + String(nextId).padStart(4, '0');
+function generateOSNumber(id) {
+    return "OS-" + String(id).padStart(4, '0');
 }
 
 /**
- * Generate next invoice code based on max ID in Supabase.
+ * Generate invoice code directly from the Supabase-generated ID.
  */
-async function getNextFaturaCode() {
-    const { data, error } = await supabaseClient
-        .from('faturas')
-        .select('id')
-        .order('id', { ascending: false })
-        .limit(1)
-        .single();
-    
-    const nextId = (data && !error) ? data.id + 1 : 1;
-    return "FAT-" + String(nextId).padStart(4, '0');
+function generateFaturaCode(id) {
+    return "FAT-" + String(id).padStart(4, '0');
 }
 
 // ---- HELPER: Update local cache after Supabase operation ----
 
 /**
  * After an insert, add the returned record to the local db cache.
+ * Record is already normalized by sbInsert().
  */
 function cacheInsert(table, record) {
+    if (!record) return;
     if (!db[table]) db[table] = [];
     db[table].push(record);
 }
 
 /**
  * After an update, update the record in the local db cache.
+ * Applies normalizeRecord to ensure DECIMAL fields stay as numbers.
  */
 function cacheUpdate(table, id, updates) {
     const arr = db[table];
@@ -243,6 +256,7 @@ function cacheUpdate(table, id, updates) {
     const idx = arr.findIndex(r => r.id === id);
     if (idx !== -1) {
         Object.assign(arr[idx], updates);
+        normalizeRecord(table, arr[idx]);
     }
 }
 
@@ -260,8 +274,10 @@ function cacheDelete(table, id) {
 
 /**
  * After an insert at the beginning (unshift), add to start of cache.
+ * Record is already normalized by sbInsert().
  */
 function cacheUnshift(table, record) {
+    if (!record) return;
     if (!db[table]) db[table] = [];
     db[table].unshift(record);
 }

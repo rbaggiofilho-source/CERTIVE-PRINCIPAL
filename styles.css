@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   --bg-primary: #080d1a;
@@ -32,7 +32,7 @@
   --shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 50px rgba(0, 0, 0, 0.6);
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --font-serif: 'Outfit', sans-serif;
+  --font-primary: 'Outfit', sans-serif;
 }
 
 * {
@@ -67,7 +67,7 @@ body {
 
 /* Elegant Headers styling */
 h1, h2, h3, .serif-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-primary);
   letter-spacing: 0.5px;
 }
 
@@ -752,7 +752,7 @@ h1, h2, h3, .serif-title {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 14px;
-  font-family: var(--font-serif);
+  font-family: var(--font-primary);
 }
 .form-section-title span {
   width: 22px;
@@ -1433,10 +1433,42 @@ h1, h2, h3, .serif-title {
   }
   .sidebar.active {
     transform: translateX(0);
+    z-index: 200;
+  }
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 199;
+  }
+  .sidebar-overlay.active {
+    display: block;
   }
   .main-content {
     margin-left: 0;
   }
+  .btn-hamburger {
+    display: flex !important;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 18px;
+    transition: var(--transition);
+  }
+  .btn-hamburger:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+  }
+}
+.btn-hamburger {
+  display: none;
 }
 @media (max-width: 768px) {
   .kpi-grid {
