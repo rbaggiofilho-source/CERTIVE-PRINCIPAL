@@ -663,7 +663,7 @@ h1, h2, h3, .serif-title {
   transition: var(--transition);
   outline: none;
 }
-.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]),
+.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]):not(#login-username),
 .form-group textarea,
 .search-input {
   text-transform: uppercase;

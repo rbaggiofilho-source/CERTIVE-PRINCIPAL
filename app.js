@@ -9,231 +9,19 @@ let activeUnitId = 1;
 let currentClientType = 'particular'; // 'particular' or 'parceiro'
 let currentSelectedServiceId = null;
 
-// Initialize Database in localStorage
-function initDatabase() {
-    // One-time simulation of reproved OS for user testing
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_simulado_reprovado')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.ordens_servico) {
-                const exists = tempDb.ordens_servico.find(o => o.placa === "REPRO99");
-                if (!exists) {
-                    const osId = tempDb.ordens_servico.length + 2000;
-                    const num = "OS-" + String(osId).padStart(4, '0');
-                    const simulatedOS = {
-                        id: osId,
-                        numero: num,
-                        criadoEm: "2026-06-09T14:00:00.000Z",
-                        criadoPor: "Ana Atendente",
-                        unidadeId: 1, // Matriz São José
-                        clienteTipo: "particular",
-                        parceiroId: null,
-                        clienteNome: "SIMULADO REPROVADO",
-                        clienteCpfCnpj: "11122233344",
-                        clienteCelular: "48999998888",
-                        placa: "REPRO99",
-                        renavam: "12345678901",
-                        servicoId: 1,
-                        servicoNome: "Vistoria de Transferência — Pequeno Porte",
-                        valor: 150.00,
-                        pago: true,
-                        formaPagamento: "pix",
-                        detranRegistrado: true,
-                        docVeiculoApresentado: true,
-                        docIdentificacaoApresentado: true,
-                        status: "concluida_reprovada",
-                        finalizadoEm: "2026-06-09T14:30:00.000Z",
-                        finalizadoPor: "Ana Atendente",
-                        canceladoEm: null,
-                        canceladoPor: null,
-                        reapresentacaoOrigemID: null
-                    };
-                    tempDb.ordens_servico.unshift(simulatedOS);
-
-                    if (tempDb.caixa_movimentos) {
-                        tempDb.caixa_movimentos.push({
-                            id: tempDb.caixa_movimentos.length + 2000,
-                            caixaId: 91,
-                            tipo: "entrada",
-                            valor: 150.00,
-                            descricao: `Serviço Vistoria de Transferência (Placa: REPRO99)`,
-                            formaPagamento: "pix",
-                            data: "2026-06-09T14:00:00.000Z",
-                            operador: "Ana Atendente",
-                            osId: osId,
-                            faturaId: null
-                        });
-                    }
-                    localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                    localStorage.setItem('certive_simulado_reprovado', 'true');
-                }
-            }
-        } catch (e) {
-            console.error("Error seeding simulated OS:", e);
-        }
-    }
-    // One-time correction to reopen today's closed cash drawer for testing
-    const tempLocalDate = new Date();
-    const tempYear = tempLocalDate.getFullYear();
-    const tempMonth = String(tempLocalDate.getMonth() + 1).padStart(2, '0');
-    const tempDay = String(tempLocalDate.getDate()).padStart(2, '0');
-    const tempTodayStr = `${tempYear}-${tempMonth}-${tempDay}`;
-
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_reopened_v3')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.caixa_diario) {
-                tempDb.caixa_diario.forEach(cd => {
-                    if (cd.data === tempTodayStr && cd.status === "fechado") {
-                        cd.status = "aberto";
-                        cd.fechadoPor = null;
-                        cd.fechadoEm = null;
-                    }
-                });
-                localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                localStorage.setItem('certive_reopened_v3', 'true');
-            }
-        } catch (e) {
-            console.error("One-time reopen error:", e);
-        }
-    }
-
-    const isSeeded = localStorage.getItem('certive_db_seeded');
-    
-    if (!isSeeded) {
-        // 1. Seed Units (Filiais)
-        db.unidades = [
-            { id: 1, nome: "Certive Matriz — São José", endereco: "Rua das Camélias - Kobrasol SC" },
-            { id: 2, nome: "Certive Filial — Palhoça", endereco: "Avenida Atílio Pagani, 850, Palhoça - SC" }
-        ];
-
-        // 2. Seed Services
-        db.servicos = [
-            { id: 1, categoria: "Transferência", nome: "Vistoria de Transferência — Pequeno Porte", porte: "Pequeno", precoBalcao: 150.00 },
-            { id: 2, categoria: "Transferência", nome: "Vistoria de Transferência — Médio Porte", porte: "Médio", precoBalcao: 200.00 },
-            { id: 3, categoria: "Transferência", nome: "Vistoria de Transferência — Grande Porte", porte: "Grande", precoBalcao: 280.00 },
-            { id: 4, categoria: "Cautelar", nome: "Vistoria Cautelar", porte: "N/A", precoBalcao: 180.00 },
-            { id: 5, categoria: "Pesquisa", nome: "Pesquisa Veicular", porte: "N/A", precoBalcao: 120.00 },
-            { id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 }
-        ];
-
-        // 3. Seed Reference Tax / Fees (DETRAN-SC / Custos de Terceiros)
-        db.taxas_referencia = [
-            { servicoId: 1, taxa: 27.00 }, // Transferência Pequeno
-            { servicoId: 2, taxa: 27.00 }, // Transferência Médio
-            { servicoId: 3, taxa: 27.00 }, // Transferência Grande
-            { servicoId: 4, taxa: 10.00 }, // Cautelar
-            { servicoId: 5, taxa: 5.00 },  // Pesquisa
-            { servicoId: 6, taxa: 0.00 }   // Exótico
-        ];
-
-        // 4. Seed Operators (Operadores e Permissões)
-        db.operadores = [
-            { id: 1, nome: "Ricardo Administrador", login: "admin", senha: "admin123", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true },
-            { id: 2, nome: "Ana Atendente", login: "atendente", senha: "atendente123", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa"], ativo: true },
-            { id: 3, nome: "Carlos Financeiro", login: "financeiro", senha: "financeiro123", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true }
-        ];
-
-        // 5. Seed Partners (Parceiros Conveniados)
-        db.parceiros = [
-            { 
-                id: 1, 
-                nome: "Autocentro Veículos", 
-                cnpj: "12.345.678/0001-90", 
-                responsavel: "Marcos Almeida",
-                telefone: "(48) 3222-1111", 
-                usaFaturamento: true,
-                observacoes: "Parceiro prioritário da região de São José.",
-                tabelaPrecos: { 1: 130.00, 2: 180.00, 3: 250.00, 4: 150.00, 5: 100.00 } // Preços especiais
-            },
-            { 
-                id: 2, 
-                nome: "Despachante Silva", 
-                cnpj: "98.765.432/0001-10", 
-                responsavel: "Roberto Silva",
-                telefone: "(48) 3333-4444", 
-                usaFaturamento: true,
-                observacoes: "Pagamento faturado quinzenalmente.",
-                tabelaPrecos: { 1: 140.00, 2: 190.00, 3: 260.00, 4: 160.00, 5: 110.00 }
-            },
-            { 
-                id: 3, 
-                nome: "Giga Car Multimarcas", 
-                cnpj: "11.222.333/0001-44", 
-                responsavel: "Carlos Giga",
-                telefone: "(48) 3444-5555", 
-                usaFaturamento: false, // Só paga no balcão
-                observacoes: "Não aceita faturamento. Pagamentos somente à vista.",
-                tabelaPrecos: { 1: 135.00, 2: 185.00, 3: 255.00, 4: 155.00, 5: 105.00 }
-            }
-        ];
-
-        // Empty arrays for seed logic
-        db.ordens_servico = [];
-        db.caixa_diario = [];
-        db.caixa_movimentos = [];
-        db.contas_pagar = [];
-        db.faturas = [];
-        db.auditoria = [];
-
-        // Run Historical Seed Generator
-        seedHistoricalData();
-
-        // Save to LocalStorage
-        saveDatabase();
-        localStorage.setItem('certive_db_seeded', 'true');
-    } else {
-        loadDatabase();
-        // Force update of Unit 1 matrix details if they are still the old ones
-        if (db.unidades && db.unidades[0] && db.unidades[0].id === 1) {
-            db.unidades[0].nome = "Certive Matriz — São José";
-            db.unidades[0].endereco = "Rua das Camélias - Kobrasol SC";
-            saveDatabase();
-        }
-        // Force migration check for partner fields
-        if (db.parceiros) {
-            db.parceiros.forEach(p => {
-                if (p.responsavel === undefined) p.responsavel = "NÃO CADASTRADO";
-                if (p.observacoes === undefined) p.observacoes = "";
-            });
-        }
-        // Force migration check for OS fields
-        if (db.ordens_servico) {
-            db.ordens_servico.forEach(o => {
-                if (o.observacoes === undefined) o.observacoes = "NÃO INFORMADA";
-            });
-        }
-        // Force migration check for accounts payable fields
-        if (db.contas_pagar) {
-            db.contas_pagar.forEach(c => {
-                if (c.observacoes === undefined) c.observacoes = "";
-                if (c.anexo === undefined) c.anexo = null;
-            });
-        }
-        // Force migration check for services (ID 6 - Carros exóticos)
-        if (db.servicos) {
-            const hasExotic = db.servicos.find(s => s.id === 6);
-            if (!hasExotic) {
-                db.servicos.push({ id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 });
-            }
-        }
-        // Force migration check for reference taxes (ID 6 - Carros exóticos)
-        if (db.taxas_referencia) {
-            const hasExoticTax = db.taxas_referencia.find(t => t.servicoId === 6);
-            if (!hasExoticTax) {
-                db.taxas_referencia.push({ servicoId: 6, taxa: 0.00 });
-            }
-        }
-        saveDatabase();
-    }
+// Initialize Database from Supabase
+async function initDatabase() {
+    await loadAllFromSupabase();
+    console.log('[Certive] Database loaded from Supabase:', Object.keys(db).map(k => k + '(' + (db[k]?.length || 0) + ')').join(', '));
 }
 
 function saveDatabase() {
-    localStorage.setItem('certive_db', JSON.stringify(db));
+    // No-op: data is now persisted in Supabase.
+    // Kept as empty function to avoid errors from any remaining calls.
 }
 
-function loadDatabase() {
-    db = JSON.parse(localStorage.getItem('certive_db') || '{}');
+async function loadDatabase() {
+    await loadAllFromSupabase();
 }
 
 // Seed 30 Days of realistic business data
@@ -601,19 +389,24 @@ function formatDateTimeBr(isoString) {
 }
 
 // Audit trail Logger
-function logAudit(acao, descricao) {
+async function logAudit(acao, descricao) {
     const operator = currentSession ? currentSession.nome : "Sistema";
     const log = {
-        id: db.auditoria ? db.auditoria.length + 1 : 1,
         operador: operator,
         data: new Date().toISOString(),
         acao: acao,
         descricao: descricao,
         unidadeId: activeUnitId
     };
-    if (!db.auditoria) db.auditoria = [];
-    db.auditoria.unshift(log);
-    saveDatabase();
+    try {
+        const inserted = await sbInsert('auditoria', log);
+        if (!db.auditoria) db.auditoria = [];
+        cacheUnshift('auditoria', inserted);
+    } catch (e) {
+        console.error('[Certive] logAudit error:', e);
+        if (!db.auditoria) db.auditoria = [];
+        db.auditoria.unshift({ ...log, id: Date.now() });
+    }
 }
 
 // ==========================================
@@ -979,7 +772,7 @@ function clearOSForm() {
     selectClientType('particular');
 }
 
-function submitOSForm() {
+async function submitOSForm() {
     // Check if cash drawer is open for today
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) {
@@ -1022,13 +815,10 @@ function submitOSForm() {
     }
 
     const service = db.servicos.find(s => s.id === currentSelectedServiceId);
-    const osId = db.ordens_servico.length + 1;
-    const num = "OS-" + String(osId).padStart(4, '0');
 
-    // Build OS
+    // Build OS (no id, no numero — Supabase generates id, then we set numero)
     const newOS = {
-        id: osId,
-        numero: num,
+        numero: 'TEMP',
         criadoEm: new Date().toISOString(),
         criadoPor: currentSession.nome,
         unidadeId: activeUnitId,
@@ -1048,7 +838,7 @@ function submitOSForm() {
         detranRegistrado: detran,
         docVeiculoApresentado: true,
         docIdentificacaoApresentado: true,
-        status: "aberta", // Default startup state
+        status: pagamento !== 'faturamento' ? "paga" : "aberta",
         finalizadoEm: null,
         finalizadoPor: null,
         canceladoEm: null,
@@ -1056,37 +846,47 @@ function submitOSForm() {
         reapresentacaoOrigemID: null
     };
 
-    // If payment is immediate, mark payment flow
-    if (newOS.pago) {
-        newOS.status = "paga";
-        
-        // Push movement to daily cash
-        const movId = db.caixa_movimentos.length + 1;
-        db.caixa_movimentos.push({
-            id: movId,
-            caixaId: activeCaixa.id,
-            tipo: "entrada",
-            valor: valor,
-            descricao: `Serviço ${service.nome.split(' — ')[0]} (Placa: ${placa})`,
-            formaPagamento: pagamento,
-            data: new Date().toISOString(),
-            operador: currentSession.nome,
-            osId: osId,
-            faturaId: null
-        });
+    try {
+        // 1. Insert OS into Supabase
+        const insertedOS = await sbInsert('ordens_servico', newOS);
+
+        // 2. Generate numero from Supabase-assigned id and update
+        const num = await getNextOSNumber();
+        const updatedOS = await sbUpdate('ordens_servico', insertedOS.id, { numero: num });
+        insertedOS.numero = num;
+
+        // 3. Add to local cache
+        cacheUnshift('ordens_servico', insertedOS);
+
+        // 4. If payment is immediate, create cash movement
+        if (insertedOS.pago) {
+            const movRecord = {
+                caixaId: activeCaixa.id,
+                tipo: "entrada",
+                valor: valor,
+                descricao: `Serviço ${service.nome.split(' — ')[0]} (Placa: ${placa})`,
+                formaPagamento: pagamento,
+                data: new Date().toISOString(),
+                operador: currentSession.nome,
+                osId: insertedOS.id,
+                faturaId: null
+            };
+            const insertedMov = await sbInsert('caixa_movimentos', movRecord);
+            cacheInsert('caixa_movimentos', insertedMov);
+        }
+
+        showToast(`O.S. registrada com sucesso! Código: ${num}`, "success");
+        logAudit("Abertura OS", `Abriu a ordem ${num} para placa ${placa}.`);
+
+        // Auto trigger print contract
+        printContract(insertedOS);
+
+        clearOSForm();
+        renderAtendimentoPage();
+    } catch (e) {
+        console.error('[Certive] submitOSForm error:', e);
+        showToast("Erro ao salvar OS no servidor. Tente novamente.", "error");
     }
-
-    db.ordens_servico.unshift(newOS);
-    saveDatabase();
-
-    showToast(`O.S. registrada com sucesso! Código: ${num}`, "success");
-    logAudit("Abertura OS", `Abriu a ordem ${num} para placa ${placa}.`);
-    
-    // Auto trigger print contract
-    printContract(newOS);
-
-    clearOSForm();
-    renderAtendimentoPage();
 }
 
 function renderOSPipeline() {
@@ -1227,7 +1027,7 @@ function openConcludeVistoriaModal(osId) {
 }
 
 // Submit and validate conclusion answers
-function submitConcludeVistoria(osId, approved) {
+async function submitConcludeVistoria(osId, approved) {
     const os = db.ordens_servico.find(o => o.id === osId);
     if (!os) return;
 
@@ -1242,7 +1042,6 @@ function submitConcludeVistoria(osId, approved) {
             return;
         }
         ans = sim ? "SIM" : "NAO";
-        os.respostaDetranNet = ans;
     } else if (service.categoria === "Cautelar") {
         const sim = document.getElementById('qst-shopping-sim').checked;
         const nao = document.getElementById('qst-shopping-nao').checked;
@@ -1251,25 +1050,34 @@ function submitConcludeVistoria(osId, approved) {
             return;
         }
         ans = sim ? "SIM" : "NAO";
-        os.respostaShopping = ans;
     }
 
-    // Save final status
-    os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
-    os.finalizadoEm = new Date().toISOString();
-    os.finalizadoPor = currentSession.nome;
+    const updates = {
+        status: approved ? "concluida_aprovada" : "concluida_reprovada",
+        finalizadoEm: new Date().toISOString(),
+        finalizadoPor: currentSession.nome
+    };
+    if (ans && service.categoria === "Transferência") updates.respostaDetranNet = ans;
+    if (ans && service.categoria === "Cautelar") updates.respostaShopping = ans;
 
-    saveDatabase();
-    showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
-    
-    let auditMsg = `Concluiu a OS ${os.numero} (Placa: ${os.placa}) como ${approved ? 'APROVADO' : 'REPROVADO'}.`;
-    if (ans) {
-        auditMsg += ` Checklist de encerramento respondido: ${ans}.`;
+    try {
+        await sbUpdate('ordens_servico', osId, updates);
+        cacheUpdate('ordens_servico', osId, updates);
+
+        showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
+
+        let auditMsg = `Concluiu a OS ${os.numero} (Placa: ${os.placa}) como ${approved ? 'APROVADO' : 'REPROVADO'}.`;
+        if (ans) {
+            auditMsg += ` Checklist de encerramento respondido: ${ans}.`;
+        }
+        logAudit("Laudo Emissão", auditMsg);
+
+        closeOSModal();
+        renderAtendimentoPage();
+    } catch (e) {
+        console.error('[Certive] submitConcludeVistoria error:', e);
+        showToast("Erro ao concluir vistoria no servidor.", "error");
     }
-    logAudit("Laudo Emissão", auditMsg);
-    
-    closeOSModal();
-    renderAtendimentoPage();
 }
 
 // OS Details Modal
@@ -1436,86 +1244,112 @@ function closeOSModal(e) {
     document.getElementById('modal-os-detalhes').classList.remove('active');
 }
 
-function changeOSStatus(id, newStatus) {
+async function changeOSStatus(id, newStatus) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
-    os.status = newStatus;
-    
-    // If transitioned to paga, create financial movement
-    if (newStatus === 'paga') {
-        os.pago = true;
-        const activeCaixa = getTodayOpenCaixa();
-        if (activeCaixa) {
-            db.caixa_movimentos.push({
-                id: db.caixa_movimentos.length + 1,
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: os.valor,
-                descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                formaPagamento: os.formaPagamento,
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: os.id,
-                faturaId: null
-            });
-        }
-    }
+    try {
+        const updates = { status: newStatus };
 
-    saveDatabase();
-    showToast(`O.S. ${os.numero} movida para ${newStatus.toUpperCase()}`, "success");
-    logAudit("Atualização OS", `Alterou status da ${os.numero} para ${newStatus}.`);
-    closeOSModal();
-    renderAtendimentoPage();
+        // If transitioned to paga, create financial movement
+        if (newStatus === 'paga') {
+            updates.pago = true;
+            const activeCaixa = getTodayOpenCaixa();
+            if (activeCaixa) {
+                const movRecord = {
+                    caixaId: activeCaixa.id,
+                    tipo: "entrada",
+                    valor: os.valor,
+                    descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
+                    formaPagamento: os.formaPagamento,
+                    data: new Date().toISOString(),
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                };
+                const insertedMov = await sbInsert('caixa_movimentos', movRecord);
+                cacheInsert('caixa_movimentos', insertedMov);
+            }
+        }
+
+        await sbUpdate('ordens_servico', id, updates);
+        cacheUpdate('ordens_servico', id, updates);
+
+        showToast(`O.S. ${os.numero} movida para ${newStatus.toUpperCase()}`, "success");
+        logAudit("Atualização OS", `Alterou status da ${os.numero} para ${newStatus}.`);
+        closeOSModal();
+        renderAtendimentoPage();
+    } catch (e) {
+        console.error('[Certive] changeOSStatus error:', e);
+        showToast("Erro ao alterar status da OS.", "error");
+    }
 }
 
-function finalizeVistoria(id, approved) {
+async function finalizeVistoria(id, approved) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
-    os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
-    os.finalizadoEm = new Date().toISOString();
-    os.finalizadoPor = currentSession.nome;
+    const updates = {
+        status: approved ? "concluida_aprovada" : "concluida_reprovada",
+        finalizadoEm: new Date().toISOString(),
+        finalizadoPor: currentSession.nome
+    };
 
-    saveDatabase();
-    showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
-    logAudit("Laudo Emissão", `Laudou a OS ${os.numero} como ${approved ? 'APROVADO' : 'REPROVADO'}.`);
-    closeOSModal();
-    renderAtendimentoPage();
+    try {
+        await sbUpdate('ordens_servico', id, updates);
+        cacheUpdate('ordens_servico', id, updates);
+
+        showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
+        logAudit("Laudo Emissão", `Laudou a OS ${os.numero} como ${approved ? 'APROVADO' : 'REPROVADO'}.`);
+        closeOSModal();
+        renderAtendimentoPage();
+    } catch (e) {
+        console.error('[Certive] finalizeVistoria error:', e);
+        showToast("Erro ao finalizar vistoria.", "error");
+    }
 }
 
-function cancelOS(id) {
+async function cancelOS(id) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
-    // Estorno do Caixa if paid
-    if (os.pago && os.formaPagamento !== 'faturamento') {
-        const activeCaixa = getTodayOpenCaixa();
-        if (activeCaixa) {
-            db.caixa_movimentos.push({
-                id: db.caixa_movimentos.length + 1,
-                caixaId: activeCaixa.id,
-                tipo: "saida",
-                valor: os.valor,
-                descricao: `Estorno OS ${os.numero} (Venda Cancelada)`,
-                formaPagamento: os.formaPagamento,
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: os.id,
-                faturaId: null
-            });
+    try {
+        // Estorno do Caixa if paid
+        if (os.pago && os.formaPagamento !== 'faturamento') {
+            const activeCaixa = getTodayOpenCaixa();
+            if (activeCaixa) {
+                const movRecord = {
+                    caixaId: activeCaixa.id,
+                    tipo: "saida",
+                    valor: os.valor,
+                    descricao: `Estorno OS ${os.numero} (Venda Cancelada)`,
+                    formaPagamento: os.formaPagamento,
+                    data: new Date().toISOString(),
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                };
+                const insertedMov = await sbInsert('caixa_movimentos', movRecord);
+                cacheInsert('caixa_movimentos', insertedMov);
+            }
         }
+
+        const updates = {
+            status: "cancelada",
+            canceladoEm: new Date().toISOString(),
+            canceladoPor: currentSession.nome
+        };
+        await sbUpdate('ordens_servico', id, updates);
+        cacheUpdate('ordens_servico', id, updates);
+
+        showToast(`O.S. ${os.numero} cancelada. Venda estornada do caixa.`, "error");
+        logAudit("Cancelamento OS", `Cancelou a OS ${os.numero} (placa ${os.placa}).`);
+        closeOSModal();
+        renderAtendimentoPage();
+    } catch (e) {
+        console.error('[Certive] cancelOS error:', e);
+        showToast("Erro ao cancelar OS.", "error");
     }
-
-    os.status = "cancelada";
-    os.canceladoEm = new Date().toISOString();
-    os.canceladoPor = currentSession.nome;
-
-    saveDatabase();
-    showToast(`O.S. ${os.numero} cancelada. Venda estornada do caixa.`, "error");
-    logAudit("Cancelamento OS", `Cancelou a OS ${os.numero} (placa ${os.placa}).`);
-    closeOSModal();
-    renderAtendimentoPage();
 }
 
 function openEditOSModal(id) {
@@ -1587,7 +1421,7 @@ function updateEditOSPrice() {
     priceInput.disabled = (os.clienteTipo === 'parceiro');
 }
 
-function submitEditOSForm(event) {
+async function submitEditOSForm(event) {
     event.preventDefault();
     const id = parseInt(document.getElementById('edit-os-id').value);
     const os = db.ordens_servico.find(o => o.id === id);
@@ -1615,33 +1449,41 @@ function submitEditOSForm(event) {
     }
 
     const service = db.servicos.find(s => s.id === serviceId);
-    
-    os.clienteNome = nome;
-    os.clienteCpfCnpj = cpf;
-    os.clienteCellular = cel;
-    os.clienteCelular = cel;
-    os.placa = placa;
-    os.renavam = renavam;
-    os.observacoes = obs;
-    os.servicoId = service.id;
-    os.servicoNome = service.nome;
-    os.valor = valor;
-    os.formaPagamento = pagamento;
-    os.detranRegistrado = detran;
 
-    saveDatabase();
-    showToast("Ordem de Serviço editada com sucesso!", "success");
-    logAudit("Edição OS", `Editou os dados da OS ${os.numero} (Placa: ${os.placa}).`);
-    
-    closeEditOSModal();
-    closeOSModal();
-    renderAtendimentoPage();
-    if (document.getElementById('panel-historico').classList.contains('active')) {
-        renderHistorico();
+    const updates = {
+        clienteNome: nome,
+        clienteCpfCnpj: cpf,
+        clienteCelular: cel,
+        placa: placa,
+        renavam: renavam,
+        observacoes: obs,
+        servicoId: service.id,
+        servicoNome: service.nome,
+        valor: valor,
+        formaPagamento: pagamento,
+        detranRegistrado: detran
+    };
+
+    try {
+        await sbUpdate('ordens_servico', id, updates);
+        cacheUpdate('ordens_servico', id, updates);
+
+        showToast("Ordem de Serviço editada com sucesso!", "success");
+        logAudit("Edição OS", `Editou os dados da OS ${os.numero} (Placa: ${placa}).`);
+
+        closeEditOSModal();
+        closeOSModal();
+        renderAtendimentoPage();
+        if (document.getElementById('panel-historico').classList.contains('active')) {
+            renderHistorico();
+        }
+    } catch (e) {
+        console.error('[Certive] submitEditOSForm error:', e);
+        showToast("Erro ao editar OS.", "error");
     }
 }
 
-function deleteOS(id) {
+async function deleteOS(id) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
     
@@ -1651,18 +1493,21 @@ function deleteOS(id) {
     }
 
     if (confirm(`Tem certeza que deseja excluir permanentemente a OS ${os.numero}? Esta ação não poderá ser desfeita.`)) {
-        const index = db.ordens_servico.findIndex(o => o.id === id);
-        if (index !== -1) {
-            db.ordens_servico.splice(index, 1);
-            saveDatabase();
+        try {
+            await sbDelete('ordens_servico', id);
+            cacheDelete('ordens_servico', id);
+
             showToast(`OS ${os.numero} excluída com sucesso!`, "success");
             logAudit("Exclusão OS", `Excluiu permanentemente a OS ${os.numero} (Placa: ${os.placa}).`);
-            
+
             closeOSModal();
             renderAtendimentoPage();
             if (document.getElementById('panel-historico').classList.contains('active')) {
                 renderHistorico();
             }
+        } catch (e) {
+            console.error('[Certive] deleteOS error:', e);
+            showToast("Erro ao excluir OS.", "error");
         }
     }
 }
@@ -1823,7 +1668,7 @@ function triggerRecheckOS(parentOsId) {
 
 // Intercept submission to append recheck link
 const originalSubmitOSForm = submitOSForm;
-submitOSForm = function() {
+submitOSForm = async function() {
     const activeOrigemId = window.activeRecheckOrigemId;
     if (activeOrigemId) {
         // Create OS
@@ -1841,9 +1686,6 @@ submitOSForm = function() {
         const cel = document.getElementById('os-celular-cliente').value.trim();
         const obs = document.getElementById('os-obs').value.trim();
         const service = db.servicos.find(s => s.id === currentSelectedServiceId);
-        
-        const osId = db.ordens_servico.length + 1;
-        const num = "OS-" + String(osId).padStart(4, '0');
 
         if (!placa || !renavam || !nome || !cpf || !cel || !obs) {
             showToast("Preencha todos os campos do solicitante, veículo e observações.", "error");
@@ -1851,8 +1693,7 @@ submitOSForm = function() {
         }
 
         const newOS = {
-            id: osId,
-            numero: num,
+            numero: 'TEMP',
             criadoEm: new Date().toISOString(),
             criadoPor: currentSession.nome,
             unidadeId: activeUnitId,
@@ -1880,38 +1721,48 @@ submitOSForm = function() {
             reapresentacaoOrigemID: activeOrigemId
         };
 
-        db.ordens_servico.unshift(newOS);
-        
-        // Link original OS (mark as reapresentada)
-        const originalOS = db.ordens_servico.find(o => o.id === activeOrigemId);
-        if (originalOS) {
-            originalOS.reapresentadaData = new Date().toISOString();
-        }
+        try {
+            const insertedOS = await sbInsert('ordens_servico', newOS);
+            const num = await getNextOSNumber();
+            await sbUpdate('ordens_servico', insertedOS.id, { numero: num });
+            insertedOS.numero = num;
+            cacheUnshift('ordens_servico', insertedOS);
 
-        saveDatabase();
-        showToast(`Reapresentação registrada com sucesso! ${num}`, "success");
-        logAudit("Reapresentação OS", `Registrou reapresentação gratuita ${num} referente a ${originalOS.numero}.`);
-        
-        // Print
-        printContract(newOS);
-        
-        // Clean up
-        window.activeRecheckOrigemId = null;
-        
-        // Restore payment select options
-        const paymentSelect = document.getElementById('os-pagamento');
-        paymentSelect.innerHTML = `
-            <option value="pix">Pix (Transferência Online)</option>
-            <option value="debito">Cartão de Débito</option>
-            <option value="credito">Cartão de Crédito</option>
-            <option value="especie">Dinheiro (Espécie)</option>
-            <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
-        `;
-        
-        clearOSForm();
-        renderAtendimentoPage();
+            // Link original OS (mark as reapresentada)
+            const originalOS = db.ordens_servico.find(o => o.id === activeOrigemId);
+            if (originalOS) {
+                const reapData = new Date().toISOString();
+                await sbUpdate('ordens_servico', activeOrigemId, { reapresentadaData: reapData });
+                cacheUpdate('ordens_servico', activeOrigemId, { reapresentadaData: reapData });
+            }
+
+            showToast(`Reapresentação registrada com sucesso! ${num}`, "success");
+            logAudit("Reapresentação OS", `Registrou reapresentação gratuita ${num} referente a ${originalOS ? originalOS.numero : activeOrigemId}.`);
+
+            // Print
+            printContract(insertedOS);
+
+            // Clean up
+            window.activeRecheckOrigemId = null;
+
+            // Restore payment select options
+            const paymentSelect = document.getElementById('os-pagamento');
+            paymentSelect.innerHTML = `
+                <option value="pix">Pix (Transferência Online)</option>
+                <option value="debito">Cartão de Débito</option>
+                <option value="credito">Cartão de Crédito</option>
+                <option value="especie">Dinheiro (Espécie)</option>
+                <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
+            `;
+
+            clearOSForm();
+            renderAtendimentoPage();
+        } catch (e) {
+            console.error('[Certive] triggerRecheckOS error:', e);
+            showToast("Erro ao registrar reapresentação.", "error");
+        }
     } else {
-        originalSubmitOSForm();
+        await originalSubmitOSForm();
     }
 };
 
@@ -2063,25 +1914,29 @@ function renderCaixaPage() {
     renderCaixaMovimentos(activeCaixa);
 }
 
-function openTodayCaixaDrawer() {
+async function openTodayCaixaDrawer() {
     const today = new Date().toISOString().split('T')[0];
     const newDrawer = {
-        id: db.caixa_diario.length + 1,
         unidadeId: activeUnitId,
         data: today,
         status: "aberto",
         abertoPor: currentSession.nome,
         fechadoPor: null,
         saldoAbertura: 200.00,
-        saldoEspécieInformado: 0,
+        "saldoEspécieInformado": 0,
         fechadoEm: null
     };
 
-    db.caixa_diario.push(newDrawer);
-    saveDatabase();
-    showToast("Caixa diário aberto com fundo inicial de R$ 200,00.", "success");
-    logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
-    renderCaixaPage();
+    try {
+        const inserted = await sbInsert('caixa_diario', newDrawer);
+        cacheInsert('caixa_diario', inserted);
+        showToast("Caixa diário aberto com fundo inicial de R$ 200,00.", "success");
+        logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
+        renderCaixaPage();
+    } catch (e) {
+        console.error('[Certive] openTodayCaixaDrawer error:', e);
+        showToast("Erro ao abrir caixa.", "error");
+    }
 }
 
 function renderCaixaKPIs(activeCaixa) {
@@ -2175,7 +2030,7 @@ function adjustMovForm(type) {
     }
 }
 
-function submitCaixaMov(event) {
+async function submitCaixaMov(event) {
     event.preventDefault();
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
@@ -2197,9 +2052,7 @@ function submitCaixaMov(event) {
         finalDesc = `Aporte Faturamento: ${partner.nome} — ${desc}`;
     }
 
-    const movId = db.caixa_movimentos.length + 1;
-    db.caixa_movimentos.push({
-        id: movId,
+    const movRecord = {
         caixaId: activeCaixa.id,
         tipo: tipo,
         valor: valor,
@@ -2209,31 +2062,42 @@ function submitCaixaMov(event) {
         operador: currentSession.nome,
         osId: null,
         faturaId: null
-    });
+    };
 
-    saveDatabase();
-    showToast("Movimentação manual lançada com sucesso!", "success");
-    logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
+    try {
+        const inserted = await sbInsert('caixa_movimentos', movRecord);
+        cacheInsert('caixa_movimentos', inserted);
 
-    document.getElementById('caixa-mov-form').reset();
-    adjustMovForm('saida');
-    renderCaixaPage();
+        showToast("Movimentação manual lançada com sucesso!", "success");
+        logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
+
+        document.getElementById('caixa-mov-form').reset();
+        adjustMovForm('saida');
+        renderCaixaPage();
+    } catch (e) {
+        console.error('[Certive] submitCaixaMov error:', e);
+        showToast("Erro ao lançar movimentação.", "error");
+    }
 }
 
-function deleteCaixaMov(id) {
-    const index = db.caixa_movimentos.findIndex(m => m.id === id);
-    if (index === -1) return;
+async function deleteCaixaMov(id) {
+    const mov = db.caixa_movimentos.find(m => m.id === id);
+    if (!mov) return;
 
-    const mov = db.caixa_movimentos[index];
-    db.caixa_movimentos.splice(index, 1);
-    saveDatabase();
-    
-    showToast("Lançamento manual removido.", "info");
-    logAudit("Remoção Movimento", `Removeu lançamento: ${mov.descricao}`);
-    renderCaixaPage();
+    try {
+        await sbDelete('caixa_movimentos', id);
+        cacheDelete('caixa_movimentos', id);
+
+        showToast("Lançamento manual removido.", "info");
+        logAudit("Remoção Movimento", `Removeu lançamento: ${mov.descricao}`);
+        renderCaixaPage();
+    } catch (e) {
+        console.error('[Certive] deleteCaixaMov error:', e);
+        showToast("Erro ao remover lançamento.", "error");
+    }
 }
 
-function submitFecharCaixa(event) {
+async function submitFecharCaixa(event) {
     event.preventDefault();
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
@@ -2257,17 +2121,26 @@ function submitFecharCaixa(event) {
     `;
 
     if (confirm(confirmMsg)) {
-        activeCaixa.status = "fechado";
-        activeCaixa.saldoEspécieInformado = saldoFisico;
-        activeCaixa.fechadoPor = currentSession.nome;
-        activeCaixa.fechadoEm = new Date().toISOString();
+        const updates = {
+            status: "fechado",
+            "saldoEspécieInformado": saldoFisico,
+            fechadoPor: currentSession.nome,
+            fechadoEm: new Date().toISOString()
+        };
 
-        saveDatabase();
-        showToast("Caixa diário fechado com sucesso!", "success");
-        logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)}.`);
-        
-        document.getElementById('caixa-fechar-form').reset();
-        renderCaixaPage();
+        try {
+            await sbUpdate('caixa_diario', activeCaixa.id, updates);
+            cacheUpdate('caixa_diario', activeCaixa.id, updates);
+
+            showToast("Caixa diário fechado com sucesso!", "success");
+            logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)}.`);
+
+            document.getElementById('caixa-fechar-form').reset();
+            renderCaixaPage();
+        } catch (e) {
+            console.error('[Certive] submitFecharCaixa error:', e);
+            showToast("Erro ao fechar caixa.", "error");
+        }
     }
 }
 
@@ -2633,7 +2506,7 @@ function closeFatModal(e) {
     document.getElementById('modal-faturamento-fechar').classList.remove('active');
 }
 
-function submitGirarFatura(event) {
+async function submitGirarFatura(event) {
     event.preventDefault();
     const partnerId = parseInt(document.getElementById('fat-modal-parceiro-id').value);
     const dateIni = document.getElementById('fat-modal-inicio').value;
@@ -2643,13 +2516,9 @@ function submitGirarFatura(event) {
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
     const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
 
-    const fatId = db.faturas.length + 1;
-    const code = "FAT-" + String(fatId).padStart(4, '0');
-
-    // Create Invoice
+    // Create Invoice (no id, no codigo — Supabase generates id, then we set codigo)
     const newInvoice = {
-        id: fatId,
-        codigo: code,
+        codigo: 'TEMP',
         parceiroId: partnerId,
         unidadeId: activeUnitId,
         periodoInicio: dateIni,
@@ -2662,19 +2531,28 @@ function submitGirarFatura(event) {
         criadoPor: currentSession.nome
     };
 
-    db.faturas.push(newInvoice);
-    
-    // Link OSs to invoice
-    selectedOSs.forEach(o => {
-        o.faturaId = fatId;
-    });
+    try {
+        const insertedFat = await sbInsert('faturas', newInvoice);
+        const code = await getNextFaturaCode();
+        await sbUpdate('faturas', insertedFat.id, { codigo: code });
+        insertedFat.codigo = code;
+        cacheInsert('faturas', insertedFat);
 
-    saveDatabase();
-    showToast(`Fatura ${code} gerada com sucesso!`, "success");
-    logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value}.`);
-    
-    closeFatModal();
-    renderFaturamentoPage();
+        // Link OSs to invoice
+        for (const o of selectedOSs) {
+            await sbUpdate('ordens_servico', o.id, { faturaId: insertedFat.id });
+            cacheUpdate('ordens_servico', o.id, { faturaId: insertedFat.id });
+        }
+
+        showToast(`Fatura ${code} gerada com sucesso!`, "success");
+        logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value}.`);
+
+        closeFatModal();
+        renderFaturamentoPage();
+    } catch (e) {
+        console.error('[Certive] submitGirarFatura error:', e);
+        showToast("Erro ao gerar fatura.", "error");
+    }
 }
 
 function renderFatFaturas() {
@@ -2715,7 +2593,7 @@ function renderFatFaturas() {
     }).join('');
 }
 
-function liquidateInvoice(invoiceId) {
+async function liquidateInvoice(invoiceId) {
     // Requires an open cashier drawer to inject faturamento payments
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) {
@@ -2727,35 +2605,42 @@ function liquidateInvoice(invoiceId) {
     if (!invoice) return;
 
     if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
-        invoice.pago = true;
-        invoice.pagoEm = new Date().toISOString();
+        try {
+            // Update invoice as paid
+            const fatUpdates = { pago: true, pagoEm: new Date().toISOString() };
+            await sbUpdate('faturas', invoiceId, fatUpdates);
+            cacheUpdate('faturas', invoiceId, fatUpdates);
 
-        // Mark all related OSs as settled/pago
-        invoice.ordensIds.forEach(id => {
-            const os = db.ordens_servico.find(o => o.id === id);
-            if (os) os.pago = true;
-        });
+            // Mark all related OSs as settled/pago
+            for (const id of invoice.ordensIds) {
+                await sbUpdate('ordens_servico', id, { pago: true });
+                cacheUpdate('ordens_servico', id, { pago: true });
+            }
 
-        // Insert cash drawer inflow (Pix by default)
-        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-        db.caixa_movimentos.push({
-            id: db.caixa_movimentos.length + 1,
-            caixaId: activeCaixa.id,
-            tipo: "entrada",
-            valor: invoice.valorTotal,
-            descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
-            formaPagamento: "pix",
-            data: new Date().toISOString(),
-            operador: currentSession.nome,
-            osId: null,
-            faturaId: invoice.id
-        });
+            // Insert cash drawer inflow (Pix by default)
+            const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+            const movRecord = {
+                caixaId: activeCaixa.id,
+                tipo: "entrada",
+                valor: invoice.valorTotal,
+                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
+                formaPagamento: "pix",
+                data: new Date().toISOString(),
+                operador: currentSession.nome,
+                osId: null,
+                faturaId: invoice.id
+            };
+            const insertedMov = await sbInsert('caixa_movimentos', movRecord);
+            cacheInsert('caixa_movimentos', insertedMov);
 
-        saveDatabase();
-        showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
-        logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
-        
-        renderFatFaturas();
+            showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
+            logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
+
+            renderFatFaturas();
+        } catch (e) {
+            console.error('[Certive] liquidateInvoice error:', e);
+            showToast("Erro ao liquidar fatura.", "error");
+        }
     }
 }
 
@@ -2943,9 +2828,8 @@ function submitDespesaForm(event) {
         return;
     }
 
-    const saveExpense = (anexoData = null) => {
+    const saveExpense = async (anexoData = null) => {
         const newExpense = {
-            id: db.contas_pagar.length + 1,
             unidadeId: activeUnitId,
             descricao: desc,
             tipo: "fixo",
@@ -2957,14 +2841,19 @@ function submitDespesaForm(event) {
             pagoEm: null
         };
 
-        db.contas_pagar.push(newExpense);
-        saveDatabase();
+        try {
+            const inserted = await sbInsert('contas_pagar', newExpense);
+            cacheInsert('contas_pagar', inserted);
 
-        showToast("Despesa cadastrada com sucesso!", "success");
-        logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
-        
-        document.getElementById('despesa-form').reset();
-        renderContasGerais();
+            showToast("Despesa cadastrada com sucesso!", "success");
+            logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
+
+            document.getElementById('despesa-form').reset();
+            renderContasGerais();
+        } catch (e) {
+            console.error('[Certive] saveExpense error:', e);
+            showToast("Erro ao cadastrar despesa.", "error");
+        }
     };
 
     if (file) {
@@ -2986,18 +2875,27 @@ function submitDespesaForm(event) {
     }
 }
 
-function payExpense(id) {
+async function payExpense(id) {
     const expense = db.contas_pagar.find(c => c.id === id);
     if (!expense) return;
 
     if (confirm(`Confirmar pagamento da despesa "${expense.descricao}" no valor de ${formatCurrency(expense.valor)}?`)) {
-        expense.pago = true;
-        expense.pagoEm = new Date().toISOString().split('T')[0];
-        
-        saveDatabase();
-        showToast("Despesa marcada como paga!", "success");
-        logAudit("Pagamento Despesa", `Marcou despesa como paga: ${expense.descricao}.`);
-        renderContasGerais();
+        const updates = {
+            pago: true,
+            pagoEm: new Date().toISOString().split('T')[0]
+        };
+
+        try {
+            await sbUpdate('contas_pagar', id, updates);
+            cacheUpdate('contas_pagar', id, updates);
+
+            showToast("Despesa marcada como paga!", "success");
+            logAudit("Pagamento Despesa", `Marcou despesa como paga: ${expense.descricao}.`);
+            renderContasGerais();
+        } catch (e) {
+            console.error('[Certive] payExpense error:', e);
+            showToast("Erro ao pagar despesa.", "error");
+        }
     }
 }
 
@@ -3068,7 +2966,7 @@ function calcularCustosDetran() {
 
     db.servicos.forEach(s => {
         const count = monthlyOSs.filter(o => o.servicoId === s.id && o.valor > 0).length; // ignore rechecks which are free
-        const taxRate = db.taxas_referencia.find(t => t.servicoId === s.id)?.tax || 0;
+        const taxRate = db.taxas_referencia.find(t => t.servicoId === s.id)?.taxa || 0;
         const subtotal = count * taxRate;
         grandTotal += subtotal;
 
@@ -3118,7 +3016,7 @@ function calcularCustosDetran() {
     }
 }
 
-function lancarFaturaDetran() {
+async function lancarFaturaDetran() {
     const val = window.activeDetranConsolidationVal;
     const monthLabel = window.activeDetranMonthLabel;
     const year = window.activeDetranYear;
@@ -3129,23 +3027,27 @@ function lancarFaturaDetran() {
     }
 
     const newPayable = {
-        id: db.contas_pagar.length + 1,
         unidadeId: activeUnitId,
         descricao: `Taxas DETRAN-SC — Consolidação ${monthLabel}/${year}`,
         tipo: "variavel",
-        vencimento: `${year}-${document.getElementById('detran-calculo-mes').value}-28`, // arbitrary due date
+        vencimento: `${year}-${document.getElementById('detran-calculo-mes').value}-28`,
         valor: val,
         pago: false,
         pagoEm: null
     };
 
-    db.contas_pagar.push(newPayable);
-    saveDatabase();
-    
-    showToast("Guia consolidada enviada para o Financeiro com sucesso!", "success");
-    logAudit("Consolidação DETRAN", `Gerou taxa DETRAN do mês de ${monthLabel}/${year} consolidada no valor de ${formatCurrency(val)}.`);
+    try {
+        const inserted = await sbInsert('contas_pagar', newPayable);
+        cacheInsert('contas_pagar', inserted);
 
-    calcularCustosDetran();
+        showToast("Guia consolidada enviada para o Financeiro com sucesso!", "success");
+        logAudit("Consolidação DETRAN", `Gerou taxa DETRAN do mês de ${monthLabel}/${year} consolidada no valor de ${formatCurrency(val)}.`);
+
+        calcularCustosDetran();
+    } catch (e) {
+        console.error('[Certive] lancarFaturaDetran error:', e);
+        showToast("Erro ao lançar guia DETRAN.", "error");
+    }
 }
 
 // ==========================================
@@ -3200,7 +3102,7 @@ function renderBI() {
     
     // Variable DETRAN taxes for the selected OS list (count * tax references)
     const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
-        const tax = db.taxas_referencia.find(t => t.servicoId === o.servicoId)?.tax || 0;
+        const tax = db.taxas_referencia.find(t => t.servicoId === o.servicoId)?.taxa || 0;
         return sum + (o.valor > 0 ? tax : 0); // Ignore free rechecks
     }, 0);
 
@@ -3420,7 +3322,7 @@ function renderConfigPrecos() {
     `).join('');
 
     taxasContainer.innerHTML = db.servicos.map(s => {
-        const tax = db.taxas_referencia.find(t => t.servicoId === s.id)?.tax || 0;
+        const tax = db.taxas_referencia.find(t => t.servicoId === s.id)?.taxa || 0;
         return `
             <div class="form-group">
                 <label>Taxa Órgão — ${s.nome.split(' — ')[0]}</label>
@@ -3430,29 +3332,39 @@ function renderConfigPrecos() {
     }).join('');
 }
 
-function submitConfigPrecos(event) {
+async function submitConfigPrecos(event) {
     event.preventDefault();
-    db.servicos.forEach(s => {
-        const val = parseFloat(document.querySelector(`input[name="cfg-svc-${s.id}"]`).value);
-        s.precoBalcao = val;
-    });
-
-    saveDatabase();
-    showToast("Tabela de preços de balcão atualizada com sucesso!", "success");
-    logAudit("Ajuste Preço", "Alterou valores da tabela de balcão.");
+    try {
+        for (const s of db.servicos) {
+            const val = parseFloat(document.querySelector(`input[name="cfg-svc-${s.id}"]`).value);
+            await sbUpdate('servicos', s.id, { precoBalcao: val });
+            cacheUpdate('servicos', s.id, { precoBalcao: val });
+        }
+        showToast("Tabela de preços de balcão atualizada com sucesso!", "success");
+        logAudit("Ajuste Preço", "Alterou valores da tabela de balcão.");
+    } catch (e) {
+        console.error('[Certive] submitConfigPrecos error:', e);
+        showToast("Erro ao salvar preços.", "error");
+    }
 }
 
-function submitConfigTaxas(event) {
+async function submitConfigTaxas(event) {
     event.preventDefault();
-    db.servicos.forEach(s => {
-        const val = parseFloat(document.querySelector(`input[name="cfg-tax-${s.id}"]`).value);
-        const refTax = db.taxas_referencia.find(t => t.servicoId === s.id);
-        if (refTax) refTax.tax = val;
-    });
-
-    saveDatabase();
-    showToast("Tabela de taxas de concessão do órgão atualizada!", "success");
-    logAudit("Ajuste Taxa", "Alterou taxas de referência do DETRAN.");
+    try {
+        for (const s of db.servicos) {
+            const val = parseFloat(document.querySelector(`input[name="cfg-tax-${s.id}"]`).value);
+            const refTax = db.taxas_referencia.find(t => t.servicoId === s.id);
+            if (refTax) {
+                await sbUpdate('taxas_referencia', refTax.id, { taxa: val });
+                cacheUpdate('taxas_referencia', refTax.id, { taxa: val });
+            }
+        }
+        showToast("Tabela de taxas de concessão do órgão atualizada!", "success");
+        logAudit("Ajuste Taxa", "Alterou taxas de referência do DETRAN.");
+    } catch (e) {
+        console.error('[Certive] submitConfigTaxas error:', e);
+        showToast("Erro ao salvar taxas.", "error");
+    }
 }
 
 // Config: Parceiros Conveniados
@@ -3492,7 +3404,7 @@ function renderConfigParceiros() {
     }
 }
 
-function submitConfigPartner(event) {
+async function submitConfigPartner(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-part-nome').value.trim();
     const cnpj = document.getElementById('cfg-part-cnpj').value.trim();
@@ -3509,24 +3421,7 @@ function submitConfigPartner(event) {
     });
 
     if (window.editingPartnerId) {
-        const partner = db.parceiros.find(p => p.id === window.editingPartnerId);
-        if (partner) {
-            partner.nome = nome;
-            partner.cnpj = cnpj;
-            partner.responsavel = responsavel;
-            partner.telefone = tel;
-            partner.usaFaturamento = fat;
-            partner.observacoes = obs;
-            partner.tabelaPrecos = customPrecos;
-
-            saveDatabase();
-            showToast("Cadastro de parceiro atualizado com sucesso!", "success");
-            logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
-            cancelEditPartner();
-        }
-    } else {
-        const newPartner = {
-            id: db.parceiros.length + 1,
+        const updates = {
             nome: nome,
             cnpj: cnpj,
             responsavel: responsavel,
@@ -3536,14 +3431,41 @@ function submitConfigPartner(event) {
             tabelaPrecos: customPrecos
         };
 
-        db.parceiros.push(newPartner);
-        saveDatabase();
-        
-        showToast("Parceiro conveniado adicionado com sucesso!", "success");
-        logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome}.`);
+        try {
+            await sbUpdate('parceiros', window.editingPartnerId, updates);
+            cacheUpdate('parceiros', window.editingPartnerId, updates);
 
-        document.getElementById('config-partner-form').reset();
-        renderConfigParceiros();
+            showToast("Cadastro de parceiro atualizado com sucesso!", "success");
+            logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
+            cancelEditPartner();
+        } catch (e) {
+            console.error('[Certive] submitConfigPartner (edit) error:', e);
+            showToast("Erro ao atualizar parceiro.", "error");
+        }
+    } else {
+        const newPartner = {
+            nome: nome,
+            cnpj: cnpj,
+            responsavel: responsavel,
+            telefone: tel,
+            usaFaturamento: fat,
+            observacoes: obs,
+            tabelaPrecos: customPrecos
+        };
+
+        try {
+            const inserted = await sbInsert('parceiros', newPartner);
+            cacheInsert('parceiros', inserted);
+
+            showToast("Parceiro conveniado adicionado com sucesso!", "success");
+            logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome}.`);
+
+            document.getElementById('config-partner-form').reset();
+            renderConfigParceiros();
+        } catch (e) {
+            console.error('[Certive] submitConfigPartner (new) error:', e);
+            showToast("Erro ao cadastrar parceiro.", "error");
+        }
     }
 }
 
@@ -3637,20 +3559,28 @@ function openEditPartnerMatrix(partnerId) {
     modal.classList.add('active');
 }
 
-function savePartnerMatrix(partnerId) {
+async function savePartnerMatrix(partnerId) {
     const partner = db.parceiros.find(p => p.id === partnerId);
     if (!partner) return;
 
+    let newPrecos = { ...partner.tabelaPrecos };
     db.servicos.filter(s => s.id !== 6).forEach(s => {
         const val = parseFloat(document.getElementById(`edit-matrix-price-${s.id}`).value);
-        partner.tabelaPrecos[s.id] = val;
+        newPrecos[s.id] = val;
     });
 
-    saveDatabase();
-    showToast("Tabela acordada do parceiro atualizada!", "success");
-    logAudit("Ajuste Tabela Parceiro", `Atualizou a tabela de preços do parceiro ${partner.nome}.`);
-    closeOSModal();
-    renderConfigParceiros();
+    try {
+        await sbUpdate('parceiros', partnerId, { tabelaPrecos: newPrecos });
+        cacheUpdate('parceiros', partnerId, { tabelaPrecos: newPrecos });
+
+        showToast("Tabela acordada do parceiro atualizada!", "success");
+        logAudit("Ajuste Tabela Parceiro", `Atualizou a tabela de preços do parceiro ${partner.nome}.`);
+        closeOSModal();
+        renderConfigParceiros();
+    } catch (e) {
+        console.error('[Certive] savePartnerMatrix error:', e);
+        showToast("Erro ao salvar tabela do parceiro.", "error");
+    }
 }
 
 // Config: Operadores & Unidades
@@ -3683,7 +3613,7 @@ function renderConfigOperadores() {
     `).join('');
 }
 
-function submitConfigOperator(event) {
+async function submitConfigOperator(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-op-nome').value.trim();
     const login = document.getElementById('cfg-op-login').value.trim();
@@ -3700,7 +3630,6 @@ function submitConfigOperator(event) {
     }
 
     const newOp = {
-        id: db.operadores.length + 1,
         nome: nome,
         login: login,
         senha: senha,
@@ -3710,38 +3639,47 @@ function submitConfigOperator(event) {
         ativo: true
     };
 
-    db.operadores.push(newOp);
-    saveDatabase();
+    try {
+        const inserted = await sbInsert('operadores', newOp);
+        cacheInsert('operadores', inserted);
 
-    showToast("Novo operador cadastrado!", "success");
-    logAudit("Cadastro Operador", `Adicionou operador ${login}.`);
+        showToast("Novo operador cadastrado!", "success");
+        logAudit("Cadastro Operador", `Adicionou operador ${login}.`);
 
-    document.getElementById('config-op-form').reset();
-    renderConfigOperadores();
+        document.getElementById('config-op-form').reset();
+        renderConfigOperadores();
+    } catch (e) {
+        console.error('[Certive] submitConfigOperator error:', e);
+        showToast("Erro ao cadastrar operador.", "error");
+    }
 }
 
-function submitConfigUnit(event) {
+async function submitConfigUnit(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-unit-nome').value.trim();
     const end = document.getElementById('cfg-unit-endereco').value.trim();
 
     const newUnit = {
-        id: db.unidades.length + 1,
         nome: nome,
         endereco: end
     };
 
-    db.unidades.push(newUnit);
-    saveDatabase();
+    try {
+        const inserted = await sbInsert('unidades', newUnit);
+        cacheInsert('unidades', inserted);
 
-    showToast("Nova filial cadastrada com sucesso!", "success");
-    logAudit("Cadastro Filial", `Adicionou filial: ${nome}.`);
+        showToast("Nova filial cadastrada com sucesso!", "success");
+        logAudit("Cadastro Filial", `Adicionou filial: ${nome}.`);
 
-    document.getElementById('config-unit-form').reset();
-    
-    // Refresh selections & layout
-    renderUnitSelectorOptions();
-    renderConfigOperadores();
+        document.getElementById('config-unit-form').reset();
+
+        // Refresh selections & layout
+        renderUnitSelectorOptions();
+        renderConfigOperadores();
+    } catch (e) {
+        console.error('[Certive] submitConfigUnit error:', e);
+        showToast("Erro ao cadastrar filial.", "error");
+    }
 }
 
 // Formatting helpers
@@ -3786,9 +3724,9 @@ function maskCelular(v) {
 // ==========================================
 // INITIALIZATION
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize DB Schema & Seeds
-    initDatabase();
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Initialize DB from Supabase
+    await initDatabase();
     
     // 2. Validate current session and display screens
     checkSession();
@@ -3869,7 +3807,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Force CapsLock / Global Uppercase typing (except password fields)
     document.addEventListener('input', function(e) {
         const t = e.target;
-        if (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search') && t.id !== 'login-password' && t.id !== 'cfg-op-senha') {
+        if (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search') && t.id !== 'login-password' && t.id !== 'login-username' && t.id !== 'cfg-op-senha') {
             const start = t.selectionStart;
             const end = t.selectionEnd;
             t.value = t.value.toUpperCase();
