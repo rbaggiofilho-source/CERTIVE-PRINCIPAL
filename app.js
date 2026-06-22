@@ -453,7 +453,7 @@ async function logAudit(acao, descricao) {
 // AUTHENTICATION & LOGIN FLOW
 // ==========================================
 function checkSession() {
-    const sessionData = sessionStorage.getItem('certive_session');
+    const sessionData = localStorage.getItem('certive_session');
     const loginOverlay = document.getElementById('login-overlay');
     
     if (sessionData) {
@@ -504,7 +504,7 @@ function handleLogin(event) {
     const user = db.operadores.find(o => o.login.toLowerCase() === loginInput.toLowerCase() && o.senha === passwordInput && o.ativo);
 
     if (user) {
-        sessionStorage.setItem('certive_session', JSON.stringify(user));
+        localStorage.setItem('certive_session', JSON.stringify(user));
         errorDiv.style.display = 'none';
         
         // Reset login form fields
@@ -522,7 +522,7 @@ function handleLogin(event) {
 
 function handleLogout() {
     logAudit("Logout", `Efetuou logout do sistema.`);
-    sessionStorage.removeItem('certive_session');
+    localStorage.removeItem('certive_session');
     currentSession = null;
     checkSession();
 }
