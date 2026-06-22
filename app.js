@@ -392,6 +392,31 @@ function getLocalToday() {
     return `${year}-${month}-${day}`;
 }
 
+// Custom Confirm Modal (replaces native confirm())
+let _confirmResolve = null;
+
+function showConfirm({ title, message, icon = '⚠️', confirmText = 'Confirmar', cancelText = 'Cancelar', confirmClass = 'btn-primary' }) {
+    return new Promise((resolve) => {
+        _confirmResolve = resolve;
+        document.getElementById('confirm-icon').innerHTML = icon;
+        document.getElementById('confirm-title').textContent = title;
+        document.getElementById('confirm-message').innerHTML = message;
+        const btnOk = document.getElementById('confirm-btn-ok');
+        btnOk.textContent = confirmText;
+        btnOk.className = `btn ${confirmClass}`;
+        document.getElementById('confirm-btn-cancel').textContent = cancelText;
+        document.getElementById('modal-confirm').classList.add('active');
+    });
+}
+
+function resolveConfirm(value) {
+    document.getElementById('modal-confirm').classList.remove('active');
+    if (_confirmResolve) {
+        _confirmResolve(value);
+        _confirmResolve = null;
+    }
+}
+
 function formatDateTimeBr(isoString) {
     if (!isoString) return "—";
     const date = new Date(isoString);
@@ -1535,7 +1560,14 @@ async function deleteOS(id) {
         return;
     }
 
-    if (confirm(`Tem certeza que deseja excluir permanentemente a OS ${os.numero}? Esta ação não poderá ser desfeita.`)) {
+    const confirmed = await showConfirm({
+        title: 'Excluir Ordem de Serviço',
+        message: `Tem certeza que deseja excluir permanentemente a <strong>OS ${os.numero}</strong>?<br><br>Esta ação não poderá ser desfeita.`,
+        icon: '🗑️',
+        confirmText: 'Excluir',
+        confirmClass: 'btn-danger'
+    });
+    if (confirmed) {
         try {
             // Delete related cash movements
             const relatedMovs = db.caixa_movimentos.filter(m => m.osId === id);
@@ -2140,7 +2172,14 @@ async function deleteCaixaMov(id) {
     const mov = db.caixa_movimentos.find(m => m.id === id);
     if (!mov) return;
 
-    if (!confirm('Tem certeza que deseja excluir este lançamento do caixa?')) return;
+    const confirmed = await showConfirm({
+        title: 'Excluir Lançamento',
+        message: 'Tem certeza que deseja excluir este lançamento do caixa?',
+        icon: '🗑️',
+        confirmText: 'Excluir',
+        confirmClass: 'btn-danger'
+    });
+    if (!confirmed) return;
 
     try {
         await sbDelete('caixa_movimentos', id);
@@ -2181,14 +2220,19 @@ async function submitFecharCaixa(event) {
     const estimatedCash = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
     const diff = saldoFisico - estimatedCash;
 
-    const confirmMsg = `
-        Deseja realmente fechar o caixa de hoje?
-        Saldo Físico Informado: ${formatCurrency(saldoFisico)}
-        Saldo Estimado (Espécie): ${formatCurrency(estimatedCash)}
-        Diferença apurada: ${formatCurrency(diff)}
-    `;
-
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await showConfirm({
+        title: 'Fechar Caixa Diário',
+        message: `
+            <div style="text-align: left; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 16px; margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;"><span>Saldo Físico Informado:</span> <strong>${formatCurrency(saldoFisico)}</strong></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;"><span>Saldo Estimado (Espécie):</span> <strong>${formatCurrency(estimatedCash)}</strong></div>
+                <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;"><span>Diferença apurada:</span> <strong style="color: ${diff === 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(diff)}</strong></div>
+            </div>`,
+        icon: '🔒',
+        confirmText: 'Fechar Caixa',
+        confirmClass: 'btn-danger'
+    });
+    if (!confirmed) return;
 
     // Read file as base64
     const reader = new FileReader();
@@ -2719,7 +2763,14 @@ async function liquidateInvoice(invoiceId) {
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice) return;
 
-    if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
+    const confirmed = await showConfirm({
+        title: 'Liquidar Fatura',
+        message: `Confirmar recebimento de pagamento da fatura <strong>${invoice.codigo}</strong> no valor de <strong>${formatCurrency(invoice.valorTotal)}</strong>?`,
+        icon: '💰',
+        confirmText: 'Confirmar Pagamento',
+        confirmClass: 'btn-success'
+    });
+    if (confirmed) {
         try {
             // Update invoice as paid
             const fatUpdates = { pago: true, pagoEm: new Date().toISOString() };
@@ -3095,7 +3146,14 @@ async function payExpense(id) {
     const expense = db.contas_pagar.find(c => c.id === id);
     if (!expense) return;
 
-    if (confirm(`Confirmar pagamento da despesa "${expense.descricao}" no valor de ${formatCurrency(expense.valor)}?`)) {
+    const confirmed = await showConfirm({
+        title: 'Confirmar Pagamento',
+        message: `Confirmar pagamento da despesa <strong>"${expense.descricao}"</strong> no valor de <strong>${formatCurrency(expense.valor)}</strong>?`,
+        icon: '💳',
+        confirmText: 'Pagar',
+        confirmClass: 'btn-success'
+    });
+    if (confirmed) {
         const updates = {
             pago: true,
             pagoEm: getLocalToday()
@@ -3143,7 +3201,14 @@ async function deleteExpense(id) {
     const exp = db.contas_pagar.find(c => c.id === id);
     if (!exp) return;
 
-    if (!confirm(`Excluir a despesa "${exp.descricao}" (${formatCurrency(exp.valor)})?`)) return;
+    const confirmed = await showConfirm({
+        title: 'Excluir Despesa',
+        message: `Excluir a despesa <strong>"${exp.descricao}"</strong> (${formatCurrency(exp.valor)})?`,
+        icon: '🗑️',
+        confirmText: 'Excluir',
+        confirmClass: 'btn-danger'
+    });
+    if (!confirmed) return;
 
     try {
         await sbDelete('contas_pagar', id);

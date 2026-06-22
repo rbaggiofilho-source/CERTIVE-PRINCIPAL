@@ -1153,6 +1153,25 @@
     </div>
 </div>
 
+<!-- ===== MODAL CONFIRMAÇÃO CUSTOMIZADO ===== -->
+<div class="modal-overlay" id="modal-confirm">
+    <div class="modal" style="max-width: 480px;" onclick="event.stopPropagation()">
+        <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+            <div></div>
+            <button class="modal-close" onclick="resolveConfirm(false)"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 8px 32px 24px;">
+            <div id="confirm-icon" style="font-size: 48px; margin-bottom: 16px;"></div>
+            <h3 id="confirm-title" style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary);"></h3>
+            <div id="confirm-message" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6;"></div>
+        </div>
+        <div class="modal-footer" style="justify-content: center; gap: 12px; padding: 16px 32px 24px; border-top: none;">
+            <button class="btn btn-secondary" id="confirm-btn-cancel" onclick="resolveConfirm(false)" style="min-width: 120px;"></button>
+            <button class="btn" id="confirm-btn-ok" onclick="resolveConfirm(true)" style="min-width: 120px;"></button>
+        </div>
+    </div>
+</div>
+
 <!-- ===== MODAL DE FATURAMENTO / LOTE DE PARCEIROS ===== -->
 <div class="modal-overlay" id="modal-faturamento-fechar" onclick="closeFatModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
