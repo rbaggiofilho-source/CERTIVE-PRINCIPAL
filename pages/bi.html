@@ -1,0 +1,96 @@
+                <div class="page-header">
+                    <div>
+                        <h2>📊 Painel BI &amp; Indicadores de Gestão</h2>
+                        <p>Análise de lucros, faturamento por filial, ticket médio e comportamento do cliente.</p>
+                    </div>
+                </div>
+
+                <div class="bi-layout">
+                    <!-- Barra de Filtros -->
+                    <div class="filter-bar">
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <label for="bi-filtro-periodo">Período de Análise</label>
+                            <select id="bi-filtro-periodo" onchange="renderBI()">
+                                <option value="mes" selected>Este Mês (Junho/26)</option>
+                                <option value="30">Últimos 30 dias</option>
+                                <option value="todos">Todo o Histórico</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 200px; margin-left: 12px;" id="bi-filtro-unit-div">
+                            <label for="bi-filtro-unidade">Filtrar por Unidade</label>
+                            <select id="bi-filtro-unidade" onchange="renderBI()">
+                                <option value="todas">Todas as Unidades</option>
+                                <!-- JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Indicadores Financeiros do BI -->
+                    <div class="kpi-grid" id="bi-kpis">
+                        <!-- JS -->
+                    </div>
+
+                    <div class="bi-charts-grid">
+                        
+                        <!-- Faturamento Semanal -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <h4><i class="ri-line-chart-line"></i> Movimento Semanal (R$)</h4>
+                                <span style="font-size: 11px; color: var(--text-muted);">Por data da OS</span>
+                            </div>
+                            <div class="weekly-bars" id="bi-chart-semanal">
+                                <!-- Colunas geradas via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Share de Vendas -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <h4><i class="ri-pie-chart-line"></i> Representação do Faturamento (%)</h4>
+                                <span style="font-size: 11px; color: var(--text-muted);">Por tipo de cliente</span>
+                            </div>
+                            <div class="horizontal-bars" id="bi-chart-share">
+                                <!-- Barras de share geradas via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px;">
+                        
+                        <!-- Serviços Mais Vendidos -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-bar-chart-fill"></i> Ranking de Serviços Praticados</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 16px;">
+                                <div class="horizontal-bars" id="bi-chart-servicos">
+                                    <!-- Render via JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Melhores Clientes -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-medal-line"></i> Top 5 Parceiros de Negócios (Vol. Serviços)</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Parceiro</th>
+                                                <th style="text-align: center;">Qtd OS</th>
+                                                <th style="text-align: right;">Total Gasto</th>
+                                                <th style="text-align: right;">Ticket Médio</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="bi-partners-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>

@@ -1,0 +1,157 @@
+                <div class="page-header">
+                    <div>
+                        <h2>💰 Controle de Caixa Diário</h2>
+                        <p>Acompanhe e realize o fechamento financeiro do caixa da sua unidade.</p>
+                    </div>
+                    <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-secondary" onclick="printActiveCaixa()" id="btn-print-caixa" title="Imprimir fluxo de caixa do dia em PDF">
+                            <i class="ri-printer-line"></i> Imprimir Caixa (PDF)
+                        </button>
+                        <div id="caixa-status-badge">
+                            <!-- JS inserirá badge de Aberto/Fechado -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchCaixaTab('movimentos', this)">Fluxo de Caixa</button>
+                    <button class="tab-btn" onclick="switchCaixaTab('historico', this)">Histórico de Fechamentos</button>
+                </div>
+
+                <!-- Aba: Fluxo de Caixa Atual -->
+                <div id="tab-caixa-movimentos">
+                    <div class="kpi-grid" id="caixa-kpis">
+                        <!-- KPIs de Caixa via JS -->
+                    </div>
+
+                    <div class="atendimento-layout">
+                        <!-- Registrar Movimento (Sangria / Inflow) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-exchange-funds-line"></i> Lançar Movimentação Manual</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="caixa-mov-form" onsubmit="submitCaixaMov(event)">
+                                    <div class="form-group">
+                                        <label for="mov-tipo">Tipo de Operação</label>
+                                        <select id="mov-tipo" onchange="adjustMovForm(this.value)">
+                                            <option value="saida">Saída (Sangria / Pequenas despesas)</option>
+                                            <option value="entrada">Entrada Extra (Faturamento antigo, etc)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group" id="group-mov-parceiro" style="display: none;">
+                                        <label for="mov-parceiro-select">Parceiro Pagador (se faturamento)</label>
+                                        <select id="mov-parceiro-select">
+                                            <option value="">Selecione...</option>
+                                            <!-- JS -->
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="mov-valor">Valor (R$)</label>
+                                        <input type="number" step="0.01" id="mov-valor" placeholder="0,00" required>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="mov-desc">Descrição / Finalidade</label>
+                                        <input type="text" id="mov-desc" placeholder="Ex: Compra de materiais de escritório, etc" required>
+                                    </div>
+
+                                    <div class="form-group" id="group-mov-pag">
+                                        <label for="mov-forma-pag">Forma de Pagamento</label>
+                                        <select id="mov-forma-pag">
+                                            <option value="especie">Espécie (Dinheiro físico)</option>
+                                            <option value="pix">Pix (Transferência Online)</option>
+                                            <option value="debito">Cartão de Débito</option>
+                                            <option value="credito">Cartão de Crédito</option>
+                                        </select>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                        <i class="ri-check-line"></i> Confirmar Lançamento
+                                    </button>
+                                </form>
+
+                                <hr style="border: 0; border-top: 1px solid var(--border); margin: 24px 0;">
+
+                                <!-- Painel de Fechamento -->
+                                <h3 style="font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                    <i class="ri-lock-line" style="color: var(--warning);"></i> Fechamento do Dia
+                                </h3>
+                                <form id="caixa-fechar-form" onsubmit="submitFecharCaixa(event)">
+                                    <div class="form-group">
+                                        <label for="fechar-saldo-fisico">Saldo em Espécie Físico na Gaveta (R$)</label>
+                                        <input type="number" step="0.01" id="fechar-saldo-fisico" placeholder="Insira o valor em dinheiro" required>
+                                        <small style="color: var(--text-secondary); display: block; margin-top: 6px;">
+                                            O sistema calculará eventuais divergências entre o caixa do sistema e o valor físico informado.
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="fechar-relatorio-detran">
+                                            <i class="ri-file-text-line" style="color: var(--accent);"></i> Relatório Fechamento DETRAN (obrigatório)
+                                        </label>
+                                        <input type="file" id="fechar-relatorio-detran" accept="image/jpeg,image/png,application/pdf" required style="padding: 6px 12px; font-size: 12px;">
+                                        <small style="color: var(--warning); display: block; margin-top: 6px;">
+                                            ⚠️ Obrigatório: Anexe o relatório de fechamento do DETRAN (PDF ou imagem, máx. 2MB).
+                                        </small>
+                                    </div>
+                                    <button type="submit" class="btn btn-danger" style="width: 100%; font-weight: 700;" id="btn-fechar-caixa">
+                                        <i class="ri-shut-down-line"></i> Fechar Caixa Diário
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Transações -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-list-check"></i> Registro de Lançamentos de Hoje</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Hora</th>
+                                                <th>Descrição / Vistoria</th>
+                                                <th>Forma</th>
+                                                <th style="text-align: right;">Entrada</th>
+                                                <th style="text-align: right;">Saída</th>
+                                                <th>Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="caixa-mov-tbody">
+                                            <!-- Via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba: Histórico de Fechamentos -->
+                <div id="tab-caixa-historico" style="display: none;">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data de Fechamento</th>
+                                    <th>Fechado Por</th>
+                                    <th style="text-align: right;">Entradas Totais</th>
+                                    <th style="text-align: right;">Saídas Totais</th>
+                                    <th style="text-align: right;">Saldo Sistema</th>
+                                    <th style="text-align: right;">Dinheiro Informado</th>
+                                    <th style="text-align: right;">Diferença</th>
+                                    <th>Status</th>
+                                    <th>Relatório</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="caixa-historico-tbody">
+                                <!-- Carregado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>

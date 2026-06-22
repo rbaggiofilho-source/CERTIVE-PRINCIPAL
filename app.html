@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certive Vistorias — Sistema de Gestão Premium</title>
+    <meta name="description" content="Sistema de Gestão integrado para Certive Vistorias.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+<script>
+    // Guard: redirect to login if not authenticated
+    if (!localStorage.getItem('certive_session')) {
+        window.location.href = 'index.html';
+    }
+</script>
+
+<div class="app-container">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/>
+            </svg>
+            <div class="sidebar-logo-text">
+                <h1>CERTIVE</h1>
+                <span>Vistorias</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" onclick="navigateTo('atendimento')" id="nav-atendimento">
+                <i class="ri-customer-service-2-line"></i> Atendimento
+            </div>
+            <div class="nav-item" onclick="navigateTo('caixa')" id="nav-caixa">
+                <i class="ri-money-dollar-box-line"></i> Caixa Diário
+            </div>
+            <div class="nav-item" onclick="navigateTo('historico')" id="nav-historico">
+                <i class="ri-history-line"></i> Histórico Geral
+            </div>
+            <div class="nav-item" onclick="navigateTo('faturamento')" id="nav-faturamento">
+                <i class="ri-file-list-3-line"></i> Faturamento
+            </div>
+            <div class="nav-item" onclick="navigateTo('contas')" id="nav-contas">
+                <i class="ri-wallet-3-line"></i> Contas a Pagar
+            </div>
+            <div class="nav-item" onclick="navigateTo('bi')" id="nav-bi">
+                <i class="ri-bar-chart-box-line"></i> Painel BI
+            </div>
+            <div class="nav-item" onclick="navigateTo('config')" id="nav-config">
+                <i class="ri-settings-4-line"></i> Configurações
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            CERTIVE VISTORIAS &copy; 2026<br>Santa Catarina, BR
+        </div>
+    </aside>
+
+    <!-- SIDEBAR OVERLAY (Mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- MAIN SHELL -->
+    <main class="main-content">
+        
+        <!-- TOPBAR -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="btn-hamburger" id="btn-hamburger" onclick="toggleSidebar()" title="Menu">
+                    <i class="ri-menu-line"></i>
+                </button>
+                <div class="unit-selector-wrapper">
+                    <label for="topbar-unit-select">Unidade Ativa:</label>
+                    <select id="topbar-unit-select" class="unit-select" onchange="changeActiveUnit(this.value)">
+                        <!-- Carregado via JS -->
+                    </select>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="user-profile">
+                    <span class="user-name" id="topbar-username">Nome Operador</span>
+                    <span class="user-role" id="topbar-userrole">Função</span>
+                </div>
+                <button class="btn-logout" onclick="handleLogout()" title="Sair do sistema">
+                    <i class="ri-logout-box-r-line"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- DYNAMIC PAGE CONTENT -->
+        <div class="page-container" id="app-content">
+            <div style="display: flex; align-items: center; justify-content: center; height: 60vh; color: var(--text-secondary);">
+                <div style="text-align: center;">
+                    <i class="ri-loader-4-line" style="font-size: 40px; animation: spin 1s linear infinite;"></i>
+                    <p style="margin-top: 16px;">Carregando sistema...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ===== MODAL DETALHES OS ===== -->
+<div class="modal-overlay" id="modal-os-detalhes" onclick="closeOSModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="detalhes-os-title">Ordem de Serviço OS-0000</h3>
+            <button class="modal-close" onclick="closeOSModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" id="detalhes-os-body">
+        </div>
+        <div class="modal-footer" id="detalhes-os-footer">
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL CONFIRMAÇÃO CUSTOMIZADO ===== -->
+<div class="modal-overlay" id="modal-confirm">
+    <div class="modal" style="max-width: 480px;" onclick="event.stopPropagation()">
+        <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+            <div></div>
+            <button class="modal-close" onclick="resolveConfirm(false)"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 8px 32px 24px;">
+            <div id="confirm-icon" style="font-size: 48px; margin-bottom: 16px;"></div>
+            <h3 id="confirm-title" style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary);"></h3>
+            <div id="confirm-message" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6;"></div>
+        </div>
+        <div class="modal-footer" style="justify-content: center; gap: 12px; padding: 16px 32px 24px; border-top: none;">
+            <button class="btn btn-secondary" id="confirm-btn-cancel" onclick="resolveConfirm(false)" style="min-width: 120px;"></button>
+            <button class="btn" id="confirm-btn-ok" onclick="resolveConfirm(true)" style="min-width: 120px;"></button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE FATURAMENTO ===== -->
+<div class="modal-overlay" id="modal-faturamento-fechar" onclick="closeFatModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Gerar Fatura do Parceiro</h3>
+            <button class="modal-close" onclick="closeFatModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="fat-gerar-form" onsubmit="submitGirarFatura(event)">
+                <div class="form-group">
+                    <label for="fat-modal-parceiro">Parceiro Selecionado</label>
+                    <input type="text" id="fat-modal-parceiro" readonly style="background: var(--bg-secondary); border-color: var(--border);">
+                    <input type="hidden" id="fat-modal-parceiro-id">
+                </div>
+                <div class="form-group">
+                    <label>Período de Fechamento</label>
+                    <div class="form-row">
+                        <div>
+                            <label style="font-size: 9px;">Início</label>
+                            <input type="date" id="fat-modal-inicio" required>
+                        </div>
+                        <div>
+                            <label style="font-size: 9px;">Fim</label>
+                            <input type="date" id="fat-modal-fim" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Vistorias Selecionadas (<span id="fat-modal-qtd">0</span>)</label>
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-weight: 700; color: var(--success); font-size: 16px;">
+                        Valor Total Consolidado: <span id="fat-modal-total">R$ 0,00</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 12px;">
+                    <i class="ri-check-double-line"></i> Fechar Lote &amp; Registrar Fatura
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE EDIÇÃO DE O.S. ===== -->
+<div class="modal-overlay" id="modal-os-editar" onclick="closeEditOSModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Editar Ordem de Serviço</h3>
+            <button class="modal-close" onclick="closeEditOSModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="os-editar-form" onsubmit="submitEditOSForm(event)">
+                <input type="hidden" id="edit-os-id">
+                <div class="form-group">
+                    <label for="edit-os-nome">Nome do Solicitante</label>
+                    <input type="text" id="edit-os-nome" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-cpf">CPF / CNPJ</label>
+                        <input type="text" id="edit-os-cpf" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-celular">Celular</label>
+                        <input type="text" id="edit-os-celular" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-placa">Placa</label>
+                        <input type="text" id="edit-os-placa" required style="text-transform: uppercase;">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-renavam">Renavam</label>
+                        <input type="text" id="edit-os-renavam" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
+                    <input type="text" id="edit-os-obs" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-os-servico">Serviço Contratado</label>
+                    <select id="edit-os-servico" onchange="updateEditOSPrice()" required>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-valor">Valor (R$)</label>
+                        <input type="number" step="0.01" id="edit-os-valor" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-pagamento">Forma de Pagamento</label>
+                        <select id="edit-os-pagamento" required>
+                            <option value="pix">Pix (Transferência Online)</option>
+                            <option value="debito">Cartão de Débito</option>
+                            <option value="credito">Cartão de Crédito</option>
+                            <option value="especie">Dinheiro (Espécie)</option>
+                            <option value="faturamento">Faturamento Mensal (Parceiros)</option>
+                            <option value="isento">Isento</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="form-check" style="margin-bottom: 20px;">
+                    <input type="checkbox" id="edit-os-detran">
+                    <span>O.S. Oficial registrada no DETRAN-SC</span>
+                </label>
+                <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700;">
+                    <i class="ri-save-line"></i> Salvar Alterações
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ===== ÁREA DE IMPRESSÃO ===== -->
+<div id="print-area"></div>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-db.js"></script>
+<script src="js/core.js"></script>
+<script src="js/auth.js"></script>
+<script>
+// Spin animation for loader
+const style = document.createElement('style');
+style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+document.head.appendChild(style);
+
+// Initialize application
+async function initApp() {
+    await initDatabase();
+    checkSession();
+}
+initApp();
+</script>
+</body>
+</html>

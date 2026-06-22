@@ -1,0 +1,73 @@
+                <div class="page-header">
+                    <div>
+                        <h2>📂 Faturamento de Parceiros</h2>
+                        <p>Consolide as ordens de serviço a prazo de lojistas/despachantes e gerencie faturas.</p>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchFatTab('pendentes', this)">Vistorias Pendentes</button>
+                    <button class="tab-btn" onclick="switchFatTab('faturas', this)">Histórico de Faturas</button>
+                </div>
+
+                <!-- Aba: OS Pendentes de Faturamento -->
+                <div id="tab-fat-pendentes">
+                    <div class="filter-bar">
+                        <div class="form-group" style="margin: 0; min-width: 250px;">
+                            <label for="fat-parceiro-filter">Selecionar Parceiro Conveniado</label>
+                            <select id="fat-parceiro-filter" onchange="renderFatPendentes()">
+                                <option value="">Todos os parceiros...</option>
+                                <!-- JS -->
+                            </select>
+                        </div>
+                        <div style="margin-left: auto; display: flex; align-items: flex-end;">
+                            <button class="btn btn-primary" onclick="openGirarFaturaModal()">
+                                <i class="ri-folder-zip-line"></i> Fechar Lote &amp; Gerar Fatura
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="fat-select-all-os" onchange="toggleSelectAllOS(this)"></th>
+                                    <th>Código OS</th>
+                                    <th>Data / Hora</th>
+                                    <th>Parceiro</th>
+                                    <th>Placa</th>
+                                    <th>Serviço Prestado</th>
+                                    <th style="text-align: right;">Valor Acordado</th>
+                                    <th>Operador</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fat-pendentes-tbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Aba: Faturas Emitidas -->
+                <div id="tab-fat-faturas" style="display: none;">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Código Fat.</th>
+                                    <th>Data Emissão</th>
+                                    <th>Parceiro</th>
+                                    <th>Período Cobrança</th>
+                                    <th style="text-align: center;">Qtd OS</th>
+                                    <th style="text-align: right;">Valor Total</th>
+                                    <th>Status</th>
+                                    <th>Data Baixa</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fat-faturas-tbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>

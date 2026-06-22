@@ -1,0 +1,243 @@
+                <div class="page-header">
+                    <div>
+                        <h2>⚙️ Configurações Gerais do Sistema</h2>
+                        <p>Apenas administradores podem gerenciar preços de tabela, operadores e regras financeiras.</p>
+                    </div>
+                </div>
+
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="switchConfigTab('precos', this)">Preços e Taxas</button>
+                    <button class="tab-btn" onclick="switchConfigTab('parceiros', this)">Parceiros</button>
+                    <button class="tab-btn" onclick="switchConfigTab('operadores', this)">Operadores &amp; Unidades</button>
+                </div>
+
+                <!-- Config Tab: Preços e Taxas -->
+                <div id="tab-cfg-precos">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        
+                        <!-- Tabela de Balcão (Particular) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-price-tag-3-line"></i> Tabela de Balcão (Particulares)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-precos-form" onsubmit="submitConfigPrecos(event)">
+                                    <div id="config-precos-inputs">
+                                        <!-- Inputs via JS -->
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">
+                                        <i class="ri-save-line"></i> Salvar Tabela de Balcão
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Taxas do Órgão (DETRAN) -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-calculator-line"></i> Taxas de Referência de Custos (Órgão / Terceiros)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-taxas-form" onsubmit="submitConfigTaxas(event)">
+                                    <div id="config-taxas-inputs">
+                                        <!-- Inputs via JS -->
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">
+                                        <i class="ri-save-line"></i> Salvar Taxas do DETRAN-SC
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Parceiros -->
+                <div id="tab-cfg-parceiros" style="display: none;">
+                    <div class="atendimento-layout">
+                        <!-- Novo Parceiro / Editar Parceiro -->
+                        <div class="panel-card">
+                            <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 id="cfg-partner-form-header-title"><i class="ri-user-add-line"></i> Adicionar Novo Parceiro</h3>
+                                <button type="button" id="cfg-partner-cancel-edit" class="btn btn-danger btn-sm" style="display: none;" onclick="cancelEditPartner()">Cancelar Edição</button>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-partner-form" onsubmit="submitConfigPartner(event)">
+                                    <div class="form-group">
+                                        <label for="cfg-part-nome">Nome Fantasia / Razão Social</label>
+                                        <input type="text" id="cfg-part-nome" placeholder="Ex: Multicar Automóveis Ltda" required>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-cnpj">CPF / CNPJ</label>
+                                            <input type="text" id="cfg-part-cnpj" placeholder="CPF ou CNPJ (apenas números)" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-part-responsavel">Nome do Responsável</label>
+                                            <input type="text" id="cfg-part-responsavel" placeholder="Ex: Marcos Almeida" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-tel">Contato / Celular</label>
+                                            <input type="text" id="cfg-part-tel" placeholder="(48) 99999-9999" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-check" style="margin-top: 28px; margin-bottom: 0;">
+                                                <input type="checkbox" id="cfg-part-faturamento">
+                                                <span>Permitir faturamento (mensal consolidado)</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-part-obs">Observações do Cadastro</label>
+                                        <textarea id="cfg-part-obs" placeholder="Contatos do financeiro, observações gerais de pagamentos, gerência comercial, etc..." style="height: 60px; font-family: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                                    </div>
+
+                                    <!-- Tabela de Preço Acordada -->
+                                    <label class="form-section-title">Valores Acordados por Serviço (R$)</label>
+                                    <div id="config-partner-matrix" style="display: flex; flex-direction: column; gap: 8px;">
+                                        <!-- Matrix JS -->
+                                    </div>
+
+                                    <button type="submit" id="cfg-partner-submit-btn" class="btn btn-primary" style="margin-top: 20px; width: 100%;">
+                                        <i class="ri-user-follow-line"></i> Cadastrar Parceiro
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Parceiros -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-group-line"></i> Parceiros Conveniados</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nome / Razão</th>
+                                                <th>CPF / CNPJ</th>
+                                                <th>Contato / Responsável</th>
+                                                <th>Faturamento</th>
+                                                <th style="text-align: right; padding-right: 20px;">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cfg-partners-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Operadores e Unidades -->
+                <div id="tab-cfg-operadores" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px;">
+                        
+                        <!-- Operadores -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-user-settings-line"></i> Gestão de Operadores (Usuários)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start;">
+                                    
+                                    <!-- Criar Operador -->
+                                    <form id="config-op-form" onsubmit="submitConfigOperator(event)">
+                                        <div class="form-group">
+                                            <label for="cfg-op-nome">Nome do Operador</label>
+                                            <input type="text" id="cfg-op-nome" placeholder="Ex: João da Silva" required>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="cfg-op-login">Login de Acesso</label>
+                                                <input type="text" id="cfg-op-login" placeholder="Ex: joao.atendimento" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="cfg-op-senha">Senha</label>
+                                                <input type="password" id="cfg-op-senha" placeholder="Senha do operador" required>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-op-unidade">Unidade Designada</label>
+                                            <select id="cfg-op-unidade" required>
+                                                <!-- JS -->
+                                            </select>
+                                        </div>
+
+                                        <!-- Permissões Granulares -->
+                                        <label class="form-group"><label>Permissões do Operador</label></label>
+                                        <div class="permission-grid">
+                                            <label class="form-check"><input type="checkbox" value="abertura_os" checked> <span>Abertura OS</span></label>
+                                            <label class="form-check"><input type="checkbox" value="caixa" checked> <span>Caixa Diário</span></label>
+                                            <label class="form-check"><input type="checkbox" value="faturamento"> <span>Faturamento</span></label>
+                                            <label class="form-check"><input type="checkbox" value="contas"> <span>Contas Pagar</span></label>
+                                            <label class="form-check"><input type="checkbox" value="cadastros"> <span>Cadastros</span></label>
+                                            <label class="form-check"><input type="checkbox" value="bi"> <span>Painel BI</span></label>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary" style="margin-top: 18px; width: 100%;">
+                                            <i class="ri-user-add-line"></i> Cadastrar Operador
+                                        </button>
+                                    </form>
+
+                                    <!-- Lista Operadores -->
+                                    <div class="table-container" style="margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Login</th>
+                                                    <th>Nome</th>
+                                                    <th>Unidade</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cfg-operators-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unidades -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-home-gear-line"></i> Unidades Operacionais (Filiais)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-unit-form" onsubmit="submitConfigUnit(event)" style="margin-bottom: 20px;">
+                                    <div class="form-group">
+                                        <label for="cfg-unit-nome">Nome da Unidade / Filial</label>
+                                        <input type="text" id="cfg-unit-nome" placeholder="Ex: Certive Filial - Palhoça" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-unit-endereco">Endereço Completo</label>
+                                        <input type="text" id="cfg-unit-endereco" placeholder="Rua, Número, Bairro, Cidade - SC" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                        <i class="ri-add-line"></i> Cadastrar Filial
+                                    </button>
+                                </form>
+
+                                <div class="table-container" style="margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nome</th>
+                                                <th>Endereço</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cfg-units-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
