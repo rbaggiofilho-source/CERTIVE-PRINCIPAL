@@ -561,6 +561,26 @@ h1, h2, h3, .serif-title {
 .badge-done .badge-dot { background: var(--success); }
 .badge-cancelled .badge-dot { background: var(--danger); }
 
+/* Recurrence Badge */
+.badge-recorrente {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--purple-bg);
+  color: var(--purple);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  margin-bottom: 4px;
+}
+.badge-recorrente i {
+  font-size: 12px;
+}
+
 /* ===== MODAL ===== */
 .modal-overlay {
   position: fixed;

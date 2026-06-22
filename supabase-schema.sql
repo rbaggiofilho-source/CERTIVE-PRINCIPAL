@@ -124,7 +124,10 @@ CREATE TABLE contas_pagar (
   observacoes TEXT,
   anexo TEXT,
   pago BOOLEAN NOT NULL DEFAULT FALSE,
-  "pagoEm" DATE
+  "pagoEm" DATE,
+  recorrente BOOLEAN NOT NULL DEFAULT FALSE,
+  frequencia TEXT CHECK (frequencia IN ('semanal', 'mensal', 'anual')),
+  "recorrenciaGrupoId" BIGINT
 );
 
 -- 10. Faturas (Invoices Corporativas Mensais)

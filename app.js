@@ -2851,10 +2851,15 @@ function renderContasGerais() {
             ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="previewExpenseAttachment(${c.id})" title="Visualizar Fatura" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-eye-line" style="font-size: 14px;"></i></button>`
             : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
 
+        const recBadge = c.recorrente
+            ? `<span class="badge-recorrente" title="Conta recorrente (${c.frequencia})"><i class="ri-loop-left-line"></i> ${c.frequencia}</span><br>`
+            : '';
+
         return `
             <tr>
                 <td><strong>${formatDateBr(c.vencimento)}</strong></td>
                 <td>
+                    ${recBadge}
                     <strong>${c.descricao}</strong>
                     ${obsHtml}
                 </td>
@@ -2870,6 +2875,23 @@ function renderContasGerais() {
     }).join('');
 }
 
+// Toggle recurrence options visibility
+function toggleRecorrenciaOptions(value) {
+    document.getElementById('desp-qtd-recorrencias-wrapper').style.display = value ? 'block' : 'none';
+}
+
+// Calculate next due date based on frequency
+function calcularProximoVencimento(dataBase, frequencia, multiplicador) {
+    const [y, m, d] = dataBase.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    switch (frequencia) {
+        case 'semanal': date.setDate(date.getDate() + (7 * multiplicador)); break;
+        case 'mensal': date.setMonth(date.getMonth() + multiplicador); break;
+        case 'anual': date.setFullYear(date.getFullYear() + multiplicador); break;
+    }
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function submitDespesaForm(event) {
     event.preventDefault();
     const desc = document.getElementById('desp-desc').value.trim();
@@ -2878,6 +2900,8 @@ function submitDespesaForm(event) {
     const fileInput = document.getElementById('desp-anexo');
     const obs = document.getElementById('desp-obs').value.trim();
     const file = fileInput.files[0];
+    const frequencia = document.getElementById('desp-recorrencia').value;
+    const qtdRecorrencias = parseInt(document.getElementById('desp-qtd-recorrencias').value) || 12;
 
     if (!desc) { showToast("Informe a descrição da conta.", "error"); return; }
     if (!venc) { showToast("Informe a data de vencimento.", "error"); return; }
@@ -2893,17 +2917,54 @@ function submitDespesaForm(event) {
             observacoes: obs,
             anexo: anexoData,
             pago: false,
-            pagoEm: null
+            pagoEm: null,
+            recorrente: !!frequencia,
+            frequencia: frequencia || null,
+            recorrenciaGrupoId: null
         };
 
         try {
-            const inserted = await sbInsert('contas_pagar', newExpense);
-            cacheInsert('contas_pagar', inserted);
+            // Insert the first expense
+            const primeira = await sbInsert('contas_pagar', newExpense);
+            cacheInsert('contas_pagar', primeira);
 
-            showToast("Despesa cadastrada com sucesso!", "success");
-            logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
+            // If recurring, set grupo ID and generate future occurrences
+            if (frequencia) {
+                // Update the first record with its own ID as the group ID
+                await sbUpdate('contas_pagar', primeira.id, { recorrenciaGrupoId: primeira.id });
+                cacheUpdate('contas_pagar', primeira.id, { recorrenciaGrupoId: primeira.id });
+
+                // Generate future occurrences (N-1 more)
+                const futuras = [];
+                for (let i = 1; i < qtdRecorrencias; i++) {
+                    futuras.push({
+                        unidadeId: activeUnitId,
+                        descricao: desc,
+                        tipo: "fixo",
+                        vencimento: calcularProximoVencimento(venc, frequencia, i),
+                        valor: val,
+                        observacoes: obs,
+                        anexo: null, // Don't duplicate attachments
+                        pago: false,
+                        pagoEm: null,
+                        recorrente: true,
+                        frequencia: frequencia,
+                        recorrenciaGrupoId: primeira.id
+                    });
+                }
+
+                const insertedFuturas = await sbInsertMany('contas_pagar', futuras);
+                insertedFuturas.forEach(r => cacheInsert('contas_pagar', r));
+
+                showToast(`Conta recorrente criada com ${qtdRecorrencias} ocorrências (${frequencia})!`, "success");
+                logAudit("Cadastro Despesa Recorrente", `Criou ${qtdRecorrencias} ocorrências de: ${desc} (${frequencia}, a partir de ${formatDateBr(venc)})`);
+            } else {
+                showToast("Despesa cadastrada com sucesso!", "success");
+                logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
+            }
 
             document.getElementById('despesa-form').reset();
+            document.getElementById('desp-qtd-recorrencias-wrapper').style.display = 'none';
             renderContasGerais();
         } catch (e) {
             console.error('[Certive] saveExpense error:', e);
