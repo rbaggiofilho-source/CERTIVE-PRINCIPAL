@@ -480,6 +480,15 @@
                                             O sistema calculará eventuais divergências entre o caixa do sistema e o valor físico informado.
                                         </small>
                                     </div>
+                                    <div class="form-group">
+                                        <label for="fechar-relatorio-detran">
+                                            <i class="ri-file-text-line" style="color: var(--accent);"></i> Relatório Fechamento DETRAN (obrigatório)
+                                        </label>
+                                        <input type="file" id="fechar-relatorio-detran" accept="image/jpeg,image/png,application/pdf" required style="padding: 6px 12px; font-size: 12px;">
+                                        <small style="color: var(--warning); display: block; margin-top: 6px;">
+                                            ⚠️ Obrigatório: Anexe o relatório de fechamento do DETRAN (PDF ou imagem, máx. 2MB).
+                                        </small>
+                                    </div>
                                     <button type="submit" class="btn btn-danger" style="width: 100%; font-weight: 700;" id="btn-fechar-caixa">
                                         <i class="ri-shut-down-line"></i> Fechar Caixa Diário
                                     </button>
@@ -529,6 +538,7 @@
                                     <th style="text-align: right;">Dinheiro Informado</th>
                                     <th style="text-align: right;">Diferença</th>
                                     <th>Status</th>
+                                    <th>Relatório</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -662,6 +672,7 @@
                                     <div class="form-group">
                                         <label for="desp-obs">Observações / Código de Barras</label>
                                         <textarea id="desp-obs" placeholder="Digite o código de barras para pagamento ou outras observações..." style="height: 60px; font-family: inherit; font-size: 12px; resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                                    </div>
                                     <div class="form-row">
                                         <div class="form-group">
                                             <label for="desp-recorrencia">Recorrência</label>

@@ -96,7 +96,8 @@ CREATE TABLE caixa_diario (
   "fechadoPor" TEXT,
   "fechadoEm" TIMESTAMPTZ,
   "saldoAbertura" DECIMAL(10,2) NOT NULL DEFAULT 200.00,
-  "saldoEspécieInformado" DECIMAL(10,2) DEFAULT 0
+  "saldoEspécieInformado" DECIMAL(10,2) DEFAULT 0,
+  "relatorioDetran" TEXT
 );
 
 -- 8. Caixa Movimentos (Transações de Fluxo de Caixa)

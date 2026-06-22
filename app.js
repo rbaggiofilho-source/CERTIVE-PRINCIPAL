@@ -2161,16 +2161,26 @@ async function submitFecharCaixa(event) {
     if (!activeCaixa) return;
 
     const saldoFisico = parseFloat(document.getElementById('fechar-saldo-fisico').value);
-    
-    // Calculate estimated cash balance in box
+    const fileInput = document.getElementById('fechar-relatorio-detran');
+    const file = fileInput.files[0];
+
+    // Validate DETRAN report
+    if (!file) {
+        showToast("Obrigatório: Anexe o relatório de fechamento do DETRAN.", "error");
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+        showToast("O relatório DETRAN não pode exceder 2MB.", "error");
+        return;
+    }
+
+    // Calculate estimated cash balance
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
     const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
     const estimatedCash = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
-
     const diff = saldoFisico - estimatedCash;
 
-    // Confirm close
     const confirmMsg = `
         Deseja realmente fechar o caixa de hoje?
         Saldo Físico Informado: ${formatCurrency(saldoFisico)}
@@ -2178,12 +2188,19 @@ async function submitFecharCaixa(event) {
         Diferença apurada: ${formatCurrency(diff)}
     `;
 
-    if (confirm(confirmMsg)) {
+    if (!confirm(confirmMsg)) return;
+
+    // Read file as base64
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const relatorioData = e.target.result;
+
         const updates = {
             status: "fechado",
             "saldoEspécieInformado": saldoFisico,
             fechadoPor: currentSession.nome,
-            fechadoEm: new Date().toISOString()
+            fechadoEm: new Date().toISOString(),
+            relatorioDetran: relatorioData
         };
 
         try {
@@ -2191,7 +2208,7 @@ async function submitFecharCaixa(event) {
             cacheUpdate('caixa_diario', activeCaixa.id, updates);
 
             showToast("Caixa diário fechado com sucesso!", "success");
-            logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)}.`);
+            logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)}. Relatório DETRAN anexado.`);
 
             document.getElementById('caixa-fechar-form').reset();
             renderCaixaPage();
@@ -2199,7 +2216,11 @@ async function submitFecharCaixa(event) {
             console.error('[Certive] submitFecharCaixa error:', e);
             showToast("Erro ao fechar caixa.", "error");
         }
-    }
+    };
+    reader.onerror = function() {
+        showToast("Erro ao ler o relatório DETRAN.", "error");
+    };
+    reader.readAsDataURL(file);
 }
 
 function renderCaixaHistorico() {
@@ -2209,7 +2230,7 @@ function renderCaixaHistorico() {
         .sort((a, b) => new Date(b.data) - new Date(a.data));
 
     if (closedCaixas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhum caixa fechado no histórico desta unidade.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">Nenhum caixa fechado no histórico desta unidade.</td></tr>';
         return;
     }
 
@@ -2225,6 +2246,10 @@ function renderCaixaHistorico() {
         const diff = c.saldoEspécieInformado - estimatedCash;
         const diffColor = diff === 0 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
 
+        const relatorioBtn = c.relatorioDetran
+            ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="previewRelatorioDetran(${c.id})" title="Ver Relatório DETRAN"><i class="ri-file-text-line"></i></button>`
+            : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
+
         return `
             <tr>
                 <td><strong>${formatDateBr(c.data)}</strong></td>
@@ -2235,12 +2260,48 @@ function renderCaixaHistorico() {
                 <td style="text-align: right; font-weight: 600;">${formatCurrency(c.saldoEspécieInformado)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${diffColor};">${formatCurrency(diff)}</td>
                 <td><span class="badge badge-done">CONCLUÍDO</span></td>
+                <td style="text-align: center;">${relatorioBtn}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm btn-icon" onclick="printCaixaById(${c.id})" title="Imprimir Relatório de Caixa"><i class="ri-printer-line"></i></button>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function previewRelatorioDetran(caixaId) {
+    const caixa = db.caixa_diario.find(c => c.id === caixaId);
+    if (!caixa || !caixa.relatorioDetran) {
+        showToast("Relatório DETRAN não encontrado.", "error");
+        return;
+    }
+
+    const modal = document.getElementById('modal-os-detalhes');
+    const titleEl = modal.querySelector('.modal-header h3');
+    const bodyEl = modal.querySelector('.modal-body');
+
+    titleEl.textContent = `Relatório DETRAN — ${formatDateBr(caixa.data)}`;
+
+    const isPdf = caixa.relatorioDetran.startsWith('data:application/pdf');
+    if (isPdf) {
+        bodyEl.innerHTML = `
+            <iframe src="${caixa.relatorioDetran}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-sm);"></iframe>
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="${caixa.relatorioDetran}" download="relatorio-detran-${caixa.data}.pdf" class="btn btn-primary btn-sm">
+                    <i class="ri-download-line"></i> Baixar PDF
+                </a>
+            </div>`;
+    } else {
+        bodyEl.innerHTML = `
+            <img src="${caixa.relatorioDetran}" style="width: 100%; border-radius: var(--radius-sm);" alt="Relatório DETRAN">
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="${caixa.relatorioDetran}" download="relatorio-detran-${caixa.data}.jpg" class="btn btn-primary btn-sm">
+                    <i class="ri-download-line"></i> Baixar Imagem
+                </a>
+            </div>`;
+    }
+
+    modal.classList.add('active');
 }
 
 // Print Active Caixa (Today's Drawer)
@@ -2801,6 +2862,7 @@ function printInvoiceById(invoiceId) {
 // MODULE 4: CONTAS A PAGAR
 // ==========================================
 let currentContasTab = 'despesas';
+let editingExpenseId = null;
 
 function switchContasTab(tab, btn) {
     currentContasTab = tab;
@@ -2868,7 +2930,11 @@ function renderContasGerais() {
                 <td>${statusBadge}</td>
                 <td style="text-align: center;">${anexoHtml}</td>
                 <td>
-                    ${!c.pago ? `<button class="btn btn-primary btn-sm" onclick="payExpense(${c.id})"><i class="ri-check-line"></i> Pagar</button>` : `<small style="color:var(--text-muted)">Paga em ${formatDateBr(c.pagoEm)}</small>`}
+                    <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                        ${!c.pago ? `<button class="btn btn-primary btn-sm" onclick="payExpense(${c.id})"><i class="ri-check-line"></i> Pagar</button>` : `<small style="color:var(--text-muted)">Paga em ${formatDateBr(c.pagoEm)}</small>`}
+                        ${!c.pago ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="editExpense(${c.id})" title="Editar"><i class="ri-pencil-line"></i></button>` : ''}
+                        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteExpense(${c.id})" title="Excluir"><i class="ri-delete-bin-line"></i></button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -2908,6 +2974,40 @@ function submitDespesaForm(event) {
     if (isNaN(val) || val <= 0) { showToast("Informe um valor válido.", "error"); return; }
 
     const saveExpense = async (anexoData = null) => {
+        // UPDATE MODE: editing existing expense
+        if (editingExpenseId) {
+            const updates = {
+                descricao: desc,
+                vencimento: venc,
+                valor: val,
+                observacoes: obs
+            };
+            if (anexoData) updates.anexo = anexoData;
+
+            try {
+                await sbUpdate('contas_pagar', editingExpenseId, updates);
+                cacheUpdate('contas_pagar', editingExpenseId, updates);
+
+                showToast("Despesa atualizada com sucesso!", "success");
+                logAudit("Edição Despesa", `Editou despesa: ${desc} (Venc: ${formatDateBr(venc)})`);
+
+                editingExpenseId = null;
+                document.getElementById('despesa-form').reset();
+                document.getElementById('desp-qtd-recorrencias-wrapper').style.display = 'none';
+                // Reset button
+                const submitBtn = document.querySelector('#despesa-form button[type="submit"]');
+                submitBtn.innerHTML = '<i class="ri-check-line"></i> Salvar Despesa';
+                submitBtn.classList.remove('btn-warning');
+                submitBtn.classList.add('btn-primary');
+                renderContasGerais();
+            } catch (e) {
+                console.error('[Certive] updateExpense error:', e);
+                showToast("Erro ao atualizar despesa.", "error");
+            }
+            return;
+        }
+
+        // CREATE MODE: new expense
         const newExpense = {
             unidadeId: activeUnitId,
             descricao: desc,
@@ -3012,6 +3112,48 @@ async function payExpense(id) {
             console.error('[Certive] payExpense error:', e);
             showToast("Erro ao pagar despesa.", "error");
         }
+    }
+}
+
+function editExpense(id) {
+    const exp = db.contas_pagar.find(c => c.id === id);
+    if (!exp) return;
+
+    editingExpenseId = id;
+
+    document.getElementById('desp-desc').value = exp.descricao;
+    document.getElementById('desp-vencimento').value = exp.vencimento;
+    document.getElementById('desp-valor').value = exp.valor;
+    document.getElementById('desp-obs').value = exp.observacoes || '';
+    document.getElementById('desp-recorrencia').value = exp.frequencia || '';
+    toggleRecorrenciaOptions(exp.frequencia || '');
+
+    // Change button to update mode
+    const submitBtn = document.querySelector('#despesa-form button[type="submit"]');
+    submitBtn.innerHTML = '<i class="ri-save-line"></i> Atualizar Despesa';
+    submitBtn.classList.remove('btn-primary');
+    submitBtn.classList.add('btn-warning');
+
+    // Scroll to form
+    document.getElementById('despesa-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Editando despesa. Altere os campos e clique em Atualizar.', 'info');
+}
+
+async function deleteExpense(id) {
+    const exp = db.contas_pagar.find(c => c.id === id);
+    if (!exp) return;
+
+    if (!confirm(`Excluir a despesa "${exp.descricao}" (${formatCurrency(exp.valor)})?`)) return;
+
+    try {
+        await sbDelete('contas_pagar', id);
+        cacheDelete('contas_pagar', id);
+        showToast('Despesa excluída com sucesso.', 'success');
+        logAudit('Exclusão Despesa', `Excluiu despesa: ${exp.descricao} (Venc: ${formatDateBr(exp.vencimento)})`);
+        renderContasGerais();
+    } catch (e) {
+        console.error('[Certive] deleteExpense error:', e);
+        showToast('Erro ao excluir despesa.', 'error');
     }
 }
 
