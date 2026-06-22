@@ -15,10 +15,7 @@ function switchCaixaTab(tab, btn) {
     if (tab === 'historico') renderCaixaHistorico();
 }
 
-function getTodayOpenCaixa() {
-    const today = getLocalToday();
-    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today && c.status === "aberto");
-}
+
 
 function renderCaixaPage() {
     const activeCaixa = getTodayOpenCaixa();

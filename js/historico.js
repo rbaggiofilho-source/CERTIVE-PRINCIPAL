@@ -10,7 +10,19 @@ function renderHistoricoPage() {
         select.innerHTML = '<option value="">Todos os Serviços</option>' + 
             db.servicos.map(s => `<option value="${s.id}">${s.nome.split(' — ')[0]}</option>`).join('');
     }
-    renderHistorico();
+    
+    // Ensure atendimento.js is loaded for the OS Details Modal
+    if (!_loadedModules['atendimento']) {
+        loadScript('js/atendimento.js').then(() => {
+            _loadedModules['atendimento'] = true;
+            renderHistorico();
+        }).catch(err => {
+            console.error('[Certive] Error loading atendimento.js:', err);
+            renderHistorico();
+        });
+    } else {
+        renderHistorico();
+    }
 }
 
 function renderHistorico() {

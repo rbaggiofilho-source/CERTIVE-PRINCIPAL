@@ -51,6 +51,11 @@ function getLocalToday() {
     return `${year}-${month}-${day}`;
 }
 
+function getTodayOpenCaixa() {
+    const today = getLocalToday();
+    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today && c.status === "aberto");
+}
+
 function formatDateTimeBr(isoString) {
     if (!isoString) return "—";
     const date = new Date(isoString);
