@@ -9,6 +9,12 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 </head>
 <body>
+<script>
+    // Pre-check: hide login instantly if session exists (prevents flash)
+    if (localStorage.getItem('certive_session')) {
+        document.documentElement.classList.add('logged-in');
+    }
+</script>
 
 <!-- ===== TELA DE LOGIN ===== -->
 <div class="login-overlay" id="login-overlay">

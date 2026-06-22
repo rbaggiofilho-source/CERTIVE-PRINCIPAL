@@ -88,6 +88,10 @@ h1, h2, h3, .serif-title {
   visibility: hidden;
   pointer-events: none;
 }
+/* Prevent flash of login screen on page reload when session exists */
+html.logged-in .login-overlay {
+  display: none;
+}
 .login-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
