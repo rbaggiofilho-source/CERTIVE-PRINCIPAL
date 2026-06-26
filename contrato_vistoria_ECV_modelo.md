@@ -1,0 +1,162 @@
+# CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE VISTORIA DE IDENTIFICAÇÃO VEICULAR
+
+> **Modelo para uso no ERP Certive.** Os campos entre chaves duplas `{{ }}` são variáveis a serem preenchidas automaticamente pelo sistema a partir do cadastro da empresa, do cliente e da ordem de serviço. Os blocos marcados como **[OPCIONAL]** só devem ser renderizados quando a condição indicada for verdadeira.
+
+---
+
+## QUADRO-RESUMO DA CONTRATAÇÃO
+
+| Campo | Conteúdo |
+|---|---|
+| Nº da Ordem de Serviço | {{os_numero}} |
+| Data e hora de abertura | {{os_data_hora}} |
+| Tipo de vistoria | {{os_tipo_vistoria}} *(ex.: transferência de propriedade, mudança de município/UF, alteração de característica, inclusão de gravame, etc.)* |
+| Finalidade declarada pelo cliente | {{os_finalidade}} |
+| Valor do serviço | R$ {{os_valor}} |
+| Forma de pagamento | {{os_forma_pagamento}} |
+
+---
+
+## 1. DAS PARTES
+
+**CONTRATADA:** {{ecv_razao_social}}, pessoa jurídica de direito privado inscrita no CNPJ sob nº {{ecv_cnpj}}, com sede em {{ecv_endereco}}, **Empresa Credenciada de Vistoria (ECV)** habilitada junto ao {{ecv_detran_uf}} sob o credenciamento nº {{ecv_credenciamento_numero}}, doravante denominada **CONTRATADA**.
+
+**CONTRATANTE:** {{cliente_nome}}, inscrito(a) no CPF/CNPJ sob nº {{cliente_documento}}, residente/sediado(a) em {{cliente_endereco}}, doravante denominado(a) **CONTRATANTE**.
+
+**VEÍCULO OBJETO:** placa {{veiculo_placa}}, RENAVAM {{veiculo_renavam}}, chassi {{veiculo_chassi}}, marca/modelo {{veiculo_marca_modelo}}, ano fab./modelo {{veiculo_ano}}.
+
+As partes celebram o presente contrato, que se rege pelo Código de Trânsito Brasileiro (Lei nº 9.503/1997), pela Resolução CONTRAN nº 941/2022 e alterações, pela {{ecv_portaria_estadual}} *(ex.: Portaria DETRAN-SC nº 465/2023)*, pelo Código de Defesa do Consumidor (Lei nº 8.078/1990) e demais normas aplicáveis, mediante as cláusulas seguintes.
+
+---
+
+## 2. DO OBJETO E DO ESCOPO DO SERVIÇO
+
+**2.1.** O objeto deste contrato é a realização de **vistoria de identificação veicular** e a emissão do respectivo **laudo eletrônico**, registrado no Sistema de Certificação de Segurança Veicular e Vistorias (SISCSV) mantido pelo órgão máximo executivo de trânsito da União.
+
+**2.2.** Nos exatos termos do art. 2º, §2º, da Resolução CONTRAN nº 941/2022, a vistoria de identificação veicular limita-se a verificar:
+
+a) a autenticidade da identificação do veículo e da sua documentação;
+b) a legitimidade da propriedade;
+c) se o veículo dispõe dos equipamentos obrigatórios e se estes estão funcionais;
+d) se as características originais do veículo e de seus agregados foram modificadas e, em caso positivo, se a alteração foi autorizada, regularizada e consta do prontuário do veículo na repartição de trânsito.
+
+**2.3.** O serviço é prestado **exclusivamente** dentro do escopo descrito na cláusula 2.2. O laudo emitido tem **natureza documental e de identificação**, destinando-se a instruir o procedimento de trânsito indicado no quadro-resumo, e **só tem validade quando registrado no SISCSV**.
+
+---
+
+## 3. DO QUE NÃO INTEGRA O OBJETO (DELIMITAÇÃO EXPRESSA DE ESCOPO)
+
+**3.1.** O CONTRATANTE declara estar ciente, de forma livre e informada, de que a vistoria de identificação veicular **NÃO se confunde com vistoria cautelar, vistoria prévia (de seguradora), perícia ou avaliação mecânica**, e que, por consequência, **NÃO** estão compreendidos no objeto deste contrato, não constituindo obrigação nem responsabilidade da CONTRATADA:
+
+a) a avaliação do estado mecânico, elétrico, eletrônico ou estrutural do veículo, nem a identificação de **vícios ocultos** ou de defeitos não aparentes a uma inspeção visual de identificação;
+b) a apuração do **histórico** do veículo — passagem por leilão, sinistro, recuperação, indenização integral, batidas ou reparos — quando tal informação **não constar** do prontuário oficial ou das bases de dados de trânsito acessíveis no ato;
+c) a verificação de **procedência comercial**, autenticidade de negócio jurídico de compra e venda, ou idoneidade de terceiros (vendedor, comprador, intermediário);
+d) a aferição de **quilometragem real**, valor de mercado, originalidade de peças não relacionadas à identificação, ou qualidade de reparos anteriores;
+e) a existência de **débitos, multas, tributos (IPVA, DPVAT/seguro obrigatório), restrições financeiras, gravames ou bloqueios** sobre o veículo;
+f) qualquer conferência que dependa de **perícia técnica especializada** (laboratorial, criminalística ou de engenharia), de competência de órgão diverso.
+
+**3.2.** Caso o CONTRATANTE deseje verificação de procedência, histórico e condições gerais do veículo — em especial em situações de compra e venda —, a CONTRATADA esclarece que o serviço adequado é a **vistoria cautelar**, de natureza distinta e não obrigatória, que **poderá [OPCIONAL: ser / não ser]** ofertada por esta empresa mediante contratação específica e separada.
+
+---
+
+## 4. DAS OBRIGAÇÕES E RESPONSABILIDADES DA CONTRATADA
+
+**4.1.** A CONTRATADA obriga-se a prestar serviço adequado, observando regularidade, continuidade, eficiência, segurança, atualidade e cortesia, na forma do art. 9º da Resolução CONTRAN nº 941/2022.
+
+**4.2.** A CONTRATADA responde, civil e criminalmente, **pelos prejuízos causados em decorrência das informações e interpretações que ela própria inserir no laudo** de vistoria de identificação veicular (art. 9º, VIII, da Resolução CONTRAN nº 941/2022).
+
+**4.3.** A responsabilidade da CONTRATADA **abrange e se limita** às falhas que lhe sejam imputáveis dentro do escopo da cláusula 2.2 — por exemplo, deixar de apontar adulteração de chassi, motor ou agregados que fosse perceptível à vistoria de identificação, ou registrar no laudo informação divergente da efetivamente constatada.
+
+**4.4.** A CONTRATADA **NÃO responde**, por expressa previsão legal e por estarem fora de seu escopo de atuação:
+
+a) por informações **oriundas dos bancos de dados BIN / RENAVAM / RENAMO** e demais bases oficiais de trânsito, das quais a CONTRATADA é mera consulente e não a fonte (art. 9º, VIII, parte final, da Resolução CONTRAN nº 941/2022);
+b) por qualquer fato, defeito ou circunstância listados na cláusula 3.1, que não integram o objeto contratado;
+c) por decisão do órgão de trânsito que recuse, exija complementação ou invalide o laudo no exercício de sua competência fiscalizatória, bem como por fato exclusivo de terceiro (notadamente do vendedor ou de proprietário anterior) ou do próprio CONTRATANTE;
+d) por vícios ou adulterações executados com grau de sofisticação que os torne **imperceptíveis** a uma vistoria de identificação realizada segundo a boa técnica e o regulamento aplicável, demandando perícia especializada para sua constatação.
+
+**4.5.** A CONTRATADA mantém, na forma do art. 5º, III, "d", da Resolução CONTRAN nº 941/2022, **Apólice de Seguro de Responsabilidade Civil Profissional no valor de R$ 500.000,00**, destinada à cobertura de danos eventualmente causados ao consumidor, sem prejuízo de que a responsabilidade da empresa não fica limitada ao teto da apólice.
+
+---
+
+## 5. DAS OBRIGAÇÕES E DECLARAÇÕES DO CONTRATANTE
+
+**5.1.** O CONTRATANTE obriga-se a:
+
+a) apresentar o veículo no local e horário ajustados, em condições de acesso e limpeza que permitam a vistoria (em especial dos pontos de identificação: chassi, motor e agregados);
+b) apresentar a documentação obrigatória exigida pela legislação de trânsito (CRLV-e e demais documentos pertinentes à finalidade declarada);
+c) prestar informações verdadeiras quanto à finalidade da vistoria e à titularidade/posse do veículo.
+
+**5.2.** O CONTRATANTE **declara, sob sua responsabilidade**, que:
+
+a) leu e compreendeu a delimitação de escopo das cláusulas 2 e 3, em especial que esta vistoria **não atesta** a ausência de vícios ocultos, a procedência comercial, o histórico não documentado, a inexistência de débitos ou a integridade mecânica do veículo;
+b) [OPCIONAL — exibir quando a finalidade for compra/venda] foi orientado de que, para fins de aquisição segura de veículo usado, recomenda-se vistoria cautelar específica, e que opta por contratar **apenas** a vistoria de identificação veicular.
+
+---
+
+## 6. DO PRAZO, EXECUÇÃO E ENTREGA DO LAUDO
+
+**6.1.** A vistoria será realizada nas instalações da CONTRATADA, ressalvadas as hipóteses de **vistoria móvel** taxativamente previstas no art. 3º da Resolução CONTRAN nº 941/2022 (veículo sinistrado indenizado, recuperado por instituição financeira, comercializado por PJ do ramo, apreendido em pátio público, relacionado para leilão, ou de PBT superior a 10 toneladas).
+
+**6.2.** O laudo será disponibilizado por meio eletrônico após o registro no SISCSV, no prazo de {{prazo_entrega_laudo}}, condicionada sua validade ao referido registro.
+
+**6.3.** O processo de vistoria é integralmente registrado por videomonitoramento e biometria, sendo as imagens armazenadas pelo prazo legal de **5 (cinco) anos**, à disposição do órgão de trânsito e do CONTRATANTE para fins de auditoria.
+
+---
+
+## 7. DO PREÇO E PAGAMENTO
+
+**7.1.** Pela prestação do serviço, o CONTRATANTE pagará o valor de R$ {{os_valor}}, na forma indicada no quadro-resumo, com emissão obrigatória de **Nota Fiscal de Serviço eletrônica (NFS-e)**, independentemente de solicitação.
+
+**7.2.** O valor refere-se **exclusivamente** ao serviço de vistoria de identificação veicular e não inclui taxas do Detran, emolumentos, ou quaisquer outros serviços não descritos neste contrato.
+
+---
+
+## 8. DOS DIREITOS DO CONSUMIDOR
+
+**8.1.** Esta contratação configura relação de consumo, regida pelo Código de Defesa do Consumidor. **Nenhuma cláusula deste contrato exclui, atenua ou transfere a responsabilidade da CONTRATADA por defeito na prestação do serviço dentro do escopo contratado** (art. 25 e art. 51, I, do CDC); a delimitação de escopo das cláusulas 2 e 3 destina-se a informar com clareza o que o serviço compreende, e não a afastar responsabilidade que a lei impõe.
+
+**8.2.** São direitos do CONTRATANTE, sem prejuízo de outros previstos em lei:
+
+a) receber informação clara, adequada e ostensiva sobre o serviço, seu escopo e seus limites;
+b) obter cópia do laudo e acesso às imagens da sua vistoria;
+c) ser atendido por **canal de ouvidoria / SAC** da CONTRATADA: {{ecv_canal_ouvidoria}};
+d) registrar reclamação perante o {{ecv_detran_uf}} e os órgãos de defesa do consumidor;
+e) ser ressarcido, na forma da lei e até o limite da apólice referida na cláusula 4.5 (sem que isso constitua teto da responsabilidade legal), por danos comprovadamente decorrentes de falha da CONTRATADA no âmbito do escopo contratado.
+
+---
+
+## 9. DA PROTEÇÃO DE DADOS (LGPD)
+
+**9.1.** A CONTRATADA tratará os dados pessoais do CONTRATANTE e do veículo exclusivamente para a execução do serviço e o cumprimento de obrigações legais e regulatórias perante o Sistema Nacional de Trânsito, na forma da Lei nº 13.709/2018 (LGPD).
+
+**9.2.** É **vedado** à CONTRATADA repassar a terceiros, a qualquer título, as informações sobre o veículo e o proprietário objeto da vistoria (art. 13, VI, da Resolução CONTRAN nº 941/2022), ressalvado o fornecimento às autoridades competentes nos casos legalmente previstos.
+
+---
+
+## 10. DAS DISPOSIÇÕES FINAIS
+
+**10.1.** Identificada **suspeita de fraude ou irregularidade insanável** na identificação do veículo, a CONTRATADA comunicará imediatamente a autoridade policial, na forma do art. 311 do Código Penal e do art. 9º, IX, da Resolução CONTRAN nº 941/2022, ato que **não** configura inadimplemento contratual da CONTRATADA.
+
+**10.2.** A eventual nulidade de qualquer cláusula não prejudica as demais.
+
+**10.3.** Fica eleito o foro do domicílio do CONTRATANTE para dirimir controvérsias oriundas deste contrato, conforme art. 101, I, do CDC.
+
+E, por estarem de acordo, as partes firmam o presente instrumento [OPCIONAL: eletronicamente, com aceite registrado no sistema sob hash {{aceite_hash}} em {{aceite_data_hora}}].
+
+{{ecv_cidade_uf}}, {{os_data}}.
+
+<br>
+
+| CONTRATADA | CONTRATANTE |
+|---|---|
+| {{ecv_razao_social}} | {{cliente_nome}} |
+| CNPJ {{ecv_cnpj}} | CPF/CNPJ {{cliente_documento}} |
+
+---
+
+### Notas de implementação para o ERP (não imprimir no documento ao cliente)
+
+- **Variável `{{ecv_portaria_estadual}}`**: deve ser preenchida conforme a UF de credenciamento da empresa. Para Santa Catarina = "Portaria DETRAN-SC nº 465/2023". Manter tabela de-para por UF, pois cada Detran tem norma própria sob a Res. CONTRAN 941/2022.
+- **Bloco 5.2.b e cláusula 3.2**: condicionar a exibição ao campo `os_finalidade`/`os_tipo_vistoria`. Quando a finalidade indicar compra e venda, é o ponto de maior risco de litígio — a recomendação expressa de vistoria cautelar é a principal proteção da empresa.
+- **Aceite eletrônico**: para validade probatória, registrar hash do documento, timestamp, IP/dispositivo e, idealmente, double opt-in. Vincular o aceite à OS.
+- **Revisão jurídica**: este é um modelo-base fundamentado na legislação federal vigente e na norma de SC. Antes de produção, submeter à validação de advogado da empresa e ajustar à portaria estadual de cada UF onde a Certive operar.

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&display=swap');
 
 :root {
   --bg-primary: #080d1a;
@@ -32,7 +32,7 @@
   --shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 50px rgba(0, 0, 0, 0.6);
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --font-primary: 'Outfit', sans-serif;
+  --font-serif: 'Outfit', sans-serif;
 }
 
 * {
@@ -67,7 +67,7 @@ body {
 
 /* Elegant Headers styling */
 h1, h2, h3, .serif-title {
-  font-family: var(--font-primary);
+  font-family: var(--font-serif);
   letter-spacing: 0.5px;
 }
 
@@ -87,10 +87,6 @@ h1, h2, h3, .serif-title {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-}
-/* Prevent flash of login screen on page reload when session exists */
-html.logged-in .login-overlay {
-  display: none;
 }
 .login-card {
   background: var(--bg-secondary);
@@ -565,26 +561,6 @@ html.logged-in .login-overlay {
 .badge-done .badge-dot { background: var(--success); }
 .badge-cancelled .badge-dot { background: var(--danger); }
 
-/* Recurrence Badge */
-.badge-recorrente {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  margin-bottom: 4px;
-}
-.badge-recorrente i {
-  font-size: 12px;
-}
-
 /* ===== MODAL ===== */
 .modal-overlay {
   position: fixed;
@@ -687,7 +663,7 @@ html.logged-in .login-overlay {
   transition: var(--transition);
   outline: none;
 }
-.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]):not(#login-username),
+.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]),
 .form-group textarea,
 .search-input {
   text-transform: uppercase;
@@ -697,12 +673,6 @@ html.logged-in .login-overlay {
 .form-group textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
-}
-.form-group input[type="date"]::-webkit-calendar-picker-indicator,
-.form-group input[type="time"]::-webkit-calendar-picker-indicator,
-.form-group input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
 }
 .form-group select {
   cursor: pointer;
@@ -782,7 +752,7 @@ html.logged-in .login-overlay {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 14px;
-  font-family: var(--font-primary);
+  font-family: var(--font-serif);
 }
 .form-section-title span {
   width: 22px;
@@ -1463,42 +1433,10 @@ html.logged-in .login-overlay {
   }
   .sidebar.active {
     transform: translateX(0);
-    z-index: 200;
-  }
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 199;
-  }
-  .sidebar-overlay.active {
-    display: block;
   }
   .main-content {
     margin-left: 0;
   }
-  .btn-hamburger {
-    display: flex !important;
-    width: 36px;
-    height: 36px;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    cursor: pointer;
-    font-size: 18px;
-    transition: var(--transition);
-  }
-  .btn-hamburger:hover {
-    background: var(--bg-card-hover);
-    border-color: var(--border-hover);
-  }
-}
-.btn-hamburger {
-  display: none;
 }
 @media (max-width: 768px) {
   .kpi-grid {
@@ -1517,4 +1455,134 @@ html.logged-in .login-overlay {
   .pipeline-board {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== PREMIUM STYLES FOR CONTRACT PREVIEW & PRINT ===== */
+.contract-preview-container {
+    max-height: 450px;
+    overflow-y: auto;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-card);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.contract-preview-container h1, .contract-preview-container h2 {
+    color: var(--accent); /* Metallic Gold */
+    font-family: Georgia, serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    text-transform: uppercase;
+}
+.contract-preview-container h3, .contract-preview-container h4 {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+    margin-top: 18px;
+    margin-bottom: 10px;
+}
+.contract-preview-container p {
+    margin-bottom: 12px;
+    text-align: justify;
+}
+.contract-preview-container table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    background-color: var(--bg-body);
+}
+.contract-preview-container th, .contract-preview-container td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+}
+.contract-preview-container th {
+    background-color: rgba(212, 175, 55, 0.15); /* Gold tint */
+    color: var(--accent);
+    font-weight: 700;
+}
+.contract-preview-container hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+}
+.contract-preview-container ul, .contract-preview-container ol {
+    padding-left: 20px;
+    margin-bottom: 12px;
+}
+.contract-preview-container li {
+    margin-bottom: 6px;
+    text-align: justify;
+}
+.contract-preview-container blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 15px 0;
+}
+
+@media print {
+    .print-contract-container {
+        font-family: 'Outfit', 'Arial', sans-serif !important;
+        font-size: 11px !important;
+        line-height: 1.4 !important;
+        color: #000 !important;
+    }
+    .print-contract-container h1, .print-contract-container h2 {
+        font-family: 'Outfit', 'Arial', sans-serif !important;
+        font-size: 13px !important;
+        font-weight: bold !important;
+        margin-top: 15px !important;
+        margin-bottom: 8px !important;
+        border-bottom: 1px solid #000 !important;
+        padding-bottom: 3px !important;
+        text-transform: uppercase !important;
+        page-break-after: avoid !important;
+    }
+    .print-contract-container h3, .print-contract-container h4 {
+        font-size: 11px !important;
+        font-weight: bold !important;
+        margin-top: 12px !important;
+        margin-bottom: 6px !important;
+        page-break-after: avoid !important;
+    }
+    .print-contract-container p {
+        margin-bottom: 6px !important;
+        text-align: justify !important;
+    }
+    .print-contract-container table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 10px 0 !important;
+    }
+    .print-contract-container th, .print-contract-container td {
+        border: 1px solid #000 !important;
+        padding: 5px 8px !important;
+    }
+    .print-contract-container th {
+        background-color: #f2f2f2 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .print-contract-container hr {
+        border: none !important;
+        border-top: 1px solid #000 !important;
+        margin: 12px 0 !important;
+    }
+    .print-contract-container ul, .print-contract-container ol {
+        padding-left: 15px !important;
+        margin-bottom: 8px !important;
+    }
+    .print-contract-container li {
+        margin-bottom: 4px !important;
+    }
 }
