@@ -281,3 +281,34 @@ function cacheUnshift(table, record) {
     if (!db[table]) db[table] = [];
     db[table].unshift(record);
 }
+
+// Get next OS Number from Database reliably
+async function getNextOSNumber() {
+    if (!supabaseClient) return "OS-0001";
+    try {
+        const { data, error } = await supabaseClient
+            .from('ordens_servico')
+            .select('numero, id')
+            .order('id', { ascending: false })
+            .limit(1);
+            
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            const lastNumStr = data[0].numero; // "OS-0005"
+            // If it doesn't match the format, fallback to id
+            const match = lastNumStr.match(/OS-(\d+)/);
+            if (match && match[1]) {
+                const nextId = parseInt(match[1]) + 1;
+                return "OS-" + String(nextId).padStart(4, '0');
+            } else {
+                return "OS-" + String(data[0].id + 1).padStart(4, '0');
+            }
+        }
+        return "OS-0001";
+    } catch (e) {
+        console.error("Erro ao buscar próximo número de OS:", e);
+        // Fallback to local array
+        return "OS-" + String(db.ordens_servico.length + 1).padStart(4, '0');
+    }
+}

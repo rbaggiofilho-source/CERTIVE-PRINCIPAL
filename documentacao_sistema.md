@@ -115,9 +115,13 @@ erDiagram
 *   `servicoId` (int): Serviço contratado.
 *   `servicoNome` (string): Nome completo do serviço na abertura.
 *   `valor` (decimal): Preço final cobrado na O.S.
-*   `observacoes` (string): Modelo, Ano e Cor do veículo vistoriado.
+*   `observacoes` (string): Modelo, Ano e Cor do veículo vistoriado (Obrigatório).
 *   `pago` (boolean): Estado financeiro de quitação.
-*   `formaPagamento` (string): `"pix"`, `"debito"`, `"credito"`, `"especie"`, `"faturamento"` ou `"isento"`.
+*   `formaPagamento` (string): `"pix"`, `"debito"`, `"credito"`, `"credito_parcelado"`, `"especie"`, `"faturamento"` ou `"isento"`.
+*   `parcelas` (int/null): Número de parcelas se a forma de pagamento for `"credito_parcelado"`.
+*   `statusNfse` (string): Status da NFS-e ("Não solicitada", "Pendente de emissão", "Emitida").
+*   `numeroNfse` (string/null): Número da NFS-e gerada na simulação.
+*   `dataNfse` (string/null): Data de emissão da NFS-e.
 *   `detranRegistrado` (boolean): Indica se a O.S. foi devidamente registrada no DETRAN-SC.
 *   `docVeiculoApresentado` (boolean): Validação obrigatória da CRLV física/digital.
 *   `docIdentificacaoApresentado` (boolean): Validação da CNH/RG física/digital do condutor.
@@ -146,6 +150,7 @@ erDiagram
 *   `fechadoEm` (string ISO/null): Data/Hora do encerramento.
 *   `saldoAbertura` (decimal): Fundo inicial de troco (padrão de R$ 200,00).
 *   `saldoEspécieInformado` (decimal): Valor físico em cédulas e moedas contado e informado pelo operador no fechamento.
+*   `pdfConsolidado` (string base64/null): Relatório de caixa e PDF do portal do DETRAN mesclados.
 
 #### 8. `db.caixa_movimentos` (Transações de Fluxo de Caixa)
 *   `id` (int): Chave primária.
@@ -153,7 +158,7 @@ erDiagram
 *   `tipo` (string): `"entrada"` (crédito) ou `"saida"` (débito/sangria).
 *   `valor` (decimal): Valor do lançamento.
 *   `descricao` (string): Histórico ou finalidade do movimento.
-*   `formaPagamento` (string): `"pix"`, `"debito"`, `"credito"` ou `"especie"`.
+*   `formaPagamento` (string): `"pix"`, `"debito"`, `"credito"`, `"credito_parcelado"` ou `"especie"`.
 *   `data` (string ISO): Instante de lançamento.
 *   `operador` (string): Operador responsável pelo lançamento.
 *   `osId` (int/null): ID da O.S. de origem caso seja um recebimento integrado.
@@ -164,10 +169,13 @@ erDiagram
 *   `unidadeId` (int): Unidade de custo associada.
 *   `descricao` (string): Nome da conta ou descrição detalhada do custo.
 *   `tipo` (string): `"fixo"` (luz, aluguel, internet) ou `"variavel"` (taxas mensais DETRAN).
+*   `categoria` (string): Categoria da despesa ("Aluguel", "Água / Luz / Internet", "Impostos / Taxas", "Material de Escritório", "Serviços de Terceiros", "Outros").
+*   `fornecedor` (string): Fornecedor da despesa.
 *   `vencimento` (string formatada): Data de vencimento (ex: "2026-06-28").
 *   `valor` (decimal): Valor total do boleto/guia.
 *   `observacoes` (string): Campo de anotações contendo o Código de Barras da fatura.
 *   `anexo` (string base64/null): Dados da fatura digitalizada (JPEG/PDF).
+*   `comprovante` (string base64/null): Comprovante de pagamento anexado na liquidação (JPEG/PDF).
 *   `pago` (boolean): Estado de liquidação da despesa.
 *   `pagoEm` (string formatada/null): Data da liquidação.
 
@@ -180,6 +188,9 @@ erDiagram
 *   `periodoFim` (string formatada): Data final do lote faturado.
 *   `valorTotal` (decimal): Soma dos valores das O.S.s agregadas.
 *   `ordensIds` (array de ints): Lista dos IDs de O.S.s inclusas nesta fatura.
+*   `statusBoleto` (string): Status do boleto bancário ("Não gerado", "Gerado", "Pago", "Vencido").
+*   `boletoVencimento` (string/null): Vencimento do boleto bancário.
+*   `boletoCodigoDeBarras` (string/null): Código de barras / linha digitável do boleto.
 *   `pago` (boolean): Indica se a fatura foi quitada.
 *   `pagoEm` (string ISO/null): Data/Hora da quitação em lote.
 *   `criadoEm` (string ISO): Data de emissão.
@@ -192,6 +203,9 @@ erDiagram
 *   `acao` (string): Categoria da operação ("Abertura OS", "Login", "Fechamento Caixa", "Laudo Emissão", etc.).
 *   `descricao` (string): Detalhamento textual do log (ex: "Abriu a ordem OS-0005 para placa REPRO99").
 *   `unidadeId` (int): Unidade de registro do log.
+
+#### 12. `db.metas_despesas` (Metas Financeiras por Categoria)
+*   `unidadeId` (object): Mapeia as metas de gastos mensais por categoria na filial. Formato: `{ unidadeId: { categoriaName: valorLimite } }`.
 
 ---
 

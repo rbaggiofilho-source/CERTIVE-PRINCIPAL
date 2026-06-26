@@ -591,3 +591,158 @@ function printCaixaById(caixaId) {
     logAudit("Exportação PDF", `Exportou fechamento de caixa de ${formatDateBr(c.data)}.`);
     window.print();
 }
+
+function downloadConsolidatedPdf(caixaId) {
+    const c = db.caixa_diario.find(x => x.id === caixaId);
+    if (!c || !c.pdfConsolidado) {
+        showToast("PDF consolidado não encontrado para este caixa.", "error");
+        return;
+    }
+    const linkSource = `data:application/pdf;base64,${c.pdfConsolidado}`;
+    const downloadLink = document.createElement("a");
+    const fileName = `caixa_consolidado_${c.data}_unidade_${c.unidadeId}.pdf`;
+
+    downloadLink.href = linkSource;
+    downloadLink.download = fileName;
+    downloadLink.click();
+    showToast("PDF Consolidado baixado com sucesso!", "success");
+    logAudit("Download PDF Consolidado", `Baixou o PDF consolidado do caixa de ${formatDateBr(c.data)}.`);
+}
+
+function generateCashierPdfData(c) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const unit = db.unidades.find(u => u.id === c.unidadeId);
+    const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
+
+    const entries = movs.filter(m => m.tipo === 'entrada');
+    const exits = movs.filter(m => m.tipo === 'saida');
+
+    const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
+    const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
+
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
+    const diff = c.saldoEspécieInformado - estimatedCash;
+
+    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
+    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
+    const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
+    const totalFaturamento = db.ordens_servico
+        .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
+        .reduce((sum, o) => sum + o.valor, 0);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("CERTIVE VISTORIAS", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("Helvetica", "normal");
+    doc.text("Fechamento de Caixa Diario - Demonstrativo Financeiro", 14, 26);
+    doc.line(14, 28, 196, 28);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("Unidade Operacional:", 14, 35);
+    doc.setFont("Helvetica", "normal");
+    doc.text(unit ? unit.nome : "—", 52, 35);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("Data Movimentacao:", 14, 41);
+    doc.setFont("Helvetica", "normal");
+    doc.text(formatDateBr(c.data), 52, 41);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("Aberto Por:", 110, 35);
+    doc.setFont("Helvetica", "normal");
+    doc.text(c.abertoPor || "—", 132, 35);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("Responsavel:", 110, 41);
+    doc.setFont("Helvetica", "normal");
+    doc.text(c.fechadoPor || "—", 132, 41);
+
+    doc.line(14, 45, 196, 45);
+
+    // Summary section
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("1. RESUMO FINANCEIRO E CONCILIACAO", 14, 52);
+
+    doc.setFontSize(9);
+    doc.setFont("Helvetica", "normal");
+    doc.text(`Fundo Inicial (Abertura): ${formatCurrency(c.saldoAbertura)}`, 14, 60);
+    doc.text(`Total de Entradas (+): ${formatCurrency(totalEntradas)}`, 14, 66);
+    doc.text(`Total de Saidas (-): ${formatCurrency(totalSaidas)}`, 14, 72);
+    doc.text(`Resultado Liquido: ${formatCurrency(totalEntradas - totalSaidas)}`, 14, 78);
+
+    doc.text(`Total Pix: ${formatCurrency(totalPix)}`, 110, 60);
+    doc.text(`Total Dinheiro: ${formatCurrency(totalEspecie)}`, 110, 66);
+    doc.text(`Total Debito: ${formatCurrency(totalDebito)}`, 110, 72);
+    doc.text(`Total Credito Vista: ${formatCurrency(totalCredito)}`, 110, 78);
+    doc.text(`Total Credito Parcelado: ${formatCurrency(totalCreditoParcelado)}`, 110, 84);
+    doc.text(`Total Faturamento: ${formatCurrency(totalFaturamento)}`, 110, 90);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text(`Saldo Fisico Estimado: ${formatCurrency(estimatedCash)}`, 14, 98);
+    doc.text(`Saldo Fisico Informado: ${formatCurrency(c.saldoEspécieInformado)}`, 14, 104);
+    doc.text(`Diferenca de Caixa: ${formatCurrency(diff)}`, 14, 110);
+
+    doc.line(14, 115, 196, 115);
+
+    // Detail section
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("2. DETALHE DOS LANCAMENTOS", 14, 122);
+
+    doc.setFontSize(9);
+    doc.text("Hora", 14, 129);
+    doc.text("Descricao / Servico", 30, 129);
+    doc.text("Forma", 120, 129);
+    doc.text("Entrada", 145, 129);
+    doc.text("Saida", 172, 129);
+    doc.line(14, 131, 196, 131);
+
+    let y = 137;
+    doc.setFont("Helvetica", "normal");
+    movs.forEach((m) => {
+        if (y > 270) {
+            doc.addPage();
+            y = 20;
+            doc.setFont("Helvetica", "bold");
+            doc.text("Hora", 14, y);
+            doc.text("Descricao / Servico", 30, y);
+            doc.text("Forma", 120, y);
+            doc.text("Entrada", 145, y);
+            doc.text("Saida", 172, y);
+            doc.line(14, y + 2, 196, y + 2);
+            y += 8;
+            doc.setFont("Helvetica", "normal");
+        }
+        const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        doc.text(time, 14, y);
+        let desc = m.descricao;
+        if (desc.length > 50) desc = desc.slice(0, 47) + "...";
+        doc.text(desc, 30, y);
+        doc.text(m.formaPagamento.toUpperCase(), 120, y);
+        doc.text(m.tipo === 'entrada' ? formatCurrency(m.valor) : '—', 145, y);
+        doc.text(m.tipo === 'saida' ? formatCurrency(m.valor) : '—', 172, y);
+        y += 6;
+    });
+
+    if (y > 240) {
+        doc.addPage();
+        y = 30;
+    } else {
+        y += 20;
+    }
+    doc.line(14, y, 90, y);
+    doc.line(110, y, 186, y);
+    doc.text("Assinatura do Operador", 22, y + 5);
+    doc.text("Assinatura do Supervisor", 118, y + 5);
+
+    return doc.output('arraybuffer');
+}

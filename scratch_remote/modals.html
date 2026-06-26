@@ -1,0 +1,148 @@
+<div class="modal-overlay" id="modal-contrato-assinatura" style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 2000;">
+    <div class="modal" style="width: 90%; max-width: 800px; background: var(--bg-card); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border);">
+            <h3 style="color: var(--accent); font-family: Georgia, serif; font-size: 18px; margin: 0; font-weight: 700;">Contrato de Prestação de Serviços</h3>
+            <button class="modal-close" onclick="closeContratoModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column;">
+            <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px; margin-top: 0;">Por favor, revise o contrato gerado com o cliente. O aceite eletrônico é obrigatório para prosseguir.</p>
+            
+            <div class="contract-preview-container" id="contrato-preview-content">
+                <!-- Preenchido via JS -->
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label class="form-check" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; color: var(--text-primary); font-size: 13px; font-weight: 600;">
+                    <input type="checkbox" id="contrato-aceite-check" onchange="toggleContratoConfirmBtn()" style="margin-top: 3px; cursor: pointer;">
+                    <span>Declaro que o CONTRATANTE leu, concorda com todos os termos e assina o presente contrato de prestação de serviços eletronicamente.</span>
+                </label>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px; margin-top: 10px;">
+                <button class="btn btn-secondary" onclick="printContratoPreview()" style="font-weight: 600;">
+                    <i class="ri-printer-line"></i> Imprimir / Exportar PDF
+                </button>
+                <button class="btn btn-primary" id="btn-confirmar-contrato" onclick="confirmContratoAndSaveOS()" disabled style="font-weight: 700;">
+                    <i class="ri-checkbox-circle-line"></i> Confirmar Assinatura e Abrir OS
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-contrato-firmado" style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 2000;">
+    <div class="modal" style="width: 90%; max-width: 800px; background: var(--bg-card); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border);">
+            <h3 style="color: var(--accent); font-family: Georgia, serif; font-size: 18px; margin: 0; font-weight: 700;">Contrato Firmado</h3>
+            <button class="modal-close" onclick="closeContratoFirmadoModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column;">
+            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size: 12px; color: var(--accent); display: flex; flex-direction: column; gap: 4px;">
+                <div style="font-weight: 700;"><i class="ri-shield-check-line" style="vertical-align: middle; margin-right: 6px; font-size: 16px;"></i> Assinatura Eletrônica Registrada</div>
+                <div id="contrato-firmado-hash-display" style="font-family: monospace; margin-left: 22px;">Hash: SIG-XXXXXX</div>
+                <div id="contrato-firmado-data-display" style="margin-left: 22px;">Aceito em: DD/MM/AAAA às HH:MM</div>
+            </div>
+            
+            <div class="contract-preview-container" id="contrato-firmado-content">
+                <!-- Preenchido via JS -->
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">
+                <button class="btn btn-secondary" onclick="printContratoFirmado()" style="font-weight: 600;">
+                    <i class="ri-printer-line"></i> Imprimir Contrato Assinado
+                </button>
+                <button class="btn btn-primary" onclick="closeContratoFirmadoModal()" style="font-weight: 600;">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ===== ÁREA DE IMPRESSÃO (CONTRATO) ===== -->
+<div id="print-area">
+    <!-- Gerado dinamicamente no momento da impressão -->
+</div>
+
+<script>
+    window.onerror = function(message, source, lineno, colno, error) {
+        const errorMsg = "Erro Global Detectado:\n" + 
+                         "Mensagem: " + message + "\n" +
+                         "Arquivo: " + source + "\n" +
+                         "Linha: " + lineno + ", Coluna: " + colno + "\n" +
+                         (error ? "Stack: " + error.stack : "");
+        console.error(errorMsg);
+        alert(errorMsg);
+        return false;
+    };
+    window.onunhandledrejection = function(event) {
+        const errorMsg = "Erro de Promessa não tratada:\n" + 
+                         "Razão: " + event.reason;
+        console.error(errorMsg);
+        alert(errorMsg);
+    };
+</script>
+<script src="app.js"></script>
+</body>
+</html>
+<div class="modal-overlay" id="modal-contrato-firmado" style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 2000;">
+    <div class="modal" style="width: 90%; max-width: 800px; background: var(--bg-card); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border);">
+            <h3 style="color: var(--accent); font-family: Georgia, serif; font-size: 18px; margin: 0; font-weight: 700;">Contrato Firmado</h3>
+            <button class="modal-close" onclick="closeContratoFirmadoModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column;">
+            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size: 12px; color: var(--accent); display: flex; flex-direction: column; gap: 4px;">
+                <div style="font-weight: 700;"><i class="ri-shield-check-line" style="vertical-align: middle; margin-right: 6px; font-size: 16px;"></i> Assinatura Eletrônica Registrada</div>
+                <div id="contrato-firmado-hash-display" style="font-family: monospace; margin-left: 22px;">Hash: SIG-XXXXXX</div>
+                <div id="contrato-firmado-data-display" style="margin-left: 22px;">Aceito em: DD/MM/AAAA às HH:MM</div>
+            </div>
+            
+            <div class="contract-preview-container" id="contrato-firmado-content">
+                <!-- Preenchido via JS -->
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">
+                <button class="btn btn-secondary" onclick="printContratoFirmado()" style="font-weight: 600;">
+                    <i class="ri-printer-line"></i> Imprimir Contrato Assinado
+                </button>
+                <button class="btn btn-primary" onclick="closeContratoFirmadoModal()" style="font-weight: 600;">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ===== ÁREA DE IMPRESSÃO (CONTRATO) ===== -->
+<div id="print-area">
+    <!-- Gerado dinamicamente no momento da impressão -->
+</div>
+
+<script>
+    window.onerror = function(message, source, lineno, colno, error) {
+        const errorMsg = "Erro Global Detectado:\n" + 
+                         "Mensagem: " + message + "\n" +
+                         "Arquivo: " + source + "\n" +
+                         "Linha: " + lineno + ", Coluna: " + colno + "\n" +
+                         (error ? "Stack: " + error.stack : "");
+        console.error(errorMsg);
+        alert(errorMsg);
+        return false;
+    };
+    window.onunhandledrejection = function(event) {
+        const errorMsg = "Erro de Promessa não tratada:\n" + 
+                         "Razão: " + event.reason;
+        console.error(errorMsg);
+        alert(errorMsg);
+    };
+</script>
+<script src="app.js"></script>
+</body>
+</html>

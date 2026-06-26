@@ -1523,3 +1523,54 @@ html.logged-in .login-overlay {
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  .print-contract-container {
+    padding: 0 10px;
+  }
+  .print-contract-container h1, 
+  .print-contract-container h2, 
+  .print-contract-container h3 {
+    margin-top: 20px;
+    margin-bottom: 12px;
+    color: #1e3a5f !important;
+  }
+  .print-contract-container h2 {
+    font-size: 16px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+  }
+  .print-contract-container h3 {
+    font-size: 14px;
+    margin-top: 24px;
+  }
+  .print-contract-container p {
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: justify;
+    margin-bottom: 10px;
+  }
+  .print-contract-container table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 11px;
+  }
+  .print-contract-container th, 
+  .print-contract-container td {
+    border: 1px solid #000 !important;
+    padding: 6px;
+    text-align: left;
+  }
+  .print-contract-container th {
+    background-color: #f2f2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-contract-container hr {
+    border: 0;
+    border-top: 1px solid #ccc;
+    margin: 20px 0;
+  }
+}

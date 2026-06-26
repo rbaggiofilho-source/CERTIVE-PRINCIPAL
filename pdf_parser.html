@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+</head>
+<body>
+    <div id="status">Loading...</div>
+    <textarea id="output" style="width: 100%; height: 500px;"></textarea>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        async function extractPdfText(url, name) {
+            console.log("Fetching " + name + " from " + url);
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            let text = `=== START OF ${name} ===\n`;
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                text += `--- PAGE ${i} ---\n${pageText}\n\n`;
+            }
+            text += `=== END OF ${name} ===\n\n`;
+            return text;
+        }
+
+        async function start() {
+            try {
+                document.getElementById('status').textContent = 'Extracting PDF 1...';
+                let txt1 = await extractPdfText('Contrato_Vistoria_ECV_Certive.pdf', 'Contrato_Vistoria_ECV_Certive.pdf');
+                
+                document.getElementById('status').textContent = 'Extracting PDF 2...';
+                let txt2 = await extractPdfText('Termo_Prestacao_Servicos_Certive.pdf', 'Termo_Prestacao_Servicos_Certive.pdf');
+                
+                const fullText = txt1 + txt2;
+                document.getElementById('output').value = fullText;
+                document.getElementById('status').textContent = 'Downloading result...';
+                
+                const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'extracted_pdf_text_output.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                document.getElementById('status').textContent = 'Done! You can close this window.';
+                console.log("Extraction complete!");
+            } catch (e) {
+                document.getElementById('status').textContent = 'Error: ' + e.message;
+                console.error(e);
+            }
+        }
+        
+        // Wait 1 second to start
+        setTimeout(start, 1000);
+    </script>
+</body>
+</html>

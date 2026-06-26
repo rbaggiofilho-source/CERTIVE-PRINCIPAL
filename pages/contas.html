@@ -8,6 +8,7 @@
                 <div class="tabs-bar">
                     <button class="tab-btn active" onclick="switchContasTab('despesas', this)">Contas da Unidade</button>
                     <button class="tab-btn" onclick="switchContasTab('variaveis', this)">Consolidação DETRAN-SC</button>
+                    <button class="tab-btn" onclick="switchContasTab('assessor', this)">Assessor de Despesas</button>
                 </div>
 
                 <!-- Aba: Contas Gerais da Unidade -->
@@ -149,6 +150,113 @@
                                     <i class="ri-lightbulb-line" style="color: var(--accent); font-size: 20px;"></i>
                                     <span>Ao clicar em "Lançar Contas a Pagar DETRAN", uma conta com o valor consolidado é automaticamente adicionada ao módulo financeiro desta unidade.</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba: Assessor de Despesas (Camada A & B) -->
+                <div id="tab-contas-assessor" style="display: none;">
+                    <!-- AI Advisor Toggle (Camada B Toggle) -->
+                    <div class="panel-card" style="background: linear-gradient(135deg, rgba(212, 160, 23, 0.05), rgba(8, 13, 26, 0.2)); border: 1px solid rgba(212, 160, 23, 0.2); box-shadow: 0 0 15px rgba(212, 160, 23, 0.05); margin-bottom: 24px;">
+                        <div class="panel-card-body" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px;">
+                            <div style="display: flex; gap: 16px; align-items: center;">
+                                <div style="background: rgba(212, 160, 23, 0.1); width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 24px; box-shadow: 0 0 10px rgba(212, 160, 23, 0.2);">
+                                    <i class="ri-cpu-line"></i>
+                                </div>
+                                <div>
+                                    <h4 style="font-size: 16px; font-weight: 700; color: var(--text-primary);">Assessor de Gestão com Inteligência Artificial</h4>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Ative para gerar recomendações automatizadas de economia em linguagem natural com base nos seus gastos reais.</p>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-secondary);" id="ai-toggle-label">Desativado</span>
+                                <label class="form-check" style="margin: 0; display: inline-flex;">
+                                    <input type="checkbox" id="ai-toggle-switch" onchange="toggleAiAdvisor(this.checked)" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent);">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Insights Block (Visible when active) -->
+                    <div id="ai-insights-block" style="display: none; margin-bottom: 24px;">
+                        <div class="panel-card" style="border-color: rgba(212, 160, 23, 0.25);">
+                            <div class="panel-card-header" style="background: rgba(212, 160, 23, 0.02);">
+                                <h3><i class="ri-magic-line"></i> Insights e Recomendações da IA</h3>
+                            </div>
+                            <div class="panel-card-body" id="ai-insights-content" style="line-height: 1.6; font-size: 13px;">
+                                <!-- Dinâmico via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                        <!-- Definir Metas por Categoria -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-focus-3-line"></i> Definir Metas Mensais por Categoria</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="metas-despesas-form" onsubmit="submitMetasDespesas(event)">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" id="metas-inputs-grid">
+                                        <!-- Gerado via JS -->
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">
+                                        <i class="ri-save-line"></i> Salvar Metas Financeiras
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Top Fornecedores e Variações -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-error-warning-line"></i> Maiores Variações no Mês</h3>
+                            </div>
+                            <div class="panel-card-body" style="padding: 0;">
+                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Fornecedor</th>
+                                                <th>Categoria</th>
+                                                <th style="text-align: right;">Gasto Mês</th>
+                                                <th style="text-align: right;">Var. Mês Ant.</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="assessor-variacoes-tbody">
+                                            <!-- JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de Comparação por Categoria (Camada A) -->
+                    <div class="panel-card">
+                        <div class="panel-card-header">
+                            <h3><i class="ri-line-chart-line"></i> Análise Comparativa e Controle Orçamentário</h3>
+                        </div>
+                        <div class="panel-card-body" style="padding: 0;">
+                            <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Categoria de Despesa</th>
+                                            <th style="text-align: right;">Gasto Mês Atual (Jun/26)</th>
+                                            <th style="text-align: right;">Meta Mensal</th>
+                                            <th>Status Meta</th>
+                                            <th style="text-align: right;">Gasto Mês Ant. (Mai/26)</th>
+                                            <th style="text-align: right;">Var. Mês Ant. (%)</th>
+                                            <th style="text-align: right;">Média Histórica</th>
+                                            <th style="text-align: right;">Var. Média (%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="assessor-categorias-tbody">
+                                        <!-- JS -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

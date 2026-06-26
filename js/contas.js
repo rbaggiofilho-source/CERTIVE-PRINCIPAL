@@ -12,9 +12,12 @@ function switchContasTab(tab, btn) {
 
     document.getElementById('tab-contas-despesas').style.display = tab === 'despesas' ? 'block' : 'none';
     document.getElementById('tab-contas-variaveis').style.display = tab === 'variaveis' ? 'block' : 'none';
+    const assessorTab = document.getElementById('tab-contas-assessor');
+    if(assessorTab) assessorTab.style.display = tab === 'assessor' ? 'block' : 'none';
 
     if (tab === 'despesas') renderContasGerais();
     if (tab === 'variaveis') calcularCustosDetran();
+    if (tab === 'assessor') renderAssessorTab();
 }
 
 function renderContasPage() {
@@ -461,4 +464,360 @@ async function lancarFaturaDetran() {
         console.error('[Certive] lancarFaturaDetran error:', e);
         showToast("Erro ao lançar guia DETRAN.", "error");
     }
+}
+
+const CATEGORIAS_DESPESAS = [
+    "Aluguel",
+    "Água / Luz / Internet",
+    "Impostos / Taxas",
+    "Material de Escritório",
+    "Serviços de Terceiros",
+    "Outros"
+];
+
+function renderAssessorTab() {
+    const grid = document.getElementById('metas-inputs-grid');
+    const activeUnit = db.unidades.find(u => u.id === activeUnitId);
+    const unitMetas = activeUnit?.metasFinanceiras || {};
+
+    grid.innerHTML = CATEGORIAS_DESPESAS.map(cat => {
+        const metaVal = unitMetas[cat] || 0;
+        return `
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 11px; margin-bottom: 4px;">${cat}</label>
+                <div style="position: relative;">
+                    <span style="position: absolute; left: 10px; top: 9px; font-size: 13px; color: var(--text-muted);">R$</span>
+                    <input type="number" step="0.01" class="meta-input-field" data-categoria="${cat}" value="${metaVal.toFixed(2)}" style="padding-left: 32px; font-size: 13px;">
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // 1. Render Category comparison
+    const tbodyCat = document.getElementById('assessor-categorias-tbody');
+    const unitExpenses = db.contas_pagar.filter(c => c.unidadeId === activeUnitId);
+    const currentMonthStr = "2026-06";
+    const prevMonthStr = "2026-05";
+    
+    tbodyCat.innerHTML = CATEGORIAS_DESPESAS.map(cat => {
+        const gastoAtual = unitExpenses.filter(c => (c.categoria || 'Outros') === cat && c.vencimento.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAnterior = unitExpenses.filter(c => (c.categoria || 'Outros') === cat && c.vencimento.startsWith(prevMonthStr)).reduce((sum, c) => sum + c.valor, 0);
+        const meta = unitMetas[cat] || 0;
+        
+        // Historical average including all months in the DB for this unit
+        const allMonths = [...new Set(unitExpenses.filter(c => (c.categoria || 'Outros') === cat).map(c => c.vencimento.substring(0, 7)))];
+        const numMonths = allMonths.length || 1;
+        const totalCatGastos = unitExpenses.filter(c => (c.categoria || 'Outros') === cat).reduce((sum, c) => sum + c.valor, 0);
+        const mediaHistorica = totalCatGastos / numMonths;
+        
+        let statusMetaBadge = '';
+        if (meta === 0) {
+            statusMetaBadge = `<span class="badge" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">Sem Meta</span>`;
+        } else if (gastoAtual > meta) {
+            statusMetaBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ri-alert-line"></i> Excedido</span>`;
+        } else {
+            statusMetaBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);"><i class="ri-checkbox-circle-line"></i> No Limite</span>`;
+        }
+        
+        let varAntText = '—';
+        let varAntStyle = '';
+        if (gastoAnterior > 0) {
+            const diffPct = ((gastoAtual - gastoAnterior) / gastoAnterior) * 100;
+            if (diffPct > 0) {
+                varAntText = `+${diffPct.toFixed(1)}% <i class="ri-arrow-up-line"></i>`;
+                varAntStyle = 'color: var(--danger); font-weight: 600;';
+            } else if (diffPct < 0) {
+                varAntText = `${diffPct.toFixed(1)}% <i class="ri-arrow-down-line"></i>`;
+                varAntStyle = 'color: var(--success); font-weight: 600;';
+            } else {
+                varAntText = '0.0%';
+                varAntStyle = 'color: var(--text-secondary);';
+            }
+        } else if (gastoAtual > 0) {
+            varAntText = `+100.0% <i class="ri-arrow-up-line"></i>`;
+            varAntStyle = 'color: var(--danger); font-weight: 600;';
+        }
+        
+        let varMediaText = '—';
+        let varMediaStyle = '';
+        if (mediaHistorica > 0) {
+            const diffPct = ((gastoAtual - mediaHistorica) / mediaHistorica) * 100;
+            if (diffPct > 0) {
+                varMediaText = `+${diffPct.toFixed(1)}% <i class="ri-arrow-up-line"></i>`;
+                varMediaStyle = 'color: var(--danger); font-weight: 600;';
+            } else if (diffPct < 0) {
+                varMediaText = `${diffPct.toFixed(1)}% <i class="ri-arrow-down-line"></i>`;
+                varMediaStyle = 'color: var(--success); font-weight: 600;';
+            } else {
+                varMediaText = '0.0%';
+                varMediaStyle = 'color: var(--text-secondary);';
+            }
+        } else if (gastoAtual > 0) {
+            varMediaText = `+100.0% <i class="ri-arrow-up-line"></i>`;
+            varMediaStyle = 'color: var(--danger); font-weight: 600;';
+        }
+        
+        return `
+            <tr>
+                <td><strong>${cat}</strong></td>
+                <td style="text-align: right; font-weight: 600;">${formatCurrency(gastoAtual)}</td>
+                <td style="text-align: right; color: var(--text-secondary); font-weight: 500;">${meta > 0 ? formatCurrency(meta) : '—'}</td>
+                <td>${statusMetaBadge}</td>
+                <td style="text-align: right; color: var(--text-secondary);">${formatCurrency(gastoAnterior)}</td>
+                <td style="text-align: right; ${varAntStyle}">${varAntText}</td>
+                <td style="text-align: right; color: var(--text-secondary);">${formatCurrency(mediaHistorica)}</td>
+                <td style="text-align: right; ${varMediaStyle}">${varMediaText}</td>
+            </tr>
+        `;
+    }).join('');
+
+    // 2. Render Largest Month Variations per provider/category (Camada A Details)
+    const currentExpenses = unitExpenses.filter(c => c.vencimento.startsWith(currentMonthStr));
+    const prevExpenses = unitExpenses.filter(c => c.vencimento.startsWith(prevMonthStr));
+    
+    const groupExpenses = (expensesList) => {
+        const groups = {};
+        expensesList.forEach(e => {
+            const key = `${e.fornecedor || 'Outros'}||${e.categoria || 'Outros'}`;
+            groups[key] = (groups[key] || 0) + e.valor;
+        });
+        return groups;
+    };
+    
+    const currentGroups = groupExpenses(currentExpenses);
+    const prevGroups = groupExpenses(prevExpenses);
+    
+    const allKeys = [...new Set([...Object.keys(currentGroups), ...Object.keys(prevGroups)])];
+    
+    const variations = allKeys.map(key => {
+        const [fornecedor, categoria] = key.split('||');
+        const gastoAtual = currentGroups[key] || 0;
+        const gastoAnterior = prevGroups[key] || 0;
+        const diffNominal = gastoAtual - gastoAnterior;
+        const diffPct = gastoAnterior > 0 ? (diffNominal / gastoAnterior) * 100 : (gastoAtual > 0 ? 100 : 0);
+        
+        return {
+            fornecedor,
+            categoria,
+            gastoAtual,
+            gastoAnterior,
+            diffNominal,
+            diffPct
+        };
+    });
+    
+    const topVariations = variations
+        .filter(v => v.diffNominal !== 0)
+        .sort((a, b) => b.diffNominal - a.diffNominal)
+        .slice(0, 5);
+
+    const tbodyVar = document.getElementById('assessor-variacoes-tbody');
+    if (topVariations.length === 0) {
+        tbodyVar.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary); padding: 12px;">Nenhuma variação identificada.</td></tr>`;
+    } else {
+        tbodyVar.innerHTML = topVariations.map(v => {
+            let varSign = v.diffNominal > 0 ? '+' : '';
+            let varStyle = v.diffNominal > 0 ? 'color: var(--danger); font-weight:600;' : 'color: var(--success); font-weight:600;';
+            let pctText = v.gastoAnterior > 0 || v.gastoAtual > 0 ? ` (${varSign}${v.diffPct.toFixed(1)}%)` : '';
+            
+            return `
+                <tr>
+                    <td><strong>${v.fornecedor}</strong></td>
+                    <td><span class="badge badge-secondary" style="font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);">${v.categoria}</span></td>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(v.gastoAtual)}</td>
+                    <td style="text-align: right; ${varStyle}">${varSign}${formatCurrency(v.diffNominal)}${pctText}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // 3. Render AI insights if switch is checked
+    const aiToggle = document.getElementById('ai-toggle-switch');
+    const label = document.getElementById('ai-toggle-label');
+    const block = document.getElementById('ai-insights-block');
+    
+    if (aiToggle.checked) {
+        label.textContent = "ATIVADO";
+        label.style.color = "var(--accent)";
+        block.style.display = "block";
+        renderAiInsights();
+    } else {
+        label.textContent = "DESATIVADO";
+        label.style.color = "var(--text-secondary)";
+        block.style.display = "none";
+    }
+}
+
+async function submitMetasDespesas(event) {
+    event.preventDefault();
+    const activeUnit = db.unidades.find(u => u.id === activeUnitId);
+    if (!activeUnit) return;
+    
+    const metasObj = {};
+    const inputs = document.querySelectorAll('.meta-input-field');
+    inputs.forEach(input => {
+        const cat = input.getAttribute('data-categoria');
+        const val = parseFloat(input.value) || 0;
+        metasObj[cat] = val;
+    });
+    
+    try {
+        await sbUpdate('unidades', activeUnitId, { metasFinanceiras: metasObj });
+        cacheUpdate('unidades', activeUnitId, { metasFinanceiras: metasObj });
+        
+        showToast("Metas financeiras salvas com sucesso!", "success");
+        logAudit("Alteração Metas", `Atualizou as metas de despesas para a unidade ${activeUnitId}.`);
+        renderAssessorTab();
+    } catch (e) {
+        console.error('[Certive] submitMetasDespesas error:', e);
+        showToast("Erro ao salvar metas.", "error");
+    }
+}
+
+function toggleAiAdvisor(active) {
+    const label = document.getElementById('ai-toggle-label');
+    const block = document.getElementById('ai-insights-block');
+    const checkbox = document.getElementById('ai-toggle-switch');
+    
+    checkbox.checked = active;
+    if (active) {
+        label.textContent = "ATIVADO";
+        label.style.color = "var(--accent)";
+        block.style.display = "block";
+        renderAiInsights();
+    } else {
+        label.textContent = "DESATIVADO";
+        label.style.color = "var(--text-secondary)";
+        block.style.display = "none";
+    }
+}
+
+function renderAiInsights() {
+    const contentDiv = document.getElementById('ai-insights-content');
+    const unitExpenses = db.contas_pagar.filter(c => c.unidadeId === activeUnitId);
+    const currentMonthStr = "2026-06";
+    const prevMonthStr = "2026-05";
+    
+    const currentExpenses = unitExpenses.filter(c => c.vencimento.startsWith(currentMonthStr));
+    const prevExpenses = unitExpenses.filter(c => c.vencimento.startsWith(prevMonthStr));
+    
+    const exceededCategories = [];
+    const increasedCategories = [];
+    let totalCurrent = 0;
+    let totalPrev = 0;
+    
+    const activeUnit = db.unidades.find(u => u.id === activeUnitId);
+    const unitMetas = activeUnit?.metasFinanceiras || {};
+    
+    CATEGORIAS_DESPESAS.forEach(cat => {
+        const gastoAtual = currentExpenses.filter(c => (c.categoria || 'Outros') === cat).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAnterior = prevExpenses.filter(c => (c.categoria || 'Outros') === cat).reduce((sum, c) => sum + c.valor, 0);
+        const meta = unitMetas[cat] || 0;
+        
+        totalCurrent += gastoAtual;
+        totalPrev += gastoAnterior;
+        
+        if (meta > 0 && gastoAtual > meta) {
+            exceededCategories.push({
+                categoria: cat,
+                gasto: gastoAtual,
+                meta: meta,
+                excesso: gastoAtual - meta
+            });
+        }
+        
+        if (gastoAnterior > 0) {
+            const increase = gastoAtual - gastoAnterior;
+            const pct = (increase / gastoAnterior) * 100;
+            if (pct > 5) {
+                increasedCategories.push({
+                    categoria: cat,
+                    atual: gastoAtual,
+                    anterior: gastoAnterior,
+                    aumentoPct: pct,
+                    aumentoNominal: increase
+                });
+            }
+        }
+    });
+    
+    let insightsHtml = `
+        <div style="color: var(--text-primary); font-size: 13px;">
+            <p style="margin-bottom: 12px; font-weight: 500;">
+                <i class="ri-user-smile-line" style="color: var(--accent); font-size: 16px; margin-right: 6px; vertical-align: middle;"></i> 
+                Olá! Analisei os lançamentos de contas a pagar da unidade <strong>${db.unidades.find(u => u.id === activeUnitId)?.nome || 'Unidade'}</strong> e aqui estão as minhas observações inteligentes:
+            </p>
+            <ul style="list-style-type: none; padding-left: 0; display: flex; flex-direction: column; gap: 10px;">
+    `;
+    
+    let hasInsights = false;
+    
+    if (exceededCategories.length > 0) {
+        hasInsights = true;
+        exceededCategories.forEach(item => {
+            insightsHtml += `
+                <li style="background: rgba(239, 68, 68, 0.05); border-left: 4px solid var(--danger); padding: 10px 14px; border-radius: 0 6px 6px 0;">
+                    <strong style="color: var(--danger);"><i class="ri-error-warning-fill"></i> ALERTA DE ORÇAMENTO ESTOURADO:</strong> 
+                    A categoria <strong>${item.categoria}</strong> atingiu <strong>${formatCurrency(item.gasto)}</strong>, superando a meta definida de <strong>${formatCurrency(item.meta)}</strong> em <strong>${formatCurrency(item.excesso)}</strong> (+${((item.excesso/item.meta)*100).toFixed(1)}%). 
+                    <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Revise os contratos de fornecedores ativos nessa categoria e verifique se houve lançamentos duplicados ou pontuais não planejados neste mês.</div>
+                </li>
+            `;
+        });
+    }
+    
+    if (increasedCategories.length > 0) {
+        hasInsights = true;
+        increasedCategories.forEach(item => {
+            insightsHtml += `
+                <li style="background: rgba(212, 160, 23, 0.05); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0;">
+                    <strong style="color: var(--accent);"><i class="ri-pulse-line"></i> AUMENTO DE CUSTOS:</strong> 
+                    Os gastos na categoria <strong>${item.categoria}</strong> subiram <strong>${item.aumentoPct.toFixed(1)}%</strong> em relação ao mês anterior (de <strong>${formatCurrency(item.anterior)}</strong> para <strong>${formatCurrency(item.atual)}</strong>, uma alta de <strong>${formatCurrency(item.aumentoNominal)}</strong>).
+                    <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Negocie prazos ou tarifas com fornecedores para mitigar essa escalada. Priorize auditoria de consumo caso envolva serviços de utilidades públicas (Água/Luz/Internet).</div>
+                </li>
+            `;
+        });
+    }
+    
+    if (totalCurrent < totalPrev && totalCurrent > 0) {
+        hasInsights = true;
+        const economizado = totalPrev - totalCurrent;
+        const pctEco = (economizado / totalPrev) * 100;
+        insightsHtml += `
+            <li style="background: rgba(16, 185, 129, 0.05); border-left: 4px solid var(--success); padding: 10px 14px; border-radius: 0 6px 6px 0;">
+                <strong style="color: var(--success);"><i class="ri-checkbox-circle-fill"></i> DESEMPENHO POSITIVO:</strong> 
+                Parabéns! O custo operacional total da unidade neste mês é de <strong>${formatCurrency(totalCurrent)}</strong>, representando uma redução de <strong>${pctEco.toFixed(1)}%</strong> (economia de <strong>${formatCurrency(economizado)}</strong>) em comparação com o mês anterior (<strong>${formatCurrency(totalPrev)}</strong>).
+            </li>
+        `;
+    }
+    
+    const detranExpense = currentExpenses.find(e => e.fornecedor === "DETRAN-SC");
+    if (detranExpense) {
+        hasInsights = true;
+        insightsHtml += `
+            <li style="background: rgba(59, 130, 246, 0.05); border-left: 4px solid #3b82f6; padding: 10px 14px; border-radius: 0 6px 6px 0;">
+                <strong style="color: #3b82f6;"><i class="ri-information-fill"></i> DETRAN-SC CONSOLIDAÇÃO:</strong> 
+                Identifiquei o lançamento de despesa variável <strong>${detranExpense.descricao}</strong> no valor de <strong>${formatCurrency(detranExpense.valor)}</strong>.
+                <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Nota: Esta despesa reflete as taxas cobradas pelo portal DETRAN-SC. Certifique-se de que os valores foram devidamente auditados contra o faturamento total antes do pagamento final.</div>
+            </li>
+        `;
+    }
+    
+    if (!hasInsights) {
+        insightsHtml += `
+            <li style="background: var(--bg-secondary); border-left: 4px solid var(--text-secondary); padding: 10px 14px; border-radius: 0 6px 6px 0;">
+                <strong><i class="ri-information-line"></i> INFORMAÇÃO:</strong> 
+                Os dados atuais são insuficientes para detectar desvios de orçamento ou variações elevadas. Continue cadastrando despesas normais e metas para receber recomendações direcionadas.
+            </li>
+        `;
+    }
+    
+    insightsHtml += `
+            </ul>
+            <p style="margin-top: 14px; font-size: 11px; color: var(--text-muted); font-style: italic; text-align: right;">
+                * As sugestões acima são geradas dinamicamente com base nas metas financeiras e no fluxo de caixa cadastrado no sistema.
+            </p>
+        </div>
+    `;
+    
+    contentDiv.innerHTML = insightsHtml;
 }

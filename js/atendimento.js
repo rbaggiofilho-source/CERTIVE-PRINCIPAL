@@ -273,7 +273,15 @@ async function submitOSForm() {
     const docIdentidade = document.getElementById('os-doc-identificacao').checked;
     const detran = document.getElementById('os-detran').checked;
     const pagamento = document.getElementById('os-pagamento').value;
+    const parcelasEl = document.getElementById('os-parcelas');
+    const parcelas = (pagamento === 'credito_parcelado' && parcelasEl) ? parseInt(parcelasEl.value) : null;
     const partnerId = parseInt(document.getElementById('os-parceiro-select').value);
+
+    // New Fields
+    const chassi = document.getElementById('os-veiculo-chassi') ? document.getElementById('os-veiculo-chassi').value.trim() : '';
+    const finalidade = document.getElementById('os-finalidade') ? document.getElementById('os-finalidade').value : '';
+    const endereco = document.getElementById('os-cliente-endereco') ? document.getElementById('os-cliente-endereco').value.trim() : '';
+    const numParcelas = document.getElementById('os-parcelas') ? parseInt(document.getElementById('os-parcelas').value) : 1;
 
     // Form Validations
     if (!placa || !nome || !cpf || !cel) {
@@ -298,7 +306,7 @@ async function submitOSForm() {
 
     const service = db.servicos.find(s => s.id === currentSelectedServiceId);
 
-    // Build OS
+    // Build pending OS
     const newOS = {
         numero: 'TEMP',
         criadoEm: new Date().toISOString(),
@@ -309,19 +317,26 @@ async function submitOSForm() {
         clienteNome: nome,
         clienteCpfCnpj: cpf,
         clienteCelular: cel,
+        clienteEndereco: endereco,
         placa: placa,
         renavam: renavam,
+        veiculoChassi: chassi,
         marca: marca,
         modelo: modelo,
+        veiculoMarcaModelo: `${marca} / ${modelo}`,
         ano: ano,
+        veiculoAno: ano,
         cor: cor,
         combustivel: combustivel,
         servicoId: service.id,
         servicoNome: service.nome,
+        osFinalidade: finalidade,
         valor: valor,
         observacoes: obs,
         pago: pagamento !== 'faturamento',
         formaPagamento: pagamento,
+            parcelas: parcelas,
+        parcelas: numParcelas,
         detranRegistrado: detran,
         docVeiculoApresentado: true,
         docIdentificacaoApresentado: true,
@@ -330,49 +345,27 @@ async function submitOSForm() {
         finalizadoPor: null,
         canceladoEm: null,
         canceladoPor: null,
-        reapresentacaoOrigemID: null
+        reapresentacaoOrigemID: null,
+        statusNfse: "Pendente"
     };
 
-    try {
-        // 1. Insert OS into Supabase
-        const insertedOS = await sbInsert('ordens_servico', newOS);
+    // Prepare contract and open modal
+    window.pendingOS = newOS;
+    window.pendingOS.contratoTexto = generateContractText(newOS);
 
-        // 2. Generate numero from Supabase-assigned id and update
-        const num = await getNextOSNumber();
-        const updatedOS = await sbUpdate('ordens_servico', insertedOS.id, { numero: num });
-        insertedOS.numero = num;
+    const contractHtml = renderMarkdown(window.pendingOS.contratoTexto);
+    const contentContainer = document.getElementById('contrato-preview-content');
+    if (contentContainer) {
+        contentContainer.innerHTML = contractHtml;
+    }
+    
+    document.getElementById('contrato-aceite-check').checked = false;
+    document.getElementById('btn-confirmar-contrato').disabled = true;
 
-        // 3. Add to local cache
-        cacheUnshift('ordens_servico', insertedOS);
-
-        // 4. If payment is immediate, create cash movement
-        if (insertedOS.pago) {
-            const movRecord = {
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: valor,
-                descricao: `Serviço ${service.nome.split(' — ')[0]} (Placa: ${placa})`,
-                formaPagamento: pagamento,
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: insertedOS.id,
-                faturaId: null
-            };
-            const insertedMov = await sbInsert('caixa_movimentos', movRecord);
-            cacheInsert('caixa_movimentos', insertedMov);
-        }
-
-        showToast(`O.S. registrada com sucesso! Código: ${num}`, "success");
-        logAudit("Abertura OS", `Abriu a ordem ${num} para placa ${placa}.`);
-
-        // Auto trigger print contract
-        printContract(insertedOS);
-
-        clearOSForm();
-        renderAtendimentoPage();
-    } catch (e) {
-        console.error('[Certive] submitOSForm error:', e);
-        showToast("Erro ao salvar OS no servidor. Tente novamente.", "error");
+    const modalEl = document.getElementById('modal-contrato-assinatura');
+    if (modalEl) {
+        modalEl.style.display = 'flex';
+        modalEl.classList.add('active');
     }
 }
 
@@ -679,7 +672,7 @@ function openOSDetailsModal(id) {
             <div class="detail-item"><label>Celular</label><span>${os.clienteCelular}</span></div>
             <div class="detail-item"><label>Serviço Executado</label><span>${os.servicoNome}</span></div>
             <div class="detail-item"><label>Valor Final</label><strong style="color: var(--success);">${formatCurrency(os.valor)}</strong></div>
-            <div class="detail-item"><label>Cobrança</label><span>${os.formaPagamento.toUpperCase()}</span></div>
+            <div class="detail-item"><label>Cobrança</label><span>${os.formaPagamento === 'credito_parcelado' ? `CRÉDITO PARCELADO (${os.parcelas}x)` : os.formaPagamento.toUpperCase()}</span></div>
             <div class="detail-item"><label>DETRAN-SC Registrada</label><span>${os.detranRegistrado ? '🟢 Registrada' : '🔴 Não Registrada'}</span></div>
             <div class="detail-item" style="grid-column: span 2;"><label>Observações do Veículo (Modelo, Ano, Cor)</label><span>${os.observacoes || '—'}</span></div>
         </div>
@@ -879,6 +872,12 @@ function openEditOSModal(id) {
     
     document.getElementById('edit-os-valor').value = os.valor.toFixed(2);
     document.getElementById('edit-os-pagamento').value = os.formaPagamento;
+    if (os.formaPagamento === 'credito_parcelado') {
+        document.getElementById('edit-os-parcelas-group').style.display = 'block';
+        document.getElementById('edit-os-parcelas').value = os.parcelas || '1';
+    } else {
+        document.getElementById('edit-os-parcelas-group').style.display = 'none';
+    }
     document.getElementById('edit-os-detran').checked = os.detranRegistrado;
     
     const priceInput = document.getElementById('edit-os-valor');
@@ -946,6 +945,7 @@ async function submitEditOSForm(event) {
     const serviceId = parseInt(document.getElementById('edit-os-servico').value);
     const valor = parseFloat(document.getElementById('edit-os-valor').value);
     const pagamento = document.getElementById('edit-os-pagamento').value;
+    const parcelas = pagamento === 'credito_parcelado' ? parseInt(document.getElementById('edit-os-parcelas').value) : null;
     const detran = document.getElementById('edit-os-detran').checked;
 
     if (!nome || !cpf || !cel || !placa || !serviceId || isNaN(valor) || valor <= 0) {
@@ -971,6 +971,7 @@ async function submitEditOSForm(event) {
         servicoNome: service.nome,
         valor: valor,
         formaPagamento: pagamento,
+            parcelas: parcelas,
         detranRegistrado: detran
     };
 
@@ -1207,79 +1208,25 @@ function getRecheckDaysRemaining(finalizedDateIso) {
     return 30 - diffDays;
 }
 
-// ==========================================
-// CONTRACT GENERATION & PRINT FLOW
-// ==========================================
-function printContract(os) {
-    const printArea = document.getElementById('print-area');
-    const unit = db.unidades.find(u => u.id === os.unidadeId);
-    if (!unit) { showToast("Unidade não encontrada.", "error"); return; }
-    
-    printArea.innerHTML = `
-        <div class="print-header">
-            <div>
-                <h1 style="font-family: Georgia, serif; font-size: 24px;">CERTIVE VISTORIAS</h1>
-                <p style="font-size: 11px; margin-top: 4px;">Santa Catarina — Soluções Integradas de Trânsito</p>
-            </div>
-            <div class="print-logo-dummy">CERTIVE VISTORIAS</div>
-        </div>
-        
-        <div class="print-title">CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE VISTORIA VEICULAR</div>
-        
-        <div class="print-section">
-            <div class="print-section-title">1. Identificação do Solicitante</div>
-            <div class="print-grid">
-                <div class="print-grid-item"><strong>Nome:</strong> ${os.clienteNome}</div>
-                <div class="print-grid-item"><strong>Documento CPF/CNPJ:</strong> ${os.clienteCpfCnpj}</div>
-                <div class="print-grid-item"><strong>Celular:</strong> ${os.clienteCelular}</div>
-                <div class="print-grid-item"><strong>Tipo de Cliente:</strong> ${os.clienteTipo.toUpperCase()}</div>
-            </div>
-        </div>
 
-        <div class="print-section">
-            <div class="print-section-title">2. Dados Fichados do Veículo</div>
-            <div class="print-grid">
-                <div class="print-grid-item"><strong>Placa:</strong> ${os.placa}</div>
-                <div class="print-grid-item"><strong>Renavam:</strong> ${os.renavam || '—'}</div>
-                <div class="print-grid-item"><strong>Marca/Modelo:</strong> ${os.marca || '—'} / ${os.modelo || '—'}</div>
-                <div class="print-grid-item"><strong>Ano/Cor:</strong> ${os.ano || '—'} / ${os.cor || '—'}</div>
-                <div class="print-grid-item"><strong>Combustível:</strong> ${os.combustivel || '—'}</div>
-                <div class="print-grid-item"><strong>Obs Adicionais:</strong> ${os.observacoes || '—'}</div>
-            </div>
-        </div>
 
-        <div class="print-section">
-            <div class="print-section-title">3. Serviço Contratado e Cobrança</div>
-            <div class="print-grid">
-                <div class="print-grid-item"><strong>Código da OS:</strong> ${os.numero}</div>
-                <div class="print-grid-item"><strong>Serviço:</strong> ${os.servicoNome}</div>
-                <div class="print-grid-item"><strong>Valor Cobrado:</strong> ${formatCurrency(os.valor)}</div>
-                <div class="print-grid-item"><strong>Forma Pagamento:</strong> ${os.formaPagamento.toUpperCase()}</div>
-            </div>
-        </div>
 
-        <div class="print-terms">
-            <strong>DECLARAÇÃO E TERMOS:</strong> Declaro para os devidos fins que sou o proprietário, condutor ou representante legal autorizado do veículo acima descrito e que apresentei os documentos originais obrigatórios exigidos em pátio (CRLV e identificação do condutor). Autorizo a realização da vistoria física/visual. Estou ciente de que, tratando-se de vistoria de transferência, laudo REPROVADO gera uma janela legal de reapresentação sem custo de 30 dias contados da finalização deste laudo na mesma filial. Após o prazo, incidirá nova cobrança. Laudo Cautelar não possui gratuidade de reapresentação.
-        </div>
-
-        <div style="font-size: 11px; margin-top: 10px;">
-            <strong>Local e Data:</strong> ${unit.nome.split(' — ')[1]}, ${formatDateBr(os.criadoEm)}
-        </div>
-
-        <div class="print-signatures">
-            <div class="print-sig-block">
-                Assinatura do Solicitante
-            </div>
-            <div class="print-sig-block">
-                CERTIVE VISTORIAS<br>Representante Legal do Pátio
-            </div>
-        </div>
-    `;
-    
-    window.print();
+function toggleParcelas() {
+    const pag = document.getElementById('os-pagamento').value;
+    const group = document.getElementById('os-parcelas-group');
+    if (pag === 'credito_parcelado') {
+        group.style.display = 'block';
+    } else {
+        group.style.display = 'none';
+    }
 }
 
-function printContractById(id) {
-    const os = db.ordens_servico.find(o => o.id === id);
-    if (os) printContract(os);
+function toggleInstallmentsEditOS() {
+    const pag = document.getElementById('edit-os-pagamento').value;
+    const group = document.getElementById('edit-os-parcelas-group');
+    if (pag === 'credito_parcelado') {
+        group.style.display = 'block';
+    } else {
+        group.style.display = 'none';
+    }
 }
