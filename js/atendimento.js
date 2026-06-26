@@ -166,6 +166,11 @@ function clearOSForm() {
     document.getElementById('os-valor').value = '';
     document.getElementById('os-placa').value = '';
     document.getElementById('os-renavam').value = '';
+    document.getElementById('os-marca').value = '';
+    document.getElementById('os-modelo').value = '';
+    document.getElementById('os-ano').value = '';
+    document.getElementById('os-cor').value = '';
+    document.getElementById('os-combustivel').value = '';
     document.getElementById('os-nome-cliente').value = '';
     document.getElementById('os-cpf-cliente').value = '';
     document.getElementById('os-celular-cliente').value = '';
@@ -176,6 +181,67 @@ function clearOSForm() {
     document.getElementById('os-parceiro-select').value = '';
     selectClientType('particular');
     window.activeRecheckOrigemId = null;
+    checkPlacaLength();
+}
+
+function checkPlacaLength() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    if (!placaInput || !btnConsultar) return;
+    
+    // Validate Mercosul or normal plate formats: 7 alphanumeric chars
+    const placaValue = placaInput.value.replace(/[^a-zA-Z0-9]/g, '');
+    if (placaValue.length === 7) {
+        btnConsultar.disabled = false;
+    } else {
+        btnConsultar.disabled = true;
+    }
+}
+
+async function consultarPlacaAPI() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    
+    const placa = placaInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (placa.length !== 7) return;
+
+    btnConsultar.disabled = true;
+    const originalIcon = btnConsultar.innerHTML;
+    btnConsultar.innerHTML = '<i class="ri-loader-4-line" style="animation: spin 1s linear infinite;"></i>';
+
+    try {
+        const { data: json, error } = await supabaseClient.functions.invoke('consultar-placa', {
+            body: { placa }
+        });
+
+        if (error) {
+            console.error("Erro na Edge Function:", error);
+            showToast("Veículo não encontrado ou erro na API.", "error");
+            return;
+        }
+
+        if (json && json.status === 'ok' && json.dados && json.dados.informacoes_veiculo && json.dados.informacoes_veiculo.dados_veiculo) {
+            const data = json.dados.informacoes_veiculo.dados_veiculo;
+            document.getElementById('os-marca').value = data.marca || '';
+            document.getElementById('os-modelo').value = data.modelo || '';
+            document.getElementById('os-ano').value = data.ano_modelo || data.ano_fabricacao || '';
+            document.getElementById('os-cor').value = data.cor || '';
+            document.getElementById('os-combustivel').value = data.combustivel || '';
+            if (data.renavam && !document.getElementById('os-renavam').value) {
+                document.getElementById('os-renavam').value = data.renavam;
+            }
+            showToast("Dados do veículo preenchidos com sucesso!", "success");
+        } else {
+            showToast(json.mensagem || "Consulta concluída, mas dados incompletos. Preencha manualmente.", "info");
+        }
+        
+    } catch (error) {
+        console.error("Erro ao consultar placa:", error);
+        showToast("Serviço de consulta instável. Preencha manualmente.", "error");
+    } finally {
+        btnConsultar.innerHTML = originalIcon;
+        btnConsultar.disabled = false;
+    }
 }
 
 async function submitOSForm() {
@@ -194,6 +260,11 @@ async function submitOSForm() {
     const valor = parseFloat(document.getElementById('os-valor').value);
     const placa = document.getElementById('os-placa').value.trim().toUpperCase();
     const renavam = document.getElementById('os-renavam').value.trim();
+    const marca = document.getElementById('os-marca').value.trim().toUpperCase();
+    const modelo = document.getElementById('os-modelo').value.trim().toUpperCase();
+    const ano = document.getElementById('os-ano').value.trim().toUpperCase();
+    const cor = document.getElementById('os-cor').value.trim().toUpperCase();
+    const combustivel = document.getElementById('os-combustivel').value.trim().toUpperCase();
     const nome = document.getElementById('os-nome-cliente').value.trim();
     const cpf = document.getElementById('os-cpf-cliente').value.trim();
     const cel = document.getElementById('os-celular-cliente').value.trim();
@@ -205,8 +276,8 @@ async function submitOSForm() {
     const partnerId = parseInt(document.getElementById('os-parceiro-select').value);
 
     // Form Validations
-    if (!placa || !renavam || !nome || !cpf || !cel || !obs) {
-        showToast("Preencha todos os campos do solicitante, veículo e observações.", "error");
+    if (!placa || !nome || !cpf || !cel) {
+        showToast("Preencha todos os campos obrigatórios do solicitante e veículo.", "error");
         return;
     }
 
@@ -227,7 +298,7 @@ async function submitOSForm() {
 
     const service = db.servicos.find(s => s.id === currentSelectedServiceId);
 
-    // Build OS (no id, no numero — Supabase generates id, then we set numero)
+    // Build OS
     const newOS = {
         numero: 'TEMP',
         criadoEm: new Date().toISOString(),
@@ -240,6 +311,11 @@ async function submitOSForm() {
         clienteCelular: cel,
         placa: placa,
         renavam: renavam,
+        marca: marca,
+        modelo: modelo,
+        ano: ano,
+        cor: cor,
+        combustivel: combustivel,
         servicoId: service.id,
         servicoNome: service.nome,
         valor: valor,
@@ -594,7 +670,10 @@ function openOSDetailsModal(id) {
             <div class="detail-item"><label>Status Atual</label><span style="font-weight: 700; color: var(--accent);">${statusMap[os.status]}</span></div>
             <div class="detail-item"><label>Tipo de Cliente</label><span>${os.clienteTipo.toUpperCase()}</span></div>
             <div class="detail-item"><label>Placa do Veículo</label><strong>${os.placa}</strong></div>
-            <div class="detail-item"><label>Renavam</label><span>${os.renavam}</span></div>
+            <div class="detail-item"><label>Renavam</label><span>${os.renavam || '-'}</span></div>
+            <div class="detail-item"><label>Marca / Modelo</label><span>${os.marca || '-'} / ${os.modelo || '-'}</span></div>
+            <div class="detail-item"><label>Ano / Cor</label><span>${os.ano || '-'} / ${os.cor || '-'}</span></div>
+            <div class="detail-item"><label>Combustível</label><span>${os.combustivel || '-'}</span></div>
             <div class="detail-item"><label>Solicitante</label><span>${os.clienteNome}</span></div>
             <div class="detail-item"><label>CPF / CNPJ</label><span>${os.clienteCpfCnpj}</span></div>
             <div class="detail-item"><label>Celular</label><span>${os.clienteCelular}</span></div>
@@ -783,7 +862,12 @@ function openEditOSModal(id) {
     document.getElementById('edit-os-cpf').value = os.clienteCpfCnpj;
     document.getElementById('edit-os-celular').value = os.clienteCelular;
     document.getElementById('edit-os-placa').value = os.placa;
-    document.getElementById('edit-os-renavam').value = os.renavam;
+    document.getElementById('edit-os-renavam').value = os.renavam || '';
+    document.getElementById('edit-os-marca').value = os.marca || '';
+    document.getElementById('edit-os-modelo').value = os.modelo || '';
+    document.getElementById('edit-os-ano').value = os.ano || '';
+    document.getElementById('edit-os-cor').value = os.cor || '';
+    document.getElementById('edit-os-combustivel').value = os.combustivel || '';
     document.getElementById('edit-os-obs').value = os.observacoes || '';
     
     // Populate service dropdown
@@ -853,13 +937,18 @@ async function submitEditOSForm(event) {
     const cel = document.getElementById('edit-os-celular').value.trim();
     const placa = document.getElementById('edit-os-placa').value.trim().toUpperCase();
     const renavam = document.getElementById('edit-os-renavam').value.trim();
+    const marca = document.getElementById('edit-os-marca').value.trim().toUpperCase();
+    const modelo = document.getElementById('edit-os-modelo').value.trim().toUpperCase();
+    const ano = document.getElementById('edit-os-ano').value.trim().toUpperCase();
+    const cor = document.getElementById('edit-os-cor').value.trim().toUpperCase();
+    const combustivel = document.getElementById('edit-os-combustivel').value.trim().toUpperCase();
     const obs = document.getElementById('edit-os-obs').value.trim();
     const serviceId = parseInt(document.getElementById('edit-os-servico').value);
     const valor = parseFloat(document.getElementById('edit-os-valor').value);
     const pagamento = document.getElementById('edit-os-pagamento').value;
     const detran = document.getElementById('edit-os-detran').checked;
 
-    if (!nome || !cpf || !cel || !placa || !renavam || !obs || !serviceId || isNaN(valor) || valor <= 0) {
+    if (!nome || !cpf || !cel || !placa || !serviceId || isNaN(valor) || valor <= 0) {
         showToast("Preencha todos os campos obrigatórios e informe um valor válido.", "error");
         return;
     }
@@ -872,6 +961,11 @@ async function submitEditOSForm(event) {
         clienteCelular: cel,
         placa: placa,
         renavam: renavam,
+        marca: marca,
+        modelo: modelo,
+        ano: ano,
+        cor: cor,
+        combustivel: combustivel,
         observacoes: obs,
         servicoId: service.id,
         servicoNome: service.nome,
@@ -1146,8 +1240,11 @@ function printContract(os) {
             <div class="print-section-title">2. Dados Fichados do Veículo</div>
             <div class="print-grid">
                 <div class="print-grid-item"><strong>Placa:</strong> ${os.placa}</div>
-                <div class="print-grid-item"><strong>Renavam:</strong> ${os.renavam}</div>
-                <div class="print-grid-item" style="grid-column: span 2;"><strong>Observações / Veículo:</strong> ${os.observacoes || '—'}</div>
+                <div class="print-grid-item"><strong>Renavam:</strong> ${os.renavam || '—'}</div>
+                <div class="print-grid-item"><strong>Marca/Modelo:</strong> ${os.marca || '—'} / ${os.modelo || '—'}</div>
+                <div class="print-grid-item"><strong>Ano/Cor:</strong> ${os.ano || '—'} / ${os.cor || '—'}</div>
+                <div class="print-grid-item"><strong>Combustível:</strong> ${os.combustivel || '—'}</div>
+                <div class="print-grid-item"><strong>Obs Adicionais:</strong> ${os.observacoes || '—'}</div>
             </div>
         </div>
 

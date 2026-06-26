@@ -52,13 +52,44 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="os-placa">Placa do Veículo</label>
-                                    <input type="text" id="os-placa" placeholder="ABC1D23" maxlength="8" style="text-transform: uppercase; font-weight: 700;">
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="text" id="os-placa" placeholder="ABC1D23" maxlength="8" style="text-transform: uppercase; font-weight: 700; flex: 1;" oninput="checkPlacaLength()">
+                                        <button class="btn btn-primary" id="btn-consultar-placa" type="button" onclick="consultarPlacaAPI()" style="padding: 0 16px; border-radius: var(--radius-sm);" disabled title="Consultar dados da placa">
+                                            <i class="ri-search-line"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="os-renavam">Renavam</label>
                                     <input type="text" id="os-renavam" placeholder="Apenas números" maxlength="11">
                                 </div>
                             </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="os-marca">Marca</label>
+                                    <input type="text" id="os-marca" placeholder="Ex: VOLKSWAGEN">
+                                </div>
+                                <div class="form-group">
+                                    <label for="os-modelo">Modelo</label>
+                                    <input type="text" id="os-modelo" placeholder="Ex: NIVUS HIGHLINE">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="os-ano">Ano</label>
+                                    <input type="text" id="os-ano" placeholder="Ex: 2021">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="os-cor">Cor</label>
+                                    <input type="text" id="os-cor" placeholder="Ex: BRANCA">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="os-combustivel">Combustível</label>
+                                    <input type="text" id="os-combustivel" placeholder="Ex: FLEX">
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label for="os-nome-cliente">Nome Completo do Solicitante</label>
                                 <input type="text" id="os-nome-cliente" placeholder="Nome completo do condutor/proprietário">
@@ -74,8 +105,8 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label for="os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
-                                <input type="text" id="os-obs" placeholder="EX: HONDA CIVIC 2020 CINZA" required>
+                                <label for="os-obs">Observações Adicionais (Opcional)</label>
+                                <input type="text" id="os-obs" placeholder="Detalhes extras sobre a vistoria se necessário">
                             </div>
 
                             <!-- Checklist de Documentação -->

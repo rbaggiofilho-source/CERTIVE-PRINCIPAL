@@ -376,6 +376,11 @@ html.logged-in .login-overlay {
   white-space: nowrap;
   user-select: none;
 }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .btn-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   color: #050811;

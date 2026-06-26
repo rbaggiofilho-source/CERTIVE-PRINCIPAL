@@ -201,16 +201,40 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="edit-os-placa">Placa</label>
-                        <input type="text" id="edit-os-placa" required style="text-transform: uppercase;">
+                        <input type="text" id="edit-os-placa" required style="text-transform: uppercase;" maxlength="8">
                     </div>
                     <div class="form-group">
                         <label for="edit-os-renavam">Renavam</label>
-                        <input type="text" id="edit-os-renavam" required>
+                        <input type="text" id="edit-os-renavam">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-os-marca">Marca</label>
+                        <input type="text" id="edit-os-marca">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-os-modelo">Modelo</label>
+                        <input type="text" id="edit-os-modelo">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="edit-os-ano">Ano</label>
+                        <input type="text" id="edit-os-ano">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="edit-os-cor">Cor</label>
+                        <input type="text" id="edit-os-cor">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="edit-os-combustivel">Combustível</label>
+                        <input type="text" id="edit-os-combustivel">
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="edit-os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
-                    <input type="text" id="edit-os-obs" required>
+                    <label for="edit-os-obs">Observações Adicionais (Opcional)</label>
+                    <input type="text" id="edit-os-obs">
                 </div>
                 <div class="form-group">
                     <label for="edit-os-servico">Serviço Contratado</label>
