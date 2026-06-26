@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&display=swap');
 
 :root {
   --bg-primary: #080d1a;
@@ -32,7 +32,7 @@
   --shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 50px rgba(0, 0, 0, 0.6);
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --font-primary: 'Outfit', sans-serif;
+  --font-serif: 'Outfit', sans-serif;
 }
 
 * {
@@ -67,7 +67,7 @@ body {
 
 /* Elegant Headers styling */
 h1, h2, h3, .serif-title {
-  font-family: var(--font-primary);
+  font-family: var(--font-serif);
   letter-spacing: 0.5px;
 }
 
@@ -87,10 +87,6 @@ h1, h2, h3, .serif-title {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-}
-/* Prevent flash of login screen on page reload when session exists */
-html.logged-in .login-overlay {
-  display: none;
 }
 .login-card {
   background: var(--bg-secondary);
@@ -570,26 +566,6 @@ html.logged-in .login-overlay {
 .badge-done .badge-dot { background: var(--success); }
 .badge-cancelled .badge-dot { background: var(--danger); }
 
-/* Recurrence Badge */
-.badge-recorrente {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  margin-bottom: 4px;
-}
-.badge-recorrente i {
-  font-size: 12px;
-}
-
 /* ===== MODAL ===== */
 .modal-overlay {
   position: fixed;
@@ -692,7 +668,7 @@ html.logged-in .login-overlay {
   transition: var(--transition);
   outline: none;
 }
-.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]):not(#login-username),
+.form-group input:not([type="password"]):not([type="checkbox"]):not([type="number"]),
 .form-group textarea,
 .search-input {
   text-transform: uppercase;
@@ -702,12 +678,6 @@ html.logged-in .login-overlay {
 .form-group textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
-}
-.form-group input[type="date"]::-webkit-calendar-picker-indicator,
-.form-group input[type="time"]::-webkit-calendar-picker-indicator,
-.form-group input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
 }
 .form-group select {
   cursor: pointer;
@@ -787,7 +757,7 @@ html.logged-in .login-overlay {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 14px;
-  font-family: var(--font-primary);
+  font-family: var(--font-serif);
 }
 .form-section-title span {
   width: 22px;
@@ -1468,42 +1438,10 @@ html.logged-in .login-overlay {
   }
   .sidebar.active {
     transform: translateX(0);
-    z-index: 200;
-  }
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 199;
-  }
-  .sidebar-overlay.active {
-    display: block;
   }
   .main-content {
     margin-left: 0;
   }
-  .btn-hamburger {
-    display: flex !important;
-    width: 36px;
-    height: 36px;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    cursor: pointer;
-    font-size: 18px;
-    transition: var(--transition);
-  }
-  .btn-hamburger:hover {
-    background: var(--bg-card-hover);
-    border-color: var(--border-hover);
-  }
-}
-.btn-hamburger {
-  display: none;
 }
 @media (max-width: 768px) {
   .kpi-grid {
