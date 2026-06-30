@@ -1471,9 +1471,10 @@ function renderOSPipeline() {
                 <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
-                    <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="openOSDetailsModal(${os.id})" title="Ver Ficha"><i class="ri-eye-line"></i></button>
                         ${isPending ? `<button class="btn btn-success btn-sm btn-icon" onclick="openConcludeVistoriaModal(${os.id})" title="Concluir Vistoria"><i class="ri-check-line"></i></button>` : ''}
+                        ${isMasterSession() ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -2166,7 +2167,10 @@ function renderHistorico() {
                 <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
-                    <button class="btn btn-secondary btn-sm btn-icon" onclick="openOSDetailsModal(${os.id})" title="Ver Ficha"><i class="ri-eye-line"></i></button>
+                    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="openOSDetailsModal(${os.id})" title="Ver Ficha"><i class="ri-eye-line"></i></button>
+                        ${isMasterSession() ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>` : ''}
+                    </div>
                 </td>
             </tr>
         `;
@@ -2183,6 +2187,34 @@ function clearHistoricoFilters() {
     document.getElementById('hist-filter-pagamento').value = '';
     document.getElementById('hist-filter-status').value = '';
     renderHistorico();
+}
+
+async function deleteOS(osId) {
+    if (!isMasterSession()) {
+        showToast("Erro: Apenas operadores Master podem excluir ordens de servico.", "error");
+        return;
+    }
+
+    const os = db.ordens_servico.find(o => o.id === osId);
+    if (!os) {
+        showToast("Ordem de Servico nao localizada.", "error");
+        return;
+    }
+
+    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")? Esta acao nao podera ser desfeita.")) {
+        try {
+            await dbSave('ordens_servico', null, 'delete', os.id);
+            showToast("OS " + os.numero + " excluida com sucesso!", "success");
+            logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ").");
+            
+            // Recarregar os painéis
+            renderOSPipeline();
+            renderHistorico();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao excluir OS no banco de dados.", "error");
+        }
+    }
 }
 
 // Free re-inspection handler (reapresentação)
