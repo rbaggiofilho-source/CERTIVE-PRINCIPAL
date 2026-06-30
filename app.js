@@ -198,7 +198,9 @@ function initDatabase() {
         db.operadores = [
             { id: 1, nome: "Ricardo Administrador", login: "admin", senha: "admin123", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true },
             { id: 2, nome: "Ana Atendente", login: "atendente", senha: "atendente123", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa"], ativo: true },
-            { id: 3, nome: "Carlos Financeiro", login: "financeiro", senha: "financeiro123", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true }
+            { id: 3, nome: "Carlos Financeiro", login: "financeiro", senha: "financeiro123", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
+            { id: 4, nome: "Jonas Kroll", login: "Jkroll", senha: "070142", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true },
+            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", senha: "135586", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true }
         ];
 
         // 5. Seed Partners (Parceiros Conveniados)
@@ -3330,12 +3332,55 @@ function renderCaixaHistorico() {
                 <td>
                     <div style="display: flex; gap: 6px;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printCaixaById(${c.id})" title="Imprimir Relatório de Caixa"><i class="ri-printer-line"></i></button>
+                        ${isMasterSession() ? `<button class="btn btn-warning btn-sm btn-icon" onclick="reopenCaixa(${c.id})" title="Reabrir Caixa Diario"><i class="ri-lock-unlock-line"></i></button>` : ''}
                         ${c.pdfConsolidado ? `<button class="btn btn-primary btn-sm btn-icon" onclick="downloadConsolidatedPdf(${c.id})" title="Baixar PDF Consolidado (Caixa + DETRAN)"><i class="ri-download-line"></i></button>` : ''}
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+async function reopenCaixa(caixaId) {
+    if (!isMasterSession()) {
+        showToast("Erro: Apenas operadores Master podem reabrir caixas.", "error");
+        return;
+    }
+
+    const openCaixa = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.status === "aberto");
+    if (openCaixa) {
+        showToast("Operacao negada: Ja existe um caixa ABERTO hoje para esta unidade.", "error");
+        return;
+    }
+
+    const c = db.caixa_diario.find(x => x.id === caixaId);
+    if (!c) {
+        showToast("Caixa nao localizado.", "error");
+        return;
+    }
+
+    if (confirm("Confirmar a reabertura do caixa fechado do dia " + formatDateBr(c.data) + "?")) {
+        c.status = "aberto";
+        c.fechadoPor = null;
+        c.fechadoEm = null;
+        c.pdfConsolidado = null;
+
+        if (window.useSupabase) {
+            await sbUpdate('caixa_diario', c.id, {
+                status: c.status,
+                fechadoPor: null,
+                fechadoEm: null,
+                pdfConsolidado: null
+            });
+        } else {
+            saveDatabase();
+        }
+
+        showToast("Caixa reaberto com sucesso!", "success");
+        logAudit("Reabertura Caixa", "Reabriu o caixa do dia " + formatDateBr(c.data));
+        
+        renderCaixaPage();
+    }
 }
 
 // Print Active Caixa (Today's Drawer)

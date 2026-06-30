@@ -1571,10 +1571,14 @@
                 <!-- Preenchido via JS -->
             </div>
             
-            <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;">
                 <label class="form-check" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; color: var(--text-primary); font-size: 13px; font-weight: 600;">
                     <input type="checkbox" id="contrato-aceite-check" onchange="toggleContratoConfirmBtn()" style="margin-top: 3px; cursor: pointer;">
                     <span>Declaro que o CONTRATANTE leu, concorda com todos os termos e assina o presente contrato de prestação de serviços eletronicamente.</span>
+                </label>
+                <label class="form-check" style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-secondary); font-size: 13px;">
+                    <input type="checkbox" id="contrato-envio-email-check" style="cursor: pointer;">
+                    <span>Deseja enviar automaticamente o contrato assinado por e-mail para o cliente?</span>
                 </label>
             </div>
             
