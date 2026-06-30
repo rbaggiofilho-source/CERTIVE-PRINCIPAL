@@ -217,7 +217,7 @@ async function loadAllFromSupabase() {
             sbSelectAll('contas_pagar', 'id', true),
             sbSelectAll('faturas', 'id', true),
             sbSelectAll('auditoria', 'id', false), // Most recent first
-            sbSelectAll('portarias_uf'),
+            sbSelectAll('portarias_uf', 'uf'),
             sbSelectAll('metas_despesas')
         ]);
 
