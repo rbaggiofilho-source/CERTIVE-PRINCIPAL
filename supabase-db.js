@@ -120,16 +120,21 @@ async function sbUpdate(table, id, updates) {
         .from(table)
         .update(dbUpdates)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
     
     if (error) {
         console.error(`❌ sbUpdate(${table}, ${id}):`, error.message);
         showToast(`Erro ao atualizar no banco: ${error.message}`, 'error');
         throw error;
     }
-    console.log(`✅ sbUpdate(${table}): ID ${id}`);
-    return prepareRecordFromDb(table, data);
+    // data is an array; return first element (or null if 0 rows matched)
+    const result = data && data.length > 0 ? data[0] : null;
+    if (!result) {
+        console.warn(`⚠️ sbUpdate(${table}, ${id}): nenhuma linha encontrada com esse ID.`);
+    } else {
+        console.log(`✅ sbUpdate(${table}): ID ${id}`);
+    }
+    return prepareRecordFromDb(table, result);
 }
 
 /**

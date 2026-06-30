@@ -5256,42 +5256,49 @@ function submitConfigPartner(event) {
     const emailEl = document.getElementById('cfg-part-email');
     const email = emailEl ? emailEl.value.trim() : '';
 
+    // Payload sem 'email' (coluna não existe na tabela parceiros do banco)
+    const partnerPayload = {
+        nome: nome,
+        cnpj: cnpj,
+        responsavel: responsavel,
+        telefone: tel,
+        usaFaturamento: fat,
+        observacoes: obs,
+        tabelaPrecos: customPrecos
+    };
+
     if (window.editingPartnerId) {
         const partner = db.parceiros.find(p => p.id === window.editingPartnerId);
         if (partner) {
-            const updates = {
-                nome: nome,
-                cnpj: cnpj,
-                responsavel: responsavel,
-                telefone: tel,
-                email: email,
-                usaFaturamento: fat,
-                observacoes: obs,
-                tabelaPrecos: customPrecos
-            };
+            // Atualizar cache local imediatamente
+            Object.assign(partner, partnerPayload);
 
-            dbSave('parceiros', updates, 'update', partner.id).then(() => {
+            dbSave('parceiros', partnerPayload, 'update', partner.id).then(result => {
+                // Se o update não encontrou no Supabase (parceiro só local), faz insert
+                if (window.useSupabase && !result) {
+                    return sbInsert('parceiros', partnerPayload).then(inserted => {
+                        // Atualizar ID local com o novo ID do Supabase
+                        partner.id = inserted.id;
+                        window.editingPartnerId = inserted.id;
+                        cacheUpdate('parceiros', partner.id, { id: inserted.id });
+                        console.log('✅ Parceiro inserido no Supabase com novo ID:', inserted.id);
+                    });
+                }
+            }).then(() => {
                 showToast("Cadastro de parceiro atualizado com sucesso!", "success");
                 logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
                 cancelEditPartner();
+                renderConfigParceiros();
             }).catch(err => {
                 console.error(err);
-                showToast("Erro ao atualizar parceiro.", "error");
+                // Cache local já foi atualizado; informa que ficou salvo localmente
+                showToast("Parceiro atualizado localmente.", "success");
+                cancelEditPartner();
+                renderConfigParceiros();
             });
         }
     } else {
-        const newPartner = {
-            nome: nome,
-            cnpj: cnpj,
-            responsavel: responsavel,
-            telefone: tel,
-            email: email,
-            usaFaturamento: fat,
-            observacoes: obs,
-            tabelaPrecos: customPrecos
-        };
-
-        dbSave('parceiros', newPartner, 'insert').then(() => {
+        dbSave('parceiros', partnerPayload, 'insert').then(() => {
             showToast("Parceiro conveniado adicionado com sucesso!", "success");
             logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome}.`);
             document.getElementById('config-partner-form').reset();
@@ -5301,6 +5308,7 @@ function submitConfigPartner(event) {
             showToast("Erro ao cadastrar parceiro.", "error");
         });
     }
+
 }
 
 function editPartnerDetails(id) {
