@@ -64,19 +64,12 @@ CREATE TABLE ordens_servico (
   "clienteCelular" TEXT,
   placa TEXT NOT NULL,
   renavam TEXT,
-  "veiculoChassi" TEXT,
-  "veiculoMarcaModelo" TEXT,
-  "veiculoAno" TEXT,
-  "clienteEndereco" TEXT,
-  "osFinalidade" TEXT,
   "servicoId" BIGINT REFERENCES servicos(id),
   "servicoNome" TEXT,
   valor DECIMAL(10,2) NOT NULL DEFAULT 0,
   observacoes TEXT,
   pago BOOLEAN NOT NULL DEFAULT FALSE,
   "formaPagamento" TEXT,
-  parcelas INTEGER DEFAULT 1,
-  "statusNfse" TEXT DEFAULT 'Não solicitada',
   "detranRegistrado" BOOLEAN NOT NULL DEFAULT FALSE,
   "docVeiculoApresentado" BOOLEAN NOT NULL DEFAULT FALSE,
   "docIdentificacaoApresentado" BOOLEAN NOT NULL DEFAULT FALSE,
@@ -90,10 +83,7 @@ CREATE TABLE ordens_servico (
   "respostaDetranNet" TEXT,
   "respostaShopping" TEXT,
   "reapresentadaData" TIMESTAMPTZ,
-  "faturaId" BIGINT,
-  "contratoTexto" TEXT,
-  "contratoHash" TEXT,
-  "contratoAceitoEm" TIMESTAMPTZ
+  "faturaId" BIGINT
 );
 
 -- 7. Caixa Diário (Controle Diário de Caixa)

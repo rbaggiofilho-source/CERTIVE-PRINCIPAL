@@ -843,20 +843,16 @@ function renderMarkdown(text) {
     return html;
 }
 
-// Audit trail Logger
 function logAudit(acao, descricao) {
     const operator = currentSession ? currentSession.nome : "Sistema";
     const log = {
-        id: db.auditoria ? db.auditoria.length + 1 : 1,
         operador: operator,
         data: new Date().toISOString(),
         acao: acao,
         descricao: descricao,
         unidadeId: activeUnitId
     };
-    if (!db.auditoria) db.auditoria = [];
-    db.auditoria.unshift(log);
-    saveDatabase();
+    dbSave('auditoria', log, 'insert_unshift');
 }
 
 // ==========================================
@@ -1024,6 +1020,16 @@ function navigateTo(pageId) {
     document.querySelectorAll('.section-panel').forEach(el => el.classList.remove('active'));
     const targetPanel = document.getElementById(`panel-${pageId}`);
     if (targetPanel) targetPanel.classList.add('active');
+
+    // Fechar menu mobile se estiver aberto
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+    }
+    if (overlay && overlay.classList.contains('active')) {
+        overlay.classList.remove('active');
+    }
 
     // Load page data
     if (pageId === 'atendimento') {
@@ -1583,7 +1589,14 @@ function submitConcludeVistoria(osId, approved) {
     os.finalizadoEm = new Date().toISOString();
     os.finalizadoPor = currentSession.nome;
 
-    saveDatabase();
+    dbSave('ordens_servico', {
+        status: os.status,
+        finalizadoEm: os.finalizadoEm,
+        finalizadoPor: os.finalizadoPor,
+        respostaDetranNet: os.respostaDetranNet || null,
+        respostaShopping: os.respostaShopping || null
+    }, 'update', os.id);
+    
     showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
     
     let auditMsg = `Concluiu a OS ${os.numero} (Placa: ${os.placa}) como ${approved ? 'APROVADO' : 'REPROVADO'}.`;
@@ -1777,8 +1790,7 @@ function changeOSStatus(id, newStatus) {
         os.pago = true;
         const activeCaixa = getTodayOpenCaixa();
         if (activeCaixa) {
-            db.caixa_movimentos.push({
-                id: db.caixa_movimentos.length + 1,
+            const newMov = {
                 caixaId: activeCaixa.id,
                 tipo: "entrada",
                 valor: os.valor,
@@ -1788,11 +1800,16 @@ function changeOSStatus(id, newStatus) {
                 operador: currentSession.nome,
                 osId: os.id,
                 faturaId: null
-            });
+            };
+            dbSave('caixa_movimentos', newMov, 'insert');
         }
     }
 
-    saveDatabase();
+    dbSave('ordens_servico', {
+        status: newStatus,
+        pago: os.pago
+    }, 'update', os.id);
+    
     showToast(`O.S. ${os.numero} movida para ${newStatus.toUpperCase()}`, "success");
     logAudit("Atualização OS", `Alterou status da ${os.numero} para ${newStatus}.`);
     closeOSModal();
@@ -1807,7 +1824,12 @@ function finalizeVistoria(id, approved) {
     os.finalizadoEm = new Date().toISOString();
     os.finalizadoPor = currentSession.nome;
 
-    saveDatabase();
+    dbSave('ordens_servico', {
+        status: os.status,
+        finalizadoEm: os.finalizadoEm,
+        finalizadoPor: os.finalizadoPor
+    }, 'update', os.id);
+    
     showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
     logAudit("Laudo Emissão", `Laudou a OS ${os.numero} como ${approved ? 'APROVADO' : 'REPROVADO'}.`);
     closeOSModal();
@@ -1822,8 +1844,7 @@ function cancelOS(id) {
     if (os.pago && os.formaPagamento !== 'faturamento') {
         const activeCaixa = getTodayOpenCaixa();
         if (activeCaixa) {
-            db.caixa_movimentos.push({
-                id: db.caixa_movimentos.length + 1,
+            const newMov = {
                 caixaId: activeCaixa.id,
                 tipo: "saida",
                 valor: os.valor,
@@ -1833,7 +1854,8 @@ function cancelOS(id) {
                 operador: currentSession.nome,
                 osId: os.id,
                 faturaId: null
-            });
+            };
+            dbSave('caixa_movimentos', newMov, 'insert');
         }
     }
 
@@ -1841,7 +1863,12 @@ function cancelOS(id) {
     os.canceladoEm = new Date().toISOString();
     os.canceladoPor = currentSession.nome;
 
-    saveDatabase();
+    dbSave('ordens_servico', {
+        status: os.status,
+        canceladoEm: os.canceladoEm,
+        canceladoPor: os.canceladoPor
+    }, 'update', os.id);
+    
     showToast(`O.S. ${os.numero} cancelada. Venda estornada do caixa.`, "error");
     logAudit("Cancelamento OS", `Cancelou a OS ${os.numero} (placa ${os.placa}).`);
     closeOSModal();
@@ -1990,7 +2017,28 @@ function submitEditOSForm(event) {
         os.contratoHash = generateSignatureHash(os.contratoTexto);
     }
 
-    saveDatabase();
+    dbSave('ordens_servico', {
+        clienteNome: os.clienteNome,
+        clienteCpfCnpj: os.clienteCpfCnpj,
+        clienteCelular: os.clienteCelular,
+        osFinalidade: os.osFinalidade,
+        clienteEndereco: os.clienteEndereco,
+        placa: os.placa,
+        renavam: os.renavam,
+        veiculoChassi: os.veiculoChassi,
+        veiculoMarcaModelo: os.veiculoMarcaModelo,
+        veiculoAno: os.veiculoAno,
+        observacoes: os.observacoes,
+        servicoId: os.servicoId,
+        servicoNome: os.servicoNome,
+        valor: os.valor,
+        formaPagamento: os.formaPagamento,
+        parcelas: os.parcelas,
+        detranRegistrado: os.detranRegistrado,
+        contratoTexto: os.contratoTexto,
+        contratoHash: os.contratoHash
+    }, 'update', os.id);
+    
     showToast("Ordem de Serviço editada com sucesso!", "success");
     logAudit("Edição OS", `Editou os dados da OS ${os.numero} (Placa: ${os.placa}).`);
     
@@ -2014,8 +2062,7 @@ function deleteOS(id) {
     if (confirm(`Tem certeza que deseja excluir permanentemente a OS ${os.numero}? Esta ação não poderá ser desfeita.`)) {
         const index = db.ordens_servico.findIndex(o => o.id === id);
         if (index !== -1) {
-            db.ordens_servico.splice(index, 1);
-            saveDatabase();
+            dbSave('ordens_servico', null, 'delete', id);
             showToast(`OS ${os.numero} excluída com sucesso!`, "success");
             logAudit("Exclusão OS", `Excluiu permanentemente a OS ${os.numero} (Placa: ${os.placa}).`);
             
@@ -2559,7 +2606,7 @@ function printContratoPreview() {
     window.print();
 }
 
-function confirmContratoAndSaveOS() {
+async function confirmContratoAndSaveOS() {
     try {
         if (!window.pendingOS) return;
         
@@ -2570,62 +2617,133 @@ function confirmContratoAndSaveOS() {
         }
         
         const os = window.pendingOS;
+        let signatureHash = "";
         
-        // Generate signature hash
-        const signatureHash = generateSignatureHash(os.contratoTexto);
-        os.contratoHash = signatureHash;
-        os.contratoAceitoEm = new Date().toISOString();
-        
-        // Regenerate contract text with signed hash
-        os.contratoTexto = generateContractText(os);
-        
-        // If it's a recheck (reapresentação)
-        if (os.reapresentacaoOrigemID) {
-            db.ordens_servico.unshift(os);
-            
-            // Link original OS (mark as reapresentada)
-            const originalOS = db.ordens_servico.find(o => o.id === os.reapresentacaoOrigemID);
-            if (originalOS) {
-                originalOS.reapresentadaData = new Date().toISOString();
-            }
-            
-            window.activeRecheckOrigemId = null;
-            
-            // Restore payment options
-            const paymentSelect = document.getElementById('os-pagamento');
-            paymentSelect.innerHTML = `
-                <option value="pix">Pix (Transferência Online)</option>
-                <option value="debito">Cartão de Débito</option>
-                <option value="credito">Cartão de Crédito à Vista</option>
-                <option value="credito_parcelado">Crédito Parcelado</option>
-                <option value="especie">Dinheiro (Espécie)</option>
-                <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
-            `;
-        } else {
-            // Standard OS Save
+        if (window.useSupabase) {
+            // Fluxo Banco de Dados Supabase (Garante IDs sequenciais únicos sem colisão)
+            const osToInsert = { ...os };
+            delete osToInsert.id;
+            osToInsert.numero = "OS-TEMP";
+            osToInsert.contratoHash = null;
+            osToInsert.contratoAceitoEm = null;
+            osToInsert.contratoTexto = "";
             if (os.pago) {
-                os.status = "paga";
-                
-                // Push movement to daily cash
-                const movId = db.caixa_movimentos.length + 1;
-                db.caixa_movimentos.push({
-                    id: movId,
-                    caixaId: activeCaixa.id,
-                    tipo: "entrada",
-                    valor: os.valor,
-                    descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                    formaPagamento: os.formaPagamento,
-                    data: new Date().toISOString(),
-                    operador: currentSession.nome,
-                    osId: os.id,
-                    faturaId: null
-                });
+                osToInsert.status = "paga";
             }
             
+            // 1. Salvar no Supabase inicialmente para obter o ID incremental real
+            const inserted = await sbInsert('ordens_servico', osToInsert);
+            os.id = inserted.id;
+            os.numero = generateOSNumber(inserted.id);
+            os.status = osToInsert.status;
+            
+            // 2. Gerar hash de assinatura e texto com dados de assinatura e número reais
+            signatureHash = generateSignatureHash(os.contratoTexto);
+            os.contratoHash = signatureHash;
+            os.contratoAceitoEm = new Date().toISOString();
+            os.contratoTexto = generateContractText(os);
+            
+            // 3. Atualizar a OS com os dados do contrato assinado no Supabase
+            await sbUpdate('ordens_servico', os.id, {
+                numero: os.numero,
+                contratoHash: os.contratoHash,
+                contratoAceitoEm: os.contratoAceitoEm,
+                contratoTexto: os.contratoTexto
+            });
+            
+            // 4. Fluxo de Reapresentação
+            if (os.reapresentacaoOrigemID) {
+                const originalOS = db.ordens_servico.find(o => o.id === os.reapresentacaoOrigemID);
+                if (originalOS) {
+                    originalOS.reapresentadaData = new Date().toISOString();
+                    await sbUpdate('ordens_servico', originalOS.id, {
+                        reapresentadaData: originalOS.reapresentadaData
+                    });
+                }
+                
+                window.activeRecheckOrigemId = null;
+                
+                // Restaurar opções de pagamento padrão
+                const paymentSelect = document.getElementById('os-pagamento');
+                paymentSelect.innerHTML = `
+                    <option value="pix">Pix (Transferência Online)</option>
+                    <option value="debito">Cartão de Débito</option>
+                    <option value="credito">Cartão de Crédito à Vista</option>
+                    <option value="credito_parcelado">Crédito Parcelado</option>
+                    <option value="especie">Dinheiro (Espécie)</option>
+                    <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
+                `;
+            } else {
+                // Fluxo padrão: Lançamento de Caixa
+                if (os.pago) {
+                    const newMov = {
+                        caixaId: activeCaixa.id,
+                        tipo: "entrada",
+                        valor: os.valor,
+                        descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
+                        formaPagamento: os.formaPagamento,
+                        data: new Date().toISOString(),
+                        operador: currentSession.nome,
+                        osId: os.id,
+                        faturaId: null
+                    };
+                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                    db.caixa_movimentos.unshift(insertedMov);
+                }
+            }
+            
+            // Inserir no cache local
             db.ordens_servico.unshift(os);
+            
+        } else {
+            // Fluxo Original LocalStorage (Fallback / Offline)
+            signatureHash = generateSignatureHash(os.contratoTexto);
+            os.contratoHash = signatureHash;
+            os.contratoAceitoEm = new Date().toISOString();
+            os.contratoTexto = generateContractText(os);
+            
+            if (os.reapresentacaoOrigemID) {
+                db.ordens_servico.unshift(os);
+                
+                const originalOS = db.ordens_servico.find(o => o.id === os.reapresentacaoOrigemID);
+                if (originalOS) {
+                    originalOS.reapresentadaData = new Date().toISOString();
+                }
+                
+                window.activeRecheckOrigemId = null;
+                
+                const paymentSelect = document.getElementById('os-pagamento');
+                paymentSelect.innerHTML = `
+                    <option value="pix">Pix (Transferência Online)</option>
+                    <option value="debito">Cartão de Débito</option>
+                    <option value="credito">Cartão de Crédito à Vista</option>
+                    <option value="credito_parcelado">Crédito Parcelado</option>
+                    <option value="especie">Dinheiro (Espécie)</option>
+                    <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
+                `;
+            } else {
+                if (os.pago) {
+                    os.status = "paga";
+                    const movId = db.caixa_movimentos.length + 1;
+                    db.caixa_movimentos.push({
+                        id: movId,
+                        caixaId: activeCaixa.id,
+                        tipo: "entrada",
+                        valor: os.valor,
+                        descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
+                        formaPagamento: os.formaPagamento,
+                        data: new Date().toISOString(),
+                        operador: currentSession.nome,
+                        osId: os.id,
+                        faturaId: null
+                    });
+                }
+                
+                db.ordens_servico.unshift(os);
+            }
+            saveDatabase();
         }
         
-        saveDatabase();
         showToast(`O.S. registrada e contrato assinado! Código: ${os.numero}`, "success");
         logAudit("Abertura OS", `Abriu a ordem ${os.numero} com contrato firmado (Hash: ${signatureHash}).`);
         
@@ -2738,10 +2856,9 @@ function renderCaixaPage() {
     renderCaixaMovimentos(activeCaixa);
 }
 
-function openTodayCaixaDrawer() {
+async function openTodayCaixaDrawer() {
     const today = new Date().toISOString().split('T')[0];
     const newDrawer = {
-        id: db.caixa_diario.length + 1,
         unidadeId: activeUnitId,
         data: today,
         status: "aberto",
@@ -2752,8 +2869,15 @@ function openTodayCaixaDrawer() {
         fechadoEm: null
     };
 
-    db.caixa_diario.push(newDrawer);
-    saveDatabase();
+    if (window.useSupabase) {
+        const inserted = await sbInsert('caixa_diario', newDrawer);
+        db.caixa_diario.push(inserted);
+    } else {
+        newDrawer.id = db.caixa_diario.length + 1;
+        db.caixa_diario.push(newDrawer);
+        saveDatabase();
+    }
+    
     showToast("Caixa diário aberto com fundo inicial de R$ 200,00.", "success");
     logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
     renderCaixaPage();
@@ -2872,9 +2996,7 @@ function submitCaixaMov(event) {
         finalDesc = `Aporte Faturamento: ${partner.nome} — ${desc}`;
     }
 
-    const movId = db.caixa_movimentos.length + 1;
-    db.caixa_movimentos.push({
-        id: movId,
+    const newMov = {
         caixaId: activeCaixa.id,
         tipo: tipo,
         valor: valor,
@@ -2884,9 +3006,10 @@ function submitCaixaMov(event) {
         operador: currentSession.nome,
         osId: null,
         faturaId: null
-    });
+    };
 
-    saveDatabase();
+    dbSave('caixa_movimentos', newMov, 'insert');
+    
     showToast("Movimentação manual lançada com sucesso!", "success");
     logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
 
@@ -2900,8 +3023,7 @@ function deleteCaixaMov(id) {
     if (index === -1) return;
 
     const mov = db.caixa_movimentos[index];
-    db.caixa_movimentos.splice(index, 1);
-    saveDatabase();
+    dbSave('caixa_movimentos', null, 'delete', id);
     
     showToast("Lançamento manual removido.", "info");
     logAudit("Remoção Movimento", `Removeu lançamento: ${mov.descricao}`);
@@ -3537,7 +3659,7 @@ function closeFatModal(e) {
     document.getElementById('modal-faturamento-fechar').classList.remove('active');
 }
 
-function submitGirarFatura(event) {
+async function submitGirarFatura(event) {
     event.preventDefault();
     const partnerId = parseInt(document.getElementById('fat-modal-parceiro-id').value);
     const dateIni = document.getElementById('fat-modal-inicio').value;
@@ -3547,36 +3669,72 @@ function submitGirarFatura(event) {
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
     const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
 
-    const fatId = db.faturas.length + 1;
-    const code = "FAT-" + String(fatId).padStart(4, '0');
+    let finalInvoice;
+    let code = "";
 
-    // Create Invoice
-    const newInvoice = {
-        id: fatId,
-        codigo: code,
-        parceiroId: partnerId,
-        unidadeId: activeUnitId,
-        periodoInicio: dateIni,
-        periodoFim: dateFim,
-        valorTotal: totalVal,
-        ordensIds: selectedIds,
-        pago: false,
-        pagoEm: null,
-        statusBoleto: "Não gerado",
-        boletoVencimento: null,
-        boletoCodigoDeBarras: null,
-        criadoEm: new Date().toISOString(),
-        criadoPor: currentSession.nome
-    };
+    if (window.useSupabase) {
+        // Fluxo Banco de Dados Supabase (Garante IDs sequenciais únicos sem colisão)
+        const invoiceToInsert = {
+            codigo: "FAT-TEMP",
+            parceiroId: partnerId,
+            unidadeId: activeUnitId,
+            periodoInicio: dateIni,
+            periodoFim: dateFim,
+            valorTotal: totalVal,
+            ordensIds: selectedIds,
+            pago: false,
+            pagoEm: null,
+            criadoEm: new Date().toISOString(),
+            criadoPor: currentSession.nome
+        };
 
-    db.faturas.push(newInvoice);
-    
-    // Link OSs to invoice
-    selectedOSs.forEach(o => {
-        o.faturaId = fatId;
-    });
+        // 1. Salvar no Supabase inicialmente para obter o ID incremental real
+        const inserted = await sbInsert('faturas', invoiceToInsert);
+        code = generateFaturaCode(inserted.id);
+        
+        // 2. Atualizar a fatura com o código gerado real no Supabase
+        finalInvoice = await sbUpdate('faturas', inserted.id, {
+            codigo: code
+        });
+        
+        // 3. Vincular as OSs faturadas a essa faturaId no Supabase
+        for (const os of selectedOSs) {
+            os.faturaId = inserted.id;
+            await sbUpdate('ordens_servico', os.id, {
+                faturaId: inserted.id
+            });
+        }
+        
+        db.faturas.unshift(finalInvoice);
+    } else {
+        // Fluxo Original LocalStorage (Fallback / Offline)
+        const fatId = db.faturas.length + 1;
+        code = "FAT-" + String(fatId).padStart(4, '0');
 
-    saveDatabase();
+        finalInvoice = {
+            id: fatId,
+            codigo: code,
+            parceiroId: partnerId,
+            unidadeId: activeUnitId,
+            periodoInicio: dateIni,
+            periodoFim: dateFim,
+            valorTotal: totalVal,
+            ordensIds: selectedIds,
+            pago: false,
+            pagoEm: null,
+            criadoEm: new Date().toISOString(),
+            criadoPor: currentSession.nome
+        };
+
+        db.faturas.push(finalInvoice);
+        
+        selectedOSs.forEach(o => {
+            o.faturaId = fatId;
+        });
+
+        saveDatabase();
+    }
+
     showToast(`Fatura ${code} gerada com sucesso!`, "success");
     logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value}.`);
     
@@ -5259,9 +5417,23 @@ function maskCelular(v) {
 // ==========================================
 // INITIALIZATION
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize DB Schema & Seeds
-    initDatabase();
+    let dbLoaded = false;
+    const isSupabaseConfigured = (typeof supabaseClient !== 'undefined' && supabaseClient !== null);
+    
+    if (isSupabaseConfigured) {
+        window.useSupabase = true;
+        dbLoaded = await loadAllFromSupabase();
+    }
+    
+    if (!dbLoaded) {
+        console.warn("⚠️ Supabase indisponível ou falhou ao carregar. Inicializando base offline local.");
+        window.useSupabase = false;
+        initDatabase();
+    } else {
+        console.log("🚀 Sistema carregado com sucesso via Supabase!");
+    }
     
     // 2. Validate current session and display screens
     checkSession();
@@ -5554,3 +5726,16 @@ function liquidateInvoiceDirect(invoiceId) {
 
     saveDatabase();
 }
+
+// Global mobile sidebar helper
+function toggleSidebarMobile() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+    }
+    if (overlay) {
+        overlay.classList.toggle('active');
+    }
+}
+

@@ -88,12 +88,19 @@
         </div>
     </aside>
 
+    <!-- SIDEBAR OVERLAY FOR MOBILE -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebarMobile()"></div>
+
     <!-- MAIN SHELL -->
     <main class="main-content">
         
         <!-- TOPBAR -->
         <header class="topbar">
             <div class="topbar-left">
+                <!-- Mobile Menu Button -->
+                <button class="btn-menu-mobile" id="btn-menu-mobile" onclick="toggleSidebarMobile()" title="Abrir menu">
+                    <i class="ri-menu-line"></i>
+                </button>
                 <div class="unit-selector-wrapper">
                     <label for="topbar-unit-select">Unidade Ativa:</label>
                     <select id="topbar-unit-select" class="unit-select" onchange="changeActiveUnit(this.value)">
@@ -1638,6 +1645,9 @@
         alert(errorMsg);
     };
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-db.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
