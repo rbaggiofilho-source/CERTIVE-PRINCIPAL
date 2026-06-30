@@ -5202,37 +5202,25 @@ function submitConfigPartner(event) {
     if (window.editingPartnerId) {
         const partner = db.parceiros.find(p => p.id === window.editingPartnerId);
         if (partner) {
-            partner.nome = nome;
-            partner.cnpj = cnpj;
-            partner.responsavel = responsavel;
-            partner.telefone = tel;
-            partner.email = email;
-            partner.usaFaturamento = fat;
-            partner.observacoes = obs;
-            partner.tabelaPrecos = customPrecos;
+            const updates = {
+                nome: nome,
+                cnpj: cnpj,
+                responsavel: responsavel,
+                telefone: tel,
+                email: email,
+                usaFaturamento: fat,
+                observacoes: obs,
+                tabelaPrecos: customPrecos
+            };
 
-            if (window.useSupabase) {
-                sbUpdate('parceiros', partner.id, {
-                    nome: nome,
-                    cnpj: cnpj,
-                    responsavel: responsavel,
-                    telefone: tel,
-                    email: email,
-                    usaFaturamento: fat,
-                    observacoes: obs,
-                    tabelaPrecos: customPrecos
-                }).then(() => {
-                    showToast("Parceiro atualizado no Supabase!", "success");
-                }).catch(err => {
-                    console.error("Erro ao atualizar parceiro online:", err);
-                });
-            } else {
-                saveDatabase();
-            }
-
-            showToast("Cadastro de parceiro atualizado com sucesso!", "success");
-            logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
-            cancelEditPartner();
+            dbSave('parceiros', updates, 'update', partner.id).then(() => {
+                showToast("Cadastro de parceiro atualizado com sucesso!", "success");
+                logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
+                cancelEditPartner();
+            }).catch(err => {
+                console.error(err);
+                showToast("Erro ao atualizar parceiro.", "error");
+            });
         }
     } else {
         const newPartner = {
@@ -5246,26 +5234,15 @@ function submitConfigPartner(event) {
             tabelaPrecos: customPrecos
         };
 
-        if (window.useSupabase) {
-            sbInsert('parceiros', newPartner).then(inserted => {
-                db.parceiros.push(inserted);
-                showToast("Parceiro conveniado cadastrado online!", "success");
-                logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome} no Supabase.`);
-                document.getElementById('config-partner-form').reset();
-                renderConfigParceiros();
-            }).catch(err => {
-                console.error("Erro ao cadastrar parceiro online:", err);
-                showToast("Erro ao cadastrar parceiro no banco online.", "error");
-            });
-        } else {
-            newPartner.id = db.parceiros.length + 1;
-            db.parceiros.push(newPartner);
-            saveDatabase();
-            showToast("Parceiro conveniado cadastrado localmente!", "success");
-            logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome} localmente.`);
+        dbSave('parceiros', newPartner, 'insert').then(() => {
+            showToast("Parceiro conveniado adicionado com sucesso!", "success");
+            logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome}.`);
             document.getElementById('config-partner-form').reset();
             renderConfigParceiros();
-        }
+        }).catch(err => {
+            console.error(err);
+            showToast("Erro ao cadastrar parceiro.", "error");
+        });
     }
 }
 
@@ -5442,50 +5419,42 @@ function submitConfigOperator(event) {
         ativo: true
     };
 
-    if (window.useSupabase) {
-        sbInsert('operadores', newOp).then(inserted => {
-            db.operadores.push(inserted);
-            showToast("Novo operador cadastrado online!", "success");
-            logAudit("Cadastro Operador", `Adicionou operador ${login} no Supabase.`);
-            document.getElementById('config-op-form').reset();
-            renderConfigOperadores();
-        }).catch(err => {
-            console.error("Erro ao cadastrar operador online:", err);
-            showToast("Erro ao cadastrar operador no banco online.", "error");
-        });
-    } else {
-        newOp.id = db.operadores.length + 1;
-        db.operadores.push(newOp);
-        saveDatabase();
-        showToast("Novo operador cadastrado localmente!", "success");
-        logAudit("Cadastro Operador", `Adicionou operador ${login} localmente.`);
+    try {
+        await dbSave('operadores', newOp, 'insert');
+        showToast("Novo operador cadastrado com sucesso!", "success");
+        logAudit("Cadastro Operador", `Adicionou operador ${login}.`);
         document.getElementById('config-op-form').reset();
         renderConfigOperadores();
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao cadastrar operador.", "error");
     }
 }
 
-function submitConfigUnit(event) {
+async function submitConfigUnit(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-unit-nome').value.trim();
     const end = document.getElementById('cfg-unit-endereco').value.trim();
 
     const newUnit = {
-        id: db.unidades.length + 1,
         nome: nome,
         endereco: end
     };
 
-    db.unidades.push(newUnit);
-    saveDatabase();
+    try {
+        await dbSave('unidades', newUnit, 'insert');
+        showToast("Nova filial cadastrada com sucesso!", "success");
+        logAudit("Cadastro Filial", `Adicionou filial: ${nome}.`);
 
-    showToast("Nova filial cadastrada com sucesso!", "success");
-    logAudit("Cadastro Filial", `Adicionou filial: ${nome}.`);
-
-    document.getElementById('config-unit-form').reset();
-    
-    // Refresh selections & layout
-    renderUnitSelectorOptions();
-    renderConfigOperadores();
+        document.getElementById('config-unit-form').reset();
+        
+        // Refresh selections & layout
+        renderUnitSelectorOptions();
+        renderConfigOperadores();
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao cadastrar filial.", "error");
+    }
 }
 
 // Formatting helpers
