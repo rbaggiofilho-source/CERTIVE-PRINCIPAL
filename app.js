@@ -2201,24 +2201,30 @@ async function deleteOS(osId) {
         return;
     }
 
-    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")?\n\nIsso tambem remover\u00e1 os lan\u00e7amentos vinculados do caixa di\u00e1rio. Esta a\u00e7\u00e3o nao podera ser desfeita.")) {
+    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")?\n\nIsso tambem remover\u00e1 qualquer lan\u00e7amento vinculado no caixa di\u00e1rio. Esta a\u00e7\u00e3o nao podera ser desfeita.")) {
         try {
-            // 1. Apagar todos os movimentos de caixa vinculados a esta OS
-            const movimentos = (db.caixa_movimentos || []).filter(m => m.osId === os.id);
-            for (const mov of movimentos) {
-                await dbSave('caixa_movimentos', null, 'delete', mov.id);
+            // 1. Deletar movimentos de caixa vinculados diretamente no banco (online e offline)
+            if (window.useSupabase) {
+                // Deleta todos os caixa_movimentos onde "osId" = os.id, direto no Supabase
+                await sbDeleteWhere('caixa_movimentos', 'osId', os.id);
             }
+            // Limpar cache local independente de online/offline
+            db.caixa_movimentos = db.caixa_movimentos.filter(m => m.osId !== os.id);
 
-            // 2. Apagar a própria OS
+            // 2. Deletar a própria OS
             await dbSave('ordens_servico', null, 'delete', os.id);
 
             showToast("OS " + os.numero + " e seus lan\u00e7amentos de caixa foram exclu\u00eddos!", "success");
-            logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ") e " + movimentos.length + " movimento(s) de caixa vinculado(s).");
+            logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ").");
 
             // 3. Recarregar todos os painéis afetados
             renderOSPipeline();
             renderHistorico();
-            renderCaixaPage();
+            // Atualizar caixa somente se o elemento existir na tela
+            if (document.getElementById('caixa-mov-tbody')) {
+                renderCaixaPage();
+            }
+            if (typeof saveDatabase === 'function') saveDatabase();
         } catch (err) {
             console.error(err);
             showToast("Erro ao excluir OS e movimentos de caixa.", "error");

@@ -150,6 +150,23 @@ async function sbDelete(table, id) {
 }
 
 /**
+ * Delete all records from a table where a specific field matches a value.
+ * Used e.g. to delete caixa_movimentos by osId.
+ */
+async function sbDeleteWhere(table, field, value) {
+    const { error } = await supabaseClient
+        .from(table)
+        .delete()
+        .eq(field, value);
+    
+    if (error) {
+        console.error(`❌ sbDeleteWhere(${table}, ${field}=${value}):`, error.message);
+        throw error;
+    }
+    console.log(`✅ sbDeleteWhere(${table}): ${field}=${value}`);
+}
+
+/**
  * Select all records from a table, with optional ordering.
  */
 async function sbSelectAll(table, orderBy = 'id', ascending = true) {
