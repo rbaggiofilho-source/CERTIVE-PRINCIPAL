@@ -860,7 +860,17 @@ function logAudit(acao, descricao) {
 // ==========================================
 // AUTHENTICATION & LOGIN FLOW
 // ==========================================
+
+/**
+ * Returns true if the currently logged-in user has Master/Admin access.
+ * Master is defined as having the 'cadastros' permission (full access operators).
+ */
+function isMasterSession() {
+    return !!(currentSession && currentSession.permissoes && currentSession.permissoes.includes('cadastros'));
+}
+
 function checkSession() {
+
     const sessionData = sessionStorage.getItem('certive_session');
     const loginOverlay = document.getElementById('login-overlay');
     
