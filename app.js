@@ -5425,7 +5425,7 @@ function renderConfigOperadores() {
     `).join('');
 }
 
-function submitConfigOperator(event) {
+async function submitConfigOperator(event) {
     event.preventDefault();
     const nome = document.getElementById('cfg-op-nome').value.trim();
     const login = document.getElementById('cfg-op-login').value.trim();
