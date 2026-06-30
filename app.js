@@ -5029,27 +5029,39 @@ function renderConfigPrecos() {
     }).join('');
 }
 
-function submitConfigPrecos(event) {
+async function submitConfigPrecos(event) {
     event.preventDefault();
-    db.servicos.forEach(s => {
+    for (const s of db.servicos) {
         const val = parseFloat(document.querySelector(`input[name="cfg-svc-${s.id}"]`).value);
         s.precoBalcao = val;
-    });
+        if (window.useSupabase) {
+            await sbUpdate('servicos', s.id, { precoBalcao: val }).catch(err => console.error(err));
+        }
+    }
 
-    saveDatabase();
+    if (!window.useSupabase) {
+        saveDatabase();
+    }
     showToast("Tabela de preços de balcão atualizada com sucesso!", "success");
     logAudit("Ajuste Preço", "Alterou valores da tabela de balcão.");
 }
 
-function submitConfigTaxas(event) {
+async function submitConfigTaxas(event) {
     event.preventDefault();
-    db.servicos.forEach(s => {
+    for (const s of db.servicos) {
         const val = parseFloat(document.querySelector(`input[name="cfg-tax-${s.id}"]`).value);
         const refTax = db.taxas_referencia.find(t => t.servicoId === s.id);
-        if (refTax) refTax.tax = val;
-    });
+        if (refTax) {
+            refTax.tax = val;
+            if (window.useSupabase) {
+                await sbUpdate('taxas_referencia', refTax.id, { taxa: val }).catch(err => console.error(err));
+            }
+        }
+    }
 
-    saveDatabase();
+    if (!window.useSupabase) {
+        saveDatabase();
+    }
     showToast("Tabela de taxas de concessão do órgão atualizada!", "success");
     logAudit("Ajuste Taxa", "Alterou taxas de referência do DETRAN.");
 }
@@ -5184,6 +5196,9 @@ function submitConfigPartner(event) {
         customPrecos[s.id] = val;
     });
 
+    const emailEl = document.getElementById('cfg-part-email');
+    const email = emailEl ? emailEl.value.trim() : '';
+
     if (window.editingPartnerId) {
         const partner = db.parceiros.find(p => p.id === window.editingPartnerId);
         if (partner) {
@@ -5191,35 +5206,66 @@ function submitConfigPartner(event) {
             partner.cnpj = cnpj;
             partner.responsavel = responsavel;
             partner.telefone = tel;
+            partner.email = email;
             partner.usaFaturamento = fat;
             partner.observacoes = obs;
             partner.tabelaPrecos = customPrecos;
 
-            saveDatabase();
+            if (window.useSupabase) {
+                sbUpdate('parceiros', partner.id, {
+                    nome: nome,
+                    cnpj: cnpj,
+                    responsavel: responsavel,
+                    telefone: tel,
+                    email: email,
+                    usaFaturamento: fat,
+                    observacoes: obs,
+                    tabelaPrecos: customPrecos
+                }).then(() => {
+                    showToast("Parceiro atualizado no Supabase!", "success");
+                }).catch(err => {
+                    console.error("Erro ao atualizar parceiro online:", err);
+                });
+            } else {
+                saveDatabase();
+            }
+
             showToast("Cadastro de parceiro atualizado com sucesso!", "success");
             logAudit("Edição Parceiro", `Atualizou os dados do parceiro ${nome}.`);
             cancelEditPartner();
         }
     } else {
         const newPartner = {
-            id: db.parceiros.length + 1,
             nome: nome,
             cnpj: cnpj,
             responsavel: responsavel,
             telefone: tel,
+            email: email,
             usaFaturamento: fat,
             observacoes: obs,
             tabelaPrecos: customPrecos
         };
 
-        db.parceiros.push(newPartner);
-        saveDatabase();
-        
-        showToast("Parceiro conveniado adicionado com sucesso!", "success");
-        logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome}.`);
-
-        document.getElementById('config-partner-form').reset();
-        renderConfigParceiros();
+        if (window.useSupabase) {
+            sbInsert('parceiros', newPartner).then(inserted => {
+                db.parceiros.push(inserted);
+                showToast("Parceiro conveniado cadastrado online!", "success");
+                logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome} no Supabase.`);
+                document.getElementById('config-partner-form').reset();
+                renderConfigParceiros();
+            }).catch(err => {
+                console.error("Erro ao cadastrar parceiro online:", err);
+                showToast("Erro ao cadastrar parceiro no banco online.", "error");
+            });
+        } else {
+            newPartner.id = db.parceiros.length + 1;
+            db.parceiros.push(newPartner);
+            saveDatabase();
+            showToast("Parceiro conveniado cadastrado localmente!", "success");
+            logAudit("Cadastro Parceiro", `Cadastrou parceiro ${nome} localmente.`);
+            document.getElementById('config-partner-form').reset();
+            renderConfigParceiros();
+        }
     }
 }
 
@@ -5313,7 +5359,7 @@ function openEditPartnerMatrix(partnerId) {
     modal.classList.add('active');
 }
 
-function savePartnerMatrix(partnerId) {
+async function savePartnerMatrix(partnerId) {
     const partner = db.parceiros.find(p => p.id === partnerId);
     if (!partner) return;
 
@@ -5322,7 +5368,18 @@ function savePartnerMatrix(partnerId) {
         partner.tabelaPrecos[s.id] = val;
     });
 
-    saveDatabase();
+    if (window.useSupabase) {
+        await sbUpdate('parceiros', partner.id, {
+            tabelaPrecos: partner.tabelaPrecos
+        }).then(() => {
+            showToast("Tabela de precos atualizada no Supabase!", "success");
+        }).catch(err => {
+            console.error("Erro ao atualizar tabela de precos online:", err);
+        });
+    } else {
+        saveDatabase();
+    }
+
     showToast("Tabela acordada do parceiro atualizada!", "success");
     logAudit("Ajuste Tabela Parceiro", `Atualizou a tabela de preços do parceiro ${partner.nome}.`);
     closeOSModal();
@@ -5376,7 +5433,6 @@ function submitConfigOperator(event) {
     }
 
     const newOp = {
-        id: db.operadores.length + 1,
         nome: nome,
         login: login,
         senha: senha,
@@ -5386,14 +5442,26 @@ function submitConfigOperator(event) {
         ativo: true
     };
 
-    db.operadores.push(newOp);
-    saveDatabase();
-
-    showToast("Novo operador cadastrado!", "success");
-    logAudit("Cadastro Operador", `Adicionou operador ${login}.`);
-
-    document.getElementById('config-op-form').reset();
-    renderConfigOperadores();
+    if (window.useSupabase) {
+        sbInsert('operadores', newOp).then(inserted => {
+            db.operadores.push(inserted);
+            showToast("Novo operador cadastrado online!", "success");
+            logAudit("Cadastro Operador", `Adicionou operador ${login} no Supabase.`);
+            document.getElementById('config-op-form').reset();
+            renderConfigOperadores();
+        }).catch(err => {
+            console.error("Erro ao cadastrar operador online:", err);
+            showToast("Erro ao cadastrar operador no banco online.", "error");
+        });
+    } else {
+        newOp.id = db.operadores.length + 1;
+        db.operadores.push(newOp);
+        saveDatabase();
+        showToast("Novo operador cadastrado localmente!", "success");
+        logAudit("Cadastro Operador", `Adicionou operador ${login} localmente.`);
+        document.getElementById('config-op-form').reset();
+        renderConfigOperadores();
+    }
 }
 
 function submitConfigUnit(event) {
