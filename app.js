@@ -2201,18 +2201,27 @@ async function deleteOS(osId) {
         return;
     }
 
-    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")? Esta acao nao podera ser desfeita.")) {
+    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")?\n\nIsso tambem remover\u00e1 os lan\u00e7amentos vinculados do caixa di\u00e1rio. Esta a\u00e7\u00e3o nao podera ser desfeita.")) {
         try {
+            // 1. Apagar todos os movimentos de caixa vinculados a esta OS
+            const movimentos = (db.caixa_movimentos || []).filter(m => m.osId === os.id);
+            for (const mov of movimentos) {
+                await dbSave('caixa_movimentos', null, 'delete', mov.id);
+            }
+
+            // 2. Apagar a própria OS
             await dbSave('ordens_servico', null, 'delete', os.id);
-            showToast("OS " + os.numero + " excluida com sucesso!", "success");
-            logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ").");
-            
-            // Recarregar os painéis
+
+            showToast("OS " + os.numero + " e seus lan\u00e7amentos de caixa foram exclu\u00eddos!", "success");
+            logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ") e " + movimentos.length + " movimento(s) de caixa vinculado(s).");
+
+            // 3. Recarregar todos os painéis afetados
             renderOSPipeline();
             renderHistorico();
+            renderCaixaPage();
         } catch (err) {
             console.error(err);
-            showToast("Erro ao excluir OS no banco de dados.", "error");
+            showToast("Erro ao excluir OS e movimentos de caixa.", "error");
         }
     }
 }
