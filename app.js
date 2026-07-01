@@ -2985,6 +2985,10 @@ async function confirmContratoAndSaveOS() {
 
         clearOSForm();
         renderAtendimentoPage();
+    } catch (e) {
+        console.error("Erro ao confirmar contrato e salvar O.S.:", e);
+        alert("Ocorreu um erro ao confirmar o contrato e salvar a O.S.:\n" + e.message + "\n" + e.stack);
+    }
 }
 
 // Auxiliar para salvar o solicitante recorrente
@@ -3011,10 +3015,6 @@ function saveOSRecurringSolicitor(os) {
                 console.error('Erro ao salvar solicitante recorrente:', err);
             });
         }
-    }
-    } catch (e) {
-        console.error("Erro ao confirmar contrato e salvar O.S.:", e);
-        alert("Ocorreu um erro ao confirmar o contrato e salvar a O.S.:\n" + e.message + "\n" + e.stack);
     }
 }
 
