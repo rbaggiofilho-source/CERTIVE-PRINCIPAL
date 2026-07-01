@@ -3167,8 +3167,60 @@ function getTodayOpenCaixa() {
     return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today && c.status === "aberto");
 }
 
-function renderCaixaPage() {
+// Auto-sincronização retroativa de lançamentos de caixa pendentes (Item D)
+async function autoSyncMissingOSMovements() {
     const activeCaixa = getTodayOpenCaixa();
+    if (!activeCaixa) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Filtrar OSs de hoje que são pagas e não são canceladas
+    const todayOSList = db.ordens_servico.filter(os => {
+        const osDate = os.criadoEm.split('T')[0];
+        return osDate === todayStr && os.pago && os.status !== 'cancelada' && !os.reapresentacaoOrigemID;
+    });
+
+    for (const os of todayOSList) {
+        // Verificar se já existe movimentação de caixa para esta OS
+        const hasMov = db.caixa_movimentos.some(m => m.osId === os.id);
+        if (!hasMov) {
+            console.log(`⚠️ OS ${os.numero} de hoje não possui lançamento no caixa. Sincronizando...`);
+            const newMov = {
+                caixaId: activeCaixa.id,
+                tipo: "entrada",
+                valor: os.valor,
+                descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                formaPagamento: os.formaPagamento,
+                data: os.criadoEm, // Mantém a data original de criação da OS
+                operador: os.criadoPor || 'Sistema',
+                osId: os.id,
+                faturaId: null
+            };
+            try {
+                if (window.useSupabase) {
+                    const inserted = await sbInsert('caixa_movimentos', newMov);
+                    db.caixa_movimentos.unshift(inserted);
+                } else {
+                    newMov.id = db.caixa_movimentos.length + 1;
+                    db.caixa_movimentos.push(newMov);
+                    saveDatabase();
+                }
+                console.log(`✅ OS ${os.numero} sincronizada com o caixa com sucesso!`);
+            } catch (err) {
+                console.error(`Erro ao auto-sincronizar OS ${os.numero}:`, err);
+            }
+        }
+    }
+}
+
+async function renderCaixaPage() {
+    const activeCaixa = getTodayOpenCaixa();
+    
+    // Auto-sincronizar lançamentos de hoje
+    if (activeCaixa) {
+        await autoSyncMissingOSMovements();
+    }
+
     const statusBadgeContainer = document.getElementById('caixa-status-badge');
     const movForm = document.getElementById('caixa-mov-form');
     const fecharForm = document.getElementById('caixa-fechar-form');
