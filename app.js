@@ -1193,7 +1193,7 @@ function loadPartnerRecurringSolicitors(partnerId) {
 
     if (!partnerId) {
         group.style.display = 'none';
-        select.innerHTML = '<option value="">Selecione um solicitante recorrente...</option>';
+        select.innerHTML = '<option value="">SELECIONE UM SOLICITANTE RECORRENTE...</option>';
         btnDelete.style.display = 'none';
         return;
     }
@@ -1204,8 +1204,8 @@ function loadPartnerRecurringSolicitors(partnerId) {
     // Ordenar por nome em ordem alfabética
     list.sort((a, b) => a.nome.localeCompare(b.nome));
 
-    select.innerHTML = '<option value="">Selecione um solicitante recorrente...</option>' +
-        list.map(s => `<option value="${s.id}">${s.nome} (CPF/CNPJ: ${s.cpf})</option>`).join('');
+    select.innerHTML = '<option value="">SELECIONE UM SOLICITANTE RECORRENTE...</option>' +
+        list.map(s => `<option value="${s.id}">${s.nome.toUpperCase()} (CPF/CNPJ: ${s.cpf})</option>`).join('');
 
     group.style.display = 'block';
     btnDelete.style.display = 'none';
@@ -1306,15 +1306,15 @@ function renderOSFormServices() {
         
         const priceLabel = s.id === 6 ? 'A NEGOCIAR' : formatCurrency(price);
         
-        let serviceName = s.nome;
+        let serviceName = s.nome.toUpperCase();
         // Ajustar nomenclaturas quando o tipo de cliente for parceiro (Item A.2)
         if (currentClientType === 'parceiro') {
             if (s.id === 4) {
-                serviceName = "Vistoria cautelar avulsa";
+                serviceName = "VISTORIA CAUTELAR AVULSA";
             } else if (s.id === 7) {
-                serviceName = "Vistoria combo";
+                serviceName = "VISTORIA COMBO";
             } else if (s.id === 8) {
-                serviceName = "Vistoria de transferência combo";
+                serviceName = "VISTORIA DE TRANSFERÊNCIA COMBO";
             }
         }
         
@@ -1493,14 +1493,14 @@ const service = db.servicos.find(s => s.id === currentSelectedServiceId);
         const num = "OS-" + String(osId).padStart(4, '0');
 
         // Determinar o nome final do serviço de acordo com as regras de parceiro (Item A.2)
-        let finalServiceName = service.nome;
+        let finalServiceName = service.nome.toUpperCase();
         if (currentClientType === 'parceiro') {
             if (service.id === 4) {
-                finalServiceName = "Vistoria cautelar avulsa";
+                finalServiceName = "VISTORIA CAUTELAR AVULSA";
             } else if (service.id === 7) {
-                finalServiceName = "Vistoria combo";
+                finalServiceName = "VISTORIA COMBO";
             } else if (service.id === 8) {
-                finalServiceName = "Vistoria de transferência combo";
+                finalServiceName = "VISTORIA DE TRANSFERÊNCIA COMBO";
             }
         }
 
@@ -2072,11 +2072,11 @@ function openEditOSModal(id) {
         filteredServices.sort((a, b) => allowedServiceIds.indexOf(a.id) - allowedServiceIds.indexOf(b.id));
 
         select.innerHTML = filteredServices.map(s => {
-            let name = s.nome;
+            let name = s.nome.toUpperCase();
             if (os.clienteTipo === 'parceiro') {
-                if (s.id === 4) name = "Vistoria cautelar avulsa";
-                else if (s.id === 7) name = "Vistoria combo";
-                else if (s.id === 8) name = "Vistoria de transferência combo";
+                if (s.id === 4) name = "VISTORIA CAUTELAR AVULSA";
+                else if (s.id === 7) name = "VISTORIA COMBO";
+                else if (s.id === 8) name = "VISTORIA DE TRANSFERÊNCIA COMBO";
             }
             return `<option value="${s.id}">${name}</option>`;
         }).join('');
@@ -2188,7 +2188,16 @@ function submitEditOSForm(event) {
     os.veiculoAno = ano;
     os.observacoes = obs;
     os.servicoId = service.id;
-    os.servicoNome = service.nome;
+    
+    // Classificação dinâmica do serviço em CAPS LOCK na edição (Item A.2)
+    let finalSvcName = service.nome.toUpperCase();
+    if (os.clienteTipo === 'parceiro') {
+        if (service.id === 4) finalSvcName = "VISTORIA CAUTELAR AVULSA";
+        else if (service.id === 7) finalSvcName = "VISTORIA COMBO";
+        else if (service.id === 8) finalSvcName = "VISTORIA DE TRANSFERÊNCIA COMBO";
+    }
+    os.servicoNome = finalSvcName;
+    
     os.valor = valor;
     os.formaPagamento = pagamento;
     os.parcelas = parcelas;
@@ -2999,7 +3008,7 @@ function saveOSRecurringSolicitor(os) {
         if (!exists) {
             const newRecorrente = {
                 parceiroId: os.parceiroId,
-                nome: os.clienteNome,
+                nome: os.clienteNome.toUpperCase(),
                 cpf: os.clienteCpfCnpj,
                 celular: os.clienteCelular
             };

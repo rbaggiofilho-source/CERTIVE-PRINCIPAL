@@ -1,5 +1,5 @@
 -- ====================================================================
--- CERTIVE VISTORIAS — CONFIGURAÇÃO DA FUNÇÃO COMBO & SOLICITANTES
+-- CERTIVE VISTORIAS — CONFIGURAÇÃO DA FUNÇÃO COMBO & SOLICITANTES (CAPS LOCK)
 -- Execute este script no SQL Editor do painel do Supabase online.
 -- ====================================================================
 
@@ -23,11 +23,16 @@ ALTER TABLE solicitantes_parceiros ENABLE ROW LEVEL SECURITY;
 -- Criar política de acesso total para solicitantes
 CREATE POLICY "allow_all_solicitantes" ON solicitantes_parceiros FOR ALL USING (true) WITH CHECK (true);
 
--- 3. Inserir novos serviços de Combo (Vistoria Combo e Vistoria de Transferência Combo)
+-- 3. Inserir novos serviços de Combo em CAPS LOCK
 INSERT INTO servicos (id, categoria, nome, porte, "precoBalcao") OVERRIDING SYSTEM VALUE VALUES
-(7, 'Cautelar', 'Vistoria Combo', 'N/A', 180.00),
-(8, 'Transferência', 'Vistoria de Transferência Combo', 'N/A', 150.00)
+(7, 'Cautelar', 'VISTORIA COMBO', 'N/A', 180.00),
+(8, 'Transferência', 'VISTORIA DE TRANSFERÊNCIA COMBO', 'N/A', 150.00)
 ON CONFLICT (id) DO NOTHING;
+
+-- Garantir que os nomes de serviços de Cautelar/Combo estejam em CAPS LOCK
+UPDATE servicos SET nome = 'VISTORIA CAUTELAR' WHERE id = 4;
+UPDATE servicos SET nome = 'VISTORIA COMBO' WHERE id = 7;
+UPDATE servicos SET nome = 'VISTORIA DE TRANSFERÊNCIA COMBO' WHERE id = 8;
 
 -- 4. Adicionar taxas de referência padrão para os novos serviços (opcional)
 INSERT INTO taxas_referencia ("servicoId", taxa) VALUES
