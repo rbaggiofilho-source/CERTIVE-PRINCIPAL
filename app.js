@@ -1188,13 +1188,19 @@ function renderOSFormServices() {
         
         const priceLabel = s.id === 6 ? 'A NEGOCIAR' : formatCurrency(price);
         
+        let serviceName = s.nome;
+        // Se for o serviço ID 4 (Cautelar) e o cliente selecionado for um parceiro do shopping, muda o nome para "Vistoria Cautelar Híbrida (Combo)"
+        if (s.id === 4 && currentClientType === 'parceiro' && partner && partner.parceiroShopping) {
+            serviceName = "Vistoria Cautelar Híbrida (Combo)";
+        }
+        
         return `
             <label class="service-option" id="lbl-svc-${s.id}" onclick="selectService(${s.id}, ${price})">
                 <input type="radio" name="os-svc-radio" value="${s.id}">
                 <div class="radio-dot"></div>
                 <i class="${iconClass}" style="font-size: 18px; color: var(--accent);"></i>
                 <div class="service-info">
-                    <div class="service-name">${s.nome}</div>
+                    <div class="service-name">${serviceName}</div>
                     <div class="service-price">${priceLabel}</div>
                 </div>
             </label>
@@ -1377,7 +1383,16 @@ function submitOSForm() {
             veiculoMarcaModelo: marcaModelo,
             veiculoAno: ano,
             servicoId: service.id,
-            servicoNome: service.nome,
+            servicoNome: (() => {
+                let finalSvcName = service.nome;
+                if (service.id === 4 && currentClientType === 'parceiro' && partnerId) {
+                    const partner = db.parceiros.find(p => p.id === partnerId);
+                    if (partner && partner.parceiroShopping) {
+                        finalSvcName = "Vistoria Cautelar Híbrida (Combo)";
+                    }
+                }
+                return finalSvcName;
+            })(),
             valor: valor,
             observacoes: obs,
             pago: pagamento !== 'faturamento',
@@ -5233,7 +5248,10 @@ function renderConfigParceiros() {
     if (tbody) {
         tbody.innerHTML = db.parceiros.map(p => `
             <tr>
-                <td><strong>${p.nome}</strong></td>
+                <td>
+                    <strong>${p.nome}</strong>
+                    ${p.parceiroShopping ? '<span class="badge badge-waiting" style="font-size: 10px; padding: 2px 6px; margin-left: 6px;">Shopping</span>' : ''}
+                </td>
                 <td>${p.cnpj}</td>
                 <td>
                     <strong>${p.responsavel || '—'}</strong><br>
@@ -5258,6 +5276,7 @@ function submitConfigPartner(event) {
     const responsavel = document.getElementById('cfg-part-responsavel').value.trim();
     const tel = document.getElementById('cfg-part-tel').value.trim();
     const fat = document.getElementById('cfg-part-faturamento').checked;
+    const shopping = document.getElementById('cfg-part-shopping').checked;
     const obs = document.getElementById('cfg-part-obs').value.trim();
 
     // Build Price table map (excluding Exotic Cars ID 6)
@@ -5278,7 +5297,8 @@ function submitConfigPartner(event) {
         telefone: tel,
         usaFaturamento: fat,
         observacoes: obs,
-        tabelaPrecos: customPrecos
+        tabelaPrecos: customPrecos,
+        parceiroShopping: shopping
     };
 
     if (window.editingPartnerId) {
@@ -5336,6 +5356,7 @@ function editPartnerDetails(id) {
     document.getElementById('cfg-part-responsavel').value = partner.responsavel || '';
     document.getElementById('cfg-part-tel').value = partner.telefone;
     document.getElementById('cfg-part-faturamento').checked = partner.usaFaturamento;
+    document.getElementById('cfg-part-shopping').checked = !!partner.parceiroShopping;
     document.getElementById('cfg-part-obs').value = partner.observacoes || '';
 
     // Populate prices matrix (excluding Exotic Cars ID 6)
