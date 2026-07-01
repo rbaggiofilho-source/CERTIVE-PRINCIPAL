@@ -2938,7 +2938,7 @@ async function openTodayCaixaDrawer() {
         status: "aberto",
         abertoPor: currentSession.nome,
         fechadoPor: null,
-        saldoAbertura: 200.00,
+        saldoAbertura: 0.00,
         saldoEspécieInformado: 0,
         fechadoEm: null
     };
@@ -2952,7 +2952,7 @@ async function openTodayCaixaDrawer() {
         saveDatabase();
     }
     
-    showToast("Caixa diário aberto com fundo inicial de R$ 200,00.", "success");
+    showToast("Caixa diário aberto com sucesso!", "success");
     logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
     renderCaixaPage();
 }
