@@ -1059,9 +1059,37 @@ function navigateTo(pageId) {
     if (pageId === 'atendimento') {
         renderAtendimentoPage();
     } else if (pageId === 'caixa') {
-        renderCaixaPage();
+        if (window.useSupabase) {
+            // Sincronizar em tempo real caixas e movimentos antes de renderizar
+            Promise.all([
+                sbSelectAll('caixa_diario', 'id', true),
+                sbSelectAll('caixa_movimentos', 'id', true)
+            ]).then(([caixas, movimentos]) => {
+                db.caixa_diario = caixas || [];
+                db.caixa_movimentos = movimentos || [];
+                db.caixa_diario.forEach(c => normalizeRecord('caixa_diario', c));
+                db.caixa_movimentos.forEach(m => normalizeRecord('caixa_movimentos', m));
+                renderCaixaPage();
+            }).catch(err => {
+                console.error("Erro ao sincronizar caixas/movimentos:", err);
+                renderCaixaPage();
+            });
+        } else {
+            renderCaixaPage();
+        }
     } else if (pageId === 'historico') {
-        renderHistoricoPage();
+        if (window.useSupabase) {
+            sbSelectAll('ordens_servico', 'id', true).then(osList => {
+                db.ordens_servico = osList || [];
+                db.ordens_servico.forEach(o => normalizeRecord('ordens_servico', o));
+                renderHistoricoPage();
+            }).catch(err => {
+                console.error("Erro ao sincronizar histórico de OS:", err);
+                renderHistoricoPage();
+            });
+        } else {
+            renderHistoricoPage();
+        }
     } else if (pageId === 'faturamento') {
         renderFaturamentoPage();
     } else if (pageId === 'contas') {
@@ -2140,7 +2168,7 @@ function updateEditOSPrice() {
     priceInput.disabled = (os.clienteTipo === 'parceiro');
 }
 
-function submitEditOSForm(event) {
+async function submitEditOSForm(event) {
     event.preventDefault();
     const id = parseInt(document.getElementById('edit-os-id').value);
     const os = db.ordens_servico.find(o => o.id === id);
@@ -2210,7 +2238,62 @@ function submitEditOSForm(event) {
         os.contratoHash = generateSignatureHash(os.contratoTexto);
     }
 
-    dbSave('ordens_servico', {
+    os.pago = (pagamento !== 'faturamento');
+
+    // Sincronizar o Caixa Diário na Edição da OS
+    const activeCaixa = getTodayOpenCaixa();
+    const existingMov = db.caixa_movimentos.find(m => m.osId === os.id);
+
+    try {
+        if (os.reapresentacaoOrigemID || !os.pago) {
+            // Se for reteste ou faturamento mensal, não deve ter entrada no caixa diário. Deletar se existir.
+            if (existingMov) {
+                if (window.useSupabase) {
+                    await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
+                }
+                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
+            }
+        } else {
+            // É pago à vista
+            if (existingMov) {
+                // Atualizar movimentação existente
+                existingMov.valor = os.valor;
+                existingMov.formaPagamento = os.formaPagamento;
+                existingMov.descricao = `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`;
+                if (window.useSupabase) {
+                    await sbUpdate('caixa_movimentos', existingMov.id, {
+                        valor: existingMov.valor,
+                        formaPagamento: existingMov.formaPagamento,
+                        descricao: existingMov.descricao
+                    });
+                }
+            } else if (activeCaixa) {
+                // Inserir novo lançamento de caixa
+                const newMov = {
+                    caixaId: activeCaixa.id,
+                    tipo: "entrada",
+                    valor: os.valor,
+                    descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                    formaPagamento: os.formaPagamento,
+                    data: new Date().toISOString(),
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                };
+                if (window.useSupabase) {
+                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                    db.caixa_movimentos.unshift(insertedMov);
+                } else {
+                    newMov.id = db.caixa_movimentos.length + 1;
+                    db.caixa_movimentos.push(newMov);
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Erro ao sincronizar movimentação de caixa da OS editada:", err);
+    }
+
+    await dbSave('ordens_servico', {
         clienteNome: os.clienteNome,
         clienteCpfCnpj: os.clienteCpfCnpj,
         clienteCelular: os.clienteCelular,
@@ -2225,6 +2308,7 @@ function submitEditOSForm(event) {
         servicoId: os.servicoId,
         servicoNome: os.servicoNome,
         valor: os.valor,
+        pago: os.pago,
         formaPagamento: os.formaPagamento,
         parcelas: os.parcelas,
         detranRegistrado: os.detranRegistrado,
