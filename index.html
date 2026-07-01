@@ -199,6 +199,21 @@
                                     <input type="text" id="os-veiculo-ano" placeholder="EX: 2020/2021" maxlength="9">
                                 </div>
                             </div>
+                            <!-- Seleção de Solicitante Recorrente (Oculto se particular) -->
+                            <div class="form-group" id="form-group-solicitante-recorrente" style="display: none; background: rgba(212,160,23,0.03); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                                <label for="os-solicitante-recorrente-select" style="font-weight: 700; color: var(--accent); display: block; margin-bottom: 6px;">Selecionar Solicitante Recorrente</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <select id="os-solicitante-recorrente-select" onchange="selectRecurringSolicitor(this.value)" style="flex: 1; padding: 6px 10px; font-size: 13px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
+                                        <option value="">Selecione um solicitante recorrente...</option>
+                                    </select>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="deleteSelectedSolicitor()" id="btn-delete-solicitante" style="display: none; padding: 4px 8px; justify-content: center; align-items: center;" title="Remover Solicitante"><i class="ri-delete-bin-line" style="color: var(--danger); font-size: 14px;"></i></button>
+                                </div>
+                                <label class="form-check" style="margin-top: 8px; margin-bottom: 0; display: flex; align-items: center; gap: 6px;">
+                                    <input type="checkbox" id="os-salvar-recorrente" style="margin: 0;">
+                                    <span style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">Salvar este solicitante como recorrente para este parceiro</span>
+                                </label>
+                            </div>
+
                             <div class="form-group">
                                 <label for="os-nome-cliente">Nome Completo do Solicitante</label>
                                 <input type="text" id="os-nome-cliente" placeholder="Nome completo do condutor/proprietário">
@@ -1146,6 +1161,19 @@
                                     <div class="form-group">
                                         <label for="cfg-part-obs">Observações do Cadastro</label>
                                         <textarea id="cfg-part-obs" placeholder="Contatos do financeiro, observações gerais de pagamentos, gerência comercial, etc..." style="height: 60px; font-family: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                                    </div>
+
+                                    <!-- Valores do Combo (A.1) -->
+                                    <label class="form-section-title">Valores do Combo (Shopping/Lojistas)</label>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-preco-combo">Valor da Vistoria Combo (R$)</label>
+                                            <input type="number" step="0.01" id="cfg-part-preco-combo" placeholder="0,00" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-part-preco-combo-transf">Valor da Transferência Combo (R$)</label>
+                                            <input type="number" step="0.01" id="cfg-part-preco-combo-transf" placeholder="0,00" required>
+                                        </div>
                                     </div>
 
                                     <!-- Tabela de Preço Acordada -->

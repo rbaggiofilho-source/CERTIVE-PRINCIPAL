@@ -13,7 +13,8 @@ const DECIMAL_FIELDS = {
     caixa_diario: ['saldoAbertura', 'saldoEspécieInformado'],
     caixa_movimentos: ['valor'],
     contas_pagar: ['valor'],
-    faturas: ['valorTotal']
+    faturas: ['valorTotal'],
+    parceiros: ['precoCombo', 'precoComboTransferencia']
 };
 
 /**
@@ -226,7 +227,8 @@ async function loadAllFromSupabase() {
             faturas,
             auditoria,
             portarias_uf,
-            metas_despesas
+            metas_despesas,
+            solicitantes_parceiros
         ] = await Promise.all([
             sbSelectAll('unidades'),
             sbSelectAll('servicos'),
@@ -240,7 +242,8 @@ async function loadAllFromSupabase() {
             sbSelectAll('faturas', 'id', true),
             sbSelectAll('auditoria', 'id', false), // Most recent first
             sbSelectAll('portarias_uf', 'uf'),
-            sbSelectAll('metas_despesas')
+            sbSelectAll('metas_despesas'),
+            sbSelectAll('solicitantes_parceiros')
         ]);
 
         db.unidades = unidades;
@@ -254,6 +257,7 @@ async function loadAllFromSupabase() {
         db.contas_pagar = contas_pagar;
         db.faturas = faturas;
         db.auditoria = auditoria;
+        db.solicitantes_parceiros = solicitantes_parceiros || [];
 
         // Process Portarias UF
         db.portarias_uf = {};
@@ -280,6 +284,7 @@ async function loadAllFromSupabase() {
         db.contas_pagar.forEach(c => normalizeRecord('contas_pagar', c));
         db.faturas.forEach(f => normalizeRecord('faturas', f));
         db.parceiros.forEach(p => normalizeRecord('parceiros', p));
+        (db.solicitantes_parceiros || []).forEach(s => normalizeRecord('solicitantes_parceiros', s));
 
         console.log(`✅ Dados carregados do Supabase: ${ordens_servico.length} OSs, ${caixa_diario.length} caixas, ${faturas.length} faturas`);
         return true;

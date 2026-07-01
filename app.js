@@ -405,6 +405,18 @@ function saveDatabase() {
 
 function loadDatabase() {
     db = JSON.parse(localStorage.getItem('certive_db') || '{}');
+    db.unidades = db.unidades || [];
+    db.servicos = db.servicos || [];
+    db.taxas_referencia = db.taxas_referencia || [];
+    db.operadores = db.operadores || [];
+    db.parceiros = db.parceiros || [];
+    db.ordens_servico = db.ordens_servico || [];
+    db.caixa_diario = db.caixa_diario || [];
+    db.caixa_movimentos = db.caixa_movimentos || [];
+    db.contas_pagar = db.contas_pagar || [];
+    db.faturas = db.faturas || [];
+    db.auditoria = db.auditoria || [];
+    db.solicitantes_parceiros = db.solicitantes_parceiros || [];
 }
 
 // Seed 30 Days of realistic business data
@@ -1122,6 +1134,7 @@ function selectClientType(type) {
 
     if (type === 'particular') {
         partnerSelectGroup.style.display = 'none';
+        document.getElementById('form-group-solicitante-recorrente').style.display = 'none';
         optFaturamento.disabled = true;
         if (paymentSelect.value === 'faturamento') paymentSelect.value = 'pix';
         valWarning.textContent = "Tabela de balcão. Valor editável pelo atendente.";
@@ -1137,7 +1150,8 @@ function selectClientType(type) {
 
 function loadPartnersDropdown() {
     const select = document.getElementById('os-parceiro-select');
-    const list = db.parceiros.filter(p => p.usaFaturamento || p.tabelaPrecos);
+    // Ordenação alfabética obrigatória (Item B)
+    const list = [...db.parceiros].sort((a, b) => a.nome.localeCompare(b.nome));
     select.innerHTML = '<option value="">Selecione o parceiro...</option>' + 
         list.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
 }
@@ -1146,6 +1160,9 @@ function loadPartnerServices(partnerId) {
     const optFaturamento = document.getElementById('opt-pagamento-faturamento');
     const paymentSelect = document.getElementById('os-pagamento');
     
+    // Carregar solicitantes recorrentes vinculados ao parceiro (Item C)
+    loadPartnerRecurringSolicitors(partnerId);
+
     if (!partnerId) {
         optFaturamento.disabled = true;
         paymentSelect.value = 'pix';
@@ -1167,15 +1184,116 @@ function loadPartnerServices(partnerId) {
     renderOSFormServices();
 }
 
+// ---- SOLICITANTES RECORRENTES VINCULADOS AO PARCEIRO (Item C) ----
+
+function loadPartnerRecurringSolicitors(partnerId) {
+    const group = document.getElementById('form-group-solicitante-recorrente');
+    const select = document.getElementById('os-solicitante-recorrente-select');
+    const btnDelete = document.getElementById('btn-delete-solicitante');
+
+    if (!partnerId) {
+        group.style.display = 'none';
+        select.innerHTML = '<option value="">Selecione um solicitante recorrente...</option>';
+        btnDelete.style.display = 'none';
+        return;
+    }
+
+    const pId = parseInt(partnerId);
+    const list = (db.solicitantes_parceiros || []).filter(s => s.parceiroId === pId);
+
+    // Ordenar por nome em ordem alfabética
+    list.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    select.innerHTML = '<option value="">Selecione um solicitante recorrente...</option>' +
+        list.map(s => `<option value="${s.id}">${s.nome} (CPF/CNPJ: ${s.cpf})</option>`).join('');
+
+    group.style.display = 'block';
+    btnDelete.style.display = 'none';
+    
+    // Desmarcar por padrão
+    document.getElementById('os-salvar-recorrente').checked = false;
+}
+
+function selectRecurringSolicitor(solicitanteId) {
+    const btnDelete = document.getElementById('btn-delete-solicitante');
+    if (!solicitanteId) {
+        document.getElementById('os-nome-cliente').value = '';
+        document.getElementById('os-cpf-cliente').value = '';
+        document.getElementById('os-celular-cliente').value = '';
+        btnDelete.style.display = 'none';
+        return;
+    }
+
+    const sol = (db.solicitantes_parceiros || []).find(s => s.id === parseInt(solicitanteId));
+    if (sol) {
+        document.getElementById('os-nome-cliente').value = sol.nome;
+        document.getElementById('os-cpf-cliente').value = sol.cpf;
+        document.getElementById('os-celular-cliente').value = sol.celular;
+        btnDelete.style.display = 'inline-flex';
+    }
+}
+
+async function deleteSelectedSolicitor() {
+    const select = document.getElementById('os-solicitante-recorrente-select');
+    const solicitanteId = parseInt(select.value);
+    if (!solicitanteId) return;
+
+    if (!isMasterSession()) {
+        showToast("Erro: Apenas operadores Master podem remover solicitantes recorrentes.", "error");
+        return;
+    }
+
+    const sol = (db.solicitantes_parceiros || []).find(s => s.id === solicitanteId);
+    if (!sol) return;
+
+    if (confirm(`Deseja remover o solicitante "${sol.nome}" da lista de recorrentes deste parceiro?`)) {
+        try {
+            await dbSave('solicitantes_parceiros', null, 'delete', sol.id);
+            db.solicitantes_parceiros = db.solicitantes_parceiros.filter(s => s.id !== sol.id);
+            
+            showToast("Solicitante recorrente removido!", "success");
+            
+            const partnerId = document.getElementById('os-parceiro-select').value;
+            loadPartnerRecurringSolicitors(partnerId);
+            
+            document.getElementById('os-nome-cliente').value = '';
+            document.getElementById('os-cpf-cliente').value = '';
+            document.getElementById('os-celular-cliente').value = '';
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao remover solicitante recorrente.", "error");
+        }
+    }
+}
+
 function renderOSFormServices() {
     const container = document.getElementById('service-selector');
     const partnerId = parseInt(document.getElementById('os-parceiro-select').value);
     const partner = partnerId ? db.parceiros.find(p => p.id === partnerId) : null;
 
-    container.innerHTML = db.servicos.map(s => {
+    // Determinar os IDs de serviços disponíveis com base no tipo de cliente (Item A.2)
+    let allowedServiceIds = [];
+    if (currentClientType === 'particular') {
+        allowedServiceIds = [1, 2, 3, 4, 5, 6];
+    } else {
+        allowedServiceIds = [1, 2, 3, 4, 7, 8, 5];
+    }
+
+    const filteredServices = db.servicos.filter(s => allowedServiceIds.includes(s.id));
+    filteredServices.sort((a, b) => allowedServiceIds.indexOf(a.id) - allowedServiceIds.indexOf(b.id));
+
+    container.innerHTML = filteredServices.map(s => {
         let price = s.precoBalcao;
         if (currentClientType === 'parceiro' && partner) {
-            price = partner.tabelaPrecos[s.id] || s.precoBalcao;
+            if (s.id === 7) {
+                // Vistoria Combo (Item A.3)
+                price = partner.precoCombo !== undefined ? partner.precoCombo : s.precoBalcao;
+            } else if (s.id === 8) {
+                // Vistoria de Transferência Combo (Item A.3)
+                price = partner.precoComboTransferencia !== undefined ? partner.precoComboTransferencia : s.precoBalcao;
+            } else {
+                price = partner.tabelaPrecos[s.id] !== undefined ? partner.tabelaPrecos[s.id] : s.precoBalcao;
+            }
         }
 
         const iconClass = s.categoria === 'Transferência' 
@@ -1189,9 +1307,15 @@ function renderOSFormServices() {
         const priceLabel = s.id === 6 ? 'A NEGOCIAR' : formatCurrency(price);
         
         let serviceName = s.nome;
-        // Se for o serviço ID 4 (Cautelar) e o cliente selecionado for um parceiro do shopping, muda o nome para "Vistoria Cautelar Híbrida (Combo)"
-        if (s.id === 4 && currentClientType === 'parceiro' && partner && partner.parceiroShopping) {
-            serviceName = "Vistoria Cautelar Híbrida (Combo)";
+        // Ajustar nomenclaturas quando o tipo de cliente for parceiro (Item A.2)
+        if (currentClientType === 'parceiro') {
+            if (s.id === 4) {
+                serviceName = "Vistoria cautelar avulsa";
+            } else if (s.id === 7) {
+                serviceName = "Vistoria combo";
+            } else if (s.id === 8) {
+                serviceName = "Vistoria de transferência combo";
+            }
         }
         
         return `
@@ -1271,6 +1395,11 @@ function clearOSForm() {
     document.getElementById('os-pagamento').value = 'pix';
     document.getElementById('os-parcelas-group').style.display = 'none';
     document.getElementById('os-parcelas').value = '1';
+    
+    // Limpar campos do solicitante recorrente
+    document.getElementById('os-salvar-recorrente').checked = false;
+    document.getElementById('os-solicitante-recorrente-select').innerHTML = '<option value="">Selecione um solicitante recorrente...</option>';
+    
     selectClientType('particular');
 }
 
@@ -1354,7 +1483,7 @@ function submitOSForm() {
             return;
         }
 
-        const service = db.servicos.find(s => s.id === currentSelectedServiceId);
+const service = db.servicos.find(s => s.id === currentSelectedServiceId);
         if (!service) {
             showToast("Erro: Serviço selecionado inválido.", "error");
             return;
@@ -1362,6 +1491,18 @@ function submitOSForm() {
         
         const osId = db.ordens_servico.length + 1;
         const num = "OS-" + String(osId).padStart(4, '0');
+
+        // Determinar o nome final do serviço de acordo com as regras de parceiro (Item A.2)
+        let finalServiceName = service.nome;
+        if (currentClientType === 'parceiro') {
+            if (service.id === 4) {
+                finalServiceName = "Vistoria cautelar avulsa";
+            } else if (service.id === 7) {
+                finalServiceName = "Vistoria combo";
+            } else if (service.id === 8) {
+                finalServiceName = "Vistoria de transferência combo";
+            }
+        }
 
         // Build OS
         const newOS = {
@@ -1383,16 +1524,7 @@ function submitOSForm() {
             veiculoMarcaModelo: marcaModelo,
             veiculoAno: ano,
             servicoId: service.id,
-            servicoNome: (() => {
-                let finalSvcName = service.nome;
-                if (service.id === 4 && currentClientType === 'parceiro' && partnerId) {
-                    const partner = db.parceiros.find(p => p.id === partnerId);
-                    if (partner && partner.parceiroShopping) {
-                        finalSvcName = "Vistoria Cautelar Híbrida (Combo)";
-                    }
-                }
-                return finalSvcName;
-            })(),
+            servicoNome: finalServiceName,
             valor: valor,
             observacoes: obs,
             pago: pagamento !== 'faturamento',
@@ -1929,7 +2061,25 @@ function openEditOSModal(id) {
     // Populate service dropdown
     const select = document.getElementById('edit-os-servico');
     if (select) {
-        select.innerHTML = db.servicos.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
+        let allowedServiceIds = [];
+        if (os.clienteTipo === 'particular') {
+            allowedServiceIds = [1, 2, 3, 4, 5, 6];
+        } else {
+            allowedServiceIds = [1, 2, 3, 4, 7, 8, 5];
+        }
+        
+        const filteredServices = db.servicos.filter(s => allowedServiceIds.includes(s.id));
+        filteredServices.sort((a, b) => allowedServiceIds.indexOf(a.id) - allowedServiceIds.indexOf(b.id));
+
+        select.innerHTML = filteredServices.map(s => {
+            let name = s.nome;
+            if (os.clienteTipo === 'parceiro') {
+                if (s.id === 4) name = "Vistoria cautelar avulsa";
+                else if (s.id === 7) name = "Vistoria combo";
+                else if (s.id === 8) name = "Vistoria de transferência combo";
+            }
+            return `<option value="${s.id}">${name}</option>`;
+        }).join('');
         select.value = os.servicoId;
     }
     
@@ -1975,8 +2125,14 @@ function updateEditOSPrice() {
     let price = service.precoBalcao;
     if (os.clienteTipo === 'parceiro' && os.parceiroId) {
         const partner = db.parceiros.find(p => p.id === os.parceiroId);
-        if (partner && partner.tabelaPrecos) {
-            price = partner.tabelaPrecos[serviceId] || service.precoBalcao;
+        if (partner) {
+            if (serviceId === 7) {
+                price = partner.precoCombo !== undefined ? partner.precoCombo : service.precoBalcao;
+            } else if (serviceId === 8) {
+                price = partner.precoComboTransferencia !== undefined ? partner.precoComboTransferencia : service.precoBalcao;
+            } else {
+                price = partner.tabelaPrecos[serviceId] !== undefined ? partner.tabelaPrecos[serviceId] : service.precoBalcao;
+            }
         }
     }
     priceInput.value = price.toFixed(2);
@@ -2824,8 +2980,38 @@ async function confirmContratoAndSaveOS() {
         closeContratoModal();
         printContract(os);
         
+        // Salvar Solicitante Recorrente (Item C)
+        saveOSRecurringSolicitor(os);
+
         clearOSForm();
         renderAtendimentoPage();
+}
+
+// Auxiliar para salvar o solicitante recorrente
+function saveOSRecurringSolicitor(os) {
+    const salvarRecorrente = document.getElementById('os-salvar-recorrente').checked;
+    if (os.clienteTipo === 'parceiro' && os.parceiroId && salvarRecorrente) {
+        const exists = (db.solicitantes_parceiros || []).find(s => s.parceiroId === os.parceiroId && s.cpf === os.clienteCpfCnpj);
+        if (!exists) {
+            const newRecorrente = {
+                parceiroId: os.parceiroId,
+                nome: os.clienteNome,
+                cpf: os.clienteCpfCnpj,
+                celular: os.clienteCelular
+            };
+            
+            dbSave('solicitantes_parceiros', newRecorrente, 'insert').then(inserted => {
+                if (!db.solicitantes_parceiros) db.solicitantes_parceiros = [];
+                const cacheExists = db.solicitantes_parceiros.find(s => s.id === inserted.id);
+                if (!cacheExists) {
+                    db.solicitantes_parceiros.push(inserted);
+                }
+                console.log('✅ Solicitante recorrente cadastrado com sucesso!');
+            }).catch(err => {
+                console.error('Erro ao salvar solicitante recorrente:', err);
+            });
+        }
+    }
     } catch (e) {
         console.error("Erro ao confirmar contrato e salvar O.S.:", e);
         alert("Ocorreu um erro ao confirmar o contrato e salvar a O.S.:\n" + e.message + "\n" + e.stack);
@@ -5289,6 +5475,9 @@ function submitConfigPartner(event) {
     const emailEl = document.getElementById('cfg-part-email');
     const email = emailEl ? emailEl.value.trim() : '';
 
+    const precoCombo = parseFloat(document.getElementById('cfg-part-preco-combo').value) || 0;
+    const precoComboTransf = parseFloat(document.getElementById('cfg-part-preco-combo-transf').value) || 0;
+
     // Payload sem 'email' (coluna não existe na tabela parceiros do banco)
     const partnerPayload = {
         nome: nome,
@@ -5298,7 +5487,9 @@ function submitConfigPartner(event) {
         usaFaturamento: fat,
         observacoes: obs,
         tabelaPrecos: customPrecos,
-        parceiroShopping: shopping
+        parceiroShopping: shopping,
+        precoCombo: precoCombo,
+        precoComboTransferencia: precoComboTransf
     };
 
     if (window.editingPartnerId) {
@@ -5357,6 +5548,8 @@ function editPartnerDetails(id) {
     document.getElementById('cfg-part-tel').value = partner.telefone;
     document.getElementById('cfg-part-faturamento').checked = partner.usaFaturamento;
     document.getElementById('cfg-part-shopping').checked = !!partner.parceiroShopping;
+    document.getElementById('cfg-part-preco-combo').value = partner.precoCombo !== undefined ? partner.precoCombo : '';
+    document.getElementById('cfg-part-preco-combo-transf').value = partner.precoComboTransferencia !== undefined ? partner.precoComboTransferencia : '';
     document.getElementById('cfg-part-obs').value = partner.observacoes || '';
 
     // Populate prices matrix (excluding Exotic Cars ID 6)
