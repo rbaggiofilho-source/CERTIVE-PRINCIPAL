@@ -1239,19 +1239,19 @@ async function deleteSelectedSolicitor() {
     if (!solicitanteId) return;
 
     if (!isMasterSession()) {
-        showToast("Erro: Apenas operadores Master podem remover solicitantes recorrentes.", "error");
+        showToast("ERRO: APENAS OPERADORES MASTER PODEM REMOVER SOLICITANTES RECORRENTES.", "error");
         return;
     }
 
     const sol = (db.solicitantes_parceiros || []).find(s => s.id === solicitanteId);
     if (!sol) return;
 
-    if (confirm(`Deseja remover o solicitante "${sol.nome}" da lista de recorrentes deste parceiro?`)) {
+    if (confirm(`DESEJA REMOVER O SOLICITANTE "${sol.nome.toUpperCase()}" DA LISTA DE RECORRENTES DESTE PARCEIRO?`)) {
         try {
             await dbSave('solicitantes_parceiros', null, 'delete', sol.id);
             db.solicitantes_parceiros = db.solicitantes_parceiros.filter(s => s.id !== sol.id);
             
-            showToast("Solicitante recorrente removido!", "success");
+            showToast("SOLICITANTE RECORRENTE REMOVIDO COM SUCESSO!", "success");
             
             const partnerId = document.getElementById('os-parceiro-select').value;
             loadPartnerRecurringSolicitors(partnerId);
@@ -1261,7 +1261,7 @@ async function deleteSelectedSolicitor() {
             document.getElementById('os-celular-cliente').value = '';
         } catch (err) {
             console.error(err);
-            showToast("Erro ao remover solicitante recorrente.", "error");
+            showToast("ERRO AO REMOVER SOLICITANTE RECORRENTE.", "error");
         }
     }
 }
@@ -1345,7 +1345,7 @@ function selectService(id, price) {
     if (id === 6) {
         priceInput.value = '';
         priceInput.disabled = false;
-        priceInput.placeholder = 'Digite o valor acordado';
+        priceInput.placeholder = 'DIGITE O VALOR ACORDADO';
     } else {
         priceInput.value = price.toFixed(2);
         priceInput.disabled = (currentClientType === 'parceiro');
@@ -2118,7 +2118,7 @@ function updateEditOSPrice() {
     if (serviceId === 6) {
         priceInput.disabled = false;
         priceInput.value = '';
-        priceInput.placeholder = 'Digite o valor acordado';
+        priceInput.placeholder = 'DIGITE O VALOR ACORDADO';
         return;
     }
     
