@@ -4139,9 +4139,8 @@ function submitDespesaForm(event) {
         return;
     }
 
-    const saveExpense = (anexoData = null) => {
+    const saveExpense = async (anexoData = null) => {
         const newExpense = {
-            id: db.contas_pagar.length + 1,
             unidadeId: activeUnitId,
             descricao: desc,
             tipo: "fixo",
@@ -4156,14 +4155,17 @@ function submitDespesaForm(event) {
             comprovante: null
         };
 
-        db.contas_pagar.push(newExpense);
-        saveDatabase();
-
-        showToast("Despesa cadastrada com sucesso!", "success");
-        logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
-        
-        document.getElementById('despesa-form').reset();
-        renderContasGerais();
+        try {
+            await dbSave('contas_pagar', newExpense, 'insert');
+            showToast("Despesa cadastrada com sucesso!", "success");
+            logAudit("Cadastro Despesa", `Adicionou despesa a pagar: ${desc} (Venc: ${formatDateBr(venc)})`);
+            
+            document.getElementById('despesa-form').reset();
+            renderContasGerais();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao cadastrar despesa no banco.", "error");
+        }
     };
 
     if (file) {
@@ -4245,16 +4247,27 @@ function submitPayExpense(id) {
     }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
-        expense.pago = true;
-        expense.pagoEm = payDate;
-        expense.comprovante = e.target.result;
+    reader.onload = async function(e) {
+        const updates = {
+            pago: true,
+            pagoEm: payDate,
+            comprovante: e.target.result
+        };
 
-        saveDatabase();
-        showToast("Pagamento registrado com sucesso!", "success");
-        logAudit("Pagamento Despesa", `Marcou despesa como paga e anexou comprovante: ${expense.descricao}.`);
-        closeOSModal();
-        renderContasGerais();
+        try {
+            await dbSave('contas_pagar', updates, 'update', expense.id);
+            expense.pago = true;
+            expense.pagoEm = payDate;
+            expense.comprovante = e.target.result;
+
+            showToast("Pagamento registrado com sucesso!", "success");
+            logAudit("Pagamento Despesa", `Marcou despesa como paga e anexou comprovante: ${expense.descricao}.`);
+            closeOSModal();
+            renderContasGerais();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao registrar pagamento no banco.", "error");
+        }
     };
     reader.onerror = function() {
         showToast("Erro ao ler o arquivo de comprovante.", "error");
@@ -4766,7 +4779,7 @@ function calcularCustosDetran() {
     }
 }
 
-function lancarFaturaDetran() {
+async function lancarFaturaDetran() {
     const val = window.activeDetranConsolidationVal;
     const monthLabel = window.activeDetranMonthLabel;
     const year = window.activeDetranYear;
@@ -4777,7 +4790,6 @@ function lancarFaturaDetran() {
     }
 
     const newPayable = {
-        id: db.contas_pagar.length + 1,
         unidadeId: activeUnitId,
         descricao: `Taxas DETRAN-SC — Consolidação ${monthLabel}/${year}`,
         tipo: "variavel",
@@ -4790,13 +4802,15 @@ function lancarFaturaDetran() {
         comprovante: null
     };
 
-    db.contas_pagar.push(newPayable);
-    saveDatabase();
-    
-    showToast("Guia consolidada enviada para o Financeiro com sucesso!", "success");
-    logAudit("Consolidação DETRAN", `Gerou taxa DETRAN do mês de ${monthLabel}/${year} consolidada no valor de ${formatCurrency(val)}.`);
-
-    calcularCustosDetran();
+    try {
+        await dbSave('contas_pagar', newPayable, 'insert');
+        showToast("Guia consolidada enviada para o Financeiro com sucesso!", "success");
+        logAudit("Consolidação DETRAN", `Gerou taxa DETRAN do mês de ${monthLabel}/${year} consolidada no valor de ${formatCurrency(val)}.`);
+        calcularCustosDetran();
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao lançar fatura DETRAN.", "error");
+    }
 }
 
 // ==========================================
