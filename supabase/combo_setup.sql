@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS solicitantes_parceiros (
 -- Habilitar Row Level Security (RLS) para a nova tabela
 ALTER TABLE solicitantes_parceiros ENABLE ROW LEVEL SECURITY;
 
+-- Evitar erro se a política já existir
+DROP POLICY IF EXISTS "allow_all_solicitantes" ON solicitantes_parceiros;
+
 -- Criar política de acesso total para solicitantes
 CREATE POLICY "allow_all_solicitantes" ON solicitantes_parceiros FOR ALL USING (true) WITH CHECK (true);
 
