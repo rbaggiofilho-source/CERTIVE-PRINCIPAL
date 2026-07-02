@@ -2245,8 +2245,8 @@ async function submitEditOSForm(event) {
     const existingMov = db.caixa_movimentos.find(m => m.osId === os.id);
 
     try {
-        if (os.reapresentacaoOrigemID || !os.pago) {
-            // Se for reteste ou faturamento mensal, não deve ter entrada no caixa diário. Deletar se existir.
+        if (os.reapresentacaoOrigemID) {
+            // Se for reteste, não deve ter entrada no caixa diário. Deletar se existir.
             if (existingMov) {
                 if (window.useSupabase) {
                     await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
@@ -2997,22 +2997,20 @@ async function confirmContratoAndSaveOS() {
                     <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
                 `;
             } else {
-                // Fluxo padrão: Lançamento de Caixa
-                if (os.pago) {
-                    const newMov = {
-                        caixaId: activeCaixa.id,
-                        tipo: "entrada",
-                        valor: os.valor,
-                        descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: os.formaPagamento,
-                        data: new Date().toISOString(),
-                        operador: currentSession.nome,
-                        osId: os.id,
-                        faturaId: null
-                    };
-                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                    db.caixa_movimentos.unshift(insertedMov);
-                }
+                // Fluxo padrão: Lançamento de Caixa (Tudo gera caixa, incluindo faturamento)
+                const newMov = {
+                    caixaId: activeCaixa.id,
+                    tipo: "entrada",
+                    valor: os.valor,
+                    descricao: `Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                    formaPagamento: os.formaPagamento,
+                    data: new Date().toISOString(),
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                };
+                const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                db.caixa_movimentos.unshift(insertedMov);
             }
             
             // Inserir no cache local
@@ -3183,10 +3181,10 @@ async function autoSyncMissingOSMovements() {
 
     const todayStr = getLocalDateString(new Date());
     
-    // Filtrar OSs de hoje que são pagas e não são canceladas
+    // Filtrar OSs de hoje que não são canceladas (incluindo faturadas)
     const todayOSList = db.ordens_servico.filter(os => {
         const osDate = getLocalDateString(os.criadoEm);
-        return osDate === todayStr && os.pago && os.status !== 'cancelada' && !os.reapresentacaoOrigemID;
+        return osDate === todayStr && os.status !== 'cancelada' && !os.reapresentacaoOrigemID;
     });
 
     for (const os of todayOSList) {
