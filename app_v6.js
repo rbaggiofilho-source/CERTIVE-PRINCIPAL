@@ -3170,8 +3170,10 @@ function getLocalDateString(dateInput) {
 }
 
 function getTodayOpenCaixa() {
-    // Busca o caixa da unidade ativa com status "aberto". É o mais seguro contra fuso horário.
-    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.status === "aberto");
+    // Busca o caixa aberto da unidade ativa com a data mais recente para evitar conflito com caixas antigos esquecidos abertos
+    const openCaixas = db.caixa_diario.filter(c => c.unidadeId === activeUnitId && c.status === "aberto");
+    if (openCaixas.length === 0) return null;
+    return openCaixas.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
 }
 
 // Auto-sincronização retroativa de lançamentos de caixa pendentes (Item D)
