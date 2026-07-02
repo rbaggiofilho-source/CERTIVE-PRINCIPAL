@@ -4524,6 +4524,24 @@ function submitDespesaForm(event) {
             showToast("Erro ao cadastrar despesa no banco.", "error");
         }
     };
+
+    if (file) {
+        if (file.size > 1024 * 1024) {
+            showToast("Erro: O tamanho do anexo não pode exceder 1MB.", "error");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            saveExpense(e.target.result);
+        };
+        reader.onerror = function() {
+            showToast("Erro ao ler o arquivo de anexo.", "error");
+        };
+        reader.readAsDataURL(file);
+    } else {
+        saveExpense();
+    }
 }
 
 // ---- EDIÇÃO E EXCLUSÃO DE CONTAS A PAGAR ----
@@ -4619,25 +4637,6 @@ async function deleteConta(id) {
             console.error(err);
             showToast("Erro ao excluir conta.", "error");
         }
-    }
-}
-
-    if (file) {
-        if (file.size > 1024 * 1024) {
-            showToast("Erro: O tamanho do anexo não pode exceder 1MB.", "error");
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            saveExpense(e.target.result);
-        };
-        reader.onerror = function() {
-            showToast("Erro ao ler o arquivo de anexo.", "error");
-        };
-        reader.readAsDataURL(file);
-    } else {
-        saveExpense();
     }
 }
 
