@@ -3689,6 +3689,18 @@ async function submitFecharCaixa(event) {
             activeCaixa.fechadoEm = new Date().toISOString();
             activeCaixa.pdfConsolidado = base64Pdf;
 
+            try {
+                await dbSave('caixa_diario', {
+                    status: "fechado",
+                    saldoEspécieInformado: saldoFisico,
+                    fechadoPor: currentSession.nome,
+                    fechadoEm: activeCaixa.fechadoEm,
+                    pdfConsolidado: base64Pdf
+                }, 'update', activeCaixa.id);
+            } catch (dbErr) {
+                console.error("Erro ao salvar fechamento de caixa no banco:", dbErr);
+            }
+
             saveDatabase();
             showToast("Caixa diário fechado com sucesso!", "success");
             logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)} e anexou relatório DETRAN.`);
