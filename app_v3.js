@@ -5684,7 +5684,8 @@ function renderConfigParceiros() {
 
     const tbody = document.getElementById('cfg-partners-tbody');
     if (tbody) {
-        tbody.innerHTML = db.parceiros.map(p => `
+        const sortedPartners = [...db.parceiros].sort((a, b) => a.nome.localeCompare(b.nome));
+        tbody.innerHTML = sortedPartners.map(p => `
             <tr>
                 <td>
                     <strong>${p.nome}</strong>
