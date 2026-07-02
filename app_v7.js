@@ -3700,6 +3700,7 @@ async function submitFecharCaixa(event) {
             activeCaixa.pdfConsolidado = base64Pdf;
 
             try {
+                // Tentativa de salvar o fechamento completo com o PDF no Supabase
                 await dbSave('caixa_diario', {
                     status: "fechado",
                     saldoEspécieInformado: saldoFisico,
@@ -3708,7 +3709,20 @@ async function submitFecharCaixa(event) {
                     pdfConsolidado: base64Pdf
                 }, 'update', activeCaixa.id);
             } catch (dbErr) {
-                console.error("Erro ao salvar fechamento de caixa no banco:", dbErr);
+                console.warn("⚠️ Erro ao salvar fechamento completo com PDF no Supabase (limite de payload ou rede). Tentando salvar sem o PDF para garantir o fechamento...", dbErr);
+                try {
+                    // Contingência: salva o fechamento sem o PDF pesado para garantir o status 'fechado' no Supabase
+                    await dbSave('caixa_diario', {
+                        status: "fechado",
+                        saldoEspécieInformado: saldoFisico,
+                        fechadoPor: currentSession.nome,
+                        fechadoEm: activeCaixa.fechadoEm,
+                        pdfConsolidado: null
+                    }, 'update', activeCaixa.id);
+                    showToast("Caixa fechado (PDF salvo apenas no cache local por limite de tamanho).", "warning");
+                } catch (retryErr) {
+                    console.error("❌ Erro crítico ao salvar fechamento de caixa no Supabase:", retryErr);
+                }
             }
 
             saveDatabase();
