@@ -4469,7 +4469,11 @@ function renderContasGerais() {
                 <td style="text-align: center;">${anexoHtml}</td>
                 <td style="text-align: center;">${comprovanteHtml}</td>
                 <td>
-                    ${!c.pago ? `<button class="btn btn-primary btn-sm" onclick="payExpense(${c.id})"><i class="ri-check-line"></i> Pagar</button>` : `<small style="color:var(--text-muted)">Paga em ${formatDateBr(c.pagoEm)}</small>`}
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        ${!c.pago ? `<button class="btn btn-primary btn-sm" onclick="payExpense(${c.id})" title="Pagar Conta"><i class="ri-check-line"></i> PAGAR</button>` : `<small style="color:var(--text-muted); font-size: 11px;">Paga em ${formatDateBr(c.pagoEm)}</small>`}
+                        <button class="btn btn-warning btn-sm btn-icon" onclick="openEditContaModal(${c.id})" title="Editar Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-edit-line" style="font-size: 14px;"></i></button>
+                        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteConta(${c.id})" title="Excluir Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-delete-bin-line" style="font-size: 14px;"></i></button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -4520,6 +4524,103 @@ function submitDespesaForm(event) {
             showToast("Erro ao cadastrar despesa no banco.", "error");
         }
     };
+}
+
+// ---- EDIÇÃO E EXCLUSÃO DE CONTAS A PAGAR ----
+
+function openEditContaModal(id) {
+    const conta = db.contas_pagar.find(c => c.id === id);
+    if (!conta) {
+        showToast("Conta não encontrada.", "error");
+        return;
+    }
+
+    document.getElementById('edit-conta-id').value = conta.id;
+    document.getElementById('edit-conta-desc').value = conta.descricao.toUpperCase();
+    document.getElementById('edit-conta-vencimento').value = getLocalDateString(conta.vencimento);
+    document.getElementById('edit-conta-valor').value = conta.valor;
+    document.getElementById('edit-conta-categoria').value = conta.categoria;
+    document.getElementById('edit-conta-fornecedor').value = conta.fornecedor.toUpperCase();
+    document.getElementById('edit-conta-obs').value = (conta.observacoes || '').toUpperCase();
+
+    document.getElementById('modal-contas-editar').classList.add('active');
+}
+
+function closeEditContaModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('modal-contas-editar').classList.remove('active');
+}
+
+async function submitEditContaForm(event) {
+    event.preventDefault();
+    const id = parseInt(document.getElementById('edit-conta-id').value);
+    const conta = db.contas_pagar.find(c => c.id === id);
+    if (!conta) return;
+
+    const desc = document.getElementById('edit-conta-desc').value.trim().toUpperCase();
+    const venc = document.getElementById('edit-conta-vencimento').value;
+    const val = parseFloat(document.getElementById('edit-conta-valor').value);
+    const cat = document.getElementById('edit-conta-categoria').value;
+    const fornecedor = document.getElementById('edit-conta-fornecedor').value.trim().toUpperCase();
+    const obs = document.getElementById('edit-conta-obs').value.trim().toUpperCase();
+
+    if (val <= 0) {
+        showToast("Valor de despesa inválido.", "error");
+        return;
+    }
+
+    try {
+        await dbSave('contas_pagar', {
+            descricao: desc,
+            vencimento: venc,
+            valor: val,
+            categoria: cat,
+            fornecedor: fornecedor,
+            observacoes: obs
+        }, 'update', id);
+
+        showToast("Conta atualizada com sucesso!", "success");
+        logAudit("Edição de Conta", `Editou a conta: ${desc} (Venc: ${formatDateBr(venc)})`);
+
+        // Recarregar os dados do Supabase se estiver online para manter o cache sincronizado
+        if (window.useSupabase) {
+            const contas = await sbSelectAll('contas_pagar', 'id', true);
+            db.contas_pagar = contas || [];
+            db.contas_pagar.forEach(c => normalizeRecord('contas_pagar', c));
+        }
+
+        closeEditContaModal();
+        renderContasGerais();
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao editar conta no banco.", "error");
+    }
+}
+
+async function deleteConta(id) {
+    const conta = db.contas_pagar.find(c => c.id === id);
+    if (!conta) return;
+
+    if (confirm(`Tem certeza que deseja excluir permanentemente a conta "${conta.descricao}" no valor de ${formatCurrency(conta.valor)}?`)) {
+        try {
+            await dbSave('contas_pagar', null, 'delete', id);
+            showToast("Conta excluída com sucesso!", "success");
+            logAudit("Exclusão de Conta", `Excluiu a conta: ${conta.descricao} (Valor: ${formatCurrency(conta.valor)})`);
+
+            // Recarregar os dados do Supabase se estiver online para manter o cache sincronizado
+            if (window.useSupabase) {
+                const contas = await sbSelectAll('contas_pagar', 'id', true);
+                db.contas_pagar = contas || [];
+                db.contas_pagar.forEach(c => normalizeRecord('contas_pagar', c));
+            }
+
+            renderContasGerais();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao excluir conta.", "error");
+        }
+    }
+}
 
     if (file) {
         if (file.size > 1024 * 1024) {

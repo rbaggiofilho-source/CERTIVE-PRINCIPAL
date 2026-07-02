@@ -1589,6 +1589,59 @@
     </div>
 </div>
 
+<!-- Modal: Editar Conta a Pagar -->
+<div class="modal-overlay" id="modal-contas-editar" onclick="closeEditContaModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>EDITAR CONTA A PAGAR</h3>
+            <button class="modal-close" onclick="closeEditContaModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="conta-editar-form" onsubmit="submitEditContaForm(event)">
+                <input type="hidden" id="edit-conta-id">
+                <div class="form-group">
+                    <label for="edit-conta-desc">DESCRIÇÃO DA CONTA</label>
+                    <input type="text" id="edit-conta-desc" placeholder="Ex: ALUGUEL DA SALA COMERCIAL, INTERNET, ETC" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-conta-vencimento">VENCIMENTO</label>
+                        <input type="date" id="edit-conta-vencimento" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-conta-valor">VALOR (R$)</label>
+                        <input type="number" step="0.01" id="edit-conta-valor" placeholder="0,00" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-conta-categoria">CATEGORIA</label>
+                        <select id="edit-conta-categoria" required>
+                            <option value="Aluguel">ALUGUEL</option>
+                            <option value="Água / Luz / Internet">ÁGUA / LUZ / INTERNET</option>
+                            <option value="Impostos / Taxas">IMPOSTOS / TAXAS</option>
+                            <option value="Material de Escritório">MATERIAL DE ESCRITÓRIO</option>
+                            <option value="Serviços de Terceiros">SERVIÇOS DE TERCEIROS</option>
+                            <option value="Outros">OUTROS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-conta-fornecedor">FORNECEDOR</label>
+                        <input type="text" id="edit-conta-fornecedor" placeholder="Ex: CELESC, CLARO, ETC" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-conta-obs">OBSERVAÇÕES / CÓDIGO DE BARRAS</label>
+                    <textarea id="edit-conta-obs" placeholder="DIGITE O CÓDIGO DE BARRAS PARA PAGAMENTO OU OUTRAS OBSERVAÇÕES..." style="height: 60px; font-family: inherit; font-size: 12px; resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700;">
+                    <i class="ri-save-line"></i> SALVAR ALTERAÇÕES
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- ===== MODAIS DE CONTRATO (ASSINATURA E VISUALIZAÇÃO) ===== -->
 <div class="modal-overlay" id="modal-contrato-assinatura" style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 2000;">
     <div class="modal" style="width: 90%; max-width: 800px; background: var(--bg-card); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh;">
@@ -1684,6 +1737,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-db.js"></script>
-<script src="app.js?v=20260702_0210"></script>
+<script src="app.js?v=20260702_1115"></script>
 </body>
 </html>
