@@ -502,7 +502,7 @@ h1, h2, h3, .serif-title {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow-x: auto;
   margin-bottom: 24px;
 }
 .table-container table {
