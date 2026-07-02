@@ -765,6 +765,11 @@ function formatCurrency(val) {
 
 function formatDateBr(isoString) {
     if (!isoString) return "—";
+    // Se for formato de data simples YYYY-MM-DD (do tipo DATE no PostgreSQL)
+    if (typeof isoString === 'string' && isoString.length === 10 && isoString.includes('-') && !isoString.includes('T')) {
+        const parts = isoString.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
     const date = new Date(isoString);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
