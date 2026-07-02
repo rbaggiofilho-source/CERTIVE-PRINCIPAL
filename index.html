@@ -10,6 +10,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Correção de Layout Forçada (Bypass de Cache de CSS) */
+        .atendimento-layout {
+            grid-template-columns: 460px minmax(0, 1fr) !important;
+        }
+        .table-container {
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+        }
+        .table-container table {
+            width: 100% !important;
+            min-width: 800px !important; /* Garante que a tabela tenha largura mínima suficiente para ativar a rolagem no card */
+        }
+    </style>
 </head>
 <body>
 
