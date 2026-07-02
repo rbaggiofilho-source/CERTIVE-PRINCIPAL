@@ -3162,9 +3162,18 @@ function switchCaixaTab(tab, btn) {
     if (tab === 'historico') renderCaixaHistorico();
 }
 
+// Retorna a data em formato YYYY-MM-DD considerando o fuso horário local do navegador
+function getLocalDateString(dateInput) {
+    const d = new Date(dateInput);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function getTodayOpenCaixa() {
-    const today = new Date().toISOString().split('T')[0];
-    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today && c.status === "aberto");
+    // Busca o caixa da unidade ativa com status "aberto". É o mais seguro contra fuso horário.
+    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.status === "aberto");
 }
 
 // Auto-sincronização retroativa de lançamentos de caixa pendentes (Item D)
@@ -3172,11 +3181,11 @@ async function autoSyncMissingOSMovements() {
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString(new Date());
     
     // Filtrar OSs de hoje que são pagas e não são canceladas
     const todayOSList = db.ordens_servico.filter(os => {
-        const osDate = os.criadoEm.split('T')[0];
+        const osDate = getLocalDateString(os.criadoEm);
         return osDate === todayStr && os.pago && os.status !== 'cancelada' && !os.reapresentacaoOrigemID;
     });
 
