@@ -3662,20 +3662,28 @@ async function submitFecharCaixa(event) {
 
             const cashierPdfBytes = generateCashierPdfData(tempCaixa);
 
-            // Merge using pdf-lib
-            const { PDFDocument } = PDFLib;
-            const mergedPdf = await PDFDocument.create();
+            let base64Pdf = "";
+            try {
+                // Merge using pdf-lib
+                const { PDFDocument } = PDFLib;
+                const mergedPdf = await PDFDocument.create();
 
-            const cashierDoc = await PDFDocument.load(cashierPdfBytes);
-            const copiedPages1 = await mergedPdf.copyPages(cashierDoc, cashierDoc.getPageIndices());
-            copiedPages1.forEach((page) => mergedPdf.addPage(page));
+                const cashierDoc = await PDFDocument.load(cashierPdfBytes);
+                const copiedPages1 = await mergedPdf.copyPages(cashierDoc, cashierDoc.getPageIndices());
+                copiedPages1.forEach((page) => mergedPdf.addPage(page));
 
-            const uploadedDoc = await PDFDocument.load(uploadedPdfBytes);
-            const copiedPages2 = await mergedPdf.copyPages(uploadedDoc, uploadedDoc.getPageIndices());
-            copiedPages2.forEach((page) => mergedPdf.addPage(page));
+                const uploadedDoc = await PDFDocument.load(uploadedPdfBytes);
+                const copiedPages2 = await mergedPdf.copyPages(uploadedDoc, uploadedDoc.getPageIndices());
+                copiedPages2.forEach((page) => mergedPdf.addPage(page));
 
-            const mergedPdfBytes = await mergedPdf.save();
-            const base64Pdf = uint8ArrayToBase64(mergedPdfBytes);
+                const mergedPdfBytes = await mergedPdf.save();
+                base64Pdf = uint8ArrayToBase64(mergedPdfBytes);
+            } catch (pdfMergeError) {
+                console.warn("Falha ao mesclar PDFs (provavelmente por assinatura digital/proteção). Salvando apenas o PDF do Caixa.", pdfMergeError);
+                // Fallback: usa apenas o PDF do caixa para não travar o fechamento
+                base64Pdf = uint8ArrayToBase64(cashierPdfBytes);
+                showToast("Nota: O PDF do DETRAN está protegido por assinatura digital. Caixa fechado anexando apenas o PDF do Caixa.", "warning");
+            }
 
             // Check final size in characters (approx 1.33MB base64 corresponds to 1MB binary)
             if (base64Pdf.length > 1.33 * 1024 * 1024) {
