@@ -3311,7 +3311,7 @@ function renderCaixaKPIs(activeCaixa) {
 
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     
-    const totalEntradas = movs.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
     
     // Physical cash balance (Float + cash payments - cash sangrias)
@@ -3409,17 +3409,16 @@ function submitCaixaMov(event) {
         return;
     }
 
-    let finalDesc = desc;
     if (tipo === 'entrada' && partnerId) {
-        const partner = db.parceiros.find(p => p.id === partnerId);
-        finalDesc = `Aporte Faturamento: ${partner.nome} — ${desc}`;
+        showToast("Erro: Para registrar pagamentos de faturamento, use o botão 'Baixar' na aba de Faturamento.", "error");
+        return;
     }
 
     const newMov = {
         caixaId: activeCaixa.id,
         tipo: tipo,
         valor: valor,
-        descricao: finalDesc,
+        descricao: desc,
         formaPagamento: forma,
         data: new Date().toISOString(),
         operador: currentSession.nome,
@@ -3430,7 +3429,7 @@ function submitCaixaMov(event) {
     dbSave('caixa_movimentos', newMov, 'insert');
     
     showToast("Movimentação manual lançada com sucesso!", "success");
-    logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
+    logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${desc}.`);
 
     document.getElementById('caixa-mov-form').reset();
     adjustMovForm('saida');
@@ -3485,7 +3484,7 @@ function generateCashierPdfData(c) {
     const entries = movs.filter(m => m.tipo === 'entrada');
     const exits = movs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(m => m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
 
     const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
@@ -3760,7 +3759,7 @@ function renderCaixaHistorico() {
 
     tbody.innerHTML = closedCaixas.map(c => {
         const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-        const totalEntradas = movs.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.valor, 0);
+        const totalEntradas = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
         const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
         
         const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
@@ -3860,7 +3859,7 @@ function printCaixaById(caixaId) {
     const entries = movs.filter(m => m.tipo === 'entrada');
     const exits = movs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(m => m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
 
     const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
@@ -4282,7 +4281,10 @@ function renderFatFaturas() {
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="Imprimir Fatura"><i class="ri-printer-line"></i></button>
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>
-                        ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})"><i class="ri-check-line"></i> Baixar</button>` : ''}
+                        ${!f.pago 
+                            ? `<button class="btn btn-success btn-sm" onclick="openLiquidateModal(${f.id})"><i class="ri-check-line"></i> Baixar</button>` 
+                            : `<button class="btn btn-danger btn-sm" onclick="cancelLiquidateInvoice(${f.id})"><i class="ri-refresh-line"></i> Estornar</button>`
+                        }
                     </div>
                 </td>
             </tr>
@@ -4290,47 +4292,217 @@ function renderFatFaturas() {
     }).join('');
 }
 
-function liquidateInvoice(invoiceId) {
-    // Requires an open cashier drawer to inject faturamento payments
-    const activeCaixa = getTodayOpenCaixa();
-    if (!activeCaixa) {
-        showToast("Erro: É necessário que o caixa de hoje esteja ABERTO para dar baixa na fatura.", "error");
+function openLiquidateModal(invoiceId) {
+    if (!currentSession.permissoes.includes("faturamento") && !currentSession.permissoes.includes("admin")) {
+        showToast("Erro: Seu usuário não tem permissão para realizar baixas de faturamento.", "error");
+        return;
+    }
+
+    const invoice = db.faturas.find(f => f.id === invoiceId);
+    if (!invoice) {
+        showToast("Erro: Fatura não encontrada.", "error");
+        return;
+    }
+
+    if (invoice.pago) {
+        showToast("Erro: Esta fatura já está liquidada.", "error");
+        return;
+    }
+
+    const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+    const modal = document.getElementById('modal-os-detalhes');
+    
+    document.getElementById('detalhes-os-title').textContent = `Baixar Fatura — ${invoice.codigo}`;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    document.getElementById('detalhes-os-body').innerHTML = `
+        <div class="form-group" style="margin-bottom: 16px;">
+            <label style="font-weight:600; color: var(--text-secondary); display:block; margin-bottom:4px;">Parceiro / Cliente</label>
+            <input type="text" value="${partner ? partner.nome : '—'}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+            <label style="font-weight:600; color: var(--text-secondary); display:block; margin-bottom:4px;">Valor Total da Fatura</label>
+            <input type="text" value="${formatCurrency(invoice.valorTotal)}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm); font-weight:700;">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+            <label for="liquidate-pay-date" style="font-weight:600; color: var(--text-secondary); display:block; margin-bottom:4px;">Data do Pagamento</label>
+            <input type="date" id="liquidate-pay-date" value="${todayStr}" required style="width:100%; padding:8px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+            <label for="liquidate-pay-forma" style="font-weight:600; color: var(--text-secondary); display:block; margin-bottom:4px;">Forma de Recebimento</label>
+            <select id="liquidate-pay-forma" style="width:100%; padding:8px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+                <option value="pix">Pix (Transferência Online)</option>
+                <option value="especie">Espécie (Dinheiro físico)</option>
+                <option value="debito">Cartão de Débito</option>
+                <option value="credito">Cartão de Crédito</option>
+            </select>
+        </div>
+    `;
+
+    document.getElementById('detalhes-os-footer').innerHTML = `
+        <button class="btn btn-secondary btn-sm" onclick="closeOSModal()">Cancelar</button>
+        <button class="btn btn-success btn-sm" onclick="submitLiquidateInvoice(${invoice.id})"><i class="ri-check-line"></i> Confirmar Baixa</button>
+    `;
+
+    modal.classList.add('active');
+}
+
+async function submitLiquidateInvoice(invoiceId) {
+    const invoice = db.faturas.find(f => f.id === invoiceId);
+    if (!invoice) return;
+
+    if (invoice.pago) {
+        showToast("Erro: Esta fatura já está paga.", "error");
+        return;
+    }
+
+    const dataPagamento = document.getElementById('liquidate-pay-date').value;
+    const formaPagamento = document.getElementById('liquidate-pay-forma').value;
+
+    if (!dataPagamento) {
+        showToast("Erro: Por favor, selecione a data do pagamento.", "error");
+        return;
+    }
+
+    // Buscar o caixa daquela data da unidade ativa que esteja ABERTO
+    const targetCaixa = db.caixa_diario.find(c => 
+        c.unidadeId === activeUnitId && 
+        c.status === "aberto" && 
+        c.data === dataPagamento
+    );
+
+    if (!targetCaixa) {
+        showToast(`Erro: Não há caixa ABERTO para o dia ${formatDateBr(dataPagamento)} nesta unidade. Abra o caixa correspondente antes de baixar.`, "error");
+        return;
+    }
+
+    // Verificar idempotência: se já existe um movimento de caixa associado à fatura
+    const existingMov = db.caixa_movimentos.find(m => m.faturaId === invoice.id);
+    if (existingMov) {
+        showToast("Erro: Esta fatura já possui uma movimentação financeira registrada no caixa.", "error");
+        return;
+    }
+
+    try {
+        const dataPagamentoIso = new Date(dataPagamento + 'T12:00:00').toISOString(); // Evita timezone offset
+        
+        // 1. Atualizar Fatura
+        await dbSave('faturas', {
+            pago: true,
+            pagoEm: dataPagamentoIso,
+            formaPagamento: formaPagamento
+        }, 'update', invoice.id);
+
+        // 2. Atualizar OSs associadas
+        for (const osId of invoice.ordensIds) {
+            const os = db.ordens_servico.find(o => o.id === osId);
+            if (os) {
+                await dbSave('ordens_servico', { pago: true }, 'update', os.id);
+            }
+        }
+
+        // Obter informações do parceiro e das OSs para a descrição
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+        const relatedOSs = db.ordens_servico.filter(o => invoice.ordensIds.includes(o.id));
+        const placasStr = relatedOSs.map(o => o.placa).filter(Boolean).join(', ');
+        
+        const description = `Entrada por pagamento de faturamento — ${partner ? partner.nome : 'Parceiro'} (Ref: Fatura ${invoice.codigo}${placasStr ? ` | Placa: ${placasStr}` : ''})`;
+
+        // 3. Inserir movimento no caixa correspondente
+        const newMov = {
+            caixaId: targetCaixa.id,
+            tipo: "entrada",
+            valor: invoice.valorTotal,
+            descricao: description,
+            formaPagamento: formaPagamento,
+            data: dataPagamentoIso,
+            operador: currentSession.nome,
+            osId: null,
+            faturaId: invoice.id
+        };
+
+        await dbSave('caixa_movimentos', newMov, 'insert_unshift');
+
+        showToast(`Fatura ${invoice.codigo} baixada com sucesso no caixa do dia ${formatDateBr(dataPagamento)}!`, "success");
+        logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
+
+        closeOSModal();
+        renderFatFaturas();
+        if (typeof renderCaixaPage === 'function') {
+            renderCaixaPage();
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao processar baixa da fatura.", "error");
+    }
+}
+
+async function cancelLiquidateInvoice(invoiceId) {
+    if (!currentSession.permissoes.includes("faturamento") && !currentSession.permissoes.includes("admin")) {
+        showToast("Erro: Seu usuário não tem permissão para estornar baixas.", "error");
         return;
     }
 
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice) return;
 
-    if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
-        invoice.pago = true;
-        invoice.pagoEm = new Date().toISOString();
+    if (!invoice.pago) {
+        showToast("Erro: Esta fatura não está liquidada.", "error");
+        return;
+    }
 
-        // Mark all related OSs as settled/pago
-        invoice.ordensIds.forEach(id => {
-            const os = db.ordens_servico.find(o => o.id === id);
-            if (os) os.pago = true;
-        });
+    if (invoice.statusBoleto === 'Pago') {
+        showToast("Erro: Não é possível estornar uma fatura com boleto liquidado via banco.", "error");
+        return;
+    }
 
-        // Insert cash drawer inflow (Pix by default)
-        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-        db.caixa_movimentos.push({
-            id: db.caixa_movimentos.length + 1,
-            caixaId: activeCaixa.id,
-            tipo: "entrada",
-            valor: invoice.valorTotal,
-            descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
-            formaPagamento: "pix",
-            data: new Date().toISOString(),
-            operador: currentSession.nome,
-            osId: null,
-            faturaId: invoice.id
-        });
+    if (!confirm(`Tem certeza que deseja estornar o pagamento da fatura ${invoice.codigo}? A entrada gerada no caixa será apagada.`)) {
+        return;
+    }
 
-        saveDatabase();
-        showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
-        logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
-        
+    // Localizar a movimentação de caixa correspondente a esta fatura
+    const mov = db.caixa_movimentos.find(m => m.faturaId === invoice.id);
+    
+    if (mov) {
+        const targetCaixa = db.caixa_diario.find(c => c.id === mov.caixaId);
+        if (targetCaixa && targetCaixa.status !== 'aberto') {
+            showToast(`Erro: O caixa do dia ${formatDateBr(targetCaixa.data)} está FECHADO. Para estornar a baixa, você deve reabrir este caixa primeiro.`, "error");
+            return;
+        }
+    }
+
+    try {
+        // 1. Estornar Fatura
+        await dbSave('faturas', {
+            pago: false,
+            pagoEm: null,
+            formaPagamento: null
+        }, 'update', invoice.id);
+
+        // 2. Estornar OSs
+        for (const osId of invoice.ordensIds) {
+            const os = db.ordens_servico.find(o => o.id === osId);
+            if (os) {
+                await dbSave('ordens_servico', { pago: false }, 'update', os.id);
+            }
+        }
+
+        // 3. Remover movimentação de caixa se existir
+        if (mov) {
+            await dbSave('caixa_movimentos', null, 'delete', mov.id);
+        }
+
+        showToast(`Baixa da fatura ${invoice.codigo} estornada com sucesso! Lançamento de caixa removido.`, "success");
+        logAudit("Faturamento Estorno", `Estornou a baixa da fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
+
         renderFatFaturas();
+        if (typeof renderCaixaPage === 'function') {
+            renderCaixaPage();
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Erro ao processar estorno da fatura.", "error");
     }
 }
 
@@ -6364,36 +6536,53 @@ function simulatePayBoleto(invoiceId) {
     closeOSModal();
 }
 
-function liquidateInvoiceDirect(invoiceId) {
+async function liquidateInvoiceDirect(invoiceId) {
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
 
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice || invoice.pago) return;
 
-    invoice.pago = true;
-    invoice.pagoEm = new Date().toISOString();
+    const todayIso = new Date().toISOString();
 
-    invoice.ordensIds.forEach(id => {
-        const os = db.ordens_servico.find(o => o.id === id);
-        if (os) os.pago = true;
-    });
+    try {
+        // 1. Atualizar Fatura
+        await dbSave('faturas', {
+            pago: true,
+            pagoEm: todayIso,
+            formaPagamento: "pix"
+        }, 'update', invoice.id);
 
-    const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-    db.caixa_movimentos.push({
-        id: db.caixa_movimentos.length + 1,
-        caixaId: activeCaixa.id,
-        tipo: "entrada",
-        valor: invoice.valorTotal,
-        descricao: `Recebimento Fatura (Boleto) ${invoice.codigo} — ${partner.nome}`,
-        formaPagamento: "pix",
-        data: new Date().toISOString(),
-        operador: currentSession.nome,
-        osId: null,
-        faturaId: invoice.id
-    });
+        // 2. Atualizar OSs
+        for (const osId of invoice.ordensIds) {
+            const os = db.ordens_servico.find(o => o.id === osId);
+            if (os) {
+                await dbSave('ordens_servico', { pago: true }, 'update', os.id);
+            }
+        }
 
-    saveDatabase();
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+        const relatedOSs = db.ordens_servico.filter(o => invoice.ordensIds.includes(o.id));
+        const placasStr = relatedOSs.map(o => o.placa).filter(Boolean).join(', ');
+        const description = `Entrada por pagamento de faturamento (Boleto) — ${partner ? partner.nome : 'Parceiro'} (Ref: Fatura ${invoice.codigo}${placasStr ? ` | Placa: ${placasStr}` : ''})`;
+
+        // 3. Inserir movimento no caixa
+        const newMov = {
+            caixaId: activeCaixa.id,
+            tipo: "entrada",
+            valor: invoice.valorTotal,
+            descricao: description,
+            formaPagamento: "pix",
+            data: todayIso,
+            operador: currentSession.nome,
+            osId: null,
+            faturaId: invoice.id
+        };
+
+        await dbSave('caixa_movimentos', newMov, 'insert_unshift');
+    } catch (err) {
+        console.error("Erro no liquidateInvoiceDirect:", err);
+    }
 }
 
 // Global mobile sidebar helper
