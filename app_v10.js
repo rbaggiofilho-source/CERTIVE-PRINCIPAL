@@ -1117,8 +1117,8 @@ function renderAtendimentoPage() {
 }
 
 function renderAtendimentoKPIs() {
-    const today = new Date().toISOString().split('T')[0];
-    const todayOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
+    const todayStr = getLocalDateString(new Date());
+    const todayOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && getLocalDateString(o.criadoEm) === todayStr);
     
     const countTotal = todayOSs.length;
     const countExec = todayOSs.filter(o => o.status === 'em_execucao' || o.status === 'aberta').length;
@@ -1623,8 +1623,8 @@ function renderOSPipeline() {
              o.clienteNome.toUpperCase().includes(searchVal))
         );
     } else {
-        const today = new Date().toISOString().split('T')[0];
-        filteredOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
+        const todayStr = getLocalDateString(new Date());
+        filteredOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && getLocalDateString(o.criadoEm) === todayStr);
     }
 
     const listContainer = document.getElementById('recent-services-list');
@@ -3260,7 +3260,7 @@ async function renderCaixaPage() {
         document.getElementById('btn-fechar-caixa').style.display = 'none';
 
         // Check if there is NO drawer opened/closed today at all, display OPEN DRAWER form
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString(new Date());
         const todayDrawer = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
         if (!todayDrawer) {
             statusBadgeContainer.innerHTML += `
@@ -3276,14 +3276,29 @@ async function renderCaixaPage() {
 }
 
 async function openTodayCaixaDrawer() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString(new Date());
+
+    // Buscar saldo final em espécie do caixa anterior fechado desta unidade
+    const closedCaixas = db.caixa_diario
+        .filter(c => c.unidadeId === activeUnitId && c.status === "fechado")
+        .sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    let saldoInicialHerdado = 0.00;
+    if (closedCaixas.length > 0) {
+        const prevCaixa = closedCaixas[0];
+        const prevMovs = db.caixa_movimentos.filter(m => m.caixaId === prevCaixa.id);
+        const prevCashPayments = prevMovs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const prevCashSangrias = prevMovs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        saldoInicialHerdado = prevCaixa.saldoAbertura + prevCashPayments - prevCashSangrias;
+    }
+
     const newDrawer = {
         unidadeId: activeUnitId,
         data: today,
         status: "aberto",
         abertoPor: currentSession.nome,
         fechadoPor: null,
-        saldoAbertura: 0.00,
+        saldoAbertura: saldoInicialHerdado,
         saldoEspécieInformado: 0,
         fechadoEm: null
     };
@@ -3298,7 +3313,7 @@ async function openTodayCaixaDrawer() {
     }
     
     showToast("Caixa diário aberto com sucesso!", "success");
-    logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
+    logAudit("Abertura Caixa", `Abriu o caixa diário da filial. Saldo Inicial Herdado (Espécie): ${formatCurrency(saldoInicialHerdado)}`);
     renderCaixaPage();
 }
 
@@ -3322,6 +3337,11 @@ function renderCaixaKPIs(activeCaixa) {
     const totalBalance = totalEntradas - totalSaidas;
 
     kpiGrid.innerHTML = `
+        <div class="kpi-card kpi-purple" style="background: var(--bg-secondary); border-left: 4px solid var(--text-muted);">
+            <div class="kpi-icon"><i class="ri-play-circle-line" style="color: var(--text-muted);"></i></div>
+            <div class="kpi-value">${formatCurrency(activeCaixa.saldoAbertura)}</div>
+            <div class="kpi-label">Saldo Inicial (Espécie)</div>
+        </div>
         <div class="kpi-card kpi-blue">
             <div class="kpi-icon"><i class="ri-add-line"></i></div>
             <div class="kpi-value">${formatCurrency(totalEntradas)}</div>
@@ -3361,7 +3381,7 @@ function renderCaixaMovimentos(activeCaixa) {
 
     tbody.innerHTML = movs.map(m => {
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const valEntrada = m.tipo === 'entrada' ? formatCurrency(m.valor) : '—';
+        const valEntrada = m.tipo === 'entrada' ? (m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)) : '—';
         const valSaida = m.tipo === 'saida' ? formatCurrency(m.valor) : '—';
         const isSystem = m.osId || m.faturaId;
 
@@ -3498,7 +3518,7 @@ function generateCashierPdfData(c) {
     const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
     const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
     const totalFaturamento = db.ordens_servico
-        .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
+        .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
         .reduce((sum, o) => sum + o.valor, 0);
 
     doc.setFont("Helvetica", "bold");
@@ -3593,7 +3613,7 @@ function generateCashierPdfData(c) {
         if (desc.length > 50) desc = desc.slice(0, 47) + "...";
         doc.text(desc, 30, y);
         doc.text(m.formaPagamento.toUpperCase(), 120, y);
-        doc.text(m.tipo === 'entrada' ? formatCurrency(m.valor) : '—', 145, y);
+        doc.text(m.tipo === 'entrada' ? (m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)) : '—', 145, y);
         doc.text(m.tipo === 'saida' ? formatCurrency(m.valor) : '—', 172, y);
         y += 6;
     });
@@ -3836,7 +3856,7 @@ async function reopenCaixa(caixaId) {
 // Print Active Caixa (Today's Drawer)
 function printActiveCaixa() {
     // Can print open or closed drawer
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString(new Date());
     const activeCaixa = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
     if (!activeCaixa) {
         showToast("Não há registro de caixa aberto ou fechado hoje para esta unidade.", "error");
@@ -3873,7 +3893,7 @@ function printCaixaById(caixaId) {
     const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
     const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
     const totalFaturamento = db.ordens_servico
-        .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
+        .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
         .reduce((sum, o) => sum + o.valor, 0);
 
     // Entries Rows mapping
@@ -3890,7 +3910,7 @@ function printCaixaById(caixaId) {
                 <td style="padding: 6px;"><strong>${plate}</strong></td>
                 <td style="padding: 6px;">${clientType}</td>
                 <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
-                <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(m.valor)}</td>
+                <td style="padding: 6px; text-align: right; font-weight: 600;">${m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)}</td>
             </tr>
         `;
     }).join('');
@@ -4314,7 +4334,7 @@ function openLiquidateModal(invoiceId) {
     
     document.getElementById('detalhes-os-title').textContent = `Baixar Fatura — ${invoice.codigo}`;
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString(new Date());
     
     document.getElementById('detalhes-os-body').innerHTML = `
         <div class="form-group" style="margin-bottom: 16px;">
@@ -4860,7 +4880,7 @@ function payExpense(id) {
     const modal = document.getElementById('modal-os-detalhes');
     document.getElementById('detalhes-os-title').textContent = `Liquidar Despesa — ${expense.descricao}`;
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString(new Date());
     
     document.getElementById('detalhes-os-body').innerHTML = `
         <div class="form-group" style="margin-bottom: 16px;">
