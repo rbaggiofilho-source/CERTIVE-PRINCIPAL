@@ -3326,7 +3326,8 @@ function renderCaixaKPIs(activeCaixa) {
 
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     
-    const totalEntradas = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradasEfetivas = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento !== 'faturamento').reduce((sum, m) => sum + m.valor, 0);
+    const totalFaturadoHoje = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'faturamento').reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
     
     // Physical cash balance (Float + cash payments - cash sangrias)
@@ -3334,7 +3335,7 @@ function renderCaixaKPIs(activeCaixa) {
     const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
     const finalCashInDrawer = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
 
-    const totalBalance = totalEntradas - totalSaidas;
+    const totalBalance = totalEntradasEfetivas - totalSaidas;
 
     kpiGrid.innerHTML = `
         <div class="kpi-card kpi-purple" style="background: var(--bg-secondary); border-left: 4px solid var(--text-muted);">
@@ -3344,8 +3345,8 @@ function renderCaixaKPIs(activeCaixa) {
         </div>
         <div class="kpi-card kpi-blue">
             <div class="kpi-icon"><i class="ri-add-line"></i></div>
-            <div class="kpi-value">${formatCurrency(totalEntradas)}</div>
-            <div class="kpi-label">Entradas Totais</div>
+            <div class="kpi-value">${formatCurrency(totalEntradasEfetivas)}</div>
+            <div class="kpi-label">Entradas Efetivas</div>
         </div>
         <div class="kpi-card kpi-red">
             <div class="kpi-icon"><i class="ri-subtract-line"></i></div>
@@ -3361,6 +3362,11 @@ function renderCaixaKPIs(activeCaixa) {
             <div class="kpi-icon"><i class="ri-funds-line"></i></div>
             <div class="kpi-value" style="color: ${totalBalance >= 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(totalBalance)}</div>
             <div class="kpi-label">Resultado do Dia</div>
+        </div>
+        <div class="kpi-card kpi-yellow" style="background: var(--bg-secondary); border-left: 4px solid var(--warning);">
+            <div class="kpi-icon"><i class="ri-file-list-3-line" style="color: var(--warning);"></i></div>
+            <div class="kpi-value">${formatCurrency(totalFaturadoHoje)}</div>
+            <div class="kpi-label">Faturado Hoje (A receber)</div>
         </div>
     `;
 }
@@ -3381,9 +3387,25 @@ function renderCaixaMovimentos(activeCaixa) {
 
     tbody.innerHTML = movs.map(m => {
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const valEntrada = m.tipo === 'entrada' ? (m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)) : '—';
+        
+        let formaPagHtml = `<span style="text-transform: uppercase;">${m.formaPagamento}</span>`;
+        let valEntradaHtml = m.tipo === 'entrada' ? formatCurrency(m.valor) : '—';
         const valSaida = m.tipo === 'saida' ? formatCurrency(m.valor) : '—';
         const isSystem = m.osId || m.faturaId;
+
+        if (m.formaPagamento === 'faturamento') {
+            const os = m.osId ? db.ordens_servico.find(o => o.id === m.osId) : null;
+            const isPago = os ? os.pago : false;
+            formaPagHtml += isPago 
+                ? `<br><span class="badge badge-done" style="font-size: 8px; padding: 1px 4px; margin-top: 3px; display: inline-block;">PAGO</span>` 
+                : `<br><span class="badge badge-waiting" style="font-size: 8px; padding: 1px 4px; margin-top: 3px; display: inline-block; background: #666; color: #fff;">A RECEBER</span>`;
+            
+            if (!isPago) {
+                valEntradaHtml = `<span style="color: var(--text-secondary); font-style: italic;" title="A receber (não soma no caixa hoje)">${formatCurrency(m.valor)} <small style="font-size:10px;">(A prazo)</small></span>`;
+            } else {
+                valEntradaHtml = `<span style="color: var(--text-muted);" title="Faturamento Pago">${formatCurrency(m.valor)} <small style="font-size:10px;">(A prazo)</small></span>`;
+            }
+        }
 
         return `
             <tr>
@@ -3392,8 +3414,8 @@ function renderCaixaMovimentos(activeCaixa) {
                     <strong>${m.descricao}</strong>
                     ${isSystem ? `<br><small style="color: var(--accent);">Integrado pelo Sistema</small>` : ''}
                 </td>
-                <td><span style="text-transform: uppercase;">${m.formaPagamento}</span></td>
-                <td style="text-align: right; color: var(--success); font-weight: 600;">${valEntrada}</td>
+                <td>${formaPagHtml}</td>
+                <td style="text-align: right; color: var(--success); font-weight: 600;">${valEntradaHtml}</td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSaida}</td>
                 <td>
                     ${!isSystem ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteCaixaMov(${m.id})" title="Excluir Lançamento"><i class="ri-delete-bin-line"></i></button>` : '—'}
@@ -3613,7 +3635,7 @@ function generateCashierPdfData(c) {
         if (desc.length > 50) desc = desc.slice(0, 47) + "...";
         doc.text(desc, 30, y);
         doc.text(m.formaPagamento.toUpperCase(), 120, y);
-        doc.text(m.tipo === 'entrada' ? (m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)) : '—', 145, y);
+        doc.text(m.tipo === 'entrada' ? formatCurrency(m.valor) : '—', 145, y);
         doc.text(m.tipo === 'saida' ? formatCurrency(m.valor) : '—', 172, y);
         y += 6;
     });
@@ -3903,14 +3925,24 @@ function printCaixaById(caixaId) {
         const clientType = os ? os.clienteTipo.toUpperCase() : "FAT. RECEBIDO";
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const obsText = os && os.observacoes ? `<br><small style="color: #666; font-size: 9px;">Veículo: ${os.observacoes}</small>` : '';
+        let formaPagText = m.formaPagamento.toUpperCase();
+        let valEntradaText = formatCurrency(m.valor);
+        
+        if (m.formaPagamento === 'faturamento') {
+            const os = m.osId ? db.ordens_servico.find(o => o.id === m.osId) : null;
+            const isPago = os ? os.pago : false;
+            formaPagText += isPago ? " (PAGO)" : " (A RECEBER)";
+            valEntradaText = isPago ? `${formatCurrency(m.valor)} (Pago)` : `${formatCurrency(m.valor)} (A receber)`;
+        }
+
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
                 <td style="padding: 6px;">${m.descricao}${obsText}</td>
                 <td style="padding: 6px;"><strong>${plate}</strong></td>
                 <td style="padding: 6px;">${clientType}</td>
-                <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
-                <td style="padding: 6px; text-align: right; font-weight: 600;">${m.formaPagamento === 'faturamento' ? 'R$ 0,00' : formatCurrency(m.valor)}</td>
+                <td style="padding: 6px; text-transform: uppercase;">${formaPagText}</td>
+                <td style="padding: 6px; text-align: right; font-weight: 600;">${valEntradaText}</td>
             </tr>
         `;
     }).join('');
