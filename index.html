@@ -1731,11 +1731,11 @@
 </div>
 
     <!-- Modal Alterar Forma de Pagamento -->
-    <div id="modal-alterar-pagamento" class="modal" onclick="closeChangePaymentModal(event)">
-        <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-overlay" id="modal-alterar-pagamento" onclick="closeChangePaymentModal(event)">
+        <div class="modal" onclick="event.stopPropagation()" style="max-width: 500px;">
             <div class="modal-header">
                 <h3><i class="ri-wallet-3-line"></i> Alterar Forma de Pagamento</h3>
-                <button class="close-btn" onclick="document.getElementById('modal-alterar-pagamento').classList.remove('active')">&times;</button>
+                <button class="modal-close" onclick="document.getElementById('modal-alterar-pagamento').classList.remove('active')"><i class="ri-close-line"></i></button>
             </div>
             <form id="form-alterar-pagamento" onsubmit="submitChangePayment(event)">
                 <input type="hidden" id="alt-pag-os-id">
