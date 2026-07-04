@@ -38,9 +38,9 @@ let activeUnitId = 1;
 let currentClientType = 'particular'; // 'particular' or 'parceiro'
 let currentSelectedServiceId = null;
 
-window.modoDiaReaberto = false;
-window.dataDiaReaberto = null;
-window.caixaReabertoId = null;
+window.modoDiaReaberto = localStorage.getItem('certive_modoDiaReaberto') === 'true';
+window.dataDiaReaberto = localStorage.getItem('certive_dataDiaReaberto');
+window.caixaReabertoId = localStorage.getItem('certive_caixaReabertoId') ? parseInt(localStorage.getItem('certive_caixaReabertoId')) : null;
 
 // Initialize Database in localStorage
 function initDatabase() {
@@ -3789,8 +3789,9 @@ async function submitFecharCaixa(event) {
 
 function renderCaixaHistorico() {
     const tbody = document.getElementById('caixa-historico-tbody');
+    const today = getLocalDateString(new Date());
     const closedCaixas = db.caixa_diario
-        .filter(c => c.unidadeId === activeUnitId && c.status === "fechado")
+        .filter(c => c.unidadeId === activeUnitId && (c.status === "fechado" || c.data < today))
         .sort((a, b) => new Date(b.data) - new Date(a.data));
 
     if (closedCaixas.length === 0) {
@@ -3810,6 +3811,20 @@ function renderCaixaHistorico() {
         const diff = c.saldoEspécieInformado - estimatedCash;
         const diffColor = diff === 0 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
 
+        const isClosed = c.status === "fechado";
+        const statusBadge = isClosed 
+            ? '<span class="badge badge-done">CONCLUÍDO</span>' 
+            : '<span class="badge badge-progress" style="background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 4px; font-weight: 700;"><span class="badge-dot" style="background: #ca8a04;"></span> REABERTO</span>';
+
+        let actionBtn = '';
+        if (isMasterSession()) {
+            if (isClosed) {
+                actionBtn = `<button class="btn btn-warning btn-sm btn-icon" onclick="reopenCaixa(${c.id})" title="Reabrir Caixa Diario"><i class="ri-lock-unlock-line"></i></button>`;
+            } else {
+                actionBtn = `<button class="btn btn-success btn-sm btn-icon" onclick="enterReopenMode(${c.id})" title="Entrar no Modo Reaberto"><i class="ri-play-line"></i></button>`;
+            }
+        }
+
         return `
             <tr>
                 <td><strong>${formatDateBr(c.data)}</strong></td>
@@ -3819,17 +3834,48 @@ function renderCaixaHistorico() {
                 <td style="text-align: right; font-weight: 600;">${formatCurrency(estimatedCash)}</td>
                 <td style="text-align: right; font-weight: 600;">${formatCurrency(c.saldoEspécieInformado)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${diffColor};">${formatCurrency(diff)}</td>
-                <td><span class="badge badge-done">CONCLUÍDO</span></td>
+                <td>${statusBadge}</td>
                 <td>
                     <div style="display: flex; gap: 6px;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printCaixaById(${c.id})" title="Imprimir Relatório de Caixa"><i class="ri-printer-line"></i></button>
-                        ${isMasterSession() ? `<button class="btn btn-warning btn-sm btn-icon" onclick="reopenCaixa(${c.id})" title="Reabrir Caixa Diario"><i class="ri-lock-unlock-line"></i></button>` : ''}
+                        ${actionBtn}
                         ${c.pdfConsolidado ? `<button class="btn btn-primary btn-sm btn-icon" onclick="downloadConsolidatedPdf(${c.id})" title="Baixar PDF Consolidado (Caixa + DETRAN)"><i class="ri-download-line"></i></button>` : ''}
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function enterReopenMode(caixaId) {
+    const c = db.caixa_diario.find(x => x.id === caixaId);
+    if (!c) {
+        showToast("Caixa não localizado.", "error");
+        return;
+    }
+
+    if (window.modoDiaReaberto && window.caixaReabertoId !== c.id) {
+        showToast("Operação negada: Já existe outro modo dia reaberto ativo no momento.", "error");
+        return;
+    }
+
+    window.modoDiaReaberto = true;
+    window.dataDiaReaberto = c.data;
+    window.caixaReabertoId = c.id;
+
+    localStorage.setItem('certive_modoDiaReaberto', 'true');
+    localStorage.setItem('certive_dataDiaReaberto', c.data);
+    localStorage.setItem('certive_caixaReabertoId', String(c.id));
+
+    // Exibir o banner de dia reaberto
+    const banner = document.getElementById('dia-reaberto-banner');
+    if (banner) {
+        banner.style.display = 'flex';
+        document.getElementById('dia-reaberto-data-label').textContent = formatDateBr(c.data);
+    }
+
+    showToast("Entrou no Modo Dia Reaberto para " + formatDateBr(c.data), "info");
+    navigateTo('atendimento');
 }
 
 async function reopenCaixa(caixaId) {
@@ -3869,6 +3915,10 @@ async function reopenCaixa(caixaId) {
         window.modoDiaReaberto = true;
         window.dataDiaReaberto = c.data;
         window.caixaReabertoId = c.id;
+
+        localStorage.setItem('certive_modoDiaReaberto', 'true');
+        localStorage.setItem('certive_dataDiaReaberto', c.data);
+        localStorage.setItem('certive_caixaReabertoId', String(c.id));
 
         // Exibir o banner de dia reaberto
         const banner = document.getElementById('dia-reaberto-banner');
@@ -6158,6 +6208,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Validate current session and display screens
     checkSession();
 
+    if (window.modoDiaReaberto && window.dataDiaReaberto) {
+        const banner = document.getElementById('dia-reaberto-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            document.getElementById('dia-reaberto-data-label').textContent = formatDateBr(window.dataDiaReaberto);
+        }
+    }
+
     // 3. Setup form input formatters / masks
     const inputCpf = document.getElementById('os-cpf-cliente');
     if (inputCpf) {
@@ -6858,6 +6916,10 @@ async function closeAndExitReopenMode() {
         window.modoDiaReaberto = false;
         window.dataDiaReaberto = null;
         window.caixaReabertoId = null;
+
+        localStorage.removeItem('certive_modoDiaReaberto');
+        localStorage.removeItem('certive_dataDiaReaberto');
+        localStorage.removeItem('certive_caixaReabertoId');
 
         // Ocultar banner
         const banner = document.getElementById('dia-reaberto-banner');
