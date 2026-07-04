@@ -4144,7 +4144,54 @@ function switchFatTab(tab, btn) {
     if (tab === 'faturas') renderFatFaturas();
 }
 
+function renderFaturamentoKPIs() {
+    if (!db.faturas || !db.ordens_servico || !db.servicos) return;
+
+    // Filtra as faturas em aberto desta unidade
+    const openFaturas = db.faturas.filter(f => !f.pago && f.unidadeId === activeUnitId);
+    
+    // 1. Valor total consolidado a receber
+    const totalAReceber = openFaturas.reduce((sum, f) => sum + f.valorTotal, 0);
+    
+    // 2. IDs únicos de todas as ordens de serviço faturadas em aberto
+    const openOSIds = [...new Set(openFaturas.flatMap(f => f.ordensIds))];
+    const totalOSs = openOSIds.length;
+    
+    // 3. Puxa os dados das OSs a partir dos IDs
+    const openOSList = db.ordens_servico.filter(os => openOSIds.includes(os.id));
+    
+    // 4. Quantidade por tipo de serviço
+    const transferenciasCount = openOSList.filter(os => {
+        const s = db.servicos.find(x => x.id === os.servicoId);
+        return s && s.categoria === 'Transferência';
+    }).length;
+
+    const cautelaresCount = openOSList.filter(os => {
+        const s = db.servicos.find(x => x.id === os.servicoId);
+        return s && s.categoria === 'Cautelar';
+    }).length;
+
+    const pesquisasCount = openOSList.filter(os => {
+        const s = db.servicos.find(x => x.id === os.servicoId);
+        return s && s.categoria === 'Pesquisa';
+    }).length;
+
+    // 5. Renderiza nos elementos DOM
+    const elTotal = document.getElementById('fat-db-total-receber');
+    const elOSs = document.getElementById('fat-db-total-os');
+    const elTransf = document.getElementById('fat-db-transferencias');
+    const elCaut = document.getElementById('fat-db-cautelares');
+    const elPesq = document.getElementById('fat-db-pesquisas');
+
+    if (elTotal) elTotal.textContent = formatCurrency(totalAReceber);
+    if (elOSs) elOSs.textContent = totalOSs;
+    if (elTransf) elTransf.textContent = transferenciasCount;
+    if (elCaut) elCaut.textContent = cautelaresCount;
+    if (elPesq) elPesq.textContent = pesquisasCount;
+}
+
 function renderFaturamentoPage() {
+    renderFaturamentoKPIs();
     loadFatPartnersFilter();
     renderFatPendentes();
 }
@@ -4165,6 +4212,7 @@ function getUnbilledOSs() {
 }
 
 function renderFatPendentes() {
+    renderFaturamentoKPIs();
     const tbody = document.getElementById('fat-pendentes-tbody');
     const partnerId = parseInt(document.getElementById('fat-parceiro-filter').value);
     
@@ -4343,6 +4391,7 @@ async function submitGirarFatura(event) {
 }
 
 function renderFatFaturas() {
+    renderFaturamentoKPIs();
     const tbody = document.getElementById('fat-faturas-tbody');
     const faturas = db.faturas
         .filter(f => f.unidadeId === activeUnitId)
