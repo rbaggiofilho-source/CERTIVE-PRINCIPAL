@@ -6565,7 +6565,6 @@ async function submitChangePayment(event) {
     const oldFaturaId = os.faturaId;
 
     try {
-        showLoading(true);
 
         // TRANSITIONS LOGIC
         
@@ -6776,7 +6775,6 @@ async function submitChangePayment(event) {
         console.error("Erro na alteração do pagamento:", err);
         showToast("Erro ao processar a alteração contábil.", "error");
     } finally {
-        showLoading(false);
     }
 }
 
@@ -6795,7 +6793,6 @@ async function closeAndExitReopenMode() {
     const dataOriginal = window.dataDiaReaberto;
 
     try {
-        showLoading(true);
 
         // 1. Fechar o caixa reaberto
         c.status = "fechado";
@@ -6876,7 +6873,6 @@ async function closeAndExitReopenMode() {
         console.error("Erro ao encerrar modo reaberto:", err);
         showToast("Erro ao processar fechamento e cascata de saldos.", "error");
     } finally {
-        showLoading(false);
     }
 }
 
