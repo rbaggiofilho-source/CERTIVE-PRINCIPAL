@@ -3210,7 +3210,7 @@ async function autoSyncMissingOSMovements() {
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
 
-    const todayStr = getLocalDateString(new Date());
+    const todayStr = getOperativeDate();
     
     // Filtrar OSs de hoje que não são canceladas (incluindo faturadas)
     const todayOSList = db.ordens_servico.filter(os => {
@@ -6570,7 +6570,7 @@ async function submitChangePayment(event) {
         
         // Se a forma de pagamento antiga era Faturamento:
         if (oldForma === 'faturamento' && oldFaturaId) {
-            const fat = db.faturas.find(f => f.id === oldFaturaId);
+            const fat = db.faturas.find(f => f.id == oldFaturaId);
             if (fat) {
                 // Remove a OS do array de faturas
                 fat.ordensIds = fat.ordensIds.filter(id => id !== os.id);
@@ -6585,7 +6585,7 @@ async function submitChangePayment(event) {
 
                     // Se a fatura estava paga, existia uma entrada de caixa correspondente à baixa dessa fatura.
                     // Vamos localizar e remover essa entrada de baixa de fatura para não ter duplicidade.
-                    const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId === fat.id && m.tipo === 'entrada');
+                    const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId == fat.id && m.tipo === 'entrada');
                     if (fatPaymentMov) {
                         if (window.useSupabase) {
                             await sbDeleteWhere('caixa_movimentos', 'id', fatPaymentMov.id);
@@ -6603,7 +6603,7 @@ async function submitChangePayment(event) {
                     
                     // Se a fatura já estava paga, reduzir o valor da movimentação da baixa da fatura
                     if (fat.pago) {
-                        const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId === fat.id && m.tipo === 'entrada');
+                        const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId == fat.id && m.tipo === 'entrada');
                         if (fatPaymentMov) {
                             fatPaymentMov.valor = fat.valorTotal;
                             if (window.useSupabase) {
@@ -6615,16 +6615,16 @@ async function submitChangePayment(event) {
                     }
                 }
             }
-        } else {
-            // A forma de pagamento antiga era um Método Direto
-            // Devemos localizar e remover a movimentação de caixa existente correspondente a esta OS.
-            const existingMov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
-            if (existingMov) {
-                if (window.useSupabase) {
-                    await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
-                }
-                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
+        }
+
+        // Remover SEMPRE a movimentação de caixa original existente correspondente a esta OS (tipo 'entrada' e sem faturaId)
+        // Isso evita duplicidade no caixa diário quando migramos de Faturamento para Método Direto.
+        const existingMov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
+        if (existingMov) {
+            if (window.useSupabase) {
+                await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
             }
+            db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
         }
 
         // Agora, aplica o novo estado baseado na nova forma de pagamento:
