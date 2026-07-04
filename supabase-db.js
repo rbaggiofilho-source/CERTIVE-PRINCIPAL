@@ -247,6 +247,39 @@ async function loadAllFromSupabase() {
         ]);
 
         db.unidades = unidades;
+        
+        // Forçar atualização histórica dos endereços oficiais das filiais
+        const matriz = db.unidades.find(u => u.id === 1);
+        if (matriz) {
+            matriz.nome = "Certive Matriz — São José";
+            matriz.endereco = "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700";
+            matriz.razao_social = "Certive Vistorias Automotivas Ltda";
+            matriz.cnpj = "45.890.122/0001-08";
+            matriz.credenciamento = "ECV-2023-091";
+            matriz.cidade = "São José";
+            matriz.uf = "SC";
+            matriz.canal_ouvidoria = "ouvidoria@certive.com.br";
+            
+            // Tenta atualizar no Supabase de forma assíncrona
+            supabaseClient.from('unidades').update({ endereco: matriz.endereco, nome: matriz.nome }).eq('id', 1).then(({error}) => {
+                if (error) console.warn("Aviso: RLS impediu update de unidades no Supabase (esperado para leitores).", error.message);
+            });
+        }
+        const filial = db.unidades.find(u => u.id === 2);
+        if (filial) {
+            filial.nome = "Certive Filial — Palhoça";
+            filial.endereco = "Avenida Atílio Pagani, 850, Palhoça - SC";
+            filial.razao_social = "Certive Vistorias Automotivas Ltda";
+            filial.cnpj = "45.890.122/0002-99";
+            filial.credenciamento = "ECV-2023-142";
+            filial.cidade = "Palhoça";
+            filial.uf = "SC";
+            filial.canal_ouvidoria = "ouvidoria@certive.com.br";
+            
+            supabaseClient.from('unidades').update({ endereco: filial.endereco, nome: filial.nome }).eq('id', 2).then(({error}) => {
+                if (error) console.warn("Aviso: RLS impediu update de unidades no Supabase.", error.message);
+            });
+        }
         db.servicos = servicos;
         db.taxas_referencia = taxas_referencia;
         db.operadores = operadores;
