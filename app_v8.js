@@ -146,7 +146,7 @@ function initDatabase() {
             { 
                 id: 1, 
                 nome: "Certive Matriz — São José", 
-                endereco: "Rua das Camélias - Kobrasol SC",
+                endereco: "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700",
                 razao_social: "Certive Vistorias Automotivas Ltda",
                 cnpj: "45.890.122/0001-08",
                 credenciamento: "ECV-2023-091",
@@ -280,16 +280,23 @@ function initDatabase() {
             };
         }
         if (db.unidades) {
-            db.unidades.forEach(u => {
+            db.unidades.forEach(async u => {
                 if (u.id === 1) {
                     u.nome = "Certive Matriz — São José";
-                    u.endereco = "Rua das Camélias - Kobrasol SC";
+                    u.endereco = "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700";
                     u.razao_social = "Certive Vistorias Automotivas Ltda";
                     u.cnpj = "45.890.122/0001-08";
                     u.credenciamento = "ECV-2023-091";
                     u.cidade = "São José";
                     u.uf = "SC";
                     u.canal_ouvidoria = "ouvidoria@certive.com.br";
+                    if (window.useSupabase) {
+                        try {
+                            await sbUpdate('unidades', u.id, { endereco: u.endereco });
+                        } catch (e) {
+                            console.error("Erro ao atualizar endereço da matriz no Supabase:", e);
+                        }
+                    }
                 } else if (u.id === 2) {
                     u.nome = "Certive Filial — Palhoça";
                     u.endereco = "Avenida Atílio Pagani, 850, Palhoça - SC";
