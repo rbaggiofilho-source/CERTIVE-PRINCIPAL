@@ -1928,6 +1928,7 @@ function openOSDetailsModal(id) {
 
     if (os.status.startsWith('concluida') && (currentSession.permissoes.includes("faturamento") || currentSession.permissoes.includes("bi"))) {
         footerHtml += `<button class="btn btn-warning" onclick="requestNfse(${os.id})"><i class="ri-file-text-line"></i> Emitir NFS-e</button>`;
+        footerHtml += `<button class="btn btn-warning" onclick="openChangePaymentModal(${os.id})"><i class="ri-wallet-3-line"></i> Alterar Forma de Pagamento</button>`;
     }
 
     if (currentSession.permissoes.includes("abertura_os")) {
@@ -6405,6 +6406,327 @@ function toggleSidebarMobile() {
     }
     if (overlay) {
         overlay.classList.toggle('active');
+    }
+}
+
+// ==========================================
+// PAYMENT METHOD MODIFICATION (OS FINALIZADA)
+// ==========================================
+
+function openChangePaymentModal(id) {
+    const os = db.ordens_servico.find(o => o.id === id);
+    if (!os) return;
+
+    // Preenche dados da OS no modal
+    document.getElementById('alt-pag-os-id').value = os.id;
+    document.getElementById('alt-pag-os-numero').textContent = os.numero;
+    document.getElementById('alt-pag-os-placa').textContent = os.placa;
+    document.getElementById('alt-pag-os-valor').textContent = formatCurrency(os.valor);
+    
+    // Status text mapping
+    const statusMap = {
+        'concluida_aprovada': '✅ APROVADA',
+        'concluida_reprovada': '❌ REPROVADA'
+    };
+    document.getElementById('alt-pag-os-status-vistoria').textContent = statusMap[os.status] || os.status;
+
+    // Configura valor da forma de pagamento e parcelas
+    const formaSelect = document.getElementById('alt-pag-forma');
+    formaSelect.value = os.formaPagamento;
+    
+    if (os.formaPagamento === 'credito_parcelado') {
+        document.getElementById('alt-pag-parcelas').value = os.parcelas || "1";
+    }
+    toggleInstallmentsChangePayment();
+
+    // Data de pagamento: padrão hoje local formatado YYYY-MM-DD
+    const todayLocal = new Date().toLocaleDateString('sv-SE'); // Formato YYYY-MM-DD local
+    document.getElementById('alt-pag-data').value = todayLocal;
+
+    // Reseta justificativa
+    document.getElementById('alt-pag-justificativa').value = "";
+
+    // Configura opções de Faturamento:
+    // Se o cliente for particular, bloqueia a opção de faturamento para evitar erros.
+    const fatOption = formaSelect.querySelector('option[value="faturamento"]');
+    if (os.clienteTipo !== 'parceiro') {
+        fatOption.disabled = true;
+        fatOption.textContent = "Faturamento Mensal (Bloqueado para Particular)";
+    } else {
+        fatOption.disabled = false;
+        fatOption.textContent = "Faturamento Mensal (Apenas parceiros habilitados)";
+    }
+
+    // Exibe o modal
+    document.getElementById('modal-alterar-pagamento').classList.add('active');
+}
+
+function closeChangePaymentModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modal-alterar-pagamento').classList.remove('active');
+}
+
+function toggleInstallmentsChangePayment() {
+    const forma = document.getElementById('alt-pag-forma').value;
+    const group = document.getElementById('alt-pag-parcelas-group');
+    if (forma === 'credito_parcelado') {
+        group.style.display = 'block';
+    } else {
+        group.style.display = 'none';
+    }
+}
+
+async function submitChangePayment(event) {
+    event.preventDefault();
+
+    const osId = parseInt(document.getElementById('alt-pag-os-id').value);
+    const os = db.ordens_servico.find(o => o.id === osId);
+    if (!os) {
+        showToast("Erro: Ordem de Serviço não encontrada.", "error");
+        return;
+    }
+
+    const newForma = document.getElementById('alt-pag-forma').value;
+    const newParcelas = newForma === 'credito_parcelado' ? parseInt(document.getElementById('alt-pag-parcelas').value) : null;
+    const inputDataPagamento = document.getElementById('alt-pag-data').value; // YYYY-MM-DD
+    const justificativa = document.getElementById('alt-pag-justificativa').value.trim();
+
+    if (!justificativa) {
+        showToast("Erro: A justificativa é obrigatória.", "error");
+        return;
+    }
+
+    // 1. Validação de Faturamento para Particular
+    if (newForma === 'faturamento') {
+        if (os.clienteTipo !== 'parceiro' || !os.parceiroId) {
+            showToast("Erro: Faturamento mensal é permitido apenas para clientes do tipo Parceiro.", "error");
+            return;
+        }
+    }
+
+    // 2. Proteção para Caixa Fechado
+    const targetCaixa = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
+    if (targetCaixa && targetCaixa.status === 'fechado') {
+        const confirmAdjust = confirm(`Atenção: O caixa de destino da data ${formatDateBr(inputDataPagamento)} já está fechado.\nA alteração irá modificar o fechamento contábil histórico.\n\nDeseja prosseguir mesmo assim?`);
+        if (!confirmAdjust) return;
+    }
+
+    const oldForma = os.formaPagamento;
+    const oldFaturaId = os.faturaId;
+
+    try {
+        showLoading(true);
+
+        // TRANSITIONS LOGIC
+        
+        // Se a forma de pagamento antiga era Faturamento:
+        if (oldForma === 'faturamento' && oldFaturaId) {
+            const fat = db.faturas.find(f => f.id === oldFaturaId);
+            if (fat) {
+                // Remove a OS do array de faturas
+                fat.ordensIds = fat.ordensIds.filter(id => id !== os.id);
+                fat.valorTotal = fat.valorTotal - os.valor;
+
+                if (fat.ordensIds.length === 0) {
+                    // A fatura ficou vazia, deve ser deletada
+                    if (window.useSupabase) {
+                        await sbDeleteWhere('faturas', 'id', fat.id);
+                    }
+                    db.faturas = db.faturas.filter(f => f.id !== fat.id);
+
+                    // Se a fatura estava paga, existia uma entrada de caixa correspondente à baixa dessa fatura.
+                    // Vamos localizar e remover essa entrada de baixa de fatura para não ter duplicidade.
+                    const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId === fat.id && m.tipo === 'entrada');
+                    if (fatPaymentMov) {
+                        if (window.useSupabase) {
+                            await sbDeleteWhere('caixa_movimentos', 'id', fatPaymentMov.id);
+                        }
+                        db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== fatPaymentMov.id);
+                    }
+                } else {
+                    // Fatura ainda tem outras OSs
+                    if (window.useSupabase) {
+                        await sbUpdate('faturas', fat.id, {
+                            ordensIds: fat.ordensIds,
+                            valorTotal: fat.valorTotal
+                        });
+                    }
+                    
+                    // Se a fatura já estava paga, reduzir o valor da movimentação da baixa da fatura
+                    if (fat.pago) {
+                        const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId === fat.id && m.tipo === 'entrada');
+                        if (fatPaymentMov) {
+                            fatPaymentMov.valor = fat.valorTotal;
+                            if (window.useSupabase) {
+                                await sbUpdate('caixa_movimentos', fatPaymentMov.id, {
+                                    valor: fatPaymentMov.valor
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // A forma de pagamento antiga era um Método Direto
+            // Devemos localizar e remover a movimentação de caixa existente correspondente a esta OS.
+            const existingMov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
+            if (existingMov) {
+                if (window.useSupabase) {
+                    await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
+                }
+                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
+            }
+        }
+
+        // Agora, aplica o novo estado baseado na nova forma de pagamento:
+        if (newForma === 'faturamento') {
+            // Cria uma nova fatura em aberto (a receber) para o parceiro
+            let finalInvoice;
+            let code = "";
+            const selectedIds = [os.id];
+
+            if (window.useSupabase) {
+                const invoiceToInsert = {
+                    codigo: "FAT-TEMP",
+                    parceiroId: os.parceiroId,
+                    unidadeId: os.unidadeId,
+                    periodoInicio: inputDataPagamento,
+                    periodoFim: inputDataPagamento,
+                    valorTotal: os.valor,
+                    ordensIds: selectedIds,
+                    pago: false,
+                    pagoEm: null,
+                    criadoEm: new Date().toISOString(),
+                    criadoPor: currentSession.nome
+                };
+
+                const inserted = await sbInsert('faturas', invoiceToInsert);
+                code = generateFaturaCode(inserted.id);
+                
+                finalInvoice = await sbUpdate('faturas', inserted.id, {
+                    codigo: code
+                });
+                
+                os.faturaId = inserted.id;
+                db.faturas.unshift(finalInvoice);
+            } else {
+                const fatId = db.faturas.length + 1;
+                code = "FAT-" + String(fatId).padStart(4, '0');
+
+                finalInvoice = {
+                    id: fatId,
+                    codigo: code,
+                    parceiroId: os.parceiroId,
+                    unidadeId: os.unidadeId,
+                    periodoInicio: inputDataPagamento,
+                    periodoFim: inputDataPagamento,
+                    valorTotal: os.valor,
+                    ordensIds: selectedIds,
+                    pago: false,
+                    pagoEm: null,
+                    criadoEm: new Date().toISOString(),
+                    criadoPor: currentSession.nome
+                };
+
+                db.faturas.push(finalInvoice);
+                os.faturaId = fatId;
+            }
+
+            os.formaPagamento = 'faturamento';
+            os.pago = false;
+            os.parcelas = null;
+
+        } else {
+            // O novo método de pagamento é Direto (Pix, Espécie, Débito, Crédito, Crédito Parcelado)
+            
+            // Localiza ou abre um caixa para a data informada
+            let caixaDestino = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
+            if (!caixaDestino) {
+                const newDrawer = {
+                    unidadeId: os.unidadeId,
+                    data: inputDataPagamento,
+                    status: "aberto",
+                    abertoPor: currentSession.nome,
+                    fechadoPor: null,
+                    saldoAbertura: 0.00,
+                    saldoEspécieInformado: 0,
+                    fechadoEm: null
+                };
+                if (window.useSupabase) {
+                    caixaDestino = await sbInsert('caixa_diario', newDrawer);
+                    db.caixa_diario.push(caixaDestino);
+                } else {
+                    newDrawer.id = db.caixa_diario.length + 1;
+                    db.caixa_diario.push(newDrawer);
+                    caixaDestino = newDrawer;
+                }
+            }
+
+            // Cria o novo movimento de entrada no caixa correspondente
+            const newMov = {
+                caixaId: caixaDestino.id,
+                tipo: "entrada",
+                valor: os.valor,
+                descricao: `Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                formaPagamento: newForma,
+                data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
+                operador: currentSession.nome,
+                osId: os.id,
+                faturaId: null
+            };
+
+            if (window.useSupabase) {
+                const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                db.caixa_movimentos.unshift(insertedMov);
+            } else {
+                newMov.id = db.caixa_movimentos.length + 1;
+                db.caixa_movimentos.push(newMov);
+            }
+
+            os.formaPagamento = newForma;
+            os.pago = true;
+            os.parcelas = newParcelas;
+            os.faturaId = null;
+        }
+
+        // Salvar OS
+        if (window.useSupabase) {
+            await sbUpdate('ordens_servico', os.id, {
+                formaPagamento: os.formaPagamento,
+                pago: os.pago,
+                parcelas: os.parcelas,
+                faturaId: os.faturaId
+            });
+        }
+        
+        saveDatabase();
+
+        // 3. Auditoria
+        const descAuditoria = `Alterou pgto da OS ${os.numero} (Placa: ${os.placa}) de '${oldForma.toUpperCase()}' para '${newForma.toUpperCase()}'. Justificativa: ${justificativa}`;
+        logAudit("Alterar Pagamento OS", descAuditoria);
+
+        showToast("Forma de pagamento atualizada com sucesso!", "success");
+
+        // Fecha o modal de alteração e recarrega os dados em tela
+        document.getElementById('modal-alterar-pagamento').classList.remove('active');
+        
+        // Re-renderiza views
+        if (currentTab === 'caixa') {
+            await renderCaixaPage();
+        } else if (currentTab === 'faturamento') {
+            renderFatFaturas();
+        } else if (currentTab === 'vendas') {
+            renderOrdensServicoTable();
+        }
+        
+        // Atualiza a ficha de OS que está exibida por trás
+        openOSDetailsModal(os.id);
+
+    } catch (err) {
+        console.error("Erro na alteração do pagamento:", err);
+        showToast("Erro ao processar a alteração contábil.", "error");
+    } finally {
+        showLoading(false);
     }
 }
 
