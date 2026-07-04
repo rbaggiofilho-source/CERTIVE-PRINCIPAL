@@ -3899,14 +3899,12 @@ async function reopenCaixa(caixaId) {
         c.status = "aberto";
         c.fechadoPor = null;
         c.fechadoEm = null;
-        c.pdfConsolidado = null;
 
         if (window.useSupabase) {
             await sbUpdate('caixa_diario', c.id, {
                 status: c.status,
                 fechadoPor: null,
-                fechadoEm: null,
-                pdfConsolidado: null
+                fechadoEm: null
             });
         } else {
             saveDatabase();
@@ -6852,19 +6850,82 @@ async function closeAndExitReopenMode() {
 
     try {
 
+        let base64Pdf = c.pdfConsolidado;
+
+        if (base64Pdf) {
+            const keepPdf = confirm("Este caixa já possui o relatório do DETRAN anexado. Deseja manter o arquivo original?");
+            if (!keepPdf) {
+                base64Pdf = null;
+            }
+        }
+
+        if (!base64Pdf) {
+            // Exige seleção interativa do arquivo PDF do DETRAN
+            const file = await new Promise((resolve) => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = '.pdf';
+                fileInput.style.display = 'none';
+                document.body.appendChild(fileInput);
+                
+                fileInput.onchange = (e) => {
+                    const selectedFile = e.target.files[0];
+                    document.body.removeChild(fileInput);
+                    resolve(selectedFile);
+                };
+                
+                // Trata o cancelamento de seleção se focar na janela sem arquivo
+                window.addEventListener('focus', function onFocus() {
+                    window.removeEventListener('focus', onFocus);
+                    setTimeout(() => {
+                        if (fileInput.parentElement) {
+                            document.body.removeChild(fileInput);
+                            resolve(null);
+                        }
+                    }, 800);
+                });
+                
+                fileInput.click();
+            });
+
+            if (!file) {
+                showToast("Operação cancelada: a inclusão do relatório do DETRAN é obrigatória para fechar o caixa!", "error");
+                return;
+            }
+
+            // Ler o arquivo e converter para base64
+            base64Pdf = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+        }
+
         // 1. Fechar o caixa reaberto
         c.status = "fechado";
         c.fechadoPor = currentSession.nome;
         c.fechadoEm = new Date().toISOString();
-        c.pdfConsolidado = null; // Reseta para exigir novo anexo mesclado DETRAN
+        c.pdfConsolidado = base64Pdf;
 
         if (window.useSupabase) {
-            await sbUpdate('caixa_diario', c.id, {
-                status: c.status,
-                fechadoPor: c.fechadoPor,
-                fechadoEm: c.fechadoEm,
-                pdfConsolidado: null
-            });
+            try {
+                await sbUpdate('caixa_diario', c.id, {
+                    status: c.status,
+                    fechadoPor: c.fechadoPor,
+                    fechadoEm: c.fechadoEm,
+                    pdfConsolidado: base64Pdf
+                });
+            } catch (dbErr) {
+                console.warn("⚠️ Erro ao salvar PDF consolidado no Supabase. Salvando apenas status fechado por contingência:", dbErr);
+                await sbUpdate('caixa_diario', c.id, {
+                    status: c.status,
+                    fechadoPor: c.fechadoPor,
+                    fechadoEm: c.fechadoEm,
+                    pdfConsolidado: null
+                });
+                showToast("Caixa refechado (PDF salvo apenas no cache local por limite de payload).", "warning");
+            }
         }
 
         // 2. Recálculo em Cascata dos Saldos de Abertura
