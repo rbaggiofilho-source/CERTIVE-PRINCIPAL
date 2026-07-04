@@ -38,6 +38,10 @@ let activeUnitId = 1;
 let currentClientType = 'particular'; // 'particular' or 'parceiro'
 let currentSelectedServiceId = null;
 
+window.modoDiaReaberto = false;
+window.dataDiaReaberto = null;
+window.caixaReabertoId = null;
+
 // Initialize Database in localStorage
 function initDatabase() {
     // One-time simulation of reproved OS for user testing
@@ -1124,7 +1128,7 @@ function renderAtendimentoPage() {
 }
 
 function renderAtendimentoKPIs() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getOperativeDate();
     const todayOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
     
     const countTotal = todayOSs.length;
@@ -1548,7 +1552,9 @@ const service = db.servicos.find(s => s.id === currentSelectedServiceId);
         const newOS = {
             id: osId,
             numero: num,
-            criadoEm: new Date().toISOString(),
+            criadoEm: window.modoDiaReaberto && window.dataDiaReaberto
+                ? window.dataDiaReaberto + "T" + new Date().toTimeString().split(' ')[0] + ".000Z"
+                : new Date().toISOString(),
             criadoPor: (currentSession ? currentSession.nome : 'Sistema'),
             unidadeId: activeUnitId,
             clienteTipo: currentClientType,
@@ -1630,7 +1636,7 @@ function renderOSPipeline() {
              o.clienteNome.toUpperCase().includes(searchVal))
         );
     } else {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getOperativeDate();
         filteredOSs = db.ordens_servico.filter(o => o.unidadeId === activeUnitId && o.criadoEm.startsWith(today));
     }
 
@@ -1638,7 +1644,7 @@ function renderOSPipeline() {
     if (!listContainer) return;
 
     if (filteredOSs.length === 0) {
-        listContainer.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--text-muted);">${searchVal ? 'Nenhum serviço encontrado para esta busca.' : 'Nenhum serviço registrado hoje.'}</td></tr>`;
+        listContainer.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--text-muted);">${searchVal ? 'Nenhum serviço encontrado para esta busca.' : 'Nenhum serviço registrado nesta data.'}</td></tr>`;
         return;
     }
 
@@ -3182,7 +3188,17 @@ function getLocalDateString(dateInput) {
     return `${year}-${month}-${day}`;
 }
 
+function getOperativeDate() {
+    if (window.modoDiaReaberto && window.dataDiaReaberto) {
+        return window.dataDiaReaberto;
+    }
+    return getLocalDateString(new Date());
+}
+
 function getTodayOpenCaixa() {
+    if (window.modoDiaReaberto && window.dataDiaReaberto) {
+        return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === window.dataDiaReaberto && c.status === "aberto");
+    }
     // Busca o caixa aberto da unidade ativa com a data mais recente para evitar conflito com caixas antigos esquecidos abertos
     const openCaixas = db.caixa_diario.filter(c => c.unidadeId === activeUnitId && c.status === "aberto");
     if (openCaixas.length === 0) return null;
@@ -3268,12 +3284,13 @@ async function renderCaixaPage() {
         document.getElementById('btn-fechar-caixa').style.display = 'none';
 
         // Check if there is NO drawer opened/closed today at all, display OPEN DRAWER form
-        const today = new Date().toISOString().split('T')[0];
+        const today = getOperativeDate();
         const todayDrawer = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
         if (!todayDrawer) {
+            const labelBtn = window.modoDiaReaberto ? "Abrir Caixa Reaberto" : "Abrir Caixa de Hoje";
             statusBadgeContainer.innerHTML += `
                 <button class="btn btn-warning btn-sm" style="margin-left: 10px;" onclick="openTodayCaixaDrawer()">
-                    <i class="ri-play-line"></i> Abrir Caixa de Hoje
+                    <i class="ri-play-line"></i> ${labelBtn}
                 </button>
             `;
         }
@@ -3284,14 +3301,29 @@ async function renderCaixaPage() {
 }
 
 async function openTodayCaixaDrawer() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getOperativeDate();
+    
+    // Buscar o saldo final do dia anterior
+    let saldoAberturaEstimado = 0.00;
+    const caixasAnteriores = db.caixa_diario
+        .filter(c => c.unidadeId === activeUnitId && c.data < today)
+        .sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    if (caixasAnteriores.length > 0) {
+        const ultimoCaixa = caixasAnteriores[0];
+        const movsUltimo = db.caixa_movimentos.filter(m => m.caixaId === ultimoCaixa.id);
+        const cashPayments = movsUltimo.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const cashSangrias = movsUltimo.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        saldoAberturaEstimado = ultimoCaixa.saldoAbertura + cashPayments - cashSangrias;
+    }
+
     const newDrawer = {
         unidadeId: activeUnitId,
         data: today,
         status: "aberto",
         abertoPor: currentSession.nome,
         fechadoPor: null,
-        saldoAbertura: 0.00,
+        saldoAbertura: saldoAberturaEstimado,
         saldoEspécieInformado: 0,
         fechadoEm: null
     };
@@ -3806,9 +3838,8 @@ async function reopenCaixa(caixaId) {
         return;
     }
 
-    const openCaixa = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.status === "aberto");
-    if (openCaixa) {
-        showToast("Operacao negada: Ja existe um caixa ABERTO hoje para esta unidade.", "error");
+    if (window.modoDiaReaberto) {
+        showToast("Operacao negada: Ja existe um modo dia reaberto ativo no momento.", "error");
         return;
     }
 
@@ -3818,7 +3849,7 @@ async function reopenCaixa(caixaId) {
         return;
     }
 
-    if (confirm("Confirmar a reabertura do caixa fechado do dia " + formatDateBr(c.data) + "?")) {
+    if (confirm("Confirmar a reabertura do caixa fechado do dia " + formatDateBr(c.data) + "?\nO sistema entrará no Modo Dia Reaberto temporariamente.")) {
         c.status = "aberto";
         c.fechadoPor = null;
         c.fechadoEm = null;
@@ -3835,20 +3866,32 @@ async function reopenCaixa(caixaId) {
             saveDatabase();
         }
 
+        window.modoDiaReaberto = true;
+        window.dataDiaReaberto = c.data;
+        window.caixaReabertoId = c.id;
+
+        // Exibir o banner de dia reaberto
+        const banner = document.getElementById('dia-reaberto-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            document.getElementById('dia-reaberto-data-label').textContent = formatDateBr(c.data);
+        }
+
         showToast("Caixa reaberto com sucesso!", "success");
-        logAudit("Reabertura Caixa", "Reabriu o caixa do dia " + formatDateBr(c.data));
+        logAudit("Reabertura Caixa", "Reabriu o caixa do dia " + formatDateBr(c.data) + " (Entrou no Modo Dia Reaberto)");
         
-        renderCaixaPage();
+        // Redireciona para o Atendimento
+        navigateTo('atendimento');
     }
 }
 
 // Print Active Caixa (Today's Drawer)
 function printActiveCaixa() {
     // Can print open or closed drawer
-    const today = new Date().toISOString().split('T')[0];
+    const today = getOperativeDate();
     const activeCaixa = db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === today);
     if (!activeCaixa) {
-        showToast("Não há registro de caixa aberto ou fechado hoje para esta unidade.", "error");
+        showToast("Não há registro de caixa aberto ou fechado nesta data para esta unidade.", "error");
         return;
     }
     printCaixaById(activeCaixa.id);
@@ -6732,6 +6775,106 @@ async function submitChangePayment(event) {
     } catch (err) {
         console.error("Erro na alteração do pagamento:", err);
         showToast("Erro ao processar a alteração contábil.", "error");
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function closeAndExitReopenMode() {
+    if (!window.modoDiaReaberto || !window.caixaReabertoId) {
+        showToast("Erro: Nenhum modo dia reaberto ativo.", "error");
+        return;
+    }
+
+    const c = db.caixa_diario.find(x => x.id === window.caixaReabertoId);
+    if (!c) {
+        showToast("Erro: Caixa reaberto não localizado no banco.", "error");
+        return;
+    }
+
+    const dataOriginal = window.dataDiaReaberto;
+
+    try {
+        showLoading(true);
+
+        // 1. Fechar o caixa reaberto
+        c.status = "fechado";
+        c.fechadoPor = currentSession.nome;
+        c.fechadoEm = new Date().toISOString();
+        c.pdfConsolidado = null; // Reseta para exigir novo anexo mesclado DETRAN
+
+        if (window.useSupabase) {
+            await sbUpdate('caixa_diario', c.id, {
+                status: c.status,
+                fechadoPor: c.fechadoPor,
+                fechadoEm: c.fechadoEm,
+                pdfConsolidado: null
+            });
+        }
+
+        // 2. Recálculo em Cascata dos Saldos de Abertura
+        // Obter todos os caixas da unidade ativa ordenados por data crescente
+        const caixasUnidade = db.caixa_diario
+            .filter(x => x.unidadeId === activeUnitId)
+            .sort((a, b) => new Date(a.data) - new Date(b.data));
+
+        // Encontrar o índice do caixa que foi reaberto
+        const idxReaberto = caixasUnidade.findIndex(x => x.id === c.id);
+        
+        if (idxReaberto !== -1) {
+            let saldoAnterior = 0.00;
+            
+            // Passo 1: Calcular o saldo final do dia reaberto
+            const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === c.id);
+            const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+            const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+            saldoAnterior = c.saldoAbertura + cashPaymentsReaberto - cashSangriasReaberto;
+
+            // Passo 2: Propagar em cascata para todos os caixas subsequentes
+            for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
+                const proximoCaixa = caixasUnidade[i];
+                
+                // O saldo de abertura do dia subsequente é o saldo final do dia anterior
+                proximoCaixa.saldoAbertura = saldoAnterior;
+
+                // Atualiza o saldo de abertura do dia subsequente no banco
+                if (window.useSupabase) {
+                    await sbUpdate('caixa_diario', proximoCaixa.id, {
+                        saldoAbertura: proximoCaixa.saldoAbertura
+                    });
+                }
+
+                // Calcula o saldo final deste dia subsequente para a próxima iteração
+                const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
+                const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
+            }
+        }
+
+        saveDatabase();
+
+        // 3. Registrar auditoria de encerramento e recálculo
+        logAudit("Fechamento Caixa Reaberto", `Encerrou o Modo Dia Reaberto do dia ${formatDateBr(dataOriginal)}. Lançamentos e saldos propagados em cascata.`);
+
+        // 4. Limpar estado global
+        window.modoDiaReaberto = false;
+        window.dataDiaReaberto = null;
+        window.caixaReabertoId = null;
+
+        // Ocultar banner
+        const banner = document.getElementById('dia-reaberto-banner');
+        if (banner) banner.style.display = 'none';
+
+        showToast("Caixa refechado e saldos propagados em cascata com sucesso!", "success");
+
+        // 5. Retornar ao Atendimento (Dia Atual)
+        navigateTo('atendimento');
+        renderAtendimentoPage();
+
+    } catch (err) {
+        console.error("Erro ao encerrar modo reaberto:", err);
+        showToast("Erro ao processar fechamento e cascata de saldos.", "error");
     } finally {
         showLoading(false);
     }

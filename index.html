@@ -132,6 +132,17 @@
                 </button>
             </div>
         </header>
+        
+        <!-- BANNER DE DIA REABERTO -->
+        <div id="dia-reaberto-banner" class="banner-dia-reaberto" style="display: none; background: #d97706; color: #ffffff; padding: 12px 24px; font-weight: 600; align-items: center; justify-content: space-between; border-bottom: 3px solid #b45309; font-size: 14px; z-index: 999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="ri-alert-fill" style="font-size: 18px; color: #fef08a;"></i>
+                <span>MODO DIA REABERTO ATIVO &mdash; Operando no dia <span id="dia-reaberto-data-label" style="text-decoration: underline; font-size: 15px;">-</span>. Todas as ações de atendimento e caixa se aplicam a esta data.</span>
+            </div>
+            <button class="btn btn-warning" onclick="closeAndExitReopenMode()" style="background: #ffffff; color: #b45309; border: 1px solid #ffffff; font-weight: 700; padding: 6px 14px; font-size: 12px; cursor: pointer; transition: all 0.2s;">
+                <i class="ri-close-circle-line"></i> Encerrar e voltar ao dia atual
+            </button>
+        </div>
 
         <!-- PÁGINAS -->
         <div class="page-container">
