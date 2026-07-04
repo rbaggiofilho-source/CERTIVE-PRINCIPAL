@@ -946,6 +946,11 @@ function handleLogin(event) {
     const passwordInput = document.getElementById('login-password').value.trim();
     const errorDiv = document.getElementById('login-error');
 
+    if (!db || !db.operadores) {
+        showToast("Conectando ao banco de dados... Aguarde um instante e tente novamente.", "info");
+        return;
+    }
+
     // Find operator (case-insensitive login check)
     const user = db.operadores.find(o => o.login.toLowerCase() === loginInput.toLowerCase() && o.senha === passwordInput && o.ativo);
 
