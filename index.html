@@ -650,39 +650,47 @@
 
                 <!-- DASHBOARD DE FATURAMENTO -->
                 <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; width: 100%; box-sizing: border-box;">
-                    <div class="kpi-card" style="background: linear-gradient(135deg, rgba(253, 224, 71, 0.1) 0%, rgba(253, 224, 71, 0.02) 100%); border: 1px solid rgba(253, 224, 71, 0.15); display: flex; align-items: center; padding: 16px; border-radius: var(--radius-md); box-sizing: border-box;">
-                        <div class="kpi-icon" style="color: #fde047; background: rgba(253, 224, 71, 0.1); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 20px; margin-right: 12px; flex-shrink: 0;"><i class="ri-money-dollar-box-line"></i></div>
+                    <!-- Card 1: Valor total das faturas com lote não fechado -->
+                    <div class="kpi-card" style="background: linear-gradient(135deg, rgba(212, 160, 23, 0.1) 0%, rgba(212, 160, 23, 0.02) 100%); border: 1px solid rgba(212, 160, 23, 0.25); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(212, 160, 23, 0.2);"><i class="ri-money-dollar-box-line"></i></div>
                         <div class="kpi-info" style="display: flex; flex-direction: column;">
-                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">TOTAL A RECEBER</span>
-                            <h3 class="kpi-value" id="fat-db-total-receber" style="font-size: 16px; font-weight: 800; color: #fde047; margin: 2px 0 0 0;">R$ 0,00</h3>
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; text-transform: uppercase;">Lote Não Fechado</span>
+                            <h3 class="kpi-value" id="fat-db-total-receber" style="font-size: 18px; font-weight: 800; color: var(--accent-light); margin: 2px 0 0 0;">R$ 0,00</h3>
                         </div>
                     </div>
-                    <div class="kpi-card" style="display: flex; align-items: center; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); box-sizing: border-box;">
-                        <div class="kpi-icon" style="color: var(--info); background: rgba(14, 165, 233, 0.1); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 20px; margin-right: 12px; flex-shrink: 0;"><i class="ri-file-list-3-line"></i></div>
+                    <!-- Card 2: Quantidade de OSs em aberto -->
+                    <div class="kpi-card" style="background: var(--bg-secondary); border: 1px solid var(--border); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--text-primary); background: var(--navy-light); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid var(--border);"><i class="ri-file-list-3-line"></i></div>
                         <div class="kpi-info" style="display: flex; flex-direction: column;">
-                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">ORDENS DE SERVIÇO</span>
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Vistorias a Faturar</span>
                             <h3 class="kpi-value" id="fat-db-total-os" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">0</h3>
                         </div>
                     </div>
-                    <div class="kpi-card" style="display: flex; align-items: center; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); box-sizing: border-box;">
-                        <div class="kpi-icon" style="color: var(--success); background: rgba(34, 197, 94, 0.1); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 20px; margin-right: 12px; flex-shrink: 0;"><i class="ri-route-line"></i></div>
+                    <!-- Card 3: Cautelares -->
+                    <div class="kpi-card" style="background: var(--bg-secondary); border: 1px solid var(--border); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--purple); background: var(--purple-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(139, 92, 246, 0.15);"><i class="ri-shield-check-line"></i></div>
                         <div class="kpi-info" style="display: flex; flex-direction: column;">
-                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">TRANSFERÊNCIAS</span>
-                            <h3 class="kpi-value" id="fat-db-transferencias" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">0</h3>
-                        </div>
-                    </div>
-                    <div class="kpi-card" style="display: flex; align-items: center; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); box-sizing: border-box;">
-                        <div class="kpi-icon" style="color: #e879f9; background: rgba(232, 121, 249, 0.1); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 20px; margin-right: 12px; flex-shrink: 0;"><i class="ri-shield-check-line"></i></div>
-                        <div class="kpi-info" style="display: flex; flex-direction: column;">
-                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">CAUTELARES</span>
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Cautelares</span>
                             <h3 class="kpi-value" id="fat-db-cautelares" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">0</h3>
+                            <span class="kpi-subtext" id="fat-db-cautelares-val" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">R$ 0,00</span>
                         </div>
                     </div>
-                    <div class="kpi-card" style="display: flex; align-items: center; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); box-sizing: border-box;">
-                        <div class="kpi-icon" style="color: #f97316; background: rgba(249, 115, 22, 0.1); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 20px; margin-right: 12px; flex-shrink: 0;"><i class="ri-search-eye-line"></i></div>
+                    <!-- Card 4: Transferências -->
+                    <div class="kpi-card" style="background: var(--bg-secondary); border: 1px solid var(--border); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.15);"><i class="ri-route-line"></i></div>
                         <div class="kpi-info" style="display: flex; flex-direction: column;">
-                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">PESQUISAS</span>
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Transferências</span>
+                            <h3 class="kpi-value" id="fat-db-transferencias" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">0</h3>
+                            <span class="kpi-subtext" id="fat-db-transferencias-val" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">R$ 0,00</span>
+                        </div>
+                    </div>
+                    <!-- Card 5: Pesquisas -->
+                    <div class="kpi-card" style="background: var(--bg-secondary); border: 1px solid var(--border); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--info); background: var(--info-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(14, 165, 233, 0.15);"><i class="ri-search-eye-line"></i></div>
+                        <div class="kpi-info" style="display: flex; flex-direction: column;">
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Pesquisas</span>
                             <h3 class="kpi-value" id="fat-db-pesquisas" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">0</h3>
+                            <span class="kpi-subtext" id="fat-db-pesquisas-val" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">R$ 0,00</span>
                         </div>
                     </div>
                 </div>

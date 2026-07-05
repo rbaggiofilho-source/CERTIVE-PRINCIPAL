@@ -4147,47 +4147,67 @@ function switchFatTab(tab, btn) {
 function renderFaturamentoKPIs() {
     if (!db.faturas || !db.ordens_servico || !db.servicos) return;
 
-    // Filtra as faturas em aberto desta unidade
-    const openFaturas = db.faturas.filter(f => !f.pago && f.unidadeId === activeUnitId);
+    // Lista de OSs cujo faturamento (lote) não foi fechado para a unidade ativa
+    const openOSList = getUnbilledOSs();
     
-    // 1. Valor total consolidado a receber
-    const totalAReceber = openFaturas.reduce((sum, f) => sum + f.valorTotal, 0);
+    // 1. Valor total consolidado a receber de lotes não fechados
+    const totalAReceber = openOSList.reduce((sum, os) => sum + os.valor, 0);
     
-    // 2. IDs únicos de todas as ordens de serviço faturadas em aberto
-    const openOSIds = [...new Set(openFaturas.flatMap(f => f.ordensIds))];
-    const totalOSs = openOSIds.length;
+    // 2. Quantidade total de OSs pendentes
+    const totalOSs = openOSList.length;
     
-    // 3. Puxa os dados das OSs a partir dos IDs
-    const openOSList = db.ordens_servico.filter(os => openOSIds.includes(os.id));
+    // 3. Classificação por natureza do serviço
+    let transferenciasCount = 0;
+    let transferenciasVal = 0;
     
-    // 4. Quantidade por tipo de serviço
-    const transferenciasCount = openOSList.filter(os => {
+    let cautelaresCount = 0;
+    let cautelaresVal = 0;
+    
+    let pesquisasCount = 0;
+    let pesquisasVal = 0;
+    
+    openOSList.forEach(os => {
         const s = db.servicos.find(x => x.id === os.servicoId);
-        return s && s.categoria === 'Transferência';
-    }).length;
+        const cat = s ? s.categoria : '';
+        const name = (os.servicoNome || '').toUpperCase();
+        
+        // Regras de classificação (Combo = Cautelar, Transferência Combo = Transferência, Pesquisas Avulsas = Pesquisa)
+        if (os.servicoId === 7 || cat === 'Cautelar' || (name.includes('COMBO') && !name.includes('TRANSFERÊNCIA')) || name.includes('CAUTELAR')) {
+            cautelaresCount++;
+            cautelaresVal += os.valor;
+        } else if (os.servicoId === 8 || cat === 'Transferência' || name.includes('TRANSFERÊNCIA')) {
+            transferenciasCount++;
+            transferenciasVal += os.valor;
+        } else if (os.servicoId === 5 || cat === 'Pesquisa' || name.includes('PESQUISA')) {
+            pesquisasCount++;
+            pesquisasVal += os.valor;
+        }
+    });
 
-    const cautelaresCount = openOSList.filter(os => {
-        const s = db.servicos.find(x => x.id === os.servicoId);
-        return s && s.categoria === 'Cautelar';
-    }).length;
-
-    const pesquisasCount = openOSList.filter(os => {
-        const s = db.servicos.find(x => x.id === os.servicoId);
-        return s && s.categoria === 'Pesquisa';
-    }).length;
-
-    // 5. Renderiza nos elementos DOM
+    // 4. Renderiza nos elementos DOM
     const elTotal = document.getElementById('fat-db-total-receber');
     const elOSs = document.getElementById('fat-db-total-os');
+    
     const elTransf = document.getElementById('fat-db-transferencias');
+    const elTransfVal = document.getElementById('fat-db-transferencias-val');
+    
     const elCaut = document.getElementById('fat-db-cautelares');
+    const elCautVal = document.getElementById('fat-db-cautelares-val');
+    
     const elPesq = document.getElementById('fat-db-pesquisas');
+    const elPesqVal = document.getElementById('fat-db-pesquisas-val');
 
     if (elTotal) elTotal.textContent = formatCurrency(totalAReceber);
     if (elOSs) elOSs.textContent = totalOSs;
+    
     if (elTransf) elTransf.textContent = transferenciasCount;
+    if (elTransfVal) elTransfVal.textContent = formatCurrency(transferenciasVal);
+    
     if (elCaut) elCaut.textContent = cautelaresCount;
+    if (elCautVal) elCautVal.textContent = formatCurrency(cautelaresVal);
+    
     if (elPesq) elPesq.textContent = pesquisasCount;
+    if (elPesqVal) elPesqVal.textContent = formatCurrency(pesquisasVal);
 }
 
 function renderFaturamentoPage() {
