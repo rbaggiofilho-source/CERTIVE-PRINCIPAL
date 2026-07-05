@@ -1044,88 +1044,207 @@
 
                 <div class="bi-layout">
                     <!-- Barra de Filtros -->
-                    <div class="filter-bar">
-                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                    <div class="filter-bar" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end;">
+                        <div class="form-group" style="margin: 0; min-width: 180px;">
                             <label for="bi-filtro-periodo">Período de Análise</label>
                             <select id="bi-filtro-periodo" onchange="renderBI()">
-                                <option value="mes" selected>Este Mês (Junho/26)</option>
-                                <option value="30">Últimos 30 dias</option>
-                                <option value="todos">Todo o Histórico</option>
+                                <!-- Preenchido dinamicamente via JS -->
                             </select>
                         </div>
-                        <div class="form-group" style="margin: 0; min-width: 200px; margin-left: 12px;" id="bi-filtro-unit-div">
+                        <div class="form-group" style="margin: 0; min-width: 180px;" id="bi-filtro-unit-div">
                             <label for="bi-filtro-unidade">Filtrar por Unidade</label>
                             <select id="bi-filtro-unidade" onchange="renderBI()">
                                 <option value="todas">Todas as Unidades</option>
-                                <!-- JS -->
+                                <!-- Preenchido dinamicamente via JS -->
                             </select>
                         </div>
-                    </div>
-
-                    <!-- Indicadores Financeiros do BI -->
-                    <div class="kpi-grid" id="bi-kpis">
-                        <!-- JS -->
-                    </div>
-
-                    <div class="bi-charts-grid">
-                        
-                        <!-- Faturamento Semanal -->
-                        <div class="chart-card">
-                            <div class="chart-card-header">
-                                <h4><i class="ri-line-chart-line"></i> Movimento Semanal (R$)</h4>
-                                <span style="font-size: 11px; color: var(--text-muted);">Por data da OS</span>
-                            </div>
-                            <div class="weekly-bars" id="bi-chart-semanal">
-                                <!-- Colunas geradas via JS -->
-                            </div>
-                        </div>
-
-                        <!-- Share de Vendas -->
-                        <div class="chart-card">
-                            <div class="chart-card-header">
-                                <h4><i class="ri-pie-chart-line"></i> Representação do Faturamento (%)</h4>
-                                <span style="font-size: 11px; color: var(--text-muted);">Por tipo de cliente</span>
-                            </div>
-                            <div class="horizontal-bars" id="bi-chart-share">
-                                <!-- Barras de share geradas via JS -->
-                            </div>
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <label for="bi-capital-investido">Capital Investido Customizado (R$)</label>
+                            <input type="number" id="bi-capital-investido" placeholder="Usar custos totais..." oninput="renderBI()" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 13px; width: 100%; box-sizing: border-box;">
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px;">
-                        
-                        <!-- Serviços Mais Vendidos -->
-                        <div class="panel-card">
-                            <div class="panel-card-header">
-                                <h3><i class="ri-bar-chart-fill"></i> Ranking de Serviços Praticados</h3>
+                    <!-- Barra de Abas Internas -->
+                    <div class="tabs-bar" style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                        <button class="tab-btn active" id="btn-bi-financeiro" onclick="switchBITab('financeiro', this)"><i class="ri-line-chart-line"></i> Financeiro & Ponto de Equilíbrio</button>
+                        <button class="tab-btn" id="btn-bi-parceiros" onclick="switchBITab('parceiros', this)"><i class="ri-hand-shake-line"></i> Rentabilidade por Parceiro</button>
+                        <button class="tab-btn" id="btn-bi-servicos" onclick="switchBITab('servicos', this)"><i class="ri-list-settings-line"></i> Venda Média por Serviço</button>
+                        <button class="tab-btn" id="btn-bi-produtividade" onclick="switchBITab('produtividade', this)"><i class="ri-pulse-line"></i> Crescimento & Produtividade</button>
+                    </div>
+
+                    <!-- ABA 1: Financeiro & Ponto de Equilíbrio -->
+                    <div id="tab-bi-financeiro">
+                        <!-- Indicadores Financeiros do BI -->
+                        <div class="kpi-grid" id="bi-kpis" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+                            <!-- JS -->
+                        </div>
+
+                        <!-- Break-even (Ponto de Equilíbrio) -->
+                        <div class="panel-card" style="margin-bottom: 24px; border: 1px solid rgba(212, 160, 23, 0.25); background: linear-gradient(135deg, rgba(212, 160, 23, 0.05) 0%, rgba(212, 160, 23, 0) 100%);">
+                            <div class="panel-card-header" style="border-bottom: 1px solid rgba(212, 160, 23, 0.15); display: flex; align-items: center; justify-content: space-between;">
+                                <h3><i class="ri-scales-3-line" style="color: var(--accent);"></i> Análise de Ponto de Equilíbrio (Break-even)</h3>
+                                <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Método de Margem de Contribuição</span>
                             </div>
-                            <div class="panel-card-body" style="padding: 16px;">
-                                <div class="horizontal-bars" id="bi-chart-servicos">
-                                    <!-- Render via JS -->
+                            <div class="panel-card-body" style="padding: 20px;" id="bi-break-even-container">
+                                <!-- Gerado via JS -->
+                            </div>
+                        </div>
+
+                        <div class="bi-charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                            <!-- Faturamento Semanal -->
+                            <div class="chart-card">
+                                <div class="chart-card-header">
+                                    <h4><i class="ri-line-chart-line"></i> Movimento Semanal (R$)</h4>
+                                    <span style="font-size: 11px; color: var(--text-muted);">Por data da OS</span>
+                                </div>
+                                <div class="weekly-bars" id="bi-chart-semanal">
+                                    <!-- Colunas geradas via JS -->
+                                </div>
+                            </div>
+
+                            <!-- Share de Vendas -->
+                            <div class="chart-card">
+                                <div class="chart-card-header">
+                                    <h4><i class="ri-pie-chart-line"></i> Representação do Faturamento (%)</h4>
+                                    <span style="font-size: 11px; color: var(--text-muted);">Por tipo de cliente</span>
+                                </div>
+                                <div class="horizontal-bars" id="bi-chart-share">
+                                    <!-- Barras de share geradas via JS -->
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Melhores Clientes -->
-                        <div class="panel-card">
-                            <div class="panel-card-header">
-                                <h3><i class="ri-medal-line"></i> Top 5 Parceiros de Negócios (Vol. Serviços)</h3>
+                    <!-- ABA 2: Rentabilidade por Parceiro -->
+                    <div id="tab-bi-parceiros" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
+                            <!-- Tabela de Rentabilidade de Parceiros -->
+                            <div class="panel-card">
+                                <div class="panel-card-header">
+                                    <h3><i class="ri-medal-line"></i> Ranking de Rentabilidade por Parceiro</h3>
+                                </div>
+                                <div class="panel-card-body" style="padding: 0;">
+                                    <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Parceiro</th>
+                                                    <th style="text-align: center;">Qtd OS</th>
+                                                    <th style="text-align: right;">Receita Média</th>
+                                                    <th style="text-align: right;">Custo OS</th>
+                                                    <th style="text-align: right;">Margem/OS</th>
+                                                    <th style="text-align: center;">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bi-partners-rentabilidade-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="panel-card-body" style="padding: 0;">
-                                <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Parceiro</th>
-                                                <th style="text-align: center;">Qtd OS</th>
-                                                <th style="text-align: right;">Total Gasto</th>
-                                                <th style="text-align: right;">Ticket Médio</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="bi-partners-tbody">
-                                            <!-- JS -->
-                                        </tbody>
-                                    </table>
+
+                            <!-- Detalhamento por Serviço do Parceiro -->
+                            <div class="panel-card">
+                                <div class="panel-card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                                    <h3><i class="ri-folder-open-line"></i> Rentabilidade por Serviço Praticado</h3>
+                                    <select id="bi-parceiro-detalhe-select" onchange="renderBIPartnersDetail()" style="background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 12px;">
+                                        <!-- JS -->
+                                    </select>
+                                </div>
+                                <div class="panel-card-body" style="padding: 0;">
+                                    <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Serviço</th>
+                                                    <th style="text-align: center;">Qtd</th>
+                                                    <th style="text-align: right;">Preço</th>
+                                                    <th style="text-align: right;">Margem/OS</th>
+                                                    <th style="text-align: center;">Rentabilidade</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bi-partner-services-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ABA 3: Venda Média por Serviço -->
+                    <div id="tab-bi-servicos" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                            <!-- Tabela de Venda Média -->
+                            <div class="panel-card">
+                                <div class="panel-card-header">
+                                    <h3><i class="ri-table-line"></i> Valor de Venda Médio por Serviço</h3>
+                                </div>
+                                <div class="panel-card-body" style="padding: 0;">
+                                    <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Natureza / Serviço</th>
+                                                    <th style="text-align: center;">Qtd OS</th>
+                                                    <th style="text-align: right;">Receita Bruta</th>
+                                                    <th style="text-align: right;">Venda Média / OS</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bi-venda-media-servicos-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ranking de Serviços Praticados -->
+                            <div class="panel-card">
+                                <div class="panel-card-header">
+                                    <h3><i class="ri-bar-chart-fill"></i> Ranking de Serviços (Qtd)</h3>
+                                </div>
+                                <div class="panel-card-body" style="padding: 16px;">
+                                    <div class="horizontal-bars" id="bi-chart-servicos">
+                                        <!-- Render via JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ABA 4: Crescimento & Produtividade -->
+                    <div id="tab-bi-produtividade" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px;">
+                            <!-- Diagnóstico de Produtividade -->
+                            <div class="panel-card" id="bi-diagnostico-comercial-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </div>
+
+                            <!-- Comparativo Mensal Detalhado -->
+                            <div class="panel-card">
+                                <div class="panel-card-header">
+                                    <h3><i class="ri-arrow-up-down-line"></i> Comparativo de Serviços Praticados (Mês Atual vs. Anterior)</h3>
+                                </div>
+                                <div class="panel-card-body" style="padding: 0;">
+                                    <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Serviço / Natureza</th>
+                                                    <th style="text-align: center;">Mês Anterior</th>
+                                                    <th style="text-align: center;">Mês Atual</th>
+                                                    <th style="text-align: center;">Diferença</th>
+                                                    <th style="text-align: center;">Variação %</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bi-produtividade-tbody">
+                                                <!-- JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>

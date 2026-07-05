@@ -5483,36 +5483,114 @@ async function lancarFaturaDetran() {
 // ==========================================
 // MODULE 5: PAINEL DE GESTÃO (BI)
 // ==========================================
-function renderBIPage() {
-    // Populate unit dropdown filter
-    const select = document.getElementById('bi-filtro-unidade');
-    select.innerHTML = '<option value="todas">Todas as Unidades</option>' + 
-        db.unidades.map(u => `<option value="${u.id}">${u.nome.split(' — ')[1]}</option>`).join('');
+let currentBITab = 'financeiro';
+window.currentBIAvgCostPerOS = 0;
+
+function switchBITab(tab, btn) {
+    currentBITab = tab;
+    document.querySelectorAll('.bi-layout .tab-btn').forEach(el => el.classList.remove('active'));
+    if (btn) {
+        btn.classList.add('active');
+    } else {
+        const activeBtn = document.getElementById(`btn-bi-${tab}`);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    document.getElementById('tab-bi-financeiro').style.display = tab === 'financeiro' ? 'block' : 'none';
+    document.getElementById('tab-bi-parceiros').style.display = tab === 'parceiros' ? 'block' : 'none';
+    document.getElementById('tab-bi-servicos').style.display = tab === 'servicos' ? 'block' : 'none';
+    document.getElementById('tab-bi-produtividade').style.display = tab === 'produtividade' ? 'block' : 'none';
 
     renderBI();
 }
 
-function renderBI() {
-    const period = document.getElementById('bi-filtro-periodo').value;
-    const unitFilter = document.getElementById('bi-filtro-unidade').value;
+function loadBIPeriodFilter() {
+    const select = document.getElementById('bi-filtro-periodo');
+    if (!select) return;
 
-    const today = new Date();
-    let startDate = new Date();
+    const oldVal = select.value;
+    const dates = new Set();
+    
+    db.ordens_servico.forEach(o => {
+        if (o.criadoEm) dates.add(o.criadoEm.substring(0, 7));
+    });
+    db.contas_pagar.forEach(c => {
+        if (c.vencimento) dates.add(c.vencimento.substring(0, 7));
+    });
 
-    if (period === 'mes') {
-        // Lock to current mock month (June 2026)
-        startDate = new Date("2026-06-01");
-    } else if (period === '30') {
-        startDate.setDate(today.getDate() - 30);
-    } else {
-        startDate = new Date("2026-05-01"); // beginning of logs
+    if (dates.size === 0) {
+        dates.add("2026-05");
+        dates.add("2026-06");
+        dates.add("2026-07");
     }
 
-    // Filter OSs
-    let OSs = db.ordens_servico.filter(o => new Date(o.criadoEm) >= startDate);
+    const sortedMonths = Array.from(dates).sort((a, b) => b.localeCompare(a));
     
-    // Filter Expenses
-    let Expenses = db.contas_pagar;
+    let html = '';
+    sortedMonths.forEach(m => {
+        const [year, month] = m.split('-');
+        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const label = `${monthNames[parseInt(month) - 1]}/${year}`;
+        html += `<option value="${m}">${label}</option>`;
+    });
+
+    html += '<option value="30">Últimos 30 dias</option>';
+    html += '<option value="todos">Todo o Histórico</option>';
+    
+    select.innerHTML = html;
+
+    if (oldVal && select.querySelector(`option[value="${oldVal}"]`)) {
+        select.value = oldVal;
+    } else {
+        if (dates.has("2026-07")) {
+            select.value = "2026-07";
+        } else if (dates.has("2026-06")) {
+            select.value = "2026-06";
+        } else if (sortedMonths.length > 0) {
+            select.value = sortedMonths[0];
+        }
+    }
+}
+
+function renderBIPage() {
+    loadBIPeriodFilter();
+    
+    const select = document.getElementById('bi-filtro-unidade');
+    if (select) {
+        select.innerHTML = '<option value="todas">Todas as Unidades</option>' + 
+            db.unidades.map(u => `<option value="${u.id}">${u.nome.split(' — ')[1] || u.nome}</option>`).join('');
+    }
+
+    switchBITab(currentBITab);
+}
+
+function renderBI() {
+    if (!db.ordens_servico || !db.contas_pagar || !db.servicos || !db.parceiros) return;
+
+    const periodSelect = document.getElementById('bi-filtro-periodo');
+    const unitSelect = document.getElementById('bi-filtro-unidade');
+    if (!periodSelect || !unitSelect) return;
+
+    const period = periodSelect.value;
+    const unitFilter = unitSelect.value;
+    const capitalCustom = parseFloat(document.getElementById('bi-capital-investido').value) || null;
+
+    let OSs = [];
+    let Expenses = [];
+    const today = new Date();
+
+    if (period === '30') {
+        const startDate = new Date();
+        startDate.setDate(today.getDate() - 30);
+        OSs = db.ordens_servico.filter(o => new Date(o.criadoEm) >= startDate);
+        Expenses = db.contas_pagar.filter(c => new Date(c.vencimento) >= startDate);
+    } else if (period === 'todos') {
+        OSs = [...db.ordens_servico];
+        Expenses = [...db.contas_pagar];
+    } else {
+        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+        Expenses = db.contas_pagar.filter(c => c.vencimento && c.vencimento.startsWith(period));
+    }
 
     if (unitFilter !== 'todas') {
         const uId = parseInt(unitFilter);
@@ -5521,67 +5599,519 @@ function renderBI() {
     }
 
     const nonCancelledOSs = OSs.filter(o => o.status !== 'cancelada');
+    const osCount = nonCancelledOSs.length;
 
-    // Revenue calculations: immediate payments + invoiced receipts + faturado pending (counted as revenue on accrual basis)
-    const OSRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
+    // Custos e Despesas
+    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
+    const variableExpensesVal = Expenses.filter(c => c.tipo === 'variavel' || c.tipo === 'variável').reduce((sum, c) => sum + c.valor, 0);
     
-    // Total expenses (Fixed + variables in that range)
-    // For range filter, match expenses due date
-    let rangeExpenses = Expenses.filter(c => new Date(c.vencimento) >= startDate);
-    const fixedExpensesVal = rangeExpenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-    
-    // Variable DETRAN taxes for the selected OS list (count * tax references)
+    // Taxas operacionais do DETRAN
     const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
         const tax = db.taxas_referencia.find(t => t.servicoId === o.servicoId)?.tax || 0;
-        return sum + (o.valor > 0 ? tax : 0); // Ignore free rechecks
+        return sum + (o.valor > 0 ? tax : 0);
     }, 0);
 
-    const totalRevenue = OSRevenue;
-    const totalExpenses = fixedExpensesVal + variableTaxesVal;
+    const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal;
     const netProfit = totalRevenue - totalExpenses;
 
-    const osCount = nonCancelledOSs.length;
-    const ticketMedio = osCount ? OSRevenue / osCount : 0;
     const avgCostPerOS = osCount ? totalExpenses / osCount : 0;
-    const avgSalePerOS = ticketMedio; // same as ticket medio
+    const ticketMedio = osCount ? totalRevenue / osCount : 0;
 
-    // Render KPIs
-    const kpiGrid = document.getElementById('bi-kpis');
-    kpiGrid.innerHTML = `
-        <div class="kpi-card kpi-green">
-            <div class="kpi-icon"><i class="ri-line-chart-line"></i></div>
-            <div class="kpi-value">${formatCurrency(totalRevenue)}</div>
-            <div class="kpi-label">Faturamento Geral (Competência)</div>
-        </div>
-        <div class="kpi-card kpi-red">
-            <div class="kpi-icon"><i class="ri-wallet-3-line"></i></div>
-            <div class="kpi-value">${formatCurrency(totalExpenses)}</div>
-            <div class="kpi-label">Custos Totais (Fixo + Taxas DETRAN)</div>
-        </div>
-        <div class="kpi-card kpi-blue">
-            <div class="kpi-icon"><i class="ri-funds-line"></i></div>
-            <div class="kpi-value" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(netProfit)}</div>
-            <div class="kpi-label">Lucro Líquido Estimado</div>
-        </div>
-        <div class="kpi-card kpi-purple">
-            <div class="kpi-icon"><i class="ri-coupon-2-line"></i></div>
-            <div class="kpi-value">${formatCurrency(ticketMedio)}</div>
-            <div class="kpi-label">Ticket Médio por OS</div>
-        </div>
-    `;
+    // Guarda custo médio na variável global para o detalhamento por parceiro
+    window.currentBIAvgCostPerOS = avgCostPerOS;
 
-    // Render Charts
-    renderBIWeeklyChart(nonCancelledOSs);
-    renderBIShareChart(nonCancelledOSs, totalRevenue);
-    renderBIServicesRanking(nonCancelledOSs);
-    renderBITopPartners(nonCancelledOSs);
+    // ROI
+    const investmentBase = capitalCustom !== null ? capitalCustom : totalExpenses;
+    const roiPercent = investmentBase ? (netProfit / investmentBase) * 100 : 0;
+    const roiReturnText = investmentBase ? `Para cada R$ 1,00 colocado para operar, retornam <strong>${formatCurrency(netProfit / investmentBase)}</strong> de lucro líquido.` : "Sem base de investimento.";
+
+    // Break-even
+    const avgVariableCostPerOS = osCount ? (variableExpensesVal + variableTaxesVal) / osCount : 0;
+    const contributionMargin = ticketMedio - avgVariableCostPerOS;
+    let breakEvenOS = 0;
+    if (contributionMargin > 0.01) {
+        breakEvenOS = Math.ceil(fixedExpensesVal / contributionMargin);
+    } else {
+        breakEvenOS = Infinity;
+    }
+
+    // 1. ABA FINANCEIRO & BREAK-EVEN
+    if (currentBITab === 'financeiro') {
+        const kpiGrid = document.getElementById('bi-kpis');
+        if (kpiGrid) {
+            kpiGrid.innerHTML = `
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow);"><i class="ri-line-chart-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalRevenue)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Receita Bruta Total</div>
+                </div>
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: var(--danger); background: var(--danger-bg);"><i class="ri-wallet-3-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalExpenses)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custos Totais (Fixo + Variável + Taxas)</div>
+                </div>
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; background: ${netProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};"><i class="ri-funds-line"></i></div>
+                    <div class="kpi-value" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; font-size: 20px; font-weight: 800;">${formatCurrency(netProfit)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Lucro Líquido Estimado</div>
+                </div>
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: var(--info); background: var(--info-bg);"><i class="ri-percent-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${roiPercent.toFixed(1)}%</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">ROI (Retorno sobre Investimento)</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px; font-weight: 500;">${roiReturnText}</div>
+                </div>
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: var(--purple); background: var(--purple-bg);"><i class="ri-money-dollar-circle-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(avgCostPerOS)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custo Médio por OS</div>
+                </div>
+                <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow);"><i class="ri-coupon-2-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(ticketMedio)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Valor de Venda Médio Geral</div>
+                </div>
+            `;
+        }
+
+        const breakEvenContainer = document.getElementById('bi-break-even-container');
+        if (breakEvenContainer) {
+            if (breakEvenOS === Infinity) {
+                breakEvenContainer.innerHTML = `
+                    <div style="text-align: center; padding: 12px; color: var(--danger); font-weight: 600;">
+                        <i class="ri-error-warning-line"></i> A margem de contribuição por OS é negativa ou nula (${formatCurrency(contributionMargin)}). 
+                        Neste cenário, a operação gera prejuízo operacional em cada venda e o ponto de equilíbrio é inalcançável.
+                    </div>
+                `;
+            } else {
+                const percentProgress = Math.min((osCount / breakEvenOS) * 100, 100);
+                const isMet = osCount >= breakEvenOS;
+                breakEvenContainer.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; font-weight: 600;">
+                                <span>Progresso do Ponto de Equilíbrio</span>
+                                <span style="color: ${isMet ? 'var(--success)' : 'var(--accent)'}">${osCount} de ${breakEvenOS} OSs</span>
+                            </div>
+                            <div style="background: var(--bg-primary); height: 16px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative; width: 100%;">
+                                <div style="background: ${isMet ? 'linear-gradient(90deg, var(--success) 0%, #34d399 100%)' : 'linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%)'}; width: ${percentProgress}%; height: 100%; border-radius: 6px; transition: width 0.5s ease-in-out;"></div>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">
+                                ${isMet 
+                                    ? `🎉 <strong>Break-even atingido!</strong> A empresa está gerando lucro líquido operacional neste período.` 
+                                    : `Faltam <strong>${breakEvenOS - osCount} vistorias</strong> para atingir o ponto de equilíbrio financeiro e cobrir os custos fixos.`
+                                }
+                            </div>
+                        </div>
+                        <div style="border-left: 1px solid var(--border); padding-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custos Fixos Totais</small>
+                                <p style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 2px 0 0 0;">${formatCurrency(fixedExpensesVal)}</p>
+                            </div>
+                            <div>
+                                <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custo Variável Médio/OS</small>
+                                <p style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 2px 0 0 0;">${formatCurrency(avgVariableCostPerOS)}</p>
+                            </div>
+                            <div>
+                                <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Margem de Contribuição/OS</small>
+                                <p style="font-size: 14px; font-weight: 700; color: var(--accent); margin: 2px 0 0 0;">${formatCurrency(contributionMargin)}</p>
+                            </div>
+                            <div>
+                                <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Break-even OS Qtd</small>
+                                <p style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 2px 0 0 0;">${breakEvenOS} OSs</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        renderBIWeeklyChart(nonCancelledOSs);
+        renderBIShareChart(nonCancelledOSs, totalRevenue);
+    }
+
+    // 2. ABA RENTABILIDADE POR PARCEIRO
+    if (currentBITab === 'parceiros') {
+        const partnersTable = document.getElementById('bi-partners-rentabilidade-tbody');
+        if (partnersTable) {
+            const partnerRentability = db.parceiros.map(p => {
+                const partnerOSs = nonCancelledOSs.filter(o => o.parceiroId === p.id);
+                const count = partnerOSs.length;
+                const revenue = partnerOSs.reduce((sum, o) => sum + o.valor, 0);
+                const avgRevenue = count ? revenue / count : 0;
+                const margin = count ? avgRevenue - avgCostPerOS : 0;
+                return {
+                    partner: p,
+                    count: count,
+                    revenue: revenue,
+                    avgRevenue: avgRevenue,
+                    margin: margin
+                };
+            });
+
+            const activePartners = partnerRentability.filter(x => x.count > 0).sort((a, b) => b.margin - a.margin);
+
+            if (activePartners.length === 0) {
+                partnersTable.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 12px;">Nenhum parceiro realizou serviços no período selecionado.</td></tr>';
+            } else {
+                partnersTable.innerHTML = activePartners.map(ap => {
+                    const statusText = ap.margin > 0.01 ? 'LUCRO' : (ap.margin < -0.01 ? 'PREJUÍZO' : 'EMPATE');
+                    const badgeColor = ap.margin > 0.01 ? 'var(--success)' : (ap.margin < -0.01 ? 'var(--danger)' : 'var(--warning)');
+                    const badgeBg = ap.margin > 0.01 ? 'var(--success-bg)' : (ap.margin < -0.01 ? 'var(--danger-bg)' : 'var(--warning-bg)');
+                    return `
+                        <tr>
+                            <td><strong>${ap.partner.nome}</strong></td>
+                            <td style="text-align: center;">${ap.count}</td>
+                            <td style="text-align: right;">${formatCurrency(ap.avgRevenue)}</td>
+                            <td style="text-align: right; color: var(--text-secondary);">${formatCurrency(avgCostPerOS)}</td>
+                            <td style="text-align: right; font-weight: 600; color: ${ap.margin >= 0 ? 'var(--success)' : 'var(--danger)'}">${ap.margin >= 0 ? '+' : ''}${formatCurrency(ap.margin)}</td>
+                            <td style="text-align: center;">
+                                <span style="display: inline-block; padding: 4px 8px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeColor}40;">${statusText}</span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const selectPartner = document.getElementById('bi-parceiro-detalhe-select');
+            if (selectPartner) {
+                const activeList = db.parceiros.filter(p => nonCancelledOSs.some(o => o.parceiroId === p.id));
+                const currentSel = selectPartner.value;
+                selectPartner.innerHTML = activeList.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+                if (activeList.length === 0) {
+                    selectPartner.innerHTML = '<option value="">Sem parceiros ativos</option>';
+                } else {
+                    if (currentSel && activeList.some(p => p.id === parseInt(currentSel))) {
+                        selectPartner.value = currentSel;
+                    }
+                }
+            }
+            renderBIPartnersDetail();
+        }
+    }
+
+    // 3. ABA VENDA MÉDIA POR SERVIÇO
+    if (currentBITab === 'servicos') {
+        const servicesTable = document.getElementById('bi-venda-media-servicos-tbody');
+        if (servicesTable) {
+            const serviceDetails = db.servicos.map(s => {
+                const svcOSs = nonCancelledOSs.filter(o => o.servicoId === s.id && o.servicoId !== 7 && o.servicoId !== 8);
+                const count = svcOSs.length;
+                const val = svcOSs.reduce((sum, o) => sum + o.valor, 0);
+                return {
+                    id: s.id,
+                    name: s.nome,
+                    cat: s.categoria,
+                    count: count,
+                    val: val
+                };
+            });
+
+            // Variações de Combo
+            const comboOSs = nonCancelledOSs.filter(o => o.servicoId === 7 || (o.servicoNome.toUpperCase().includes('COMBO') && !o.servicoNome.toUpperCase().includes('TRANSFERÊNCIA')));
+            const comboTransfOSs = nonCancelledOSs.filter(o => o.servicoId === 8 || o.servicoNome.toUpperCase().includes('TRANSFERÊNCIA COMBO'));
+
+            const comboDetail = {
+                id: 7,
+                name: 'Vistoria Combo (Parceiros)',
+                cat: 'Cautelar',
+                count: comboOSs.length,
+                val: comboOSs.reduce((sum, o) => sum + o.valor, 0)
+            };
+
+            const comboTransfDetail = {
+                id: 8,
+                name: 'Vistoria de Transferência Combo (Parceiros)',
+                cat: 'Transferência',
+                count: comboTransfOSs.length,
+                val: comboTransfOSs.reduce((sum, o) => sum + o.valor, 0)
+            };
+
+            const allServices = [...serviceDetails];
+            if (comboDetail.count > 0 || db.ordens_servico.some(o => o.servicoId === 7)) allServices.push(comboDetail);
+            if (comboTransfDetail.count > 0 || db.ordens_servico.some(o => o.servicoId === 8)) allServices.push(comboTransfDetail);
+
+            allServices.sort((a, b) => {
+                const catOrder = { 'Transferência': 1, 'Cautelar': 2, 'Pesquisa': 3 };
+                const orderA = catOrder[a.cat] || 4;
+                const orderB = catOrder[b.cat] || 4;
+                return orderA - orderB;
+            });
+
+            let html = allServices.map(s => {
+                const avgSale = s.count ? s.val / s.count : 0;
+                return `
+                    <tr>
+                        <td>
+                            <strong>${s.name}</strong><br>
+                            <small style="color: var(--text-secondary); text-transform: uppercase; font-size: 9px; font-weight: 700;">Natureza: ${s.cat}</small>
+                        </td>
+                        <td style="text-align: center; font-weight: 600;">${s.count}</td>
+                        <td style="text-align: right; color: var(--success); font-weight: 500;">${formatCurrency(s.val)}</td>
+                        <td style="text-align: right; font-weight: 700; color: var(--accent);">${formatCurrency(avgSale)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const overallAvg = osCount ? totalRevenue / osCount : 0;
+            html += `
+                <tr style="background: rgba(212, 160, 23, 0.08); border-top: 2px solid var(--accent);">
+                    <td><strong style="color: var(--accent);">MÉDIA / TOTAL CONSOLIDADO</strong></td>
+                    <td style="text-align: center;"><strong style="color: var(--text-primary);">${osCount}</strong></td>
+                    <td style="text-align: right;"><strong style="color: var(--success);">${formatCurrency(totalRevenue)}</strong></td>
+                    <td style="text-align: right;"><strong style="color: var(--accent-light);">${formatCurrency(overallAvg)}</strong></td>
+                </tr>
+            `;
+
+            servicesTable.innerHTML = html;
+        }
+
+        renderBIServicesRanking(nonCancelledOSs);
+    }
+
+    // 4. ABA CRESCIMENTO & PRODUTIVIDADE COMERCIAL
+    if (currentBITab === 'produtividade') {
+        let prevOSs = [];
+        let hasComparison = false;
+        let prevMonthLabel = "";
+        
+        if (period !== 'todos' && period !== '30') {
+            const [year, month] = period.split('-').map(Number);
+            let prevYear = year;
+            let prevMonth = month - 1;
+            if (prevMonth === 0) {
+                prevMonth = 12;
+                prevYear = year - 1;
+            }
+            const prevPeriodStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+            
+            const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            prevMonthLabel = `${monthNames[prevMonth - 1]}/${prevYear}`;
+
+            prevOSs = db.ordens_servico.filter(o => o.status !== 'cancelada' && o.criadoEm && o.criadoEm.startsWith(prevPeriodStr));
+            if (unitFilter !== 'todas') {
+                prevOSs = prevOSs.filter(o => o.unidadeId === parseInt(unitFilter));
+            }
+            hasComparison = true;
+        } else if (period === '30') {
+            const d30 = new Date();
+            d30.setDate(today.getDate() - 30);
+            const d60 = new Date();
+            d60.setDate(today.getDate() - 60);
+
+            prevOSs = db.ordens_servico.filter(o => o.status !== 'cancelada' && new Date(o.criadoEm) >= d60 && new Date(o.criadoEm) < d30);
+            if (unitFilter !== 'todas') {
+                prevOSs = prevOSs.filter(o => o.unidadeId === parseInt(unitFilter));
+            }
+            prevMonthLabel = "30 Dias Anteriores";
+            hasComparison = true;
+        }
+
+        function countByNature(list) {
+            let cautelares = 0;
+            let transferencias = 0;
+            let pesquisas = 0;
+            list.forEach(o => {
+                const s = db.servicos.find(x => x.id === o.servicoId);
+                const cat = s ? s.categoria : '';
+                const name = (o.servicoNome || '').toUpperCase();
+                if (o.servicoId === 7 || cat === 'Cautelar' || (name.includes('COMBO') && !name.includes('TRANSFERÊNCIA')) || name.includes('CAUTELAR')) {
+                    cautelares++;
+                } else if (o.servicoId === 8 || cat === 'Transferência' || name.includes('TRANSFERÊNCIA')) {
+                    transferencias++;
+                } else if (o.servicoId === 5 || cat === 'Pesquisa' || name.includes('PESQUISA')) {
+                    pesquisas++;
+                }
+            });
+            return { cautelares, transferencias, pesquisas };
+        }
+
+        const curNature = countByNature(nonCancelledOSs);
+        const prevNature = countByNature(prevOSs);
+
+        const diagCard = document.getElementById('bi-diagnostico-comercial-card');
+        if (diagCard) {
+            if (!hasComparison) {
+                diagCard.innerHTML = `
+                    <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
+                        <i class="ri-information-line" style="font-size: 28px; color: var(--accent);"></i>
+                        <p style="margin-top: 8px;">Selecione um mês específico para visualizar o comparativo de crescimento e produtividade comercial.</p>
+                    </div>
+                `;
+            } else {
+                const diffOS = osCount - prevOSs.length;
+                const percentOS = prevOSs.length ? (diffOS / prevOSs.length) * 100 : 100;
+                const isGrowing = diffOS >= 0;
+                const activePartnersCurrent = new Set(nonCancelledOSs.filter(o => o.parceiroId).map(o => o.parceiroId)).size;
+                const activePartnersPrev = new Set(prevOSs.filter(o => o.parceiroId).map(o => o.parceiroId)).size;
+
+                diagCard.innerHTML = `
+                    <div class="panel-card-header" style="border-bottom: 1px solid var(--border);">
+                        <h3><i class="ri-pulse-line" style="color: ${isGrowing ? 'var(--success)' : 'var(--danger)'}"></i> Diagnóstico Comercial</h3>
+                    </div>
+                    <div class="panel-card-body" style="padding: 20px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                           <div style="width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; background: ${isGrowing ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${isGrowing ? 'var(--success)' : 'var(--danger)'}; margin-right: 16px; border: 1px solid ${isGrowing ? 'var(--success)' : 'var(--danger)'}40;">
+                               <i class="${isGrowing ? 'ri-arrow-right-up-line' : 'ri-arrow-right-down-line'}"></i>
+                           </div>
+                           <div>
+                               <h4 style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0;">Mês de ${isGrowing ? 'Expansão Comercial' : 'Retração Comercial'}</h4>
+                               <p style="font-size: 11px; color: var(--text-secondary); margin: 2px 0 0 0;">Volume de serviços variou <strong>${isGrowing ? '+' : ''}${percentOS.toFixed(1)}%</strong> vs. mês anterior</p>
+                           </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                           <div style="background: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                               <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Parceiros Ativos</small>
+                               <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 4px;">
+                                   <span style="font-size: 18px; font-weight: 700; color: var(--text-primary);">${activePartnersCurrent}</span>
+                                   <small style="font-size: 10px; color: ${activePartnersCurrent >= activePartnersPrev ? 'var(--success)' : 'var(--danger)'}">
+                                       (${activePartnersCurrent >= activePartnersPrev ? '+' : ''}${activePartnersCurrent - activePartnersPrev} vs. ${prevMonthLabel})
+                                   </small>
+                               </div>
+                           </div>
+                           <div style="background: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                               <small style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Serviços Realizados</small>
+                               <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 4px;">
+                                   <span style="font-size: 18px; font-weight: 700; color: var(--text-primary);">${osCount}</span>
+                                   <small style="font-size: 10px; color: ${isGrowing ? 'var(--success)' : 'var(--danger)'}">
+                                       (${isGrowing ? '+' : ''}${diffOS} OSs)
+                                   </small>
+                               </div>
+                           </div>
+                        </div>
+
+                        <div style="margin-top: 16px; font-size: 11px; line-height: 1.5; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px;">
+                           <strong>Métricas Comparativas</strong>:<br>
+                           - Parceiros Ativos no Mês Anterior (${prevMonthLabel}): <strong>${activePartnersPrev}</strong><br>
+                           - Total OSs no Mês Anterior (${prevMonthLabel}): <strong>${prevOSs.length} OSs</strong>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        const prodTbody = document.getElementById('bi-produtividade-tbody');
+        if (prodTbody) {
+            if (!hasComparison) {
+                prodTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 12px;">Selecione um período comparativo no filtro superior.</td></tr>';
+            } else {
+                const categories = [
+                    { name: 'Vistorias Cautelares', cur: curNature.cautelares, prev: prevNature.cautelares },
+                    { name: 'Vistorias de Transferência', cur: curNature.transferencias, prev: prevNature.transferencias },
+                    { name: 'Pesquisas Veiculares', cur: curNature.pesquisas, prev: prevNature.pesquisas }
+                ];
+
+                prodTbody.innerHTML = categories.map(c => {
+                    const diff = c.cur - c.prev;
+                    const diffPct = c.prev ? (diff / c.prev) * 100 : 100;
+                    const isGrowing = diff >= 0;
+                    return `
+                        <tr>
+                            <td><strong>${c.name}</strong></td>
+                            <td style="text-align: center; color: var(--text-secondary);">${c.prev}</td>
+                            <td style="text-align: center; font-weight: 700; color: var(--text-primary);">${c.cur}</td>
+                            <td style="text-align: center; font-weight: 600; color: ${isGrowing ? 'var(--success)' : 'var(--danger)'}">
+                                ${isGrowing ? '+' : ''}${diff}
+                            </td>
+                            <td style="text-align: center; font-weight: 700; color: ${isGrowing ? 'var(--success)' : 'var(--danger)'}">
+                                ${isGrowing ? '+' : ''}${diffPct.toFixed(1)}%
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+    }
+}
+
+function renderBIPartnersDetail() {
+    const selectPartner = document.getElementById('bi-parceiro-detalhe-select');
+    const tbody = document.getElementById('bi-partner-services-tbody');
+    if (!selectPartner || !tbody) return;
+
+    const partnerId = parseInt(selectPartner.value);
+    if (!partnerId) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 12px;">Nenhum parceiro ativo no período selecionado.</td></tr>';
+        return;
+    }
+
+    const period = document.getElementById('bi-filtro-periodo').value;
+    const unitFilter = document.getElementById('bi-filtro-unidade').value;
+
+    let OSs = [];
+    const today = new Date();
+
+    if (period === '30') {
+        const startDate = new Date();
+        startDate.setDate(today.getDate() - 30);
+        OSs = db.ordens_servico.filter(o => new Date(o.criadoEm) >= startDate);
+    } else if (period === 'todos') {
+        OSs = [...db.ordens_servico];
+    } else {
+        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+    }
+
+    if (unitFilter !== 'todas') {
+        OSs = OSs.filter(o => o.unidadeId === parseInt(unitFilter));
+    }
+
+    const partnerOSs = OSs.filter(o => o.status !== 'cancelada' && o.parceiroId === partnerId);
+    
+    const grouped = {};
+    partnerOSs.forEach(o => {
+        if (!grouped[o.servicoId]) {
+            grouped[o.servicoId] = {
+                name: o.servicoNome,
+                count: 0,
+                totalVal: 0
+            };
+        }
+        grouped[o.servicoId].count++;
+        grouped[o.servicoId].totalVal += o.valor;
+    });
+
+    const servicesList = Object.keys(grouped).map(svcId => {
+        const id = parseInt(svcId);
+        const g = grouped[svcId];
+        const avgPrice = g.totalVal / g.count;
+        const margin = avgPrice - window.currentBIAvgCostPerOS;
+        return {
+            id: id,
+            name: g.name,
+            count: g.count,
+            price: avgPrice,
+            margin: margin
+        };
+    });
+
+    if (servicesList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 12px;">Sem serviços registrados para este parceiro no período.</td></tr>';
+    } else {
+        tbody.innerHTML = servicesList.map(s => {
+            const statusText = s.margin > 0.01 ? 'LUCRO' : (s.margin < -0.01 ? 'PREJUÍZO' : 'EMPATE');
+            const badgeColor = s.margin > 0.01 ? 'var(--success)' : (s.margin < -0.01 ? 'var(--danger)' : 'var(--warning)');
+            const badgeBg = s.margin > 0.01 ? 'var(--success-bg)' : (s.margin < -0.01 ? 'var(--danger-bg)' : 'var(--warning-bg)');
+            return `
+                <tr>
+                    <td><strong>${s.name.split(' — ')[0]}</strong></td>
+                    <td style="text-align: center;">${s.count}</td>
+                    <td style="text-align: right;">${formatCurrency(s.price)}</td>
+                    <td style="text-align: right; font-weight: 600; color: ${s.margin >= 0 ? 'var(--success)' : 'var(--danger)'}">${s.margin >= 0 ? '+' : ''}${formatCurrency(s.margin)}</td>
+                    <td style="text-align: center;">
+                        <span style="display: inline-block; padding: 3px 6px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeColor}40;">${statusText}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
 }
 
 function renderBIWeeklyChart(OSs) {
     const chart = document.getElementById('bi-chart-semanal');
+    if (!chart) return;
     
-    // Group OS revenues by week number
-    // Let's divide the month of June/26 into 4 weeks
     let weekRevenues = { "Semana 1": 0, "Semana 2": 0, "Semana 3": 0, "Semana 4": 0 };
     
     OSs.forEach(o => {
@@ -5609,6 +6139,8 @@ function renderBIWeeklyChart(OSs) {
 
 function renderBIShareChart(OSs, totalRevenue) {
     const chart = document.getElementById('bi-chart-share');
+    if (!chart) return;
+    
     if (totalRevenue === 0) {
         chart.innerHTML = '<div class="empty-state">Sem dados no período</div>';
         return;
@@ -5644,8 +6176,8 @@ function renderBIShareChart(OSs, totalRevenue) {
 
 function renderBIServicesRanking(OSs) {
     const container = document.getElementById('bi-chart-servicos');
+    if (!container) return;
     
-    // Count OSs by Service
     let servicesCount = {};
     db.servicos.forEach(s => {
         servicesCount[s.nome.split(' — ')[0]] = 0;
@@ -5678,42 +6210,8 @@ function renderBIServicesRanking(OSs) {
 }
 
 function renderBITopPartners(OSs) {
-    const tbody = document.getElementById('bi-partners-tbody');
-    
-    // Group spend by partner
-    let partnerStats = {};
-    db.parceiros.forEach(p => {
-        partnerStats[p.id] = { name: p.nome, count: 0, total: 0 };
-    });
-
-    OSs.forEach(o => {
-        if (o.parceiroId && partnerStats[o.parceiroId]) {
-            partnerStats[o.parceiroId].count++;
-            partnerStats[o.parceiroId].total += o.valor;
-        }
-    });
-
-    const sorted = Object.values(partnerStats)
-        .filter(p => p.count > 0)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 5);
-
-    if (sorted.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">Nenhum parceiro registrou OS neste período.</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = sorted.map(p => {
-        const ticket = p.total / p.count;
-        return `
-            <tr>
-                <td><strong>${p.name}</strong></td>
-                <td style="text-align: center; font-weight: 600;">${p.count}</td>
-                <td style="text-align: right; color: var(--success); font-weight: 700;">${formatCurrency(p.total)}</td>
-                <td style="text-align: right;">${formatCurrency(ticket)}</td>
-            </tr>
-        `;
-    }).join('');
+    // Mantida vazia por compatibilidade e segurança, já que a tabela foi substituída pelo ranking detalhado na Aba 2
+    return;
 }
 
 // ==========================================
