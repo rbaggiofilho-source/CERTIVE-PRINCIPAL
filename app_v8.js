@@ -7596,15 +7596,6 @@ async function closeAndExitReopenMode() {
     } finally {
     }
 }
-        navigateTo('atendimento');
-        renderAtendimentoPage();
-
-    } catch (err) {
-        console.error("Erro ao encerrar modo reaberto:", err);
-        showToast("Erro ao processar fechamento e cascata de saldos.", "error");
-    } finally {
-    }
-}
 
 // ============================================================================
 // MÓDULO: REGISTRAR CAUTELAR (MILESTONE 1)
