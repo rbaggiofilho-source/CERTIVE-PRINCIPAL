@@ -6696,9 +6696,11 @@ async function savePartnerMatrix(partnerId) {
 
 // Config: Operadores & Unidades
 function renderConfigOperadores() {
-    // Fill Unit Selector inside Operator Form
+    if (!db || !db.unidades) return;
+    
+    // Unidades select options
     const opUnitSelect = document.getElementById('cfg-op-unidade');
-    opUnitSelect.innerHTML = db.unidades.map(u => `<option value="${u.id}">${u.nome.split(' — ')[1]}</option>`).join('');
+    opUnitSelect.innerHTML = db.unidades.map(u => `<option value="${u.id}">${u.nome.split(' — ')[1] || u.nome}</option>`).join('');
 
     // Operators list
     const tbodyOps = document.getElementById('cfg-operators-tbody');
@@ -6708,8 +6710,11 @@ function renderConfigOperadores() {
             <tr>
                 <td><strong>${o.login}</strong></td>
                 <td>${o.nome}</td>
-                <td>${unit ? unit.nome.split(' — ')[1] : '—'}</td>
+                <td>${unit ? (unit.nome.split(' — ')[1] || unit.nome) : '—'}</td>
                 <td>${o.ativo ? '🟢 Ativo' : '🔴 Inativo'}</td>
+                <td style="text-align: center;">
+                    <button class="btn btn-secondary btn-sm" onclick="abrirEdicaoOperador(${o.id})" style="padding: 2px 6px; font-size: 11px;"><i class="ri-edit-line"></i> Editar</button>
+                </td>
             </tr>
         `;
     }).join('');
@@ -6720,6 +6725,9 @@ function renderConfigOperadores() {
         <tr>
             <td><strong>${u.nome}</strong></td>
             <td>${u.endereco}</td>
+            <td style="text-align: center;">
+                <button class="btn btn-secondary btn-sm" onclick="abrirEdicaoUnidade(${u.id})" style="padding: 2px 6px; font-size: 11px;"><i class="ri-edit-line"></i> Editar</button>
+            </td>
         </tr>
     `).join('');
 }
@@ -6786,6 +6794,147 @@ async function submitConfigUnit(event) {
         console.error(err);
         showToast("Erro ao cadastrar filial.", "error");
     }
+}
+
+/**
+ * Abre o modal de edição de operador e preenche com os dados atuais.
+ */
+function abrirEdicaoOperador(opId) {
+    if (!db) return;
+    const op = db.operadores.find(o => o.id === opId);
+    if (!op) return;
+
+    document.getElementById('edit-op-id').value = op.id;
+    document.getElementById('edit-op-nome').value = op.nome;
+    document.getElementById('edit-op-login').value = op.login;
+    document.getElementById('edit-op-senha').value = op.senha;
+    document.getElementById('edit-op-ativo').value = op.ativo ? "true" : "false";
+
+    // Preenche select de unidades designadas
+    const select = document.getElementById('edit-op-unidade');
+    select.innerHTML = db.unidades.map(u => `<option value="${u.id}">${u.nome.split(' — ')[1] || u.nome}</option>`).join('');
+    select.value = op.unidadeId;
+
+    // Marca as checkboxes de permissões
+    const checkboxes = document.querySelectorAll('.edit-op-perm');
+    checkboxes.forEach(cb => {
+        cb.checked = op.permissoes ? op.permissoes.includes(cb.value) : false;
+    });
+
+    document.getElementById('modal-editar-operador').classList.add('active');
+}
+
+/**
+ * Salva as alterações do operador no banco e sincroniza com LocalStorage/Supabase.
+ */
+async function salvarEdicaoOperador(event) {
+    event.preventDefault();
+    const opId = parseInt(document.getElementById('edit-op-id').value);
+    const nome = document.getElementById('edit-op-nome').value.trim();
+    const senha = document.getElementById('edit-op-senha').value.trim();
+    const unitId = parseInt(document.getElementById('edit-op-unidade').value);
+    const ativo = document.getElementById('edit-op-ativo').value === "true";
+
+    // Coleta permissões marcadas no modal
+    const checkedPerms = Array.from(document.querySelectorAll('.edit-op-perm:checked')).map(el => el.value);
+
+    const op = db.operadores.find(o => o.id === opId);
+    if (!op) return;
+
+    op.nome = nome;
+    op.senha = senha;
+    op.unidadeId = unitId;
+    op.ativo = ativo;
+    op.permissoes = checkedPerms;
+    op.funcao = checkedPerms.includes("bi") ? "Gerente" : "Operador";
+
+    saveDatabase();
+
+    // Sincroniza com o Supabase online
+    if (window.useSupabase) {
+        try {
+            await sbUpdate('operadores', opId, {
+                nome: op.nome,
+                senha: op.senha,
+                unidade_id: op.unidadeId,
+                ativo: op.ativo,
+                permissoes: op.permissoes,
+                funcao: op.funcao
+            });
+        } catch (e) {
+            console.warn("Supabase update warning for operator:", e);
+        }
+    }
+
+    logAudit("Edição Operador", `Editou configurações do operador: ${op.login}`);
+    showToast("Operador atualizado com sucesso!", "success");
+
+    // Fecha modal e recarrega
+    document.getElementById('modal-editar-operador').classList.remove('active');
+    renderConfigOperadores();
+
+    // Se editou a si mesmo, força atualização da sessão ativa
+    if (currentSession && currentSession.id === opId) {
+        currentSession.nome = op.nome;
+        currentSession.funcao = op.funcao;
+        currentSession.permissoes = op.permissoes;
+        sessionStorage.setItem('certive_session', JSON.stringify(currentSession));
+        checkSession(); // Re-avalia menus
+    }
+}
+
+/**
+ * Abre o modal de edição de unidade e preenche com os dados atuais.
+ */
+function abrirEdicaoUnidade(unitId) {
+    if (!db) return;
+    const unit = db.unidades.find(u => u.id === unitId);
+    if (!unit) return;
+
+    document.getElementById('edit-unit-id').value = unit.id;
+    document.getElementById('edit-unit-nome').value = unit.nome;
+    document.getElementById('edit-unit-endereco').value = unit.endereco;
+
+    document.getElementById('modal-editar-unidade').classList.add('active');
+}
+
+/**
+ * Salva as alterações da unidade no banco e sincroniza com LocalStorage/Supabase.
+ */
+async function salvarEdicaoUnidade(event) {
+    event.preventDefault();
+    const unitId = parseInt(document.getElementById('edit-unit-id').value);
+    const nome = document.getElementById('edit-unit-nome').value.trim();
+    const endereco = document.getElementById('edit-unit-endereco').value.trim();
+
+    const unit = db.unidades.find(u => u.id === unitId);
+    if (!unit) return;
+
+    unit.nome = nome;
+    unit.endereco = endereco;
+
+    saveDatabase();
+
+    // Sincroniza com o Supabase online
+    if (window.useSupabase) {
+        try {
+            await sbUpdate('unidades', unitId, {
+                nome: unit.nome,
+                endereco: unit.endereco
+            });
+        } catch (e) {
+            console.warn("Supabase update warning for unit:", e);
+        }
+    }
+
+    logAudit("Edição Unidade", `Editou filial: ${unit.nome}`);
+    showToast("Unidade atualizada com sucesso!", "success");
+
+    // Fecha modal e recarrega
+    document.getElementById('modal-editar-unidade').classList.remove('active');
+    
+    renderUnitSelectorOptions();
+    renderConfigOperadores();
 }
 
 // Formatting helpers

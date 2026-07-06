@@ -1628,13 +1628,16 @@
 
                                         <!-- Permissões Granulares -->
                                         <label class="form-group"><label>Permissões do Operador</label></label>
-                                        <div class="permission-grid">
+                                        <div class="permission-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                                             <label class="form-check"><input type="checkbox" value="abertura_os" checked> <span>Abertura OS</span></label>
                                             <label class="form-check"><input type="checkbox" value="caixa" checked> <span>Caixa Diário</span></label>
                                             <label class="form-check"><input type="checkbox" value="faturamento"> <span>Faturamento</span></label>
                                             <label class="form-check"><input type="checkbox" value="contas"> <span>Contas Pagar</span></label>
                                             <label class="form-check"><input type="checkbox" value="cadastros"> <span>Cadastros</span></label>
                                             <label class="form-check"><input type="checkbox" value="bi"> <span>Painel BI</span></label>
+                                            <label class="form-check" style="color: var(--accent);"><input type="checkbox" value="registrar_cautelar"> <span>Registrar Cautelar</span></label>
+                                            <label class="form-check" style="color: var(--accent);"><input type="checkbox" value="finalizar_cautelar"> <span>Finalizar Cautelar</span></label>
+                                            <label class="form-check" style="color: var(--accent);"><input type="checkbox" value="cautelar_administrar"> <span>Administrar Cautelar</span></label>
                                         </div>
 
                                         <button type="submit" class="btn btn-primary" style="margin-top: 18px; width: 100%;">
@@ -1651,6 +1654,7 @@
                                                     <th>Nome</th>
                                                     <th>Unidade</th>
                                                     <th>Status</th>
+                                                    <th style="text-align: center; width: 120px;">Ações</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="cfg-operators-tbody">
@@ -1688,6 +1692,7 @@
                                             <tr>
                                                 <th>Nome</th>
                                                 <th>Endereço</th>
+                                                <th style="text-align: center; width: 90px;">Ações</th>
                                             </tr>
                                         </thead>
                                         <tbody id="cfg-units-tbody">
@@ -2180,7 +2185,93 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-db.js?v=8.2.2"></script>
-<script src="app_v8.js?v=8.2.2"></script>
+    <!-- MODAL: EDITAR OPERADOR -->
+    <div id="modal-editar-operador" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2><i class="ri-user-settings-line"></i> Editar Cadastro de Operador</h2>
+                <button type="button" class="close-btn" onclick="document.getElementById('modal-editar-operador').classList.remove('active')">&times;</button>
+            </div>
+            <form id="edit-op-form" onsubmit="salvarEdicaoOperador(event)">
+                <input type="hidden" id="edit-op-id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit-op-nome">Nome Completo</label>
+                        <input type="text" id="edit-op-nome" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label for="edit-op-login">Login de Acesso</label>
+                            <input type="text" id="edit-op-login" readonly style="background: rgba(255,255,255,0.05); cursor: not-allowed;">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-op-senha">Senha de Acesso</label>
+                            <input type="password" id="edit-op-senha" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-op-unidade">Unidade Designada</label>
+                        <select id="edit-op-unidade" required>
+                            <!-- JS -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-op-ativo">Status do Operador</label>
+                        <select id="edit-op-ativo" required>
+                            <option value="true">🟢 Ativo (Acesso Liberado)</option>
+                            <option value="false">🔴 Inativo (Acesso Bloqueado)</option>
+                        </select>
+                    </div>
+                    
+                    <label class="form-group"><label>Permissões e Acessos</label></label>
+                    <div class="permission-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="abertura_os"> <span>Abertura OS</span></label>
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="caixa"> <span>Caixa Diário</span></label>
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="faturamento"> <span>Faturamento</span></label>
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="contas"> <span>Contas Pagar</span></label>
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="cadastros"> <span>Cadastros</span></label>
+                        <label class="form-check"><input type="checkbox" class="edit-op-perm" value="bi"> <span>Painel BI</span></label>
+                        <label class="form-check" style="color: var(--accent);"><input type="checkbox" class="edit-op-perm" value="registrar_cautelar"> <span>Registrar Cautelar</span></label>
+                        <label class="form-check" style="color: var(--accent);"><input type="checkbox" class="edit-op-perm" value="finalizar_cautelar"> <span>Finalizar Cautelar</span></label>
+                        <label class="form-check" style="color: var(--accent);"><input type="checkbox" class="edit-op-perm" value="cautelar_administrar"> <span>Administrar Cautelar</span></label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-editar-operador').classList.remove('active')">Cancelar</button>
+                    <button type="submit" class="btn btn-success"><i class="ri-checkbox-circle-line"></i> Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDITAR UNIDADE -->
+    <div id="modal-editar-unidade" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2><i class="ri-home-gear-line"></i> Editar Unidade / Filial</h2>
+                <button type="button" class="close-btn" onclick="document.getElementById('modal-editar-unidade').classList.remove('active')">&times;</button>
+            </div>
+            <form id="edit-unit-form" onsubmit="salvarEdicaoUnidade(event)">
+                <input type="hidden" id="edit-unit-id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit-unit-nome">Nome da Unidade / Filial</label>
+                        <input type="text" id="edit-unit-nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-unit-endereco">Endereço Completo</label>
+                        <input type="text" id="edit-unit-endereco" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-editar-unidade').classList.remove('active')">Cancelar</button>
+                    <button type="submit" class="btn btn-success"><i class="ri-checkbox-circle-line"></i> Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script src="supabase-db.js?v=8.2.3"></script>
+<script src="app_v8.js?v=8.2.3"></script>
 </body>
 </html>
