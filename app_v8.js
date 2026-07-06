@@ -8193,3 +8193,4 @@ function abrirFinalizacaoDesktop(cautelarId) {
 function exibirPdfCautelar(cautelarId) {
     showToast("Geração e download do laudo PDF serão ativados no Milestone 3.", "info");
 }
+// cache bust check
