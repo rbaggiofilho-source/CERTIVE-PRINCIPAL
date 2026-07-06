@@ -8152,19 +8152,1335 @@ function iniciarCautelar(osId) {
 }
 
 /**
+ * INFRAESTRUTURA: IndexedDB local para persistir fotos originais (Milestone 2)
+ * Evita o estouro do limite de 5MB do LocalStorage no mobile.
+ */
+const CautelarOfflineDB = {
+    dbName: 'certive_cautelar_offline',
+    dbVersion: 1,
+    db: null,
+
+    open() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.dbVersion);
+            request.onerror = (e) => reject(e);
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                resolve(this.db);
+            };
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('fotos')) {
+                    db.createObjectStore('fotos', { keyPath: 'id' }); // chave: cautelarId_slotCodigo
+                }
+            };
+        });
+    },
+
+    saveFoto(cautelarId, slotCodigo, blob, metadados) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readwrite');
+                const store = transaction.objectStore('fotos');
+                const id = `${cautelarId}_${slotCodigo}`;
+                const data = {
+                    id: id,
+                    cautelarId: parseInt(cautelarId),
+                    slotCodigo: slotCodigo,
+                    blob: blob,
+                    metadados: metadados,
+                    timestamp: new Date().toISOString()
+                };
+                const request = store.put(data);
+                request.onsuccess = () => resolve(id);
+                request.onerror = (e) => reject(e);
+            });
+        });
+    },
+
+    getFoto(cautelarId, slotCodigo) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readonly');
+                const store = transaction.objectStore('fotos');
+                const id = `${cautelarId}_${slotCodigo}`;
+                const request = store.get(id);
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e);
+            });
+        });
+    },
+
+    deleteFoto(cautelarId, slotCodigo) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readwrite');
+                const store = transaction.objectStore('fotos');
+                const id = `${cautelarId}_${slotCodigo}`;
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e);
+            });
+        });
+    },
+
+    getAllFotos(cautelarId) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readonly');
+                const store = transaction.objectStore('fotos');
+                const request = store.getAll();
+                request.onsuccess = (e) => {
+                    const all = e.target.result || [];
+                    const filtered = all.filter(item => item.cautelarId === parseInt(cautelarId));
+                    resolve(filtered);
+                };
+                request.onerror = (e) => reject(e);
+            });
+        });
+    }
+};
+
+// Mapeamento estático de fotos obrigatórias por seção (34 fotos obrigatórias)
+const CAUTELAR_SLOTS = {
+    1: [
+        { codigo: 'frente_45_dir', nome: 'FRENTE 45° LADO DIREITO' },
+        { codigo: 'traseira_45_esq', nome: 'TRASEIRA 45° LADO ESQUERDO' },
+        { codigo: 'painel_hodometro', nome: 'PAINEL DE INSTRUMENTOS COM HODÔMETRO' },
+        { codigo: 'crlv_documento', nome: 'CRLV / CRV DO VEÍCULO' },
+        { codigo: 'placa_dianteira', nome: 'PLACA DIANTEIRA EM CLOSE' }
+    ],
+    2: [
+        { codigo: 'chassi_gravado', nome: 'NÚMERO DO CHASSI GRAVADO (DIANTEIRO)' },
+        { codigo: 'chassi_secundario', nome: 'NÚMERO DO CHASSI (PLAQUETAS/SECUNDÁRIO)' },
+        { codigo: 'motor_gravado', nome: 'NÚMERO DO MOTOR GRAVADO' },
+        { codigo: 'etiqueta_eta', nome: 'ETIQUETA ETA COMPARTIMENTO MOTOR' }
+    ],
+    3: [
+        { codigo: 'longarina_diant_esq', nome: 'LONGARINA DIANTEIRA ESQUERDA' },
+        { codigo: 'longarina_diant_dir', nome: 'LONGARINA DIANTEIRA DIREITA' },
+        { codigo: 'longarina_tras_esq', nome: 'LONGARINA TRASEIRA ESQUERDA' },
+        { codigo: 'longarina_tras_dir', nome: 'LONGARINA TRASEIRA DIREITA' },
+        { codigo: 'torre_amort_diant_esq', nome: 'TORRE DO AMORTECEDOR DIANTEIRO ESQUERDO' },
+        { codigo: 'torre_amort_diant_dir', nome: 'TORRE DO AMORTECEDOR DIANTEIRO DIREITO' },
+        { codigo: 'torre_amort_tras_esq', nome: 'TORRE DO AMORTECEDOR TRASEIRO ESQUERDO' },
+        { codigo: 'torre_amort_tras_dir', nome: 'TORRE DO AMORTECEDOR TRASEIRO DIREITO' },
+        { codigo: 'painel_corta_fogo', nome: 'PAINEL CORTA-FOGO (ESTRUTURA)' },
+        { codigo: 'assoalho_porta_malas', nome: 'ASSOALHO DO PORTA-MALAS' },
+        { codigo: 'estrutura_teto', nome: 'ESTRUTURA DO TETO (INTERNA)' }
+    ],
+    4: [
+        { codigo: 'medidor_pintura_uso', nome: 'FOTO DO MEDIDOR MINIPA EM USO (EVIDÊNCIA)' }
+    ],
+    5: [
+        { codigo: 'vidro_parabrisa', nome: 'GRAVAÇÃO VIDRO PARA-BRISA' },
+        { codigo: 'vidro_porta_diant_esq', nome: 'GRAVAÇÃO PORTA DIANTEIRA ESQUERDA' },
+        { codigo: 'vidro_porta_diant_dir', nome: 'GRAVAÇÃO PORTA DIANTEIRA DIREITA' },
+        { codigo: 'vidro_porta_tras_esq', nome: 'GRAVAÇÃO PORTA TRASEIRA ESQUERDA' },
+        { codigo: 'vidro_porta_tras_dir', nome: 'GRAVAÇÃO PORTA TRASEIRA DIREITA' },
+        { codigo: 'vidro_traseiro', nome: 'GRAVAÇÃO VIDRO TRASEIRO' }
+    ],
+    6: [
+        { codigo: 'motor_vista_geral', nome: 'VISTA GERAL DO COMPARTIMENTO DO MOTOR' },
+        { codigo: 'motor_painel_corta_fogo', nome: 'PAINEL CORTA-FOGO (LADO DO MOTOR)' },
+        { codigo: 'motor_batentes_dobradicas', nome: 'BATENTES DAS DOBRADIÇAS DO CAPÔ' }
+    ],
+    7: [
+        { codigo: 'quadro_porta_diant_dir', nome: 'QUADRO PORTA DIANTEIRA DIREITA' },
+        { codigo: 'quadro_porta_diant_esq', nome: 'QUADRO PORTA DIANTEIRA ESQUERDA' },
+        { codigo: 'quadro_porta_tras_dir', nome: 'QUADRO PORTA TRASEIRA DIREITA' },
+        { codigo: 'quadro_porta_tras_esq', nome: 'QUADRO PORTA TRASEIRA ESQUERDA' }
+    ],
+    8: []
+};
+
+// Variáveis globais de controle da Captura
+window.activeCautelarId = null;
+window.activeSecaoNum = 1;
+window.autoSaveTimeout = null;
+
+/**
  * Abre o formulário de Captura Mobile para a Cautelar selecionada.
- * (Funcionalidade detalhada no Milestone 2, por enquanto exibe toast e atualiza lista).
  */
 function continuarCautelar(cautelarId) {
+    if (!db || !currentSession) return;
+
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
-    if (!cautelar) return;
+    if (!cautelar) {
+        showToast("Cautelar não encontrada.", "error");
+        return;
+    }
+
     const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    if (!os) {
+        showToast("OS de origem não encontrada.", "error");
+        return;
+    }
+
+    // Gravar estado global
+    window.activeCautelarId = cautelarId;
+    window.activeSecaoNum = 1;
+
+    // Achar a última seção completa para já abrir na seção atual
+    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
+    let targetSec = 1;
+    secoes.sort((a, b) => a.numeroSecao - b.numeroSecao);
     
-    showToast(`Fluxo de captura da cautelar (placa ${os ? os.placa : ''}) será ativado no Milestone 2.`, "info");
+    // Procura a primeira não completa
+    const firstPending = secoes.find(s => s.status !== 'completa');
+    if (firstPending) {
+        targetSec = firstPending.numeroSecao;
+    } else {
+        targetSec = 8;
+    }
+    window.activeSecaoNum = targetSec;
+
+    // Atualizar labels fixos
+    document.getElementById('captura-dossie-label').textContent = cautelar.dossieNumero;
     
-    // Atualiza a listagem de forma reativa
-    filterCautelares();
+    // Ocultar painel de listagem e mostrar painel de captura
+    document.getElementById('cautelar-listagem-view').style.display = 'none';
+    document.getElementById('cautelar-captura-view').style.display = 'flex';
+
+    // Renderiza a seção
+    renderCapturaSecao(targetSec);
 }
+
+/**
+ * Renderiza a Seção atual do Fluxo de Captura Mobile.
+ */
+function renderCapturaSecao(secaoNum) {
+    window.activeSecaoNum = secaoNum;
+    const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === secaoNum);
+
+    if (!secao) return;
+
+    // 1. Atualizar Títulos
+    const algarismosRomanos = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+    document.getElementById('captura-secao-titulo-romano').textContent = `SEÇÃO ${algarismosRomanos[secaoNum]}`;
+    document.getElementById('captura-secao-titulo-nome').textContent = secao.nomeSecao;
+
+    // 2. Renderizar a Barra de Progresso de 8 segmentos
+    renderCapturaProgressBar(secaoNum);
+
+    // 3. Renderizar campos técnicos e slots de fotos
+    const contentArea = document.getElementById('captura-secao-conteudo');
+    contentArea.innerHTML = '';
+
+    // Renderiza fotos obrigatórias da seção
+    const slots = CAUTELAR_SLOTS[secaoNum] || [];
+    if (slots.length > 0) {
+        const slotsGrid = document.createElement('div');
+        slotsGrid.style.display = 'grid';
+        slotsGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+        slotsGrid.style.gap = '16px';
+        slotsGrid.style.marginBottom = '20px';
+
+        slots.forEach(slot => {
+            const photoCard = getPhotoSlotCardHtml(slot, secao.id);
+            slotsGrid.appendChild(photoCard);
+        });
+
+        contentArea.appendChild(slotsGrid);
+    }
+
+    // Renderiza formulário de campos específicos
+    const fieldsDiv = document.createElement('div');
+    fieldsDiv.innerHTML = getSecaoFieldsHtml(secaoNum, cautelar, secao.dadosJson || {}, os);
+    contentArea.appendChild(fieldsDiv);
+
+    // 4. Configurar canvas de assinatura se for Seção VIII
+    if (secaoNum === 8) {
+        setTimeout(() => initSignatureCanvas(), 100);
+    }
+
+    // 5. Validar completude para ativar/desativar botão de avanço
+    validarSecaoCompleta();
+}
+
+/**
+ * Desenha a progress bar horizontal de 8 segmentos.
+ */
+function renderCapturaProgressBar(activeSec) {
+    const barContainer = document.getElementById('captura-progress-bar');
+    if (!barContainer) return;
+
+    let html = '';
+    for (let i = 1; i <= 8; i++) {
+        const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === i);
+        const status = secao ? secao.status : 'nao_iniciada';
+        
+        let color = 'rgba(255,255,255,0.05)';
+        let border = '1px solid var(--border)';
+        
+        if (i === activeSec) {
+            color = 'var(--accent)';
+            border = '1px solid var(--accent)';
+        } else if (status === 'completa') {
+            color = 'var(--success)';
+            border = '1px solid var(--success)';
+        }
+
+        html += `<div style="flex: 1; height: 6px; background: ${color}; border: ${border}; border-radius: 3px;" title="Seção ${i}"></div>`;
+    }
+    barContainer.innerHTML = html;
+}
+
+/**
+ * Gera o Card HTML do Slot de Foto.
+ */
+function getPhotoSlotCardHtml(slot, secaoId) {
+    const photo = db.cautelares_fotos.find(f => f.secaoId === secaoId && f.slotCodigo === slot.codigo);
+    const card = document.createElement('div');
+    card.className = 'panel-card';
+    card.id = `photo-card-${slot.codigo}`;
+    card.style.background = 'var(--bg-card)';
+    card.style.border = '1px solid var(--border)';
+    card.style.borderRadius = 'var(--radius)';
+    card.style.padding = '16px';
+    card.style.textAlign = 'center';
+    card.style.position = 'relative';
+
+    // Seletor do status de pintura ou estrutura para fotos da Seção III e V
+    let extraControls = '';
+    if (window.activeSecaoNum === 3) {
+        const currentStatus = photo ? photo.metadados_json?.status_estrutural : 'original';
+        extraControls = `
+            <div style="margin-top: 12px; text-align: left;">
+                <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">AVALIAÇÃO ESTRUTURAL</label>
+                <select id="status-foto-${slot.codigo}" onchange="salvarStatusFoto('${slot.codigo}', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px;">
+                    <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original (Conforme)</option>
+                    <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Reparo Aparente (Atenção)</option>
+                    <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Substituição (Não Conforme)</option>
+                    <option value="nao_aplicavel" ${currentStatus === 'nao_aplicavel' ? 'selected' : ''}>Não Aplicável</option>
+                </select>
+            </div>
+        `;
+    } else if (window.activeSecaoNum === 5) {
+        const isOriginal = photo ? photo.metadados_json?.vidro_original !== false : true;
+        const numGravado = photo ? photo.metadados_json?.gravacao_lida || '' : '';
+        extraControls = `
+            <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Gravação Original?</label>
+                    <select id="original-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                        <option value="sim" ${isOriginal ? 'selected' : ''}>SIM</option>
+                        <option value="nao" ${!isOriginal ? 'selected' : ''}>NÃO</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Número Gravado</label>
+                    <input type="text" id="gravacao-foto-${slot.codigo}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${slot.codigo}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
+                </div>
+            </div>
+        `;
+    }
+
+    // Input file invisível e câmera ativa por capture="environment"
+    const inputId = `input-camera-${slot.codigo}`;
+    
+    if (photo) {
+        // Exibe preview da foto tirada (local Blob ou url base64)
+        const displayUrl = photo.url_thumb || photo.url_original || '';
+        card.innerHTML = `
+            <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
+                <img src="${displayUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
+                <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
+            </div>
+            <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${slot.nome}</h5>
+            <span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada com sucesso</span>
+            ${extraControls}
+        `;
+    } else {
+        // Exibe slot vazio para tirar a foto
+        card.innerHTML = `
+            <input type="file" id="${inputId}" accept="image/*" capture="environment" style="display: none;" onchange="handleFotoUpload('${slot.codigo}', event)">
+            <div onclick="document.getElementById('${inputId}').click()" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
+                <i class="ri-camera-lens-line" style="font-size: 40px; color: var(--accent); margin-bottom: 10px; display: inline-block;"></i>
+                <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${slot.nome}</h5>
+                <span style="font-size: 11px; color: var(--text-secondary);">Tocar para capturar</span>
+            </div>
+            ${extraControls}
+        `;
+    }
+
+    return card;
+}
+
+/**
+ * Carrega a estrutura de campos por seção técnica.
+ */
+function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
+    let html = '';
+
+    switch (secaoNum) {
+        case 1:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="form-group">
+                        <label for="caut-km">Quilometragem Lida (Hodômetro) <span style="color:var(--danger)">*</span></label>
+                        <input type="number" id="caut-km" value="${data.quilometragem || ''}" placeholder="DIGITE A KM ATUAL..." oninput="autoSaveCampo('quilometragem', this.value)" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-placa-ok">Placa Confere com o CRLV? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-placa-ok" onchange="autoSaveCampo('placaConfere', this.value)">
+                            <option value="sim" ${data.placaConfere === 'nao' ? '' : 'selected'}>SIM, CONFERE</option>
+                            <option value="nao" ${data.placaConfere === 'nao' ? 'selected' : ''}>NÃO CONFERE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-conservacao">Estado Geral de Conservação <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-conservacao" onchange="autoSaveCampo('estadoConservacao', this.value)">
+                            <option value="">SELECIONE...</option>
+                            <option value="excelente" ${data.estadoConservacao === 'excelente' ? 'selected' : ''}>EXCELENTE</option>
+                            <option value="bom" ${data.estadoConservacao === 'bom' ? 'selected' : ''}>BOM</option>
+                            <option value="regular" ${data.estadoConservacao === 'regular' ? 'selected' : ''}>REGULAR</option>
+                            <option value="mau" ${data.estadoConservacao === 'mau' ? 'selected' : ''}>MAU</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao1-obs">Observações (Opcional)</label>
+                        <textarea id="caut-secao1-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A IDENTIFICAÇÃO DO VEÍCULO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 2:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="form-group">
+                        <label for="caut-chassi">Chassi Lido <span style="color:var(--danger)">*</span></label>
+                        <input type="text" id="caut-chassi" value="${data.chassiLido || ''}" placeholder="DIGITE O CHASSI LIDO..." oninput="autoSaveCampo('chassiLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <span id="caut-chassi-validation" style="font-size: 11px; margin-top: 4px; display: none;"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-motor">Motor Lido <span style="color:var(--danger)">*</span></label>
+                        <input type="text" id="caut-motor" value="${data.motorLido || ''}" placeholder="DIGITE O MOTOR LIDO..." oninput="autoSaveCampo('motorLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Conformidade de Originalidade <span style="color:var(--danger)">*</span></label>
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
+                                <input type="checkbox" id="caut-chassi-ok" ${data.chassiOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('chassiOriginal', this.checked)"> Gravação de Chassi Original
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
+                                <input type="checkbox" id="caut-motor-ok" ${data.motorOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('motorOriginal', this.checked)"> Gravação de Motor Original
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
+                                <input type="checkbox" id="caut-eta-ok" ${data.etiquetasEtaOriginais !== false ? 'checked' : ''} onchange="autoSaveCampo('etiquetasEtaOriginais', this.checked)"> Etiquetas ETA Preservadas
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao2-obs">Observações (Opcional)</label>
+                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI E MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            // Ativa validação instantânea após injetar
+            setTimeout(() => {
+                const input = document.getElementById('caut-chassi');
+                if (input) {
+                    const validationSpan = document.getElementById('caut-chassi-validation');
+                    const match = input.value === (os.renavam || os.placa || ''); // simulado
+                    // O chassi original está na OS (renavam/observações, etc. ou simularemos contra o chassi cadastrado na OS)
+                    const osChassi = os.renavam || ''; // No schema, renavam/chassi
+                    if (input.value) {
+                        validationSpan.style.display = 'block';
+                        if (input.value === osChassi) {
+                            validationSpan.innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i> Confere com o cadastro da O.S.`;
+                            validationSpan.style.color = 'var(--success)';
+                        } else {
+                            validationSpan.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do cadastro da O.S. (${osChassi})`;
+                            validationSpan.style.color = 'var(--danger)';
+                        }
+                    }
+                }
+            }, 100);
+            break;
+
+        case 3:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="form-group">
+                        <label for="caut-enchente">Indícios de Enchente? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-enchente" onchange="autoSaveCampo('indicioEnchente', this.value); toggleObsRequiredSec3();" required>
+                            <option value="nao" ${data.indicioEnchente === 'sim' ? '' : 'selected'}>NÃO</option>
+                            <option value="sim" ${data.indicioEnchente === 'sim' ? 'selected' : ''}>SIM (Indica carpete úmido, ferrugem sob painel, etc.)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-batida">Indícios de Batida / Deformação Estrutural? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-batida" onchange="autoSaveCampo('indicioBatida', this.value); toggleObsRequiredSec3();" required>
+                            <option value="nao" ${data.indicioBatida === 'sim' ? '' : 'selected'}>NÃO</option>
+                            <option value="sim" ${data.indicioBatida === 'sim' ? 'selected' : ''}>SIM (Longarinas deformadas, cortes, soldas adicionais)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-parecer-estrutural">Parecer Estrutural Consolidado <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-parecer-estrutural" onchange="autoSaveCampo('parecerEstrutural', this.value)" required>
+                            <option value="conforme" ${data.parecerEstrutural === 'conforme' ? 'selected' : ''}>CONFORME</option>
+                            <option value="com_ressalvas" ${data.parecerEstrutural === 'com_ressalvas' ? 'selected' : ''}>COM RESSALVAS (Pequenos amassados sem risco estrutural)</option>
+                            <option value="nao_conforme" ${data.parecerEstrutural === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME (Estrutura comprometida / colisão gravíssima)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao3-obs" id="caut-secao3-obs-label">Observações Técnicas</label>
+                        <textarea id="caut-secao3-obs" placeholder="DIGITE A ANÁLISE ESTRUTURAL DETALHADA..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            setTimeout(() => toggleObsRequiredSec3(), 100);
+            break;
+
+        case 4:
+            // Painéis de espessura
+            const paineis = [
+                "Capô", "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda",
+                "Paralama traseiro esquerdo", "Teto", "Paralama traseiro direito", "Porta traseira direito",
+                "Porta dianteira direita", "Paralama dianteiro direito", "Tampa traseira", "Para-choque dianteiro",
+                "Para-choque traseiro", "Coluna A esquerda", "Coluna A direita"
+            ];
+            
+            const tableRowsHtml = paineis.map((p, idx) => {
+                const key = `painel_${idx}`;
+                const val = data[key] ? parseFloat(data[key]) : 0;
+                
+                // Classificação com base no micrômetro
+                const classification = val === 0 ? '' : (val >= 80 && val <= 150 ? 'original' : (val > 150 && val <= 250 ? 'repintura' : 'acima_padrao'));
+                const color = classification === 'original' ? 'var(--success)' : (classification === 'repintura' ? 'var(--warning)' : (classification === 'acima_padrao' ? 'var(--danger)' : 'var(--text-secondary)'));
+                const labelClass = classification === 'original' ? 'ORIGINAL (80-150 µm)' : (classification === 'repintura' ? 'REPINTURA (150-250 µm)' : (classification === 'acima_padrao' ? 'MASSA/ALTO (>250 µm)' : 'NÃO MEDIDO'));
+
+                return `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="font-weight:600; font-size:12px; padding: 8px 0;">${p}</td>
+                        <td style="width: 110px; padding: 4px 0;">
+                            <input type="number" id="espessura-${key}" value="${val || ''}" placeholder="0 µm" oninput="atualizarMedidorPintura('${key}', this.value)" style="width:90px; text-align:right; font-family:monospace; padding:6px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+                        </td>
+                        <td id="classif-${key}" style="font-size:10px; font-weight:700; color: ${color}; text-align:right; padding: 8px 0;">${labelClass}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
+                    <label style="display:block; font-size:11px; color:var(--text-secondary); font-weight:700; text-transform:uppercase; margin-bottom:12px;">ESPESSURA DA PINTURA (MICRA - µm)</label>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size:11px;">
+                                <th style="text-align:left; padding-bottom:8px;">PAINEL</th>
+                                <th style="text-align:left; padding-bottom:8px;">VALOR (µm)</th>
+                                <th style="text-align:right; padding-bottom:8px;">CLASSIFICAÇÃO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                    </table>
+                    <div class="form-group" style="margin-top:20px;">
+                        <label for="caut-secao4-obs">Observações do Vistoriador (Opcional)</label>
+                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 5:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <p style="font-size:12px; color:var(--text-secondary); line-height: 1.5; margin:0;">
+                        Registre as gravações encontradas em todos os vidros. A verificação e o preenchimento de originalidade são feitos diretamente nos cards de foto acima de forma individualizada.
+                    </p>
+                    <div class="form-group">
+                        <label for="caut-secao5-obs">Observações Gerais (Opcional)</label>
+                        <textarea id="caut-secao5-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE OS VIDROS E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 6:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="form-group">
+                        <label for="caut-reparo-motor">Sinais de Reparo/Troca de Estruturas no Vão do Motor? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-reparo-motor" onchange="autoSaveCampo('reparoMotor', this.value)" required>
+                            <option value="nao" ${data.reparoMotor === 'sim' ? '' : 'selected'}>NÃO</option>
+                            <option value="sim" ${data.reparoMotor === 'sim' ? 'selected' : ''}>SIM</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-cor-motor">Cor Original Preservada no Vão? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-cor-motor" onchange="autoSaveCampo('corMotorOk', this.value)" required>
+                            <option value="sim" ${data.corMotorOk === 'nao' ? '' : 'selected'}>SIM</option>
+                            <option value="nao" ${data.corMotorOk === 'nao' ? 'selected' : ''}>NÃO</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao6-obs">Observações (Opcional)</label>
+                        <textarea id="caut-secao6-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE COMPARTIMENTO DO MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 7:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="form-group">
+                        <label for="caut-quadro-porta">Sinais de Intervenção/Soldas nos Quadros de Portas (Colunas)? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-quadro-porta" onchange="autoSaveCampo('intervencaoQuadros', this.value); toggleObsRequiredSec7();" required>
+                            <option value="nao" ${data.intervencaoQuadros === 'sim' ? '' : 'selected'}>NÃO</option>
+                            <option value="sim" ${data.intervencaoQuadros === 'sim' ? 'selected' : ''}>SIM</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-conservacao-interior">Conservação Geral do Interior <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-conservacao-interior" onchange="autoSaveCampo('conservacaoInterior', this.value)" required>
+                            <option value="">SELECIONE...</option>
+                            <option value="excelente" ${data.conservacaoInterior === 'excelente' ? 'selected' : ''}>EXCELENTE</option>
+                            <option value="bom" ${data.conservacaoInterior === 'bom' ? 'selected' : ''}>BOM</option>
+                            <option value="regular" ${data.conservacaoInterior === 'regular' ? 'selected' : ''}>REGULAR</option>
+                            <option value="mau" ${data.conservacaoInterior === 'mau' ? 'selected' : ''}>MAU</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao7-obs" id="caut-secao7-obs-label">Observações</label>
+                        <textarea id="caut-secao7-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE O INTERIOR E QUADROS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            setTimeout(() => toggleObsRequiredSec7(), 100);
+            break;
+
+        case 8:
+            html = `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 20px;">
+                    <div class="form-group">
+                        <label for="caut-parecer-preliminar">Parecer Preliminar Consolidado <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-parecer-preliminar" onchange="autoSaveCampo('parecerPreliminar', this.value); toggleObsRequiredSec8();" required>
+                            <option value="">SELECIONE...</option>
+                            <option value="conforme" ${data.parecerPreliminar === 'conforme' ? 'selected' : ''}>CONFORME</option>
+                            <option value="com_ressalvas" ${data.parecerPreliminar === 'com_ressalvas' ? 'selected' : ''}>COM RESSALVAS</option>
+                            <option value="nao_conforme" ${data.parecerPreliminar === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="caut-secao8-obs" id="caut-secao8-obs-label">Observações Finais e Geral</label>
+                        <textarea id="caut-secao8-obs" placeholder="DIGITE AS OBSERVAÇÕES FINAIS DO LAUDO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    </div>
+
+                    <!-- Canvas para Assinatura Digital -->
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; text-align: center;">
+                        <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 700; text-transform: uppercase;">Assinatura Digital do Vistoriador <span style="color:var(--danger)">*</span></label>
+                        <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; width: 100%; max-width: 400px; height: 150px; margin: 0 auto; position: relative;">
+                            <canvas id="signature-canvas" width="400" height="150" style="background: #fff; cursor: crosshair; touch-action: none; width: 100%; height: 100%;"></canvas>
+                        </div>
+                        <div style="margin-top: 8px; display: flex; justify-content: center; gap: 10px;">
+                            <button class="btn btn-secondary btn-sm" onclick="clearSignatureCanvas()" style="padding: 4px 12px; font-size: 12px;"><i class="ri-eraser-line"></i> Limpar</button>
+                            <button class="btn btn-success btn-sm" onclick="saveSignatureCanvas(true)" style="padding: 4px 12px; font-size: 12px;"><i class="ri-checkbox-circle-line"></i> Confirmar Assinatura</button>
+                        </div>
+                        <span id="assinatura-ok-msg" style="display: none; font-size: 11px; color: var(--success); font-weight: 700; margin-top: 6px;"><i class="ri-checkbox-circle-fill"></i> Assinatura confirmada e vinculada</span>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; cursor: pointer; color: var(--text-primary);">
+                            <input type="checkbox" id="caut-checkbox-confirmar" ${data.checklistConfirmado === true ? 'checked' : ''} onchange="autoSaveCampo('checklistConfirmado', this.checked)" required> 
+                            <span>Confirmo que realizei todos os procedimentos técnicos pertinentes a esta vistoria</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+            setTimeout(() => {
+                toggleObsRequiredSec8();
+                if (data.signatureBase64) {
+                    document.getElementById('assinatura-ok-msg').style.display = 'block';
+                }
+            }, 100);
+            break;
+    }
+
+    return html;
+}
+
+// Helpers para validação e requerimento de campos dinâmicos
+function toggleObsRequiredSec3() {
+    const enchente = document.getElementById('caut-enchente')?.value;
+    const batida = document.getElementById('caut-batida')?.value;
+    const label = document.getElementById('caut-secao3-obs-label');
+    const input = document.getElementById('caut-secao3-obs');
+
+    if (enchente === 'sim' || batida === 'sim') {
+        if (label) label.innerHTML = `Observações Técnicas <span style="color:var(--danger)">* (Obrigatório devido aos indícios)</span>`;
+        if (input) input.required = true;
+    } else {
+        if (label) label.innerHTML = `Observações Técnicas (Opcional)`;
+        if (input) input.required = false;
+    }
+    validarSecaoCompleta();
+}
+
+function toggleObsRequiredSec7() {
+    const intervencao = document.getElementById('caut-quadro-porta')?.value;
+    const label = document.getElementById('caut-secao7-obs-label');
+    const input = document.getElementById('caut-secao7-obs');
+
+    if (intervencao === 'sim') {
+        if (label) label.innerHTML = `Observações <span style="color:var(--danger)">* (Obrigatório devido à intervenção nos quadros)</span>`;
+        if (input) input.required = true;
+    } else {
+        if (label) label.innerHTML = `Observações (Opcional)`;
+        if (input) input.required = false;
+    }
+    validarSecaoCompleta();
+}
+
+function toggleObsRequiredSec8() {
+    const parecer = document.getElementById('caut-parecer-preliminar')?.value;
+    const label = document.getElementById('caut-secao8-obs-label');
+    const input = document.getElementById('caut-secao8-obs');
+
+    if (parecer === 'com_ressalvas' || parecer === 'nao_conforme') {
+        if (label) label.innerHTML = `Observações Finais e Geral <span style="color:var(--danger)">* (Obrigatório para ressalvas/não conforme)</span>`;
+        if (input) input.required = true;
+    } else {
+        if (label) label.innerHTML = `Observações Finais e Geral (Opcional)`;
+        if (input) input.required = false;
+    }
+    validarSecaoCompleta();
+}
+
+/**
+ * Atualiza e auto-salva os dados do Medidor de Pintura na Seção IV.
+ */
+function atualizarMedidorPintura(key, val) {
+    const v = parseFloat(val) || 0;
+    
+    // Atualiza classificação visual na tabela
+    const classifSpan = document.getElementById(`classif-${key}`);
+    if (classifSpan) {
+        const classification = v === 0 ? '' : (v >= 80 && v <= 150 ? 'original' : (v > 150 && v <= 250 ? 'repintura' : 'acima_padrao'));
+        const color = classification === 'original' ? 'var(--success)' : (classification === 'repintura' ? 'var(--warning)' : (classification === 'acima_padrao' ? 'var(--danger)' : 'var(--text-secondary)'));
+        const labelClass = classification === 'original' ? 'ORIGINAL (80-150 µm)' : (classification === 'repintura' ? 'REPINTURA (150-250 µm)' : (classification === 'acima_padrao' ? 'MASSA/ALTO (>250 µm)' : 'NÃO MEDIDO'));
+        
+        classifSpan.style.color = color;
+        classifSpan.textContent = labelClass;
+    }
+
+    autoSaveCampo(key, v);
+}
+
+/**
+ * Salva a avaliação estrutural da foto na Seção III.
+ */
+function salvarStatusFoto(slotCodigo, value) {
+    const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === 3);
+    const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+
+    if (photo) {
+        photo.metadados_json = photo.metadados_json || {};
+        photo.metadados_json.status_estrutural = value;
+        saveDatabase();
+        if (window.useSupabase) {
+            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
+        }
+    }
+}
+
+/**
+ * Salva a conformidade e escrita da etiqueta de vidro na Seção V.
+ */
+function salvarEtiquetaVidro(slotCodigo, field, value) {
+    const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === 5);
+    const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+
+    if (photo) {
+        photo.metadados_json = photo.metadados_json || {};
+        if (field === 'original') {
+            photo.metadados_json.vidro_original = value === 'sim';
+        } else if (field === 'gravacao') {
+            photo.metadados_json.gravacao_lida = value.toUpperCase();
+        }
+        saveDatabase();
+        if (window.useSupabase) {
+            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
+        }
+    }
+}
+
+/**
+ * Monitora e valida se todos os requisitos da seção atual foram completados.
+ */
+function validarSecaoCompleta() {
+    const secaoNum = window.activeSecaoNum;
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === secaoNum);
+    const slots = CAUTELAR_SLOTS[secaoNum] || [];
+
+    let isComplete = true;
+    let pendingItems = [];
+
+    // 1. Validar se todas as fotos obrigatórias da seção foram capturadas
+    slots.forEach(slot => {
+        const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slot.codigo);
+        if (!photo) {
+            isComplete = false;
+            pendingItems.push(slot.nome);
+        }
+    });
+
+    // 2. Validar campos obrigatórios por seção
+    switch (secaoNum) {
+        case 1:
+            const km = document.getElementById('caut-km')?.value;
+            const conservacao = document.getElementById('caut-conservacao')?.value;
+            if (!km || parseFloat(km) <= 0) {
+                isComplete = false;
+                pendingItems.push("Quilometragem");
+            }
+            if (!conservacao) {
+                isComplete = false;
+                pendingItems.push("Estado Geral de Conservação");
+            }
+            break;
+        case 2:
+            const chassi = document.getElementById('caut-chassi')?.value;
+            const motor = document.getElementById('caut-motor')?.value;
+            if (!chassi || chassi.trim().length < 5) {
+                isComplete = false;
+                pendingItems.push("Chassi Lido");
+            }
+            if (!motor || motor.trim().length < 3) {
+                isComplete = false;
+                pendingItems.push("Motor Lido");
+            }
+            break;
+        case 3:
+            const enchenteInput = document.getElementById('caut-secao3-obs');
+            if (enchenteInput && enchenteInput.required && !enchenteInput.value.trim()) {
+                isComplete = false;
+                pendingItems.push("Observações Técnicas Estruturais");
+            }
+            break;
+        case 7:
+            const doorInput = document.getElementById('caut-secao7-obs');
+            const conservacaoInterior = document.getElementById('caut-conservacao-interior')?.value;
+            if (doorInput && doorInput.required && !doorInput.value.trim()) {
+                isComplete = false;
+                pendingItems.push("Observações de Intervenção nos Quadros");
+            }
+            if (!conservacaoInterior) {
+                isComplete = false;
+                pendingItems.push("Conservação do Interior");
+            }
+            break;
+        case 8:
+            const preliminaryParecer = document.getElementById('caut-parecer-preliminar')?.value;
+            const obs8 = document.getElementById('caut-secao8-obs');
+            const signatureConfirmed = secao.dadosJson && secao.dadosJson.signatureBase64;
+            const confirmedCheckbox = document.getElementById('caut-checkbox-confirmar')?.checked;
+
+            if (!preliminaryParecer) {
+                isComplete = false;
+                pendingItems.push("Parecer Preliminar");
+            }
+            if (obs8 && obs8.required && !obs8.value.trim()) {
+                isComplete = false;
+                pendingItems.push("Observações Finais");
+            }
+            if (!signatureConfirmed) {
+                isComplete = false;
+                pendingItems.push("Assinatura do Vistoriador");
+            }
+            if (!confirmedCheckbox) {
+                isComplete = false;
+                pendingItems.push("Checkbox de Confirmação");
+            }
+            break;
+    }
+
+    // 3. Atualizar Estado do Botão Avançar
+    const btnAvancar = document.getElementById('btn-captura-avancar');
+    if (btnAvancar) {
+        if (isComplete) {
+            btnAvancar.disabled = false;
+            btnAvancar.style.opacity = '1';
+            btnAvancar.style.cursor = 'pointer';
+            btnAvancar.innerHTML = secaoNum === 8 ? 'Enviar para Finalização <i class="ri-check-double-line"></i>' : 'Avançar <i class="ri-arrow-right-s-line"></i>';
+            btnAvancar.onclick = () => avancarSecao();
+
+            // Salva status da seção como completa
+            if (secao.status !== 'completa') {
+                secao.status = 'completa';
+                secao.dataHoraCompletada = new Date().toISOString();
+                saveDatabase();
+                if (window.useSupabase) {
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'completa', data_hora_completada: secao.dataHoraCompletada }).catch(e => console.warn(e));
+                }
+            }
+        } else {
+            btnAvancar.disabled = false; // habilitamos o clique para exibir o toast explicativo das pendências
+            btnAvancar.style.opacity = '0.5';
+            btnAvancar.innerHTML = `Bloqueado (${pendingItems.length} itens)`;
+            btnAvancar.onclick = () => {
+                const msg = "Atenção! Faltam preencher os seguintes requisitos obrigatórios nesta seção:\n- " + pendingItems.join("\n- ");
+                alert(msg);
+                showToast("Preencha todos os campos e fotos obrigatórias para avançar.", "warning");
+            };
+
+            // Status em andamento
+            if (secao.status === 'completa') {
+                secao.status = 'em_andamento';
+                secao.dataHoraCompletada = null;
+                saveDatabase();
+                if (window.useSupabase) {
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'em_andamento', data_hora_completada: null }).catch(e => console.warn(e));
+                }
+            }
+        }
+    }
+
+    // Ocultar/Exibir botão voltar se estiver na primeira seção
+    const btnAnterior = document.getElementById('btn-captura-anterior');
+    if (btnAnterior) {
+        btnAnterior.style.display = secaoNum === 1 ? 'none' : 'flex';
+    }
+}
+
+/**
+ * Função de auto-save de campos em debounce.
+ */
+function autoSaveCampo(campoId, valor) {
+    const secaoNum = window.activeSecaoNum;
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === secaoNum);
+
+    if (secao) {
+        secao.dadosJson = secao.dadosJson || {};
+        secao.dadosJson[campoId] = valor;
+        
+        document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Salvando rascunho...`;
+
+        if (window.autoSaveTimeout) {
+            clearTimeout(window.autoSaveTimeout);
+        }
+
+        window.autoSaveTimeout = setTimeout(() => {
+            saveDatabase();
+            if (window.useSupabase) {
+                sbUpdate('cautelares_secoes', secao.id, { dados_json: secao.dadosJson })
+                    .then(() => {
+                        document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
+                    })
+                    .catch(e => {
+                        document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-wifi-off-line" style="color:var(--danger);"></i> Offline (Fila Local)`;
+                        console.warn(e);
+                    });
+            } else {
+                document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Salvo Localmente`;
+            }
+            validarSecaoCompleta();
+        }, 500);
+    }
+}
+
+/**
+ * Avança para a próxima seção técnica.
+ */
+function avancarSecao() {
+    const current = window.activeSecaoNum;
+    if (current < 8) {
+        // Inicializa a próxima seção se necessário
+        const nextSecao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === (current + 1));
+        if (nextSecao && nextSecao.status === 'nao_iniciada') {
+            nextSecao.status = 'em_andamento';
+            saveDatabase();
+            if (window.useSupabase) {
+                sbUpdate('cautelares_secoes', nextSecao.id, { status: 'em_andamento' }).catch(e => console.warn(e));
+            }
+        }
+        renderCapturaSecao(current + 1);
+        
+        // Efeito vibratório se suportado
+        if (navigator.vibrate) navigator.vibrate(50);
+    } else {
+        // Seção VIII completa -> Enviar para Finalização
+        const confirmMsg = "Confirma o encerramento do preenchimento e envio desta vistoria para finalização na mesa?";
+        if (!confirm(confirmMsg)) return;
+
+        const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+
+        cautelar.status = "aguardando_finalizacao";
+        cautelar.dataHoraEnvio = new Date().toISOString();
+        os.status = "em_execucao"; // Status da OS continua em execução até finalização emitir o PDF
+
+        saveDatabase();
+
+        if (window.useSupabase) {
+            Promise.all([
+                sbUpdate('cautelares', cautelar.id, { status: cautelar.status, data_hora_envio: cautelar.dataHoraEnvio }),
+                sbUpdate('ordens_servico', os.id, { status: os.status })
+            ]).catch(e => console.warn(e));
+        }
+
+        logAudit("Registrar Cautelar", `Finalizou captura mobile da cautelar placa ${os.placa} e enviou para mesa.`);
+        showToast("Vistoria enviada com sucesso para finalização!", "success");
+
+        salvarESairCaptura();
+    }
+}
+
+/**
+ * Retrocede para a seção anterior.
+ */
+function voltarSecao() {
+    const current = window.activeSecaoNum;
+    if (current > 1) {
+        renderCapturaSecao(current - 1);
+    }
+}
+
+/**
+ * Confirmação de saída da vistoria.
+ */
+function confirmarSairCaptura() {
+    const confirmMsg = "Sua captura será salva como rascunho. Ao retornar, você continua de onde parou.\n\nDeseja realmente voltar para a lista?";
+    if (confirm(confirmMsg)) {
+        salvarESairCaptura();
+    }
+}
+
+/**
+ * Fecha a tela de captura e recarrega a listagem principal.
+ */
+function salvarESairCaptura() {
+    window.activeCautelarId = null;
+    
+    // Limpar timeouts
+    if (window.autoSaveTimeout) {
+        clearTimeout(window.autoSaveTimeout);
+    }
+
+    // Ocultar painel de captura e mostrar listagem
+    document.getElementById('cautelar-captura-view').style.display = 'none';
+    document.getElementById('cautelar-listagem-view').style.display = 'block';
+
+    // Recarregar listagem de forma reativa
+    renderRegistrarCautelarPage();
+}
+
+/**
+ * Captura a imagem tirada do input, comprime, salva em IndexedDB e atualiza a UI.
+ */
+async function handleFotoUpload(slotCodigo, event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`;
+
+    try {
+        // 1. Comprimir imagem e thumbnail no cliente
+        const blobOriginal = await compressImage(file, 1920, 0.85);
+        const blobThumb = await compressImage(file, 400, 0.70);
+
+        // Converte thumbnail para Base64 para salvar no LocalStorage cache de forma leve
+        const base64Thumb = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blobThumb);
+        });
+
+        // 2. Coletar metadados (GPS + Timestamp + User-Agent)
+        const metadados = {
+            device: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            exif: {
+                sizeBytes: file.size,
+                type: file.type,
+                name: file.name
+            }
+        };
+
+        // Solicita geolocalização por prompt se consentido
+        if (navigator.geolocation) {
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                });
+                metadados.gps = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy
+                };
+            } catch (gpsError) {
+                console.warn("Geolocalização não autorizada ou indisponível:", gpsError.message);
+            }
+        }
+
+        const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === window.activeSecaoNum);
+        
+        // 3. Persiste a foto original em Blob no IndexedDB local offline
+        await CautelarOfflineDB.saveFoto(window.activeCautelarId, slotCodigo, blobOriginal, metadados);
+
+        // 4. Cria e salva o registro CautelarFoto
+        const photoId = db.cautelares_fotos.length + 1;
+        const newPhoto = {
+            id: photoId,
+            secaoId: secao.id,
+            slotCodigo: slotCodigo,
+            slotNomeDisplay: slotCodigo.toUpperCase(),
+            urlOriginal: URL.createObjectURL(blobOriginal), // URL local para visualização instantânea
+            urlThumb: base64Thumb, // Thumb em base64 no localStorage
+            dataHoraCaptura: metadados.timestamp,
+            metadados_json: metadados,
+            ordemExibicao: 0
+        };
+
+        db.cautelares_fotos.push(newPhoto);
+        saveDatabase();
+
+        // 5. Se estiver online no Supabase, envia a foto para o bucket
+        if (window.useSupabase) {
+            try {
+                // Simulação do upload online de Storage do Supabase (Bucket: cautelares)
+                const storagePath = `cautelares/${window.activeCautelarId}/${slotCodigo}.jpg`;
+                const { data, error } = await supabaseClient.storage
+                    .from('cautelares')
+                    .upload(storagePath, blobOriginal, { upsert: true });
+
+                if (!error) {
+                    const { data: publicUrlData } = supabaseClient.storage
+                        .from('cautelares')
+                        .getPublicUrl(storagePath);
+                    newPhoto.urlOriginal = publicUrlData.publicUrl;
+                }
+
+                await sbInsert('cautelares_fotos', {
+                    secao_id: newPhoto.secaoId,
+                    slot_codigo: newPhoto.slotCodigo,
+                    slot_nome_display: newPhoto.slotNomeDisplay,
+                    url_original: newPhoto.urlOriginal,
+                    url_thumb: newPhoto.urlThumb,
+                    data_hora_captura: newPhoto.dataHoraCaptura,
+                    metadados: newPhoto.metadados_json
+                });
+
+                document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
+            } catch (supaErr) {
+                console.warn("Falha no upload online do Supabase. Salvo em fila local.", supaErr);
+                document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-wifi-off-line" style="color:var(--danger);"></i> Offline (Salvo Local)`;
+            }
+        } else {
+            document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Salvo Localmente`;
+        }
+
+        showToast("Foto capturada com sucesso!", "success");
+
+        // Recarrega o slot de fotos na tela
+        renderCapturaSecao(window.activeSecaoNum);
+
+    } catch (e) {
+        console.error("Erro no processamento da imagem:", e);
+        showToast("Falha ao capturar a foto. Tente novamente.", "error");
+        document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
+    }
+}
+
+/**
+ * Remove a foto do slot e apaga do banco de dados e IndexedDB.
+ */
+async function deleteFotoCaptura(slotCodigo) {
+    const confirmMsg = "Deseja realmente apagar esta foto?";
+    if (!confirm(confirmMsg)) return;
+
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === window.activeSecaoNum);
+    const photoIdx = db.cautelares_fotos.findIndex(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+
+    if (photoIdx !== -1) {
+        const photo = db.cautelares_fotos[photoIdx];
+        
+        // 1. Apaga do IndexedDB
+        await CautelarOfflineDB.deleteFoto(window.activeCautelarId, slotCodigo);
+
+        // 2. Apaga da base online do Supabase
+        if (window.useSupabase) {
+            sbDelete('cautelares_fotos', photo.id).catch(e => console.warn(e));
+        }
+
+        // 3. Remove localmente
+        db.cautelares_fotos.splice(photoIdx, 1);
+        saveDatabase();
+
+        showToast("Foto excluída com sucesso.", "info");
+
+        // Recarrega a seção
+        renderCapturaSecao(window.activeSecaoNum);
+    }
+}
+
+/**
+ * Comprime o arquivo de imagem usando canvas no cliente.
+ */
+function compressImage(file, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = (err) => reject(err);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onerror = (err) => reject(err);
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxSide) {
+                        height *= maxSide / width;
+                        width = maxSide;
+                    }
+                } else {
+                    if (height > maxSide) {
+                        width *= maxSide / height;
+                        height = maxSide;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error("Canvas blob conversion failed"));
+                    }
+                }, 'image/jpeg', quality);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// ============================================================================
+// CANVAS DE ASSINATURA DIGITAL (SEÇÃO VIII)
+// ============================================================================
+
+function initSignatureCanvas() {
+    const canvas = document.getElementById('signature-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Configura tamanho correto no canvas interno
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    ctx.strokeStyle = '#050811'; // Cor navy profunda para a assinatura
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function getPos(e) {
+        const r = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - r.left,
+            y: clientY - r.top
+        };
+    }
+
+    function startDraw(e) {
+        drawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+        e.preventDefault();
+    }
+
+    function draw(e) {
+        if (!drawing) return;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        e.preventDefault();
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function stopDraw() {
+        drawing = false;
+        saveSignatureCanvas(false); // Auto-salva rascunho sem alerta
+    }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
+
+    canvas.addEventListener('touchstart', startDraw);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDraw);
+    
+    // Desenha de volta se houver rascunho salvo
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === 8);
+    if (secao && secao.dadosJson && secao.dadosJson.signatureBase64) {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        };
+        img.src = secao.dadosJson.signatureBase64;
+    }
+}
+
+function clearSignatureCanvas() {
+    const canvas = document.getElementById('signature-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    autoSaveCampo('signatureBase64', null);
+    document.getElementById('assinatura-ok-msg').style.display = 'none';
+}
+
+function saveSignatureCanvas(showAlert = true) {
+    const canvas = document.getElementById('signature-canvas');
+    if (!canvas) return;
+    
+    // Verifica se o canvas está vazio (simplificado)
+    const buffer = new Uint32Array(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    const hasData = buffer.some(color => color !== 0);
+
+    if (!hasData) {
+        if (showAlert) showToast("Por favor, assine no quadro branco antes de confirmar.", "warning");
+        return;
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    autoSaveCampo('signatureBase64', dataUrl);
+
+    document.getElementById('assinatura-ok-msg').style.display = 'block';
+    if (showAlert) showToast("Assinatura confirmada com sucesso!", "success");
+}
+
+// ============================================================================
+// STUBS E PLACEHOLDERS RESTANTES (MILESTONE 3)
+// ============================================================================
 
 /**
  * Abre a visualização resumida (modo leitura) da Cautelar.
@@ -8193,4 +9509,4 @@ function abrirFinalizacaoDesktop(cautelarId) {
 function exibirPdfCautelar(cautelarId) {
     showToast("Geração e download do laudo PDF serão ativados no Milestone 3.", "info");
 }
-// cache bust check
+
