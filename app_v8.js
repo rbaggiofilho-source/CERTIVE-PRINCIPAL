@@ -435,6 +435,42 @@ function loadDatabase() {
     db.cautelares_fotos = db.cautelares_fotos || [];
     db.cautelares_pesquisas = db.cautelares_pesquisas || [];
 
+    // Garantir permissões das cautelares nos perfis locais (migração de LocalStorage/Supabase)
+    let dbUpdated = false;
+    db.operadores.forEach(op => {
+        op.permissoes = op.permissoes || [];
+        if (op.funcao === "Gerente Geral") {
+            const required = ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"];
+            required.forEach(p => {
+                if (!op.permissoes.includes(p)) {
+                    op.permissoes.push(p);
+                    dbUpdated = true;
+                }
+            });
+        } else if (op.funcao === "Atendente") {
+            const required = ["registrar_cautelar", "finalizar_cautelar"];
+            required.forEach(p => {
+                if (!op.permissoes.includes(p)) {
+                    op.permissoes.push(p);
+                    dbUpdated = true;
+                }
+            });
+        } else if (op.funcao === "Vistoriador de Campo" || op.funcao === "Vistoriador Sênior") {
+            if (!op.permissoes.includes("registrar_cautelar")) {
+                op.permissoes.push("registrar_cautelar");
+                dbUpdated = true;
+            }
+            if (op.funcao === "Vistoriador Sênior" && !op.permissoes.includes("finalizar_cautelar")) {
+                op.permissoes.push("finalizar_cautelar");
+                dbUpdated = true;
+            }
+        }
+    });
+
+    if (dbUpdated) {
+        saveDatabase();
+    }
+
     // Complementary Cautelares seed for testing
     if (db.cautelares.length === 0) {
         setTimeout(() => {
@@ -915,8 +951,17 @@ function checkSession() {
     const sessionData = sessionStorage.getItem('certive_session');
     const loginOverlay = document.getElementById('login-overlay');
     
-    if (sessionData) {
         currentSession = JSON.parse(sessionData);
+        
+        // Sincroniza permissões da sessão com o operador atualizado no banco
+        if (db && db.operadores) {
+            const matchedOp = db.operadores.find(o => o.id === currentSession.id);
+            if (matchedOp) {
+                currentSession.permissoes = matchedOp.permissoes || [];
+                sessionStorage.setItem('certive_session', JSON.stringify(currentSession));
+            }
+        }
+
         loginOverlay.classList.add('hidden');
         
         // Locked to operator's designated branch if not Admin
