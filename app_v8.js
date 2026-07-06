@@ -7801,6 +7801,12 @@ function isCautelarService(servicoId, servicoNome) {
 function updateCautelarPendingBadge() {
     if (!db || !db.ordens_servico || !currentSession) return;
 
+    // Garantia defensiva contra arrays undefined
+    db.cautelares = db.cautelares || [];
+    db.cautelares_secoes = db.cautelares_secoes || [];
+    db.cautelares_fotos = db.cautelares_fotos || [];
+    db.cautelares_pesquisas = db.cautelares_pesquisas || [];
+
     // Filtra OSs de Cautelar pendentes na unidade ativa
     const activeOSs = db.ordens_servico.filter(o => 
         o.unidadeId === activeUnitId && 
@@ -7872,6 +7878,12 @@ function renderRegistrarCautelarPage() {
  * Filtra as cautelares conforme os filtros de placa, status e vistoriador.
  */
 function filterCautelares() {
+    // Garantia defensiva contra arrays undefined
+    db.cautelares = db.cautelares || [];
+    db.cautelares_secoes = db.cautelares_secoes || [];
+    db.cautelares_fotos = db.cautelares_fotos || [];
+    db.cautelares_pesquisas = db.cautelares_pesquisas || [];
+
     const queryPlaca = (document.getElementById('caut-filtro-placa')?.value || '').trim().toUpperCase();
     const filterStatus = document.getElementById('caut-filtro-status')?.value || 'todos';
     const filterVistoriador = document.getElementById('caut-filtro-vistoriador')?.value || 'todos';

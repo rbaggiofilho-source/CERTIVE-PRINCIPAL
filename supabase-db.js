@@ -292,6 +292,38 @@ async function loadAllFromSupabase() {
         db.auditoria = auditoria;
         db.solicitantes_parceiros = solicitantes_parceiros || [];
 
+        // Tabelas novas do Módulo Cautelar - carregamento defensivo
+        let cautelares = [];
+        let cautelares_secoes = [];
+        let cautelares_fotos = [];
+        let cautelares_pesquisas = [];
+
+        try {
+            cautelares = await sbSelectAll('cautelares');
+        } catch (e) {
+            console.warn("⚠️ Tabela cautelares indisponível no Supabase. Usando array vazio.", e.message);
+        }
+        try {
+            cautelares_secoes = await sbSelectAll('cautelares_secoes');
+        } catch (e) {
+            console.warn("⚠️ Tabela cautelares_secoes indisponível no Supabase. Usando array vazio.", e.message);
+        }
+        try {
+            cautelares_fotos = await sbSelectAll('cautelares_fotos');
+        } catch (e) {
+            console.warn("⚠️ Tabela cautelares_fotos indisponível no Supabase. Usando array vazio.", e.message);
+        }
+        try {
+            cautelares_pesquisas = await sbSelectAll('cautelares_pesquisas');
+        } catch (e) {
+            console.warn("⚠️ Tabela cautelares_pesquisas indisponível no Supabase. Usando array vazio.", e.message);
+        }
+
+        db.cautelares = cautelares || [];
+        db.cautelares_secoes = cautelares_secoes || [];
+        db.cautelares_fotos = cautelares_fotos || [];
+        db.cautelares_pesquisas = cautelares_pesquisas || [];
+
         // Process Portarias UF
         db.portarias_uf = {};
         (portarias_uf || []).forEach(p => {
@@ -318,6 +350,11 @@ async function loadAllFromSupabase() {
         db.faturas.forEach(f => normalizeRecord('faturas', f));
         db.parceiros.forEach(p => normalizeRecord('parceiros', p));
         (db.solicitantes_parceiros || []).forEach(s => normalizeRecord('solicitantes_parceiros', s));
+        
+        db.cautelares.forEach(c => normalizeRecord('cautelares', c));
+        db.cautelares_secoes.forEach(cs => normalizeRecord('cautelares_secoes', cs));
+        db.cautelares_fotos.forEach(cf => normalizeRecord('cautelares_fotos', cf));
+        db.cautelares_pesquisas.forEach(cp => normalizeRecord('cautelares_pesquisas', cp));
 
         console.log(`✅ Dados carregados do Supabase: ${ordens_servico.length} OSs, ${caixa_diario.length} caixas, ${faturas.length} faturas`);
         return true;
