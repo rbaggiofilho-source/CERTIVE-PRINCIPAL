@@ -78,6 +78,10 @@
             <div class="nav-item active" onclick="navigateTo('atendimento')" id="nav-atendimento">
                 <i class="ri-customer-service-2-line"></i> Atendimento
             </div>
+            <div class="nav-item" onclick="navigateTo('registrar-cautelar')" id="nav-registrar-cautelar" style="display: flex; align-items: center; gap: 8px;">
+                <i class="ri-survey-line"></i> Registrar Cautelar
+                <span class="sidebar-badge" id="cautelar-pending-badge" style="background: var(--accent); color: var(--bg-sidebar); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 10px; margin-left: auto; display: none;">0</span>
+            </div>
             <div class="nav-item" onclick="navigateTo('caixa')" id="nav-caixa">
                 <i class="ri-money-dollar-box-line"></i> Caixa Diário
             </div>
@@ -374,6 +378,89 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: REGISTRAR CAUTELAR ================= -->
+            <section class="section-panel" id="panel-registrar-cautelar">
+                <!-- LISTAGEM DE CAUTELARES -->
+                <div id="cautelar-listagem-view">
+                    <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
+                        <div>
+                            <h2>📊 Registrar Cautelar Veicular</h2>
+                            <p>Capture informações estruturais e emita laudos cautelares.</p>
+                        </div>
+                        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                            <span style="color: var(--accent);"><i class="ri-survey-line" style="font-size: 20px;"></i></span>
+                            <span>Pendentes: <strong id="cautelar-header-counter" style="color: var(--accent);">0</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="filter-bar" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end;">
+                        <div class="form-group" style="margin: 0; min-width: 180px;">
+                            <label for="caut-filtro-placa">Buscar por Placa</label>
+                            <input type="text" id="caut-filtro-placa" placeholder="Placa (ex: ABC1234)..." oninput="filterCautelares()" style="box-sizing: border-box; width: 100%;">
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 180px;">
+                            <label for="caut-filtro-status">Filtrar por Status</label>
+                            <select id="caut-filtro-status" onchange="filterCautelares()">
+                                <option value="todos">Todos os Status</option>
+                                <option value="aguardando_inicio">Aguardando Início</option>
+                                <option value="em_captura">Em Captura</option>
+                                <option value="aguardando_finalizacao">Aguardando Finalização</option>
+                                <option value="finalizada">Finalizada</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 180px;">
+                            <label for="caut-filtro-vistoriador">Vistoriador</label>
+                            <select id="caut-filtro-vistoriador" onchange="filterCautelares()">
+                                <option value="todos">Todos os Vistoriadores</option>
+                                <!-- JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Desktop -->
+                    <div class="table-container desktop-only-cautelar" id="cautelar-desktop-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Placa</th>
+                                    <th>Marca / Modelo</th>
+                                    <th>Cliente</th>
+                                    <th>Status</th>
+                                    <th>Vistoriador</th>
+                                    <th>Iniciada Em</th>
+                                    <th style="text-align: center; width: 150px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cautelar-list-tbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Cards Mobile -->
+                    <div class="mobile-only-cautelar" id="cautelar-mobile-cards-container" style="display: none; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                        <!-- JS -->
+                    </div>
+
+                    <!-- Estado Vazio -->
+                    <div class="empty-state" id="cautelar-empty-state" style="display: none; padding: 48px 24px; text-align: center; color: var(--text-secondary);">
+                        <i class="ri-survey-line" style="font-size: 40px; color: var(--text-secondary); opacity: 0.5;"></i>
+                        <p style="margin-top: 12px; font-weight: 500;">Nenhuma vistoria cautelar encontrada para os filtros selecionados.</p>
+                    </div>
+                </div>
+
+                <!-- FLUXO DE CAPTURA MOBILE (MILESTONE 2) -->
+                <div id="cautelar-captura-view" style="display: none;">
+                    <!-- Placeholder para Milestone 2 -->
+                </div>
+
+                <!-- TELA DE FINALIZAÇÃO DESKTOP (MILESTONE 3) -->
+                <div id="cautelar-finalizacao-view" style="display: none;">
+                    <!-- Placeholder para Milestone 3 -->
                 </div>
             </section>
 

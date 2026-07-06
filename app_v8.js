@@ -200,11 +200,13 @@ function initDatabase() {
 
         // 4. Seed Operators (Operadores e Permissões)
         db.operadores = [
-            { id: 1, nome: "Ricardo Administrador", login: "admin", senha: "admin123", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true },
-            { id: 2, nome: "Ana Atendente", login: "atendente", senha: "atendente123", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa"], ativo: true },
+            { id: 1, nome: "Ricardo Administrador", login: "admin", senha: "admin123", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 2, nome: "Ana Atendente", login: "atendente", senha: "atendente123", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa", "registrar_cautelar", "finalizar_cautelar"], ativo: true },
             { id: 3, nome: "Carlos Financeiro", login: "financeiro", senha: "financeiro123", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
-            { id: 4, nome: "Jonas Kroll", login: "Jkroll", senha: "070142", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true },
-            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", senha: "135586", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi"], ativo: true }
+            { id: 4, nome: "Jonas Kroll", login: "Jkroll", senha: "070142", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", senha: "135586", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 6, nome: "Pedro Vistoriador Júnior", login: "vistoriador", senha: "vistoriador123", funcao: "Vistoriador de Campo", unidadeId: 1, permissoes: ["registrar_cautelar"], ativo: true },
+            { id: 7, nome: "Silvio Vistoriador Sênior", login: "senior", senha: "senior123", funcao: "Vistoriador Sênior", unidadeId: 1, permissoes: ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true }
         ];
 
         // 5. Seed Partners (Parceiros Conveniados)
@@ -428,6 +430,17 @@ function loadDatabase() {
     db.faturas = db.faturas || [];
     db.auditoria = db.auditoria || [];
     db.solicitantes_parceiros = db.solicitantes_parceiros || [];
+    db.cautelares = db.cautelares || [];
+    db.cautelares_secoes = db.cautelares_secoes || [];
+    db.cautelares_fotos = db.cautelares_fotos || [];
+    db.cautelares_pesquisas = db.cautelares_pesquisas || [];
+
+    // Complementary Cautelares seed for testing
+    if (db.cautelares.length === 0) {
+        setTimeout(() => {
+            if (typeof seedCautelares === 'function') seedCautelares();
+        }, 100);
+    }
 }
 
 // Seed 30 Days of realistic business data
@@ -922,10 +935,15 @@ function checkSession() {
         unitSelector.value = activeUnitId;
 
         enforceOperatorPermissions();
+        if (typeof updateCautelarPendingBadge === 'function') {
+            updateCautelarPendingBadge();
+        }
         
         // Direct to first permitted page
         if (currentSession.permissoes.includes("abertura_os")) {
             navigateTo('atendimento');
+        } else if (currentSession.permissoes.includes("registrar_cautelar")) {
+            navigateTo('registrar-cautelar');
         } else if (currentSession.permissoes.includes("caixa")) {
             navigateTo('caixa');
         } else if (currentSession.permissoes.includes("faturamento")) {
@@ -981,6 +999,7 @@ function handleLogout() {
 function enforceOperatorPermissions() {
     const navItems = {
         'nav-atendimento': 'abertura_os',
+        'nav-registrar-cautelar': 'registrar_cautelar',
         'nav-caixa': 'caixa',
         'nav-historico': 'caixa',
         'nav-faturamento': 'faturamento',
@@ -1009,6 +1028,10 @@ function renderUnitSelectorOptions() {
 function changeActiveUnit(unitId) {
     activeUnitId = parseInt(unitId);
     showToast(`Unidade alterada para: ${db.unidades.find(u => u.id === activeUnitId).nome}`, 'info');
+    
+    if (typeof updateCautelarPendingBadge === 'function') {
+        updateCautelarPendingBadge();
+    }
     
     // Refresh current active view
     const currentActiveNav = document.querySelector('.nav-item.active');
@@ -1043,6 +1066,7 @@ function navigateTo(pageId) {
     // Check permission for navigation
     const navPermissions = {
         'atendimento': 'abertura_os',
+        'registrar-cautelar': 'registrar_cautelar',
         'caixa': 'caixa',
         'historico': 'caixa',
         'faturamento': 'faturamento',
@@ -1079,6 +1103,8 @@ function navigateTo(pageId) {
     // Load page data
     if (pageId === 'atendimento') {
         renderAtendimentoPage();
+    } else if (pageId === 'registrar-cautelar') {
+        renderRegistrarCautelarPage();
     } else if (pageId === 'caixa') {
         if (window.useSupabase) {
             // Sincronizar em tempo real caixas e movimentos antes de renderizar
@@ -7570,4 +7596,597 @@ async function closeAndExitReopenMode() {
     } finally {
     }
 }
+        navigateTo('atendimento');
+        renderAtendimentoPage();
 
+    } catch (err) {
+        console.error("Erro ao encerrar modo reaberto:", err);
+        showToast("Erro ao processar fechamento e cascata de saldos.", "error");
+    } finally {
+    }
+}
+
+// ============================================================================
+// MÓDULO: REGISTRAR CAUTELAR (MILESTONE 1)
+// ============================================================================
+
+/**
+ * Seed complementar de vistorias cautelares para testes locais.
+ * Roda na inicialização se db.cautelares estiver vazio.
+ */
+function seedCautelares() {
+    if (!db || !db.ordens_servico || (db.cautelares && db.cautelares.length > 0)) return;
+
+    let nextOsId = db.ordens_servico.reduce((max, o) => Math.max(max, o.id), 0) + 1;
+    let nextCautelarId = 1;
+
+    // OS 1: Placa QJB-7962 (Aguardando Início)
+    const os1 = {
+        id: nextOsId++,
+        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
+        criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(), // 2h atrás
+        criadoPor: "Ana Atendente",
+        unidadeId: 1,
+        clienteTipo: "particular",
+        parceiroId: null,
+        clienteNome: "JOÃO SILVA MENDES",
+        clienteCpfCnpj: "123.456.789-00",
+        clienteCelular: "(48) 99999-1111",
+        placa: "QJB-7962",
+        renavam: "12345678901",
+        servicoId: 4,
+        servicoNome: "VISTORIA CAUTELAR",
+        valor: 350.00,
+        observacoes: "VW GOL 2020 BRANCO",
+        pago: true,
+        formaPagamento: "pix",
+        docVeiculoApresentado: true,
+        docIdentificacaoApresentado: true,
+        status: "paga",
+        finalizadoEm: null,
+        finalizadoPor: null
+    };
+    db.ordens_servico.push(os1);
+
+    // OS 2: Placa QHT-2C78 (Em Captura)
+    const os2 = {
+        id: nextOsId++,
+        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
+        criadoEm: new Date(Date.now() - 3600000 * 5).toISOString(), // 5h atrás
+        criadoPor: "Ana Atendente",
+        unidadeId: 1,
+        clienteTipo: "parceiro",
+        parceiroId: 1,
+        clienteNome: "RICARDO ANTUNES",
+        clienteCpfCnpj: "987.654.321-99",
+        clienteCelular: "(48) 98888-2222",
+        placa: "QHT-2C78",
+        renavam: "98765432109",
+        servicoId: 7,
+        servicoNome: "VISTORIA COMBO",
+        valor: 150.00,
+        observacoes: "FIAT UNO 2018 CINZA",
+        pago: true,
+        formaPagamento: "faturamento",
+        docVeiculoApresentado: true,
+        docIdentificacaoApresentado: true,
+        status: "em_execucao",
+        finalizadoEm: null,
+        finalizadoPor: null
+    };
+    db.ordens_servico.push(os2);
+
+    const cautelar2 = {
+        id: nextCautelarId++,
+        osId: os2.id,
+        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
+        status: "em_captura",
+        vistoriadorId: 6, // Pedro Vistoriador Júnior
+        finalizadoPorId: null,
+        dataHoraInicio: new Date(Date.now() - 3600000 * 4.5).toISOString(),
+        dataHoraEnvio: null,
+        dataHoraFinalizacao: null,
+        parecerConsolidado: null,
+        parecerTexto: ""
+    };
+    db.cautelares.push(cautelar2);
+
+    // OS 3: Placa MHX-9981 (Finalizada)
+    const os3 = {
+        id: nextOsId++,
+        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
+        criadoEm: new Date(Date.now() - 3600000 * 48).toISOString(), // 2 dias atrás
+        criadoPor: "Ana Atendente",
+        unidadeId: 1,
+        clienteTipo: "particular",
+        parceiroId: null,
+        clienteNome: "MARIA MEDEIROS",
+        clienteCpfCnpj: "456.789.123-11",
+        clienteCelular: "(48) 97777-3333",
+        placa: "MHX-9981",
+        renavam: "45678912301",
+        servicoId: 4,
+        servicoNome: "VISTORIA CAUTELAR",
+        valor: 350.00,
+        observacoes: "TOYOTA COROLLA 2022 PRETO",
+        pago: true,
+        formaPagamento: "debito",
+        docVeiculoApresentado: true,
+        docIdentificacaoApresentado: true,
+        status: "concluida_aprovada",
+        finalizadoEm: new Date(Date.now() - 3600000 * 46).toISOString(),
+        finalizadoPor: "Silvio Vistoriador Sênior"
+    };
+    db.ordens_servico.push(os3);
+
+    const cautelar3 = {
+        id: nextCautelarId++,
+        osId: os3.id,
+        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
+        status: "finalizada",
+        vistoriadorId: 7, // Silvio Sênior
+        finalizadoPorId: 7,
+        dataHoraInicio: new Date(Date.now() - 3600000 * 47.5).toISOString(),
+        dataHoraEnvio: new Date(Date.now() - 3600000 * 46.5).toISOString(),
+        dataHoraFinalizacao: new Date(Date.now() - 3600000 * 46).toISOString(),
+        parecerConsolidado: "conforme",
+        parecerTexto: "VEÍCULO EM EXCELENTE ESTADO ESTRUTURAL E DE PINTURA. LAUDO APROVADO.",
+        pdfUrl: "#",
+        pdfHash: "8f5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e2"
+    };
+    db.cautelares.push(cautelar3);
+
+    // OS 4: Placa BEE-4C99 (Aguardando Finalização)
+    const os4 = {
+        id: nextOsId++,
+        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
+        criadoEm: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 dia atrás
+        criadoPor: "Ana Atendente",
+        unidadeId: 1,
+        clienteTipo: "parceiro",
+        parceiroId: 2,
+        clienteNome: "JULIO CESAR DOS SANTOS",
+        clienteCpfCnpj: "789.123.456-22",
+        clienteCelular: "(48) 96666-4444",
+        placa: "BEE-4C99",
+        renavam: "78912345602",
+        servicoId: 7,
+        servicoNome: "VISTORIA COMBO",
+        valor: 160.00,
+        observacoes: "CHEVROLET ONIX 2021 PRATA",
+        pago: true,
+        formaPagamento: "faturamento",
+        docVeiculoApresentado: true,
+        docIdentificacaoApresentado: true,
+        status: "em_execucao",
+        finalizadoEm: null,
+        finalizadoPor: null
+    };
+    db.ordens_servico.push(os4);
+
+    const cautelar4 = {
+        id: nextCautelarId++,
+        osId: os4.id,
+        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
+        status: "aguardando_finalizacao",
+        vistoriadorId: 6, // Pedro Júnior
+        finalizadoPorId: null,
+        dataHoraInicio: new Date(Date.now() - 3600000 * 23.5).toISOString(),
+        dataHoraEnvio: new Date(Date.now() - 3600000 * 23).toISOString(),
+        dataHoraFinalizacao: null,
+        parecerConsolidado: "nao_conforme",
+        parecerTexto: "ATENÇÃO: LONGARINA TRASEIRA ESQUERDA APRESENTA SINAIS DE REPARO POR SOLDA. ETIQUETAS ETA INCOMPATÍVEIS."
+    };
+    db.cautelares.push(cautelar4);
+
+    // Salvar no LocalStorage e sincronizar com Supabase se necessário
+    saveDatabase();
+    
+    if (window.useSupabase) {
+        Promise.all([
+            sbInsert('ordens_servico', os1),
+            sbInsert('ordens_servico', os2),
+            sbInsert('ordens_servico', os3),
+            sbInsert('ordens_servico', os4),
+            sbInsert('cautelares', cautelar2),
+            sbInsert('cautelares', cautelar3),
+            sbInsert('cautelares', cautelar4)
+        ]).catch(e => console.warn("Supabase seed warning:", e));
+    }
+}
+
+/**
+ * Verifica se o serviço é do tipo Vistoria Cautelar.
+ */
+function isCautelarService(servicoId, servicoNome) {
+    const id = parseInt(servicoId);
+    const name = (servicoNome || "").toUpperCase();
+    return id === 4 || id === 7 || name.includes("CAUTELAR") || name.includes("COMBO");
+}
+
+/**
+ * Atualiza o badge numérico no sidebar e o contador do cabeçalho.
+ */
+function updateCautelarPendingBadge() {
+    if (!db || !db.ordens_servico || !currentSession) return;
+
+    // Filtra OSs de Cautelar pendentes na unidade ativa
+    const activeOSs = db.ordens_servico.filter(o => 
+        o.unidadeId === activeUnitId && 
+        o.status !== 'cancelada' && 
+        isCautelarService(o.servicoId, o.servicoNome)
+    );
+
+    let pendingCount = 0;
+
+    activeOSs.forEach(o => {
+        const cautelar = db.cautelares.find(c => c.osId === o.id);
+        const status = cautelar ? cautelar.status : 'aguardando_inicio';
+
+        // Regra de perfil: Vistoriador Júnior só conta/vê as próprias ou aguardando início
+        const hasAdminPermission = currentSession.permissoes.includes('cautelar_administrar');
+        const isAssignedToMe = cautelar && cautelar.vistoriadorId === currentSession.id;
+        const isNotAssigned = !cautelar || !cautelar.vistoriadorId;
+
+        if (status === 'aguardando_inicio' || status === 'em_captura') {
+            if (hasAdminPermission || isAssignedToMe || isNotAssigned) {
+                pendingCount++;
+            }
+        }
+    });
+
+    const badge = document.getElementById('cautelar-pending-badge');
+    if (badge) {
+        if (pendingCount > 0) {
+            badge.textContent = pendingCount;
+            badge.style.display = 'block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    const headerCounter = document.getElementById('cautelar-header-counter');
+    if (headerCounter) {
+        headerCounter.textContent = pendingCount;
+    }
+}
+
+/**
+ * Renderiza a página do Módulo de Cautelar (Listagem).
+ */
+function renderRegistrarCautelarPage() {
+    if (!db || !currentSession) return;
+
+    // 1. Atualizar o badge pendente
+    updateCautelarPendingBadge();
+
+    // 2. Preencher o seletor de Vistoriadores do Filtro
+    const filterVistoriador = document.getElementById('caut-filtro-vistoriador');
+    if (filterVistoriador) {
+        // Encontrar todos os operadores com a permissão de registrar_cautelar
+        const vistoriadores = db.operadores.filter(op => 
+            op.ativo && op.permissoes.includes('registrar_cautelar')
+        );
+
+        let options = '<option value="todos">Todos os Vistoriadores</option>';
+        options += vistoriadores.map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+        filterVistoriador.innerHTML = options;
+    }
+
+    // 3. Chamar a filtragem e desenho inicial das tabelas
+    filterCautelares();
+}
+
+/**
+ * Filtra as cautelares conforme os filtros de placa, status e vistoriador.
+ */
+function filterCautelares() {
+    const queryPlaca = (document.getElementById('caut-filtro-placa')?.value || '').trim().toUpperCase();
+    const filterStatus = document.getElementById('caut-filtro-status')?.value || 'todos';
+    const filterVistoriador = document.getElementById('caut-filtro-vistoriador')?.value || 'todos';
+
+    const hasAdminPermission = currentSession.permissoes.includes('cautelar_administrar');
+    const myId = currentSession.id;
+
+    // Filtra todas as OSs cautelares da unidade ativa
+    const activeOSs = db.ordens_servico.filter(o => 
+        o.unidadeId === activeUnitId && 
+        o.status !== 'cancelada' && 
+        isCautelarService(o.servicoId, o.servicoNome)
+    );
+
+    const listData = [];
+
+    activeOSs.forEach(o => {
+        const cautelar = db.cautelares.find(c => c.osId === o.id);
+        const status = cautelar ? cautelar.status : 'aguardando_inicio';
+        const vistoriador = cautelar ? (db.operadores.find(op => op.id === cautelar.vistoriadorId)?.nome || 'Não definido') : 'Não iniciado';
+        const vistoriadorId = cautelar ? cautelar.vistoriadorId : null;
+
+        // Regra de Visibilidade do Vistoriador Júnior: apenas as dele ou sem dono
+        if (!hasAdminPermission && status !== 'finalizada') {
+            const isMyCautelar = cautelar && vistoriadorId === myId;
+            const isNotStarted = !cautelar;
+            if (!isMyCautelar && !isNotStarted) {
+                return; // Oculta cautelares de outros vistoriadores em andamento
+            }
+        }
+
+        // Filtro por Placa
+        if (queryPlaca && !o.placa.includes(queryPlaca)) return;
+
+        // Filtro por Status
+        if (filterStatus !== 'todos' && status !== filterStatus) return;
+
+        // Filtro por Vistoriador
+        if (filterVistoriador !== 'todos') {
+            const fVistId = parseInt(filterVistoriador);
+            if (vistoriadorId !== fVistId) return;
+        }
+
+        const iniciadoEm = cautelar && cautelar.dataHoraInicio 
+            ? new Date(cautelar.dataHoraInicio).toLocaleDateString('pt-BR') + ' ' + new Date(cautelar.dataHoraInicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
+            : '-';
+
+        listData.push({
+            os: o,
+            cautelar: cautelar,
+            status: status,
+            vistoriador: vistoriador,
+            iniciadoEm: iniciadoEm,
+            criadoEmRaw: new Date(o.criadoEm)
+        });
+    });
+
+    // Ordenação FIFO (mais antiga primeiro)
+    listData.sort((a, b) => a.criadoEmRaw - b.criadoEmRaw);
+
+    // Renderiza a lista
+    const tbody = document.getElementById('cautelar-list-tbody');
+    const mobileContainer = document.getElementById('cautelar-mobile-cards-container');
+    const emptyState = document.getElementById('cautelar-empty-state');
+    const desktopTable = document.getElementById('cautelar-desktop-table-container');
+
+    if (listData.length === 0) {
+        if (tbody) tbody.innerHTML = '';
+        if (mobileContainer) mobileContainer.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        if (desktopTable) desktopTable.style.display = 'none';
+        if (mobileContainer) mobileContainer.style.display = 'none';
+        return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+    if (desktopTable) desktopTable.style.display = 'block';
+    
+    // Forçar exibição do container responsivo adequado
+    const isMobile = window.innerWidth <= 768;
+    if (mobileContainer) {
+        mobileContainer.style.display = isMobile ? 'flex' : 'none';
+    }
+    if (desktopTable) {
+        desktopTable.style.display = isMobile ? 'none' : 'block';
+    }
+
+    // Renderizar Desktop
+    if (tbody) {
+        tbody.innerHTML = listData.map(item => {
+            const actionBtn = getCautelarActionButton(item);
+            const statusBadge = getCautelarStatusBadge(item.status);
+
+            return `
+                <tr>
+                    <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${item.os.placa}</td>
+                    <td>${item.os.observacoes}</td>
+                    <td>${item.os.clienteNome}</td>
+                    <td>${statusBadge}</td>
+                    <td><i class="ri-user-line" style="font-size: 12px; color: var(--text-secondary); margin-right: 4px;"></i>${item.vistoriador}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${item.iniciadoEm}</td>
+                    <td style="text-align: center;">${actionBtn}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Renderizar Mobile
+    if (mobileContainer) {
+        mobileContainer.innerHTML = listData.map(item => {
+            const actionBtn = getCautelarActionButton(item);
+            const statusBadge = getCautelarStatusBadge(item.status);
+
+            return `
+                <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 16px;">${item.os.placa}</span>
+                        ${statusBadge}
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
+                        <span><strong>Veículo:</strong> ${item.os.observacoes}</span>
+                        <span><strong>Cliente:</strong> ${item.os.clienteNome}</span>
+                        <span><strong>Vistoriador:</strong> ${item.vistoriador}</span>
+                        <span><strong>Iniciada em:</strong> ${item.iniciadoEm}</span>
+                    </div>
+                    <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; justify-content: flex-end;">
+                        ${actionBtn}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+/**
+ * Retorna o HTML do badge de status correspondente à Cautelar.
+ */
+function getCautelarStatusBadge(status) {
+    switch (status) {
+        case 'aguardando_inicio':
+            return `<span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2);">Aguardando Início</span>`;
+        case 'em_captura':
+            return `<span class="badge badge-progress"><span class="badge-dot"></span>Em Captura</span>`;
+        case 'aguardando_finalizacao':
+            return `<span class="badge badge-waiting"><span class="badge-dot"></span>Aguardando Mesa</span>`;
+        case 'finalizada':
+            return `<span class="badge badge-done"><span class="badge-dot"></span>Laudo Emitido</span>`;
+        default:
+            return `<span class="badge">${status}</span>`;
+    }
+}
+
+/**
+ * Retorna o botão de ação correspondente ao estado e permissão do usuário.
+ */
+function getCautelarActionButton(item) {
+    const hasAdmin = currentSession.permissoes.includes('cautelar_administrar');
+    const hasFinalizar = currentSession.permissoes.includes('finalizar_cautelar');
+    const myId = currentSession.id;
+
+    if (item.status === 'aguardando_inicio') {
+        return `<button class="btn btn-secondary btn-sm" onclick="iniciarCautelar(${item.os.id})" style="font-weight: 700; width: 100%;"><i class="ri-play-fill"></i> Iniciar</button>`;
+    }
+
+    if (item.status === 'em_captura') {
+        const isMyCautelar = item.cautelar && item.cautelar.vistoriadorId === myId;
+        if (isMyCautelar || hasAdmin) {
+            return `<button class="btn btn-secondary btn-sm" onclick="continuarCautelar(${item.cautelar.id})" style="font-weight: 700; width: 100%;"><i class="ri-edit-line"></i> Continuar</button>`;
+        } else {
+            return `<button class="btn btn-sm" onclick="verResumoCautelar(${item.cautelar.id})" style="background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-secondary); width: 100%; cursor: not-allowed;" disabled><i class="ri-eye-line"></i> Bloqueado</button>`;
+        }
+    }
+
+    if (item.status === 'aguardando_finalizacao') {
+        if (hasFinalizar) {
+            return `<button class="btn btn-success btn-sm" onclick="abrirFinalizacaoDesktop(${item.cautelar.id})" style="font-weight: 700; width: 100%;"><i class="ri-check-double-line"></i> Finalizar</button>`;
+        } else {
+            return `<span style="font-size: 11px; color: var(--text-muted); font-style: italic; display: block; text-align: center; padding: 4px 0;"><i class="ri-time-line"></i> Em revisão</span>`;
+        }
+    }
+
+    if (item.status === 'finalizada') {
+        return `<button class="btn btn-success btn-sm btn-icon" onclick="exibirPdfCautelar(${item.cautelar.id})" title="Ver PDF do Laudo Cautelar" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center; width: 100%; gap: 6px;"><i class="ri-file-pdf-line"></i> Laudo PDF</button>`;
+    }
+
+    return '';
+}
+
+/**
+ * Cria uma nova Cautelar associada a uma O.S. (Iniciar Vistoria).
+ */
+function iniciarCautelar(osId) {
+    if (!db || !currentSession) return;
+
+    const os = db.ordens_servico.find(o => o.id === osId);
+    if (!os) {
+        showToast("Ordem de serviço não encontrada.", "error");
+        return;
+    }
+
+    // Gerar número de dossiê sequencial anual
+    const year = new Date().getFullYear();
+    const count = db.cautelares.length + 1;
+    const dossie = `CV-${year}-${String(count).padStart(5, '0')}`;
+
+    // Criar entidade Cautelar
+    const newCautelar = {
+        id: db.cautelares.length + 1,
+        osId: os.id,
+        dossieNumero: dossie,
+        status: "em_captura",
+        vistoriadorId: currentSession.id,
+        finalizadoPorId: null,
+        dataHoraInicio: new Date().toISOString(),
+        dataHoraEnvio: null,
+        dataHoraFinalizacao: null,
+        parecerConsolidado: null,
+        parecerTexto: ""
+    };
+
+    // Criar as 8 seções padrão
+    const secaoNomes = [
+        "IDENTIFICAÇÃO DO VEÍCULO",
+        "NUMERAÇÃO E DOCUMENTAÇÃO",
+        "ANÁLISE ESTRUTURAL",
+        "ANÁLISE DE PINTURA (MEDIDOR)",
+        "VIDROS E ETIQUETAS",
+        "COMPARTIMENTO DO MOTOR",
+        "INTERIOR E QUADROS DE PORTA",
+        "OBSERVAÇÕES FINAIS E ASSINATURA"
+    ];
+
+    secaoNomes.forEach((nome, i) => {
+        const num = i + 1;
+        const newSecao = {
+            id: db.cautelares_secoes.length + 1,
+            cautelarId: newCautelar.id,
+            numeroSecao: num,
+            nomeSecao: nome,
+            status: num === 1 ? "em_andamento" : "nao_iniciada",
+            dadosJson: {},
+            parecerSecao: "conforme",
+            observacaoTexto: "",
+            dataHoraCompletada: null
+        };
+        db.cautelares_secoes.push(newSecao);
+    });
+
+    // Atualizar status da OS
+    os.status = "em_execucao";
+
+    db.cautelares.push(newCautelar);
+    saveDatabase();
+
+    if (window.useSupabase) {
+        sbInsert('cautelares', newCautelar)
+            .then(() => sbUpdate('ordens_servico', os.id, { status: os.status }))
+            .catch(e => console.warn("Erro ao salvar nova Cautelar no Supabase:", e));
+    }
+
+    logAudit("Registrar Cautelar", `Iniciou captura da cautelar para placa ${os.placa}. Dossie: ${dossie}`);
+    showToast(`Vistoria iniciada para placa ${os.placa}!`, "success");
+
+    // Redireciona para o fluxo de captura mobile (Milestone 2)
+    continuarCautelar(newCautelar.id);
+}
+
+/**
+ * Abre o formulário de Captura Mobile para a Cautelar selecionada.
+ * (Funcionalidade detalhada no Milestone 2, por enquanto exibe toast e atualiza lista).
+ */
+function continuarCautelar(cautelarId) {
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) return;
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    
+    showToast(`Fluxo de captura da cautelar (placa ${os ? os.placa : ''}) será ativado no Milestone 2.`, "info");
+    
+    // Atualiza a listagem de forma reativa
+    filterCautelares();
+}
+
+/**
+ * Abre a visualização resumida (modo leitura) da Cautelar.
+ */
+function verResumoCautelar(cautelarId) {
+    showToast("Visualização de resumo em desenvolvimento (Milestone 2).", "info");
+}
+
+/**
+ * Abre o painel de finalização desktop para a Cautelar selecionada.
+ * (Funcionalidade detalhada no Milestone 3, por enquanto exibe toast).
+ */
+function abrirFinalizacaoDesktop(cautelarId) {
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) return;
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    
+    showToast(`Painel de finalização desktop do laudo (placa ${os ? os.placa : ''}) será ativado no Milestone 3.`, "info");
+    filterCautelares();
+}
+
+/**
+ * Abre ou baixa o laudo PDF finalizado da Cautelar.
+ * (Funcionalidade detalhada no Milestone 3, por enquanto exibe toast).
+ */
+function exibirPdfCautelar(cautelarId) {
+    showToast("Geração e download do laudo PDF serão ativados no Milestone 3.", "info");
+}

@@ -1662,3 +1662,21 @@ h1, h2, h3, .serif-title {
         margin-bottom: 4px !important;
     }
 }
+
+/* ===== CAUTELAR RESPONSIVE LAYOUTS ===== */
+@media (min-width: 769px) {
+    .mobile-only-cautelar {
+        display: none !important;
+    }
+    .desktop-only-cautelar {
+        display: block !important;
+    }
+}
+@media (max-width: 768px) {
+    .mobile-only-cautelar {
+        display: flex !important;
+    }
+    .desktop-only-cautelar {
+        display: none !important;
+    }
+}
