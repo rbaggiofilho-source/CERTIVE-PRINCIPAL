@@ -6856,7 +6856,7 @@ async function salvarEdicaoOperador(event) {
             await sbUpdate('operadores', opId, {
                 nome: op.nome,
                 senha: op.senha,
-                unidade_id: op.unidadeId,
+                unidadeId: op.unidadeId,
                 ativo: op.ativo,
                 permissoes: op.permissoes,
                 funcao: op.funcao
