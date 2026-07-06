@@ -9489,24 +9489,980 @@ function verResumoCautelar(cautelarId) {
     showToast("Visualização de resumo em desenvolvimento (Milestone 2).", "info");
 }
 
+// Variável de controle do finalizador
+window.activeFinalizacaoCautelarId = null;
+window.operatorSignatureConfirmed = false;
+
 /**
  * Abre o painel de finalização desktop para a Cautelar selecionada.
- * (Funcionalidade detalhada no Milestone 3, por enquanto exibe toast).
  */
 function abrirFinalizacaoDesktop(cautelarId) {
+    if (!db || !currentSession) return;
+
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) {
+        showToast("Cautelar não encontrada.", "error");
+        return;
+    }
+
+    window.activeFinalizacaoCautelarId = cautelarId;
+    window.operatorSignatureConfirmed = false;
+
+    // Resgata o parecer final ou inicializa com o preliminar
+    const secao8 = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === 8);
+    const parecerPreliminar = secao8 && secao8.dadosJson ? secao8.dadosJson.parecerPreliminar : 'conforme';
+    
+    document.getElementById('caut-final-parecer').value = parecerPreliminar || 'conforme';
+    document.getElementById('caut-final-obs').value = secao8 && secao8.dadosJson && secao8.dadosJson.observacaoFinal ? secao8.dadosJson.observacaoFinal : '';
+    document.getElementById('assinatura-operador-ok-msg').style.display = 'none';
+
+    // Ocultar listagem e exibir finalização
+    document.getElementById('cautelar-listagem-view').style.display = 'none';
+    document.getElementById('cautelar-finalizacao-view').style.display = 'grid';
+
+    // Inicializar canvas de assinatura do operador
+    setTimeout(() => {
+        initOperatorSignatureCanvas();
+        atualizarPreviewLaudo();
+    }, 100);
+}
+
+/**
+ * Fecha a tela de finalização desktop.
+ */
+function fecharFinalizacaoDesktop() {
+    window.activeFinalizacaoCautelarId = null;
+
+    // Habilita inputs novamente
+    const parecerSelect = document.getElementById('caut-final-parecer');
+    if (parecerSelect) parecerSelect.disabled = false;
+    
+    const obsTextarea = document.getElementById('caut-final-obs');
+    if (obsTextarea) obsTextarea.disabled = false;
+    
+    const canvasCard = document.getElementById('operator-signature-canvas')?.closest('.panel-card');
+    if (canvasCard) canvasCard.style.display = 'block';
+
+    document.getElementById('cautelar-finalizacao-view').style.display = 'none';
+    document.getElementById('cautelar-listagem-view').style.display = 'block';
+    
+    renderRegistrarCautelarPage();
+}
+
+/**
+ * Inicializa o canvas de assinatura do operador finalizador.
+ */
+function initOperatorSignatureCanvas() {
+    const canvas = document.getElementById('operator-signature-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    ctx.strokeStyle = '#050811';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function getPos(e) {
+        const r = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - r.left,
+            y: clientY - r.top
+        };
+    }
+
+    function startDraw(e) {
+        drawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+        e.preventDefault();
+    }
+
+    function draw(e) {
+        if (!drawing) return;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        e.preventDefault();
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function stopDraw() {
+        drawing = false;
+    }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
+
+    canvas.addEventListener('touchstart', startDraw);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDraw);
+
+    // Se o operador já confirmou assinatura e ela está salva na sessão
+    if (sessionStorage.getItem('certive_operator_signature')) {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        };
+        img.src = sessionStorage.getItem('certive_operator_signature');
+        window.operatorSignatureConfirmed = true;
+        document.getElementById('assinatura-operador-ok-msg').style.display = 'block';
+    }
+}
+
+function clearOperatorSignatureCanvas() {
+    const canvas = document.getElementById('operator-signature-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    window.operatorSignatureConfirmed = false;
+    document.getElementById('assinatura-operador-ok-msg').style.display = 'none';
+}
+
+function confirmOperatorSignature(showAlert = true) {
+    const canvas = document.getElementById('operator-signature-canvas');
+    if (!canvas) return;
+
+    const buffer = new Uint32Array(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    const hasData = buffer.some(color => color !== 0);
+
+    if (!hasData) {
+        if (showAlert) showToast("Desenhe sua assinatura no quadro antes de confirmar.", "warning");
+        return;
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    sessionStorage.setItem('certive_operator_signature', dataUrl);
+    window.operatorSignatureConfirmed = true;
+    
+    document.getElementById('assinatura-operador-ok-msg').style.display = 'block';
+    if (showAlert) showToast("Assinatura do operador confirmada!", "success");
+    
+    atualizarPreviewLaudo();
+}
+
+/**
+ * Renderiza a pré-visualização real-time do Laudo A4 de 9 páginas.
+ */
+function atualizarPreviewLaudo() {
+    const previewContainer = document.getElementById('laudo-preview-container');
+    if (!previewContainer) return;
+
+    const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
+    if (!cautelar) return;
+
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+
+    // Resgata os dados preenchidos
+    const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
+    const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
+    const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
+    const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
+    const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
+    const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
+    const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
+    const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
+
+    const parecerFinal = document.getElementById('caut-final-parecer').value;
+    const obsFinal = document.getElementById('caut-final-obs').value;
+
+    const signatureVistoriador = dataSec8.signatureBase64 || '';
+    const signatureOperador = sessionStorage.getItem('certive_operator_signature') || '';
+
+    // Coleta as fotos
+    const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
+
+    // Estilo comum das folhas
+    const headerStyle = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C9A961; padding-bottom: 10px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="font-size: 20px; color: #C9A961; font-weight: 700; font-family: 'Fraunces', serif;">Certive</div>
+                <div style="font-size: 10px; color: #a3aab8; font-weight: 700; text-transform: uppercase; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 8px;">Vistorias Cautelares</div>
+            </div>
+            <div style="text-align: right;">
+                <span style="font-family: monospace; font-size: 10px; color: #0A1F3D; font-weight: 700;">DOSSIÊ: ${cautelar.dossieNumero}</span>
+            </div>
+        </div>
+    `;
+
+    const getFooterStyle = (pageNum) => `
+        <div style="position: absolute; bottom: 40px; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 10px; font-size: 9px; color: #a3aab8; font-family: monospace;">
+            <span>VALIDAÇÃO CRIPTOGRÁFICA Certive Vistorias</span>
+            <span>Folha ${pageNum} de 9</span>
+        </div>
+    `;
+
+    const getFotoUrl = (codigo) => {
+        const f = fotos.find(ph => ph.slotCodigo === codigo);
+        return f ? (f.url_thumb || f.url_original || '') : '';
+    };
+
+    let html = '';
+
+    // ==========================================
+    // PÁGINA 1: CAPA DO LAUDO
+    // ==========================================
+    const capaFoto = getFotoUrl('frente_45_dir');
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 60px 40px; background: #fdfdfb; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Inter Tight', sans-serif;">
+            <div style="text-align: center;">
+                <h2 style="font-family: 'Fraunces', serif; font-size: 42px; color: #0A1F3D; margin-bottom: 5px;">Certive Vistorias</h2>
+                <div style="height: 3px; width: 80px; background: #C9A961; margin: 0 auto 10px auto;"></div>
+                <span style="font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a3aab8;">LAUDO DE VISTORIA CAUTELAR VEICULAR</span>
+            </div>
+
+            <div style="width: 100%; height: 380px; border-radius: 6px; overflow: hidden; border: 2px solid #C9A961; background: #000; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+                ${capaFoto ? `<img src="${capaFoto}" style="width:100%; height:100%; object-fit: cover;">` : `<div style="color:white; display:flex; align-items:center; justify-content:center; height:100%;">FOTO DA FRENTE 45° LADO DIREITO OBRIGATÓRIA</div>`}
+            </div>
+
+            <div style="text-align: center; background: #0A1F3D; color: white; padding: 24px; border-radius: 6px; border: 1px solid #C9A961;">
+                <span style="font-size: 10px; color: #C9A961; letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase;">PLACA IDENTIFICADA</span>
+                <h1 style="font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 700; margin: 6px 0; color: #fdfdfb;">${os.placa}</h1>
+                <p style="font-size: 13px; color: rgba(255,255,255,0.7); font-weight: 500;">${os.clienteNome || 'VEÍCULO CADASTRADO'}</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 12px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 20px;">
+                <div>
+                    <strong>DOSSIÊ:</strong> <span style="font-family: monospace;">${cautelar.dossieNumero}</span><br>
+                    <strong>DATA DA VISTORIA:</strong> ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')}<br>
+                    <strong>UNIDADE:</strong> ${db.unidades.find(u => u.id === os.unidadeId)?.nome || 'Matriz'}
+                </div>
+                <div style="text-align: right;">
+                    <strong>VISTORIADOR:</strong> ${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Vistoriador'}<br>
+                    <strong>RESPONSÁVEL TÉCNICO:</strong> ${currentSession.nome}<br>
+                    <strong>STATUS:</strong> CONCLUÍDO
+                </div>
+            </div>
+            ${getFooterStyle(1)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 2: DADOS CADASTRAIS & PESQUISAS DE PÁTIO
+    // ==========================================
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">1. Ficha Cadastral e Dados de Registro</h3>
+            
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px;">
+                <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <td style="padding: 8px 0; font-weight: 700; width: 140px;">PLACA</td>
+                    <td style="padding: 8px 0; font-family: monospace; font-size: 13px;">${os.placa}</td>
+                    <td style="padding: 8px 0; font-weight: 700; width: 140px;">CHASSI (O.S.)</td>
+                    <td style="padding: 8px 0; font-family: monospace;">${os.renavam || ''}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <td style="padding: 8px 0; font-weight: 700;">MOTOR (O.S.)</td>
+                    <td style="padding: 8px 0; font-family: monospace;">${os.chassi || 'NÃO INFORMADO'}</td>
+                    <td style="padding: 8px 0; font-weight: 700;">KM LIDA</td>
+                    <td style="padding: 8px 0;">${dataSec1.quilometragem || '0'} KM</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <td style="padding: 8px 0; font-weight: 700;">MARCA/MODELO</td>
+                    <td style="padding: 8px 0;">${os.clienteNome || 'VEÍCULO CADASTRADO'}</td>
+                    <td style="padding: 8px 0; font-weight: 700;">CONSERVAÇÃO GERAL</td>
+                    <td style="padding: 8px 0; text-transform: uppercase;">${dataSec1.estadoConservacao || 'REGULAR'}</td>
+                </tr>
+            </table>
+
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">2. Pesquisas de Histórico e Pátio</h3>
+            <p style="font-size: 11px; color: #a3aab8; margin-bottom: 15px; line-height: 1.4;">
+                Consulta consolidada realizada na base de dados oficial e órgãos de pátio leilão, histórico de roubo/furto e gravame veicular pré-cadastrado.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(107, 138, 62, 0.05); border: 1px solid rgba(107, 138, 62, 0.2); border-radius: 4px;">
+                    <div><strong>HISTÓRICO DE ROUBO/FURTO</strong><br><span style="font-size:10px; color: #a3aab8;">Consulta ativa na base do SINESP/Polícia Federal</span></div>
+                    <span style="color: #6B8A3E; font-weight: 700; display:flex; align-items:center; gap:4px;"><i class="ri-checkbox-circle-fill"></i> NADA CONSTA</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(107, 138, 62, 0.05); border: 1px solid rgba(107, 138, 62, 0.2); border-radius: 4px;">
+                    <div><strong>RESTRITIVOS DE LEILÃO E PÁTIO</strong><br><span style="font-size:10px; color: #a3aab8;">Cruzamento com bases de leiloeiros nacionais oficiais</span></div>
+                    <span style="color: #6B8A3E; font-weight: 700; display:flex; align-items:center; gap:4px;"><i class="ri-checkbox-circle-fill"></i> NADA CONSTA</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(107, 138, 62, 0.05); border: 1px solid rgba(107, 138, 62, 0.2); border-radius: 4px;">
+                    <div><strong>RESTRITIVO DE SINISTRO (RECUPERADO)</strong><br><span style="font-size:10px; color: #a3aab8;">Consulta de emissão de CSV / Danos de média/grande monta</span></div>
+                    <span style="color: #6B8A3E; font-weight: 700; display:flex; align-items:center; gap:4px;"><i class="ri-checkbox-circle-fill"></i> NADA CONSTA</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(107, 138, 62, 0.05); border: 1px solid rgba(107, 138, 62, 0.2); border-radius: 4px;">
+                    <div><strong>INDÍCIOS DE GRAVAME / BLOQUEIOS JUDICIAIS</strong><br><span style="font-size:10px; color: #a3aab8;">Consulta ativa de restrições RENAJUD</span></div>
+                    <span style="color: #6B8A3E; font-weight: 700; display:flex; align-items:center; gap:4px;"><i class="ri-checkbox-circle-fill"></i> NADA CONSTA</span>
+                </div>
+            </div>
+            ${getFooterStyle(2)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 3: FOTOS DA IDENTIFICAÇÃO DO VEÍCULO (SEÇÃO I)
+    // ==========================================
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">3. Identificação do Veículo — Seção I</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('frente_45_dir') ? `<img src="${getFotoUrl('frente_45_dir')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">FOTO 1: FRENTE 45° DIREITA</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('traseira_45_esq') ? `<img src="${getFotoUrl('traseira_45_esq')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">FOTO 2: TRASEIRA 45° ESQUERDA</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('painel_hodometro') ? `<img src="${getFotoUrl('painel_hodometro')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">FOTO 3: HODÔMETRO E PAINEL</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('crlv_documento') ? `<img src="${getFotoUrl('crlv_documento')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">FOTO 4: CRLV / DOCUMENTO</span>
+                </div>
+            </div>
+
+            <div style="width:50%; margin:0 auto; display:flex; flex-direction:column; gap:6px;">
+                <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                    ${getFotoUrl('placa_dianteira') ? `<img src="${getFotoUrl('placa_dianteira')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                </div>
+                <span style="font-size:9px; font-weight:700; text-align:center;">FOTO 5: PLACA EM CLOSE</span>
+            </div>
+            ${getFooterStyle(3)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 4: FOTOS DA NUMERAÇÃO E ETIQUETA ETA (SEÇÃO II)
+    // ==========================================
+    const matchChassi = dataSec2.chassiLido === os.renavam;
+    const matchMotor = dataSec2.motorLido === os.chassi;
+    
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">4. Identificadores do Veículo — Seção II</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('chassi_gravado') ? `<img src="${getFotoUrl('chassi_gravado')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">GRAVAÇÃO DO CHASSI</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('chassi_secundario') ? `<img src="${getFotoUrl('chassi_secundario')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">ETIQUETAS DO CHASSI (PLAQUETAS)</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('motor_gravado') ? `<img src="${getFotoUrl('motor_gravado')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">GRAVAÇÃO DO MOTOR</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:190px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('etiqueta_eta') ? `<img src="${getFotoUrl('etiqueta_eta')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">ETIQUETA ETA</span>
+                </div>
+            </div>
+
+            <h4 style="font-size: 13px; font-weight: 700; color: #0A1F3D; text-transform: uppercase; margin-bottom: 10px;">Confronto de Marcações Lidas</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                    <tr style="background: #0A1F3D; color: white;">
+                        <th style="padding: 8px; text-align:left; border-radius: 4px 0 0 4px;">COMPONENTE</th>
+                        <th style="padding: 8px; text-align:left;">VALOR CADASTRADO</th>
+                        <th style="padding: 8px; text-align:left;">VALOR LIDO (VISTORIA)</th>
+                        <th style="padding: 8px; text-align:center; border-radius: 0 4px 4px 0; width: 100px;">CONCORDÂNCIA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+                        <td style="padding: 10px 8px; font-weight:700;">CHASSI</td>
+                        <td style="padding: 10px 8px; font-family: monospace;">${os.renavam || ''}</td>
+                        <td style="padding: 10px 8px; font-family: monospace;">${dataSec2.chassiLido || ''}</td>
+                        <td style="padding: 10px 8px; text-align:center; font-weight:700; color: ${matchChassi ? '#6B8A3E' : '#8B2635'}">${matchChassi ? 'CONFERE' : 'DIVERGENTE'}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+                        <td style="padding: 10px 8px; font-weight:700;">MOTOR</td>
+                        <td style="padding: 10px 8px; font-family: monospace;">${os.chassi || ''}</td>
+                        <td style="padding: 10px 8px; font-family: monospace;">${dataSec2.motorLido || ''}</td>
+                        <td style="padding: 10px 8px; text-align:center; font-weight:700; color: ${matchMotor ? '#6B8A3E' : '#8B2635'}">${matchMotor ? 'CONFERE' : 'DIVERGENTE'}</td>
+                    </tr>
+                </tbody>
+            </table>
+            ${getFooterStyle(4)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 5: ANÁLISE ESTRUTURAL (SEÇÃO III)
+    // ==========================================
+    const listEstrutural = [
+        { cod: 'longarina_diant_esq', label: 'Longarina Dianteira Esquerda' },
+        { cod: 'longarina_diant_dir', label: 'Longarina Dianteira Direita' },
+        { cod: 'longarina_tras_esq', label: 'Longarina Traseira Esquerda' },
+        { cod: 'longarina_tras_dir', label: 'Longarina Traseira Direita' },
+        { cod: 'torre_amort_diant_esq', label: 'Torre Amortecedor Dianteira Esq' },
+        { cod: 'torre_amort_diant_dir', label: 'Torre Amortecedor Dianteira Dir' },
+        { cod: 'torre_amort_tras_esq', label: 'Torre Amortecedor Traseira Esq' },
+        { cod: 'torre_amort_tras_dir', label: 'Torre Amortecedor Traseira Dir' },
+        { cod: 'painel_corta_fogo', label: 'Painel Corta-Fogo' },
+        { cod: 'assoalho_porta_malas', label: 'Assoalho do Porta-Malas' },
+        { cod: 'estrutura_teto', label: 'Estrutura do Teto' }
+    ];
+
+    const structuralRowsHtml = listEstrutural.map(item => {
+        const ph = fotos.find(f => f.slotCodigo === item.cod);
+        const status = ph?.metadados_json?.status_estrutural || 'original';
+        
+        let statusText = 'ORIGINAL';
+        let color = '#6B8A3E';
+        if (status === 'reparo_aparente') {
+            statusText = 'REPARO';
+            color = '#B8642B';
+        } else if (status === 'substituicao') {
+            statusText = 'SUBSTITUÍDO';
+            color = '#8B2635';
+        } else if (status === 'nao_aplicavel') {
+            statusText = 'N/A';
+            color = '#a3aab8';
+        }
+
+        return `
+            <tr style="border-bottom:1px solid rgba(0,0,0,0.05); font-size: 11px;">
+                <td style="padding: 6px 0; font-weight:600;">${item.label}</td>
+                <td style="padding: 6px 0; font-family: monospace; font-size:10px; color:#a3aab8;">${ph ? 'FOTO VINCULADA' : 'SEM FOTO'}</td>
+                <td style="padding: 6px 0; text-align:right; font-weight:700; color: ${color}; text-transform:uppercase;">${statusText}</td>
+            </tr>
+        `;
+    }).join('');
+
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">5. Análise de Estrutura e Longarinas — Seção III</h3>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.1); color: #a3aab8; font-size:10px;">
+                        <th style="text-align:left; padding-bottom:6px;">MÓDULO ESTRUTURAL</th>
+                        <th style="text-align:left; padding-bottom:6px;">EVIDÊNCIA FOTOGRÁFICA</th>
+                        <th style="text-align:right; padding-bottom:6px;">AVALIAÇÃO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${structuralRowsHtml}
+                </tbody>
+            </table>
+
+            <div style="background: rgba(10, 31, 61, 0.03); border: 1px solid #C9A961; border-radius: 4px; padding: 16px; font-size: 12px; margin-top:20px;">
+                <h4 style="color:#0A1F3D; font-size: 13px; font-weight:700; text-transform:uppercase; margin-bottom: 8px;">Conclusão Estrutural do Vistoriador</h4>
+                <div style="display:flex; gap:20px; margin-bottom:10px;">
+                    <div><strong>Enchente:</strong> ${dataSec3.indicioEnchente === 'sim' ? 'SIM (Alerta)' : 'NÃO'}</div>
+                    <div><strong>Colisão Estrutural:</strong> ${dataSec3.indicioBatida === 'sim' ? 'SIM (Alerta)' : 'NÃO'}</div>
+                    <div><strong>Resultado:</strong> <span style="font-weight:700; text-transform:uppercase;">${dataSec3.parecerEstrutural || 'CONFORME'}</span></div>
+                </div>
+                <strong>Observações técnicas estruturais:</strong><br>
+                <span style="font-size: 11px; color:#555;">${dataSec3.observacao || 'Nenhuma ressalva estrutural encontrada. Veículo em conformidade com os padrões de fábrica.'}</span>
+            </div>
+            ${getFooterStyle(5)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 6: MICRÔMETRO DE PINTURA (SEÇÃO IV)
+    // ==========================================
+    const paintPanels = [
+        "Capô", "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda",
+        "Paralama traseiro esquerdo", "Teto", "Paralama traseiro direito", "Porta traseira direito",
+        "Porta dianteira direita", "Paralama dianteiro direito", "Tampa traseira", "Para-choque dianteiro",
+        "Para-choque traseiro", "Coluna A esquerda", "Coluna A direita"
+    ];
+
+    const paintRowsHtml = paintPanels.map((p, idx) => {
+        const val = parseFloat(dataSec4[`painel_${idx}`]) || 0;
+        const classification = val === 0 ? 'nao_medido' : (val >= 80 && val <= 150 ? 'original' : (val > 150 && val <= 250 ? 'repintura' : 'acima_padrao'));
+        
+        let color = '#a3aab8';
+        let desc = 'NÃO MEDIDO';
+        if (classification === 'original') {
+            color = '#6B8A3E';
+            desc = 'ORIGINAL';
+        } else if (classification === 'repintura') {
+            color = '#B8642B';
+            desc = 'REPINTURA';
+        } else if (classification === 'acima_padrao') {
+            color = '#8B2635';
+            desc = 'MASSA/ALTO';
+        }
+
+        return `
+            <tr style="border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 11px;">
+                <td style="padding: 6px 0; font-weight:600;">${p}</td>
+                <td style="padding: 6px 0; font-family: monospace; font-size:12px; font-weight:700; text-align:right; padding-right: 20px;">${val ? val + ' µm' : '—'}</td>
+                <td style="padding: 6px 0; text-align:right; font-weight:700; color: ${color};">${desc}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const medidorFoto = getFotoUrl('medidor_pintura_uso');
+
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">6. Medição Micrométrica da Pintura — Seção IV</h3>
+            
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px;">
+                <div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(0,0,0,0.1); color: #a3aab8; font-size:10px;">
+                                <th style="text-align:left; padding-bottom:6px;">PAINEL</th>
+                                <th style="text-align:right; padding-bottom:6px; padding-right: 20px;">ESPESSURA</th>
+                                <th style="text-align:right; padding-bottom:6px;">CLASSIFICAÇÃO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${paintRowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div style="width:100%; height:230px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${medidorFoto ? `<img src="${medidorFoto}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">FOTO: MEDIDOR MINIPA EM USO</span>
+
+                    <div style="border:1px solid rgba(0,0,0,0.08); border-radius:4px; padding:12px; font-size:11px; background: rgba(0,0,0,0.01);">
+                        <strong>LEGENDA DE VALORES:</strong><br>
+                        <ul style="margin-left: 15px; margin-top: 6px; line-height: 1.5;">
+                            <li><span style="color:#6B8A3E; font-weight:700;">80 a 150 µm</span>: Original</li>
+                            <li><span style="color:#B8642B; font-weight:700;">150 a 250 µm</span>: Repintura</li>
+                            <li><span style="color:#8B2635; font-weight:700;">Acima de 250 µm</span>: Massa plástica</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            ${getFooterStyle(6)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 7: ANÁLISE DE VIDROS (SEÇÃO V)
+    // ==========================================
+    const listVidros = [
+        { cod: 'vidro_parabrisa', label: 'Vidro Para-Brisa' },
+        { cod: 'vidro_porta_diant_esq', label: 'Vidro Porta Dianteira Esq' },
+        { cod: 'vidro_porta_diant_dir', label: 'Vidro Porta Dianteira Dir' },
+        { cod: 'vidro_porta_tras_esq', label: 'Vidro Porta Traseira Esq' },
+        { cod: 'vidro_porta_tras_dir', label: 'Vidro Porta Traseira Dir' },
+        { cod: 'vidro_traseiro', label: 'Vidro Traseiro' }
+    ];
+
+    const glassRowsHtml = listVidros.map(item => {
+        const ph = fotos.find(f => f.slotCodigo === item.cod);
+        const isOriginal = ph?.metadados_json?.vidro_original !== false;
+        const numGravado = ph?.metadados_json?.gravacao_lida || 'NÃO LIDO';
+
+        return `
+            <tr style="border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 11px;">
+                <td style="padding: 8px 0; font-weight:600;">${item.label}</td>
+                <td style="padding: 8px 0; font-family: monospace; font-size:11px;">${numGravado}</td>
+                <td style="padding: 8px 0; text-align:right; font-weight:700; color: ${isOriginal ? '#6B8A3E' : '#8B2635'};">${isOriginal ? 'ORIGINAL' : 'RECOLOCADO'}</td>
+            </tr>
+        `;
+    }).join('');
+
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">7. Análise de Originalidade de Vidros — Seção V</h3>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.1); color: #a3aab8; font-size:10px;">
+                        <th style="text-align:left; padding-bottom:8px;">LOCAL DO VIDRO</th>
+                        <th style="text-align:left; padding-bottom:8px;">GRAVAÇÃO LIDA (CHASSI)</th>
+                        <th style="text-align:right; padding-bottom:8px;">AVALIAÇÃO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${glassRowsHtml}
+                </tbody>
+            </table>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <div style="width:100%; height:110px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('vidro_parabrisa') ? `<img src="${getFotoUrl('vidro_parabrisa')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:8px; font-weight:700; text-align:center;">PARA-BRISA</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <div style="width:100%; height:110px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('vidro_porta_diant_esq') ? `<img src="${getFotoUrl('vidro_porta_diant_esq')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:8px; font-weight:700; text-align:center;">P. DIANTEIRA ESQ</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <div style="width:100%; height:110px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('vidro_traseiro') ? `<img src="${getFotoUrl('vidro_traseiro')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:8px; font-weight:700; text-align:center;">TRASEIRO</span>
+                </div>
+            </div>
+            ${getFooterStyle(7)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 8: MOTOR E INTERIOR (SEÇÃO VI E VII)
+    // ==========================================
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Inter Tight', sans-serif;">
+            ${headerStyle}
+            <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">8. Motor e Acabamento Interno — Seções VI e VII</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:180px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('motor_vista_geral') ? `<img src="${getFotoUrl('motor_vista_geral')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">COFRE DO MOTOR</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="width:100%; height:180px; border: 1px solid #C9A961; border-radius:4px; overflow:hidden; background:#000;">
+                        ${getFotoUrl('quadro_porta_diant_esq') ? `<img src="${getFotoUrl('quadro_porta_diant_esq')}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                    </div>
+                    <span style="font-size:9px; font-weight:700; text-align:center;">QUADRO PORTA DIANTEIRA ESQ</span>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 11px;">
+                <div style="border: 1px solid rgba(0,0,0,0.08); border-radius: 4px; padding: 12px; background: rgba(0,0,0,0.01);">
+                    <h4 style="font-size: 12px; color: #0A1F3D; font-weight:700; text-transform: uppercase; margin-bottom: 6px;">Compartimento do Motor</h4>
+                    <strong>Reparos Estruturais no vão:</strong> ${dataSec6.reparoMotor === 'sim' ? 'SIM' : 'NÃO'}<br>
+                    <strong>Pintura Original preservada:</strong> ${dataSec6.corMotorOk === 'nao' ? 'NÃO' : 'SIM'}<br>
+                    <strong>Observação:</strong> ${dataSec6.observacao || 'Vão do motor limpo, sem marcas de tintas adicionais ou soldas do tipo MIG.'}
+                </div>
+                <div style="border: 1px solid rgba(0,0,0,0.08); border-radius: 4px; padding: 12px; background: rgba(0,0,0,0.01);">
+                    <h4 style="font-size: 12px; color: #0A1F3D; font-weight:700; text-transform: uppercase; margin-bottom: 6px;">Quadros de Portas & Interior</h4>
+                    <strong>Intervenção nas Colunas/Quadros:</strong> ${dataSec7.intervencaoQuadros === 'sim' ? 'SIM (Alerta)' : 'NÃO'}<br>
+                    <strong>Conservação do Interior:</strong> <span style="text-transform: uppercase;">${dataSec7.conservacaoInterior || 'EXCELENTE'}</span><br>
+                    <strong>Observação:</strong> ${dataSec7.observacao || 'Estruturas e vedações de borrachas originais, solda ponto de fábrica preservada.'}
+                </div>
+            </div>
+            ${getFooterStyle(8)}
+        </div>
+    `;
+
+    // ==========================================
+    // PÁGINA 9: PARECER TÉCNICO FINAL & ASSINATURAS
+    // ==========================================
+    let resultTitle = 'VEÍCULO CONFORME';
+    let resultDesc = 'Laudo concluído atestando a total conformidade do veículo em suas estruturas, marcações e originalidade de fábrica. Aprovado.';
+    let resultColor = '#6B8A3E';
+    
+    if (parecerFinal === 'com_ressalvas') {
+        resultTitle = 'APROVADO COM RESSALVA';
+        resultDesc = 'Laudo aponta pequenas marcas de uso, repintura de painéis ou pequenos reparos sem dano à integridade de segurança estrutural do veículo.';
+        resultColor = '#B8642B';
+    } else if (parecerFinal === 'nao_conforme') {
+        resultTitle = 'VEÍCULO REPROVADO';
+        resultDesc = 'Identificadas avarias estruturais gravíssimas, indício de sinistro ou chassi/motor adulterado. O veículo não atende às normas de segurança da Certive.';
+        resultColor = '#8B2635';
+    }
+
+    // Hash criptográfico simulado
+    const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+
+    html += `
+        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #fff; color: #050811; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Inter Tight', sans-serif;">
+            <div>
+                ${headerStyle}
+                <h3 style="font-family: 'Fraunces', serif; font-size: 20px; color: #0A1F3D; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 6px;">9. Parecer Técnico Consolidado</h3>
+                
+                <div style="background: ${resultColor}; color: white; padding: 24px; border-radius: 4px; text-align: center; border: 1px solid #C9A961; margin-bottom: 24px;">
+                    <h2 style="font-family: 'Fraunces', serif; font-size: 26px; font-weight: 700; margin-bottom: 6px;">${resultTitle}</h2>
+                    <p style="font-size: 13px; font-weight: 500; opacity: 0.9;">${resultDesc}</p>
+                </div>
+
+                <div style="font-size: 12px; margin-bottom: 30px;">
+                    <h4 style="color:#0A1F3D; font-size: 13px; font-weight:700; text-transform:uppercase; margin-bottom: 6px;">Notas de Encerramento da Mesa</h4>
+                    <p style="font-size: 11.5px; color: #333; line-height: 1.5;">${obsFinal || 'Após criteriosa auditoria visual das marcações, confrontos com sistemas oficiais e medição de espessura de pintura, o veículo é liberado em conformidade com as diretrizes do manual de vistorias da Certive.'}</p>
+                </div>
+
+                <!-- Assinaturas Lado a Lado -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px;">
+                    <div style="text-align: center; display: flex; flex-direction: column; align-items: center;">
+                        <div style="width: 220px; height: 75px; border-bottom: 1px solid #000; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                            ${signatureVistoriador ? `<img src="${signatureVistoriador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
+                        </div>
+                        <span style="font-size: 10px; font-weight: 700; margin-top: 6px;">Carlos Vistoriador</span>
+                        <span style="font-size: 9px; color: #a3aab8;">Vistoriador Mobile</span>
+                    </div>
+                    <div style="text-align: center; display: flex; flex-direction: column; align-items: center;">
+                        <div style="width: 220px; height: 75px; border-bottom: 1px solid #000; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                            ${signatureOperador ? `<img src="${signatureOperador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
+                        </div>
+                        <span style="font-size: 10px; font-weight: 700; margin-top: 6px;">${currentSession.nome}</span>
+                        <span style="font-size: 9px; color: #a3aab8;">Operador Autorizado</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hash e QR Code Rodapé da Capa/Última Folha -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 2px solid #C9A961; padding-top: 15px; margin-top: 20px;">
+                <div style="max-width: 500px; font-family: monospace; font-size: 10px; color:#555;">
+                    <strong>HASH DE SEGURANÇA E REGISTRO DO LAUDO:</strong><br>
+                    <span style="font-size: 8.5px; color:#888; word-break: break-all;">${hashLaudo}</span>
+                    <p style="margin-top: 8px; font-size: 8.5px; font-family: 'Inter Tight', sans-serif; color: #a3aab8;">
+                        A autenticidade deste laudo pode ser atestada escaneando o QR Code ao lado ou acessando nosso portal e inserindo o hash acima.
+                    </p>
+                </div>
+                <div style="width: 90px; height: 90px; border: 1px solid #C9A961; border-radius: 4px; padding: 4px; background: white; display: flex; align-items: center; justify-content: center; position: relative;">
+                    <!-- Placeholder de QRCode.js -->
+                    <div id="laudo-preview-qrcode" style="width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+            ${getFooterStyle(9)}
+        </div>
+    `;
+
+    previewContainer.innerHTML = html;
+
+    // Gerar o QR Code no preview de forma assíncrona
+    setTimeout(() => {
+        const qrDiv = document.getElementById('laudo-preview-qrcode');
+        if (qrDiv) {
+            qrDiv.innerHTML = '';
+            const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
+            new QRCode(qrDiv, {
+                text: validationUrl,
+                width: 80,
+                height: 80,
+                colorDark : "#050811",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+    }, 100);
+}
+
+/**
+ * Emite o laudo finalizando o status da vistoria, gera o Hash SHA-256 e exporta para PDF.
+ */
+function gerarLaudoFinalPdf() {
+    const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
+    if (!cautelar) return;
+
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+
+    // Valida se o operador assinou
+    if (!window.operatorSignatureConfirmed) {
+        showToast("É obrigatório assinar e confirmar sua assinatura de operador antes de emitir o laudo.", "warning");
+        return;
+    }
+
+    const parecerFinal = document.getElementById('caut-final-parecer').value;
+    const obsFinal = document.getElementById('caut-final-obs').value;
+
+    const confirmMsg = "Deseja realmente gerar a versão final e selada deste laudo PDF? Esta ação registrará as assinaturas e o hash na blockchain interna.";
+    if (!confirm(confirmMsg)) return;
+
+    // 1. Gera Hash Único do laudo (SHA-256 simulado)
+    const seed = `${os.placa}_${cautelar.dossieNumero}_${new Date().toISOString()}`;
+    // Simple hash function for client-side
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = (hash << 5) - hash + seed.charCodeAt(i);
+        hash |= 0;
+    }
+    const hashLaudo = 'sha256_' + Math.abs(hash).toString(16).padStart(16, '0') + Math.random().toString(36).substring(2, 18);
+
+    cautelar.hashLaudo = hashLaudo;
+    cautelar.parecerFinal = parecerFinal;
+    cautelar.status = "concluida";
+    cautelar.finalizadoEm = new Date().toISOString();
+    cautelar.finalizadoPor = currentSession.nome;
+
+    // Atualiza a OS
+    os.status = parecerFinal === 'nao_conforme' ? 'concluida_reprovada' : 'concluida_aprovada';
+    os.finalizadoEm = cautelar.finalizadoEm;
+    os.finalizadoPor = currentSession.nome;
+
+    // Salva o parecer e observação final nos dados da seção 8
+    const secao8 = secoes.find(s => s.numeroSecao === 8);
+    if (secao8) {
+        secao8.dadosJson = secao8.dadosJson || {};
+        secao8.dadosJson.observacaoFinal = obsFinal;
+        secao8.dadosJson.parecerFinal = parecerFinal;
+        secao8.status = "completa";
+    }
+
+    saveDatabase();
+
+    // 2. Sincroniza com o Supabase online
+    if (window.useSupabase) {
+        Promise.all([
+            sbUpdate('cautelares', cautelar.id, {
+                status: cautelar.status,
+                parecer_final: cautelar.parecerFinal,
+                hash_laudo: cautelar.hashLaudo,
+                finalizado_em: cautelar.finalizadoEm,
+                finalizado_por: cautelar.finalizadoPor
+            }),
+            sbUpdate('ordens_servico', os.id, {
+                status: os.status,
+                finalizado_em: os.finalizadoEm,
+                finalizado_por: os.finalizadoPor
+            }),
+            sbUpdate('cautelares_secoes', secao8.id, {
+                dados_json: secao8.dadosJson,
+                status: 'completa'
+            })
+        ]).catch(e => console.warn("Supabase final sync warning:", e));
+    }
+
+    logAudit("Finalizar Cautelar", `Finalizou laudo cautelar da placa ${os.placa} com parecer ${parecerFinal.toUpperCase()} e gerou PDF.`);
+
+    // 3. Renderiza a visualização final e exporta para PDF
+    atualizarPreviewLaudo();
+
+    // Inicia exportação do PDF usando html2pdf.js
+    setTimeout(() => {
+        const element = document.getElementById('laudo-preview-container');
+        
+        // Configurações de layout A4 precisas para html2pdf
+        const opt = {
+            margin: 0,
+            filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: true,
+                backgroundColor: '#ffffff'
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Exportação
+        html2pdf().from(element).set(opt).save()
+            .then(() => {
+                showToast("Laudo PDF exportado com sucesso!", "success");
+                fecharFinalizacaoDesktop();
+            })
+            .catch(err => {
+                console.error("Erro na exportação de PDF:", err);
+                showToast("Erro ao exportar PDF. Tente salvar a partir do navegador.", "error");
+                fecharFinalizacaoDesktop();
+            });
+    }, 500);
+}
+
+/**
+ * Abre a visualização resumida (modo leitura) da Cautelar.
+ */
+function verResumoCautelar(cautelarId) {
+    if (!db) return;
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) return;
-    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+
+    window.activeFinalizacaoCautelarId = cautelarId;
+    window.operatorSignatureConfirmed = true; // Permite visualização sem pedir assinatura
+
+    // Ocultar listagem e exibir finalização
+    document.getElementById('cautelar-listagem-view').style.display = 'none';
+    document.getElementById('cautelar-finalizacao-view').style.display = 'grid';
+
+    // Desativa campos para modo leitura
+    const parecerSelect = document.getElementById('caut-final-parecer');
+    if (parecerSelect) {
+        parecerSelect.value = cautelar.parecerFinal || 'conforme';
+        parecerSelect.disabled = true;
+    }
     
-    showToast(`Painel de finalização desktop do laudo (placa ${os ? os.placa : ''}) será ativado no Milestone 3.`, "info");
-    filterCautelares();
+    const secao8 = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === 8);
+    const obsTextarea = document.getElementById('caut-final-obs');
+    if (obsTextarea) {
+        obsTextarea.value = secao8 && secao8.dadosJson ? secao8.dadosJson.observacaoFinal || '' : '';
+        obsTextarea.disabled = true;
+    }
+    
+    // Oculta área de assinaturas do operador no modo leitura
+    const canvasCard = document.getElementById('operator-signature-canvas')?.closest('.panel-card');
+    if (canvasCard) canvasCard.style.display = 'none';
+
+    setTimeout(() => {
+        atualizarPreviewLaudo();
+    }, 100);
 }
 
 /**
  * Abre ou baixa o laudo PDF finalizado da Cautelar.
- * (Funcionalidade detalhada no Milestone 3, por enquanto exibe toast).
  */
 function exibirPdfCautelar(cautelarId) {
-    showToast("Geração e download do laudo PDF serão ativados no Milestone 3.", "info");
+    // Para baixar novamente, abrimos o resumo e disparamos a geração do PDF
+    verResumoCautelar(cautelarId);
+    
+    showToast("Gerando nova cópia do Laudo PDF...", "info");
+    setTimeout(() => {
+        const element = document.getElementById('laudo-preview-container');
+        const cautelar = db.cautelares.find(c => c.id === cautelarId);
+        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+        
+        const opt = {
+            margin: 0,
+            filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: true,
+                backgroundColor: '#ffffff'
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().from(element).set(opt).save()
+            .then(() => {
+                fecharFinalizacaoDesktop();
+            })
+            .catch(err => {
+                console.error("Erro na exportação de PDF:", err);
+                fecharFinalizacaoDesktop();
+            });
+    }, 1500);
 }
+
 

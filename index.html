@@ -500,8 +500,64 @@
                 </div>
 
                 <!-- TELA DE FINALIZAÇÃO DESKTOP (MILESTONE 3) -->
-                <div id="cautelar-finalizacao-view" style="display: none;">
-                    <!-- Placeholder para Milestone 3 -->
+                <div id="cautelar-finalizacao-view" style="display: none; grid-template-columns: 355px 1fr; gap: 0; background: var(--bg-body); min-height: calc(100vh - 100px); color: var(--text-primary); overflow: hidden;">
+                    <!-- Coluna Esquerda: Painel de Ajustes e Parecer Final -->
+                    <div style="background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 20px; max-height: calc(100vh - 100px); overflow-y: auto;">
+                        <div>
+                            <button class="btn btn-secondary btn-sm" onclick="fecharFinalizacaoDesktop()" style="padding: 6px 12px; display: flex; align-items: center; gap: 4px; margin-bottom: 15px;">
+                                <i class="ri-arrow-left-line"></i> Voltar à Lista
+                            </button>
+                            <h3 style="font-size: 15px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 4px;">Finalização do Laudo</h3>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">Revise as conformidades e emita o laudo em PDF para o cliente.</p>
+                        </div>
+
+                        <!-- Formulário de Parecer -->
+                        <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                            <div class="form-group">
+                                <label for="caut-final-parecer" style="font-size: 11px; font-weight: 700;">PARECER TÉCNICO FINAL <span style="color:var(--danger)">*</span></label>
+                                <select id="caut-final-parecer" onchange="atualizarPreviewLaudo()" required style="height: 38px; font-size: 12px;">
+                                    <option value="conforme">CONFORME (Aprovado sem restrições)</option>
+                                    <option value="com_ressalvas">COM RESSALVAS (Aprovado com marcas/reparos leves)</option>
+                                    <option value="nao_conforme">NÃO CONFORME (Reprovado - Danos graves/sinistro)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="caut-final-obs" style="font-size: 11px; font-weight: 700;">OBSERVAÇÕES ADICIONAIS DO LAUDO</label>
+                                <textarea id="caut-final-obs" rows="5" placeholder="Digite observações técnicas complementares que constarão no encerramento do laudo..." oninput="atualizarPreviewLaudo()" style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; background: var(--bg-primary); color: var(--text-primary); font-family: inherit; font-size: 12px; resize: vertical;"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Assinatura do Operador -->
+                        <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center;">
+                            <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 700; text-transform: uppercase; text-align: left;">Assinatura do Responsável Técnico <span style="color:var(--danger)">*</span></label>
+                            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; height: 100px; position: relative;">
+                                <canvas id="operator-signature-canvas" width="310" height="100" style="background: #fff; cursor: crosshair; touch-action: none; width: 100%; height: 100%;"></canvas>
+                            </div>
+                            <div style="margin-top: 8px; display: flex; justify-content: center; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm" onclick="clearOperatorSignatureCanvas()" style="padding: 4px 10px; font-size: 11px;"><i class="ri-eraser-line"></i> Limpar</button>
+                                <button class="btn btn-success btn-sm" onclick="confirmOperatorSignature(true)" style="padding: 4px 10px; font-size: 11px;"><i class="ri-checkbox-circle-line"></i> Confirmar</button>
+                            </div>
+                            <span id="assinatura-operador-ok-msg" style="display: none; font-size: 10px; color: var(--success); font-weight: 700; margin-top: 6px;"><i class="ri-checkbox-circle-fill"></i> Assinatura vinculada ao documento</span>
+                        </div>
+
+                        <!-- Ações -->
+                        <button class="btn btn-success btn-lg" onclick="gerarLaudoFinalPdf()" style="width: 100%; height: 50px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
+                            <i class="ri-file-pdf-line" style="font-size: 20px;"></i> EMITIR LAUDO & GERAR PDF
+                        </button>
+                    </div>
+
+                    <!-- Coluna Direita: Visualizador de PDF (Pré-Visualização Real-time) -->
+                    <div style="padding: 20px; overflow-y: auto; max-height: calc(100vh - 100px); background: #2a2e33; display: flex; flex-direction: column; align-items: center; gap: 24px; position: relative; flex: 1;">
+                        <div style="width: 100%; max-width: 800px; display: flex; justify-content: space-between; align-items: center; color: rgba(255,255,255,0.7); font-size: 12px; font-family: monospace;">
+                            <span>PRÉ-VISUALIZAÇÃO DO LAUDO (A4 REAL)</span>
+                            <span>9 PÁGINAS ATIVAS</span>
+                        </div>
+
+                        <!-- Container que renderizará o HTML das 9 páginas estruturadas -->
+                        <div id="laudo-preview-container" style="width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 30px;">
+                            <!-- Injetado dinamicamente via JS -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -2121,6 +2177,8 @@
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-db.js?v=8.1.2"></script>
 <script src="app_v8.js?v=8.1.2"></script>

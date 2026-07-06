@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certiva Vistorias — Validação de Laudo Cautelar</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #050811;
+            --bg-card: #0a1128;
+            --border: rgba(201, 169, 97, 0.15);
+            --accent: #C9A961;
+            --text-primary: #f7f4ee;
+            --text-secondary: #a3aab8;
+            --success: #6B8A3E;
+            --warning: #B8642B;
+            --danger: #8B2635;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            font-family: 'Inter Tight', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0a1f3d, #050811);
+            border-bottom: 2px solid var(--accent);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-family: 'Fraunces', serif;
+            font-size: 24px;
+            color: var(--accent);
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .header p {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 4px;
+        }
+
+        .content {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .badge-status {
+            align-self: center;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-valid {
+            background: rgba(107, 138, 62, 0.15);
+            color: #8cba50;
+            border: 1px solid rgba(107, 138, 62, 0.3);
+        }
+
+        .status-invalid {
+            background: rgba(139, 38, 53, 0.15);
+            color: #e56575;
+            border: 1px solid rgba(139, 38, 53, 0.3);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius);
+            padding: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .info-row:last-child {
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .vehicle-highlight {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            color: var(--accent);
+        }
+
+        .footer {
+            padding: 16px;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .loader {
+            text-align: center;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(201, 169, 97, 0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Cabeçalho -->
+        <div class="header">
+            <div style="font-size: 32px; color: var(--accent);"><i class="ri-shield-check-line"></i></div>
+            <h1>Certive Vistorias</h1>
+            <p>Validador de Laudo Cautelar</p>
+        </div>
+
+        <!-- Conteúdo Carregando -->
+        <div id="loader-view" class="loader">
+            <div class="spinner"></div>
+            <p style="font-size: 13px;">Consultando assinatura e hash criptográfico do documento...</p>
+        </div>
+
+        <!-- Conteúdo Não Encontrado -->
+        <div id="not-found-view" class="content" style="display: none; text-align: center;">
+            <div style="font-size: 48px; color: var(--danger);"><i class="ri-error-warning-line"></i></div>
+            <h2 style="font-family: 'Fraunces', serif; font-size: 20px;">Laudo Não Encontrado</h2>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">O hash criptográfico fornecido na assinatura deste laudo não confere com nenhum registro em nosso banco de dados. O laudo pode ter sido alterado ou cancelado.</p>
+            <div class="badge-status status-invalid" style="margin-top: 10px;">
+                <i class="ri-close-circle-fill"></i> Documento Inválido / Violado
+            </div>
+        </div>
+
+        <!-- Conteúdo Encontrado -->
+        <div id="success-view" class="content" style="display: none;">
+            <div class="badge-status status-valid">
+                <i class="ri-checkbox-circle-fill"></i> Laudo Autêntico & Concluído
+            </div>
+
+            <div class="info-grid">
+                <div class="info-row">
+                    <span class="info-label">Dossiê</span>
+                    <span class="info-value" id="val-dossie">CV-2026-00001</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Placa do Veículo</span>
+                    <span class="info-value vehicle-highlight" id="val-placa">ABC-1234</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Chassi (Mascarado)</span>
+                    <span class="info-value" id="val-chassi" style="font-family: monospace;">***************1234</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Marca / Modelo</span>
+                    <span class="info-value" id="val-modelo">FORD FOCUS SE 2.0</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Data da Vistoria</span>
+                    <span class="info-value" id="val-data">06/07/2026</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Resultado Geral</span>
+                    <span class="info-value" id="val-resultado" style="text-transform: uppercase;">CONFORME</span>
+                </div>
+            </div>
+
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; text-align: center; margin-top: 10px;">
+                <i class="ri-information-line"></i> Este documento foi devidamente assinado eletronicamente por nossa equipe técnica e as conformidades de estrutura e pintura conferem com o veículo auditado.
+            </p>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="footer">
+            © 2026 <a href="https://certive.com.br" target="_blank">Certive Vistorias Automotivas</a>. Todos os direitos reservados.
+        </div>
+    </div>
+
+    <!-- Script de Busca -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hash = urlParams.get('hash');
+
+            if (!hash) {
+                showView('not-found-view');
+                return;
+            }
+
+            let cautelar = null;
+            let os = null;
+
+            // 1. Tenta carregar do Supabase se configurado
+            const isSupabaseConfigured = (typeof supabaseClient !== 'undefined' && supabaseClient !== null);
+            if (isSupabaseConfigured) {
+                try {
+                    const { data: cautelarData, error: cautelarErr } = await supabaseClient
+                        .from('cautelares')
+                        .select('*')
+                        .eq('hash_laudo', hash)
+                        .single();
+
+                    if (cautelarData && !cautelarErr) {
+                        cautelar = cautelarData;
+                        
+                        // Busca a OS correspondente
+                        const { data: osData } = await supabaseClient
+                            .from('ordens_servico')
+                            .select('*')
+                            .eq('id', cautelar.os_id)
+                            .single();
+                        os = osData;
+                    }
+                } catch (e) {
+                    console.warn("Falha ao buscar no Supabase:", e);
+                }
+            }
+
+            // 2. Fallback: LocalStorage local para desenvolvimento e testes
+            if (!cautelar) {
+                try {
+                    const dbStr = localStorage.getItem('certive_db');
+                    if (dbStr) {
+                        const localDb = JSON.parse(dbStr);
+                        cautelar = (localDb.cautelares || []).find(c => c.hashLaudo === hash);
+                        if (cautelar) {
+                            os = (localDb.ordens_servico || []).find(o => o.id === cautelar.osId);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Falha ao ler LocalStorage:", e);
+                }
+            }
+
+            // 3. Exibir resultado
+            if (cautelar && os) {
+                // Preenche os campos
+                document.getElementById('val-dossie').textContent = cautelar.dossieNumero || cautelar.dossie_numero;
+                document.getElementById('val-placa').textContent = os.placa;
+                
+                const rawChassi = os.renavam || ''; // No schema, chassi está no renavam/chassi
+                const maskedChassi = rawChassi.length > 4 
+                    ? '*'.repeat(rawChassi.length - 4) + rawChassi.substring(rawChassi.length - 4) 
+                    : rawChassi;
+                document.getElementById('val-chassi').textContent = maskedChassi;
+                
+                // Servico nome
+                document.getElementById('val-modelo').textContent = os.clienteNome || 'VEÍCULO CADASTRADO';
+                
+                // Format Date
+                const dateVal = new Date(cautelar.dataHoraEnvio || cautelar.data_hora_envio || new Date());
+                document.getElementById('val-data').textContent = dateVal.toLocaleDateString('pt-BR');
+                
+                // Resultado
+                const statusVal = (cautelar.status === 'concluida' || cautelar.status === 'concluido') ? 'Concluída' : 'Aguardando Emissão';
+                const finalResult = (cautelar.status === 'concluida' || cautelar.status === 'concluido')
+                    ? (cautelar.parecerFinal || 'CONFORME')
+                    : 'RASCUNHO PRELIMINAR';
+                
+                const resLabel = document.getElementById('val-resultado');
+                resLabel.textContent = finalResult.replace('_', ' ');
+                if (finalResult.includes('conforme') && !finalResult.includes('nao')) {
+                    resLabel.style.color = 'var(--success)';
+                } else if (finalResult.includes('ressalvas')) {
+                    resLabel.style.color = 'var(--warning)';
+                } else {
+                    resLabel.style.color = 'var(--danger)';
+                }
+
+                showView('success-view');
+            } else {
+                showView('not-found-view');
+            }
+        });
+
+        function showView(viewId) {
+            document.getElementById('loader-view').style.display = 'none';
+            document.getElementById('not-found-view').style.display = 'none';
+            document.getElementById('success-view').style.display = 'none';
+
+            document.getElementById(viewId).style.display = 'block';
+        }
+    </script>
+</body>
+</html>
