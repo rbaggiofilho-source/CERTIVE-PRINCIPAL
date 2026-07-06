@@ -1053,10 +1053,12 @@ function enforceOperatorPermissions() {
         'nav-config': 'cadastros'
     };
 
+    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+
     for (const [navId, permission] of Object.entries(navItems)) {
         const element = document.getElementById(navId);
         if (element) {
-            if (currentSession.permissoes.includes(permission)) {
+            if (isGerenteGeral || (currentSession.permissoes && currentSession.permissoes.includes(permission))) {
                 element.style.display = 'flex';
             } else {
                 element.style.display = 'none';
