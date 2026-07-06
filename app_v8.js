@@ -947,10 +947,10 @@ function isMasterSession() {
 }
 
 function checkSession() {
-
     const sessionData = sessionStorage.getItem('certive_session');
     const loginOverlay = document.getElementById('login-overlay');
     
+    if (sessionData) {
         currentSession = JSON.parse(sessionData);
         
         // Sincroniza permissões da sessão com o operador atualizado no banco
