@@ -8803,14 +8803,14 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     <div class="form-group">
                         <label>Conformidade de Originalidade <span style="color:var(--danger)">*</span></label>
                         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
-                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
-                                <input type="checkbox" id="caut-chassi-ok" ${data.chassiOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('chassiOriginal', this.checked)"> Gravação de Chassi Original
+                            <label style="display: flex !important; align-items: center; justify-content: flex-start !important; gap: 8px; font-weight: 500; font-size: 13px; width: fit-content; cursor: pointer;">
+                                <input type="checkbox" id="caut-chassi-ok" ${data.chassiOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('chassiOriginal', this.checked)"> <span>Gravação de Chassi Original</span>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
-                                <input type="checkbox" id="caut-motor-ok" ${data.motorOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('motorOriginal', this.checked)"> Gravação de Motor Original
+                            <label style="display: flex !important; align-items: center; justify-content: flex-start !important; gap: 8px; font-weight: 500; font-size: 13px; width: fit-content; cursor: pointer;">
+                                <input type="checkbox" id="caut-motor-ok" ${data.motorOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('motorOriginal', this.checked)"> <span>Gravação de Motor Original</span>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px;">
-                                <input type="checkbox" id="caut-eta-ok" ${data.etiquetasEtaOriginais !== false ? 'checked' : ''} onchange="autoSaveCampo('etiquetasEtaOriginais', this.checked)"> Etiquetas ETA Preservadas
+                            <label style="display: flex !important; align-items: center; justify-content: flex-start !important; gap: 8px; font-weight: 500; font-size: 13px; width: fit-content; cursor: pointer;">
+                                <input type="checkbox" id="caut-eta-ok" ${data.etiquetasEtaOriginais !== false ? 'checked' : ''} onchange="autoSaveCampo('etiquetasEtaOriginais', this.checked)"> <span>Etiquetas ETA Preservadas</span>
                             </label>
                         </div>
                     </div>
