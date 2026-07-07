@@ -1053,7 +1053,7 @@ function enforceOperatorPermissions() {
         'nav-config': 'cadastros'
     };
 
-    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
 
     for (const [navId, permission] of Object.entries(navItems)) {
         const element = document.getElementById(navId);
@@ -4721,7 +4721,7 @@ function renderContasGerais() {
         return;
     }
 
-    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
 
     tbody.innerHTML = list.map(c => {
         const statusBadge = c.pago 
@@ -4851,7 +4851,7 @@ function openEditContaModal(id) {
         return;
     }
 
-    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
     const canDeleteOrEdit = isGerenteGeral || 
                             (conta.criadoPor === currentSession.nome) || 
                             (conta.criadoPor === currentSession.login);
@@ -4883,7 +4883,7 @@ async function submitEditContaForm(event) {
     const conta = db.contas_pagar.find(c => c.id === id);
     if (!conta) return;
 
-    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
     const canDeleteOrEdit = isGerenteGeral || 
                             (conta.criadoPor === currentSession.nome) || 
                             (conta.criadoPor === currentSession.login);
@@ -4937,7 +4937,7 @@ async function deleteConta(id) {
     const conta = db.contas_pagar.find(c => c.id === id);
     if (!conta) return;
 
-    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
     const canDeleteOrEdit = isGerenteGeral || 
                             (conta.criadoPor === currentSession.nome) || 
                             (conta.criadoPor === currentSession.login);
