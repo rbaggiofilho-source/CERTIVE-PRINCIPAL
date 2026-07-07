@@ -75,6 +75,10 @@ function prepareRecordFromDb(table, record) {
  * Returns the inserted record with the auto-generated ID (normalized).
  */
 async function sbInsert(table, record) {
+    if (window.onlineTables && !window.onlineTables[table]) {
+        console.log(`ℹ️ sbInsert(${table}): offline/tabela local. Operação local simulada.`);
+        return record;
+    }
     const dbRecord = prepareRecordForDb(table, record);
     const { data, error } = await supabaseClient
         .from(table)
@@ -96,6 +100,10 @@ async function sbInsert(table, record) {
  * Returns the inserted records with auto-generated IDs (normalized).
  */
 async function sbInsertMany(table, records) {
+    if (window.onlineTables && !window.onlineTables[table]) {
+        console.log(`ℹ️ sbInsertMany(${table}): offline/tabela local.`);
+        return records || [];
+    }
     const dbRecords = (records || []).map(r => prepareRecordForDb(table, r));
     const { data, error } = await supabaseClient
         .from(table)
@@ -116,6 +124,10 @@ async function sbInsertMany(table, records) {
  * Returns the updated record (normalized).
  */
 async function sbUpdate(table, id, updates) {
+    if (window.onlineTables && !window.onlineTables[table]) {
+        console.log(`ℹ️ sbUpdate(${table}, ${id}): offline/tabela local.`);
+        return updates;
+    }
     const dbUpdates = prepareRecordForDb(table, updates);
     const { data, error } = await supabaseClient
         .from(table)
@@ -142,6 +154,10 @@ async function sbUpdate(table, id, updates) {
  * Delete a record by ID.
  */
 async function sbDelete(table, id) {
+    if (window.onlineTables && !window.onlineTables[table]) {
+        console.log(`ℹ️ sbDelete(${table}, ${id}): offline/tabela local.`);
+        return;
+    }
     const { error } = await supabaseClient
         .from(table)
         .delete()
@@ -213,6 +229,23 @@ async function sbSelectWhere(table, filters) {
 async function loadAllFromSupabase() {
     try {
         console.log('⏳ Carregando dados do Supabase...');
+        
+        window.onlineTables = {
+            unidades: true,
+            servicos: true,
+            taxas_referencia: true,
+            operadores: true,
+            parceiros: true,
+            ordens_servico: true,
+            caixa_diario: true,
+            caixa_movimentos: true,
+            contas_pagar: true,
+            faturas: true,
+            auditoria: true,
+            solicitantes_parceiros: true,
+            portarias_uf: true,
+            metas_despesas: true
+        };
         
         const [
             unidades,
@@ -300,21 +333,25 @@ async function loadAllFromSupabase() {
 
         try {
             cautelares = await sbSelectAll('cautelares');
+            window.onlineTables['cautelares'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares indisponível no Supabase. Usando array vazio.", e.message);
         }
         try {
             cautelares_secoes = await sbSelectAll('cautelares_secoes');
+            window.onlineTables['cautelares_secoes'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares_secoes indisponível no Supabase. Usando array vazio.", e.message);
         }
         try {
             cautelares_fotos = await sbSelectAll('cautelares_fotos');
+            window.onlineTables['cautelares_fotos'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares_fotos indisponível no Supabase. Usando array vazio.", e.message);
         }
         try {
             cautelares_pesquisas = await sbSelectAll('cautelares_pesquisas');
+            window.onlineTables['cautelares_pesquisas'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares_pesquisas indisponível no Supabase. Usando array vazio.", e.message);
         }
