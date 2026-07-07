@@ -7042,6 +7042,122 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Validate current session and display screens
     checkSession();
 
+    // Hook especial para laudo teste de demonstração
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('test_laudo') === 'true') {
+        // Auto-login como Ricardo Administrador se não logado
+        sessionStorage.setItem('certive_session', JSON.stringify({
+            id: 1,
+            nome: "Ricardo Administrador (Teste)",
+            login: "admin",
+            funcao: "Gerente Geral",
+            unidadeId: 1,
+            permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"]
+        }));
+        currentSession = JSON.parse(sessionStorage.getItem('certive_session'));
+        const loginOv = document.getElementById('login-overlay');
+        if (loginOv) loginOv.classList.add('hidden');
+        
+        const usernameEl = document.getElementById('topbar-username');
+        if (usernameEl) usernameEl.textContent = currentSession.nome;
+        
+        const userroleEl = document.getElementById('topbar-userrole');
+        if (userroleEl) userroleEl.textContent = currentSession.funcao;
+        
+        // Criar laudo teste se não existir
+        const testCautelarId = 999;
+        const testOsId = 9999;
+        
+        // Remove antigo se existir para atualizar fotos/valores
+        db.ordens_servico = db.ordens_servico.filter(o => o.id !== testOsId);
+        db.cautelares = db.cautelares.filter(c => c.id !== testCautelarId);
+        db.cautelares_secoes = db.cautelares_secoes.filter(s => s.cautelarId !== testCautelarId);
+        db.cautelares_fotos = db.cautelares_fotos.filter(f => f.secaoId !== 10999 && f.secaoId !== 20999 && f.secaoId !== 30999 && f.secaoId !== 40999 && f.secaoId !== 50999 && f.secaoId !== 60999 && f.secaoId !== 70999 && f.secaoId !== 80999);
+
+        // Injeta OS Teste
+        db.ordens_servico.push({
+            id: testOsId,
+            numero: "OS-9999",
+            criadoEm: new Date().toISOString(),
+            criadoPor: "Ricardo Administrador",
+            unidadeId: 1,
+            clienteTipo: "parceiro",
+            parceiroId: 1,
+            clienteNome: "TOYOTA COROLLA XEI 2.0",
+            clienteCpfCnpj: "45.890.122/0001-08",
+            clienteCelular: "(48) 99999-9999",
+            placa: "ATO-0I28",
+            renavam: "9BRB03HE0L2567890",
+            servicoId: 4,
+            servicoNome: "VISTORIA CAUTELAR",
+            valor: 350.00,
+            observacoes: "Corolla Prata Teste",
+            pago: true,
+            formaPagamento: "pix",
+            docVeiculoApresentado: true,
+            docIdentificacaoApresentado: true,
+            status: "concluida_aprovada",
+            finalizadoEm: new Date().toISOString(),
+            finalizadoPor: "Ricardo Administrador"
+        });
+
+        // Injeta Cautelar Teste
+        db.cautelares.push({
+            id: testCautelarId,
+            osId: testOsId,
+            dossieNumero: "CV-2026-070201",
+            status: "concluida",
+            vistoriadorId: 1,
+            finalizadoPorId: 1,
+            dataHoraInicio: new Date().toISOString(),
+            dataHoraEnvio: new Date().toISOString(),
+            dataHoraFinalizacao: new Date().toISOString(),
+            parecerConsolidado: "conforme",
+            parecerTexto: "Laudo demonstrativo preenchido.",
+            hashLaudo: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            parecerFinal: "conforme"
+        });
+
+        // Injeta Seções Teste
+        db.cautelares_secoes.push({ id: 10999, cautelarId: testCautelarId, numeroSecao: 1, status: "completa", dadosJson: { quilometragem: "79.424", estadoConservacao: "excelente", combustivel: "ALCOOL / GASOLINA" } });
+        db.cautelares_secoes.push({ id: 20999, cautelarId: testCautelarId, numeroSecao: 2, status: "completa", dadosJson: { chassiLido: "9BRB03HE0L2567890", motorLido: "3ZR-FAE L256789" } });
+        db.cautelares_secoes.push({ id: 30999, cautelarId: testCautelarId, numeroSecao: 3, status: "completa", dadosJson: { parecerEstrutural: "conforme", observacao: "Não foram identificados sinais de sinistro, corte estrutural ou soldas." } });
+        db.cautelares_secoes.push({ id: 40999, cautelarId: testCautelarId, numeroSecao: 4, status: "completa", dadosJson: { painel_0: "112", painel_1: "118", painel_2: "142", painel_3: "135", painel_4: "138", painel_5: "108", painel_6: "126", painel_7: "248", painel_8: "236", painel_9: "122", painel_10: "115" } });
+        db.cautelares_secoes.push({ id: 50999, cautelarId: testCautelarId, numeroSecao: 5, status: "completa", dadosJson: {} });
+        db.cautelares_secoes.push({ id: 60999, cautelarId: testCautelarId, numeroSecao: 6, status: "completa", dadosJson: { reparoMotor: "nao", corMotorOk: "sim" } });
+        db.cautelares_secoes.push({ id: 70999, cautelarId: testCautelarId, numeroSecao: 7, status: "completa", dadosJson: { intervencaoQuadros: "nao", conservacaoInterior: "excelente" } });
+        db.cautelares_secoes.push({ id: 80999, cautelarId: testCautelarId, numeroSecao: 8, status: "completa", dadosJson: { signatureBase64: "" } });
+
+        // Injeta Fotos Teste
+        db.cautelares_fotos.push({ id: 100099, secaoId: 10999, slotCodigo: "frente_45_dir", url_thumb: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100199, secaoId: 10999, slotCodigo: "traseira_45_esq", url_thumb: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100299, secaoId: 20999, slotCodigo: "chassi_gravado", url_thumb: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100399, secaoId: 30999, slotCodigo: "longarina_diant_esq", url_thumb: "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100499, secaoId: 30999, slotCodigo: "assoalho_porta_malas", url_thumb: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100599, secaoId: 40999, slotCodigo: "medidor_pintura_uso", url_thumb: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100699, secaoId: 50999, slotCodigo: "vidro_parabrisa", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100799, secaoId: 50999, slotCodigo: "vidro_porta_diant_esq", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100899, secaoId: 50999, slotCodigo: "vidro_traseiro", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+        db.cautelares_fotos.push({ id: 100999, secaoId: 60999, slotCodigo: "motor_vista_geral", url_thumb: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
+
+        saveDatabase();
+
+        setTimeout(() => {
+            verResumoCautelar(testCautelarId);
+            
+            const feedbackArea = document.querySelector('.main-content');
+            if (feedbackArea) {
+                const banner = document.createElement('div');
+                banner.style.cssText = "background: var(--accent); color: var(--bg-primary); padding: 12px 20px; font-weight: 700; border-radius: 6px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-family: 'Outfit', sans-serif; box-shadow: var(--shadow-sm); z-index: 100;";
+                banner.innerHTML = `
+                    <span>💡 <strong>Modo de Demonstração Técnico:</strong> Você está visualizando o Laudo Cautelar de teste (Toyota Corolla ATO-0I28) reestruturado conforme solicitado.</span>
+                    <button onclick="this.parentElement.remove()" style="background:none; border:none; color:inherit; font-weight:900; cursor:pointer; font-size:16px; margin-left: 15px;">×</button>
+                `;
+                feedbackArea.insertBefore(banner, feedbackArea.firstChild);
+            }
+        }, 400);
+    }
+
     if (window.modoDiaReaberto && window.dataDiaReaberto) {
         const banner = document.getElementById('dia-reaberto-banner');
         if (banner) {
