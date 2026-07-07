@@ -8721,7 +8721,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     
     if (photo) {
         // Exibe preview da foto tirada (local Blob ou url base64)
-        const displayUrl = photo.url_thumb || photo.url_original || '';
+        const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
                 <img src="${displayUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
