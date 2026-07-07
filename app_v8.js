@@ -7142,19 +7142,59 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         saveDatabase();
 
+        // Injeta folha de estilos do visualizador tela cheia
+        const style = document.createElement('style');
+        style.id = 'demo-laudo-styles';
+        style.innerHTML = `
+            .sidebar, .topbar, #login-overlay {
+                display: none !important;
+            }
+            .main-content {
+                margin-left: 0 !important;
+                padding: 0 !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: 100vh !important;
+                background: #1a1d22 !important;
+            }
+            #cautelar-finalizacao-view {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 99999 !important;
+                grid-template-columns: 1fr !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            #cautelar-finalizacao-view > div:first-child {
+                display: none !important;
+            }
+            #cautelar-finalizacao-view > div:last-child {
+                max-height: 100vh !important;
+                height: 100vh !important;
+                width: 100vw !important;
+                padding: 85px 20px 40px 20px !important;
+                background: #1a1d22 !important;
+                overflow-y: auto !important;
+                box-sizing: border-box !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Adiciona barra flutuante de controle
+        const controls = document.createElement('div');
+        controls.style.cssText = "position: fixed; top: 15px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: rgba(10, 31, 61, 0.95); border: 1.5px solid #C9A961; padding: 10px 20px; border-radius: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100000; backdrop-filter: blur(10px); font-family: 'Outfit', sans-serif;";
+        controls.innerHTML = `
+            <span style="color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1.5px solid rgba(255,255,255,0.15); padding-right: 12px; margin-right: 4px;">📂 LAUDO TESTE COROLLA</span>
+            <button onclick="window.exibirPdfCautelar(999)" style="background: #C9A961; border: none; color: #050E1A; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: transform 0.2s;"><i class="ri-file-pdf-line" style="font-size:14px;"></i> BAIXAR PDF OFICIAL</button>
+            <button onclick="window.location.href='index.html'" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.2s;">VOLTAR PARA O ERP</button>
+        `;
+        document.body.appendChild(controls);
+
         setTimeout(() => {
             verResumoCautelar(testCautelarId);
-            
-            const feedbackArea = document.querySelector('.main-content');
-            if (feedbackArea) {
-                const banner = document.createElement('div');
-                banner.style.cssText = "background: var(--accent); color: var(--bg-primary); padding: 12px 20px; font-weight: 700; border-radius: 6px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-family: 'Outfit', sans-serif; box-shadow: var(--shadow-sm); z-index: 100;";
-                banner.innerHTML = `
-                    <span>💡 <strong>Modo de Demonstração Técnico:</strong> Você está visualizando o Laudo Cautelar de teste (Toyota Corolla ATO-0I28) reestruturado conforme solicitado.</span>
-                    <button onclick="this.parentElement.remove()" style="background:none; border:none; color:inherit; font-weight:900; cursor:pointer; font-size:16px; margin-left: 15px;">×</button>
-                `;
-                feedbackArea.insertBefore(banner, feedbackArea.firstChild);
-            }
         }, 400);
     }
 
