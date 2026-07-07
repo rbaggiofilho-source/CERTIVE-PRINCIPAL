@@ -1680,3 +1680,32 @@ h1, h2, h3, .serif-title {
         display: none !important;
     }
 }
+
+/* ===== DARK MODE FORM CONTROLS NORMALIZER ===== */
+select, 
+textarea, 
+input[type="text"], 
+input[type="number"], 
+input[type="password"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  font-family: 'Outfit', 'Arial', sans-serif !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23D4A017'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 16px !important;
+  padding-right: 40px !important;
+  cursor: pointer;
+}
+
+select option {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
