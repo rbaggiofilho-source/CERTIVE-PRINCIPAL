@@ -4717,9 +4717,11 @@ function renderContasGerais() {
         .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento));
 
     if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhuma conta a pagar registrada.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhuma conta a pagar registrada.</td></tr>';
         return;
     }
+
+    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
 
     tbody.innerHTML = list.map(c => {
         const statusBadge = c.pago 
@@ -4743,6 +4745,11 @@ function renderContasGerais() {
             ? `<button class="btn btn-success btn-sm btn-icon" onclick="previewExpenseComprovante(${c.id})" title="Visualizar Comprovante" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-checkbox-circle-line" style="font-size: 14px;"></i></button>`
             : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
 
+        // O criador da conta ou o Gerente Geral podem editar/excluir
+        const canDeleteOrEdit = isGerenteGeral || 
+                                (c.criadoPor === currentSession.nome) || 
+                                (c.criadoPor === currentSession.login);
+
         return `
             <tr>
                 <td><strong>${formatDateBr(c.vencimento)}</strong></td>
@@ -4751,6 +4758,7 @@ function renderContasGerais() {
                     ${obsHtml}
                 </td>
                 <td><span class="badge badge-progress">${c.tipo.toUpperCase()}</span></td>
+                <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${c.criadoPor || 'Sistema'}</span></td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${formatCurrency(c.valor)}</td>
                 <td>${statusBadge}</td>
                 <td style="text-align: center;">${anexoHtml}</td>
@@ -4758,8 +4766,10 @@ function renderContasGerais() {
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         ${!c.pago ? `<button class="btn btn-primary btn-sm" onclick="payExpense(${c.id})" title="Pagar Conta"><i class="ri-check-line"></i> PAGAR</button>` : `<small style="color:var(--text-muted); font-size: 11px;">Paga em ${formatDateBr(c.pagoEm)}</small>`}
-                        <button class="btn btn-warning btn-sm btn-icon" onclick="openEditContaModal(${c.id})" title="Editar Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-edit-line" style="font-size: 14px;"></i></button>
-                        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteConta(${c.id})" title="Excluir Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-delete-bin-line" style="font-size: 14px;"></i></button>
+                        ${canDeleteOrEdit ? `
+                            <button class="btn btn-warning btn-sm btn-icon" onclick="openEditContaModal(${c.id})" title="Editar Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-edit-line" style="font-size: 14px;"></i></button>
+                            <button class="btn btn-danger btn-sm btn-icon" onclick="deleteConta(${c.id})" title="Excluir Conta" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-delete-bin-line" style="font-size: 14px;"></i></button>
+                        ` : ''}
                     </div>
                 </td>
             </tr>
@@ -4796,7 +4806,8 @@ function submitDespesaForm(event) {
             anexo: anexoData,
             pago: false,
             pagoEm: null,
-            comprovante: null
+            comprovante: null,
+            criadoPor: currentSession ? currentSession.nome : 'Sistema'
         };
 
         try {
@@ -4840,6 +4851,16 @@ function openEditContaModal(id) {
         return;
     }
 
+    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const canDeleteOrEdit = isGerenteGeral || 
+                            (conta.criadoPor === currentSession.nome) || 
+                            (conta.criadoPor === currentSession.login);
+
+    if (!canDeleteOrEdit) {
+        showToast("Erro: Você não tem permissão para editar esta conta.", "error");
+        return;
+    }
+
     document.getElementById('edit-conta-id').value = conta.id;
     document.getElementById('edit-conta-desc').value = conta.descricao.toUpperCase();
     document.getElementById('edit-conta-vencimento').value = getLocalDateString(conta.vencimento);
@@ -4861,6 +4882,16 @@ async function submitEditContaForm(event) {
     const id = parseInt(document.getElementById('edit-conta-id').value);
     const conta = db.contas_pagar.find(c => c.id === id);
     if (!conta) return;
+
+    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const canDeleteOrEdit = isGerenteGeral || 
+                            (conta.criadoPor === currentSession.nome) || 
+                            (conta.criadoPor === currentSession.login);
+
+    if (!canDeleteOrEdit) {
+        showToast("Erro: Você não tem permissão para editar esta conta.", "error");
+        return;
+    }
 
     const desc = document.getElementById('edit-conta-desc').value.trim().toUpperCase();
     const venc = document.getElementById('edit-conta-vencimento').value;
@@ -4905,6 +4936,16 @@ async function submitEditContaForm(event) {
 async function deleteConta(id) {
     const conta = db.contas_pagar.find(c => c.id === id);
     if (!conta) return;
+
+    const isGerenteGeral = currentSession && currentSession.funcao === "Gerente Geral";
+    const canDeleteOrEdit = isGerenteGeral || 
+                            (conta.criadoPor === currentSession.nome) || 
+                            (conta.criadoPor === currentSession.login);
+
+    if (!canDeleteOrEdit) {
+        showToast("Erro: Você não tem permissão para excluir esta conta.", "error");
+        return;
+    }
 
     if (confirm(`Tem certeza que deseja excluir permanentemente a conta "${conta.descricao}" no valor de ${formatCurrency(conta.valor)}?`)) {
         try {
@@ -5539,7 +5580,8 @@ async function lancarFaturaDetran() {
         pagoEm: null,
         categoria: "Impostos / Taxas",
         fornecedor: "DETRAN-SC",
-        comprovante: null
+        comprovante: null,
+        criadoPor: currentSession ? currentSession.nome : 'Sistema'
     };
 
     try {
