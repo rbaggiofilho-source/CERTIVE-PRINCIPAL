@@ -4548,7 +4548,10 @@ function renderFatFaturas() {
             ? `<span class="badge badge-done">Paga</span>` 
             : `<span class="badge badge-waiting">Aberto</span>`;
 
-        const statusBoleto = f.statusBoleto || "Não gerado";
+        let statusBoleto = f.statusBoleto || "Não gerado";
+        if (statusBoleto === 'Não gerado' && f.asaas_url) {
+            statusBoleto = 'Gerado';
+        }
         let boletoBadge = '';
         if (statusBoleto === 'Não gerado') {
             boletoBadge = '<span class="badge badge-waiting" style="opacity:0.75;"><span class="badge-dot"></span> Não Gerado</span>';
