@@ -75,15 +75,79 @@
 
     <!-- Script de dados e renderização do laudo -->
     <script>
-        // Mock de dados e funções auxiliares necessárias
+        // Lista de carros aleatórios para testar o laudo
+        const carrosAleatorios = [
+            {
+                marcaModelo: 'JEEP / COMPASS LIMITED T270',
+                placa: 'JEP9I33',
+                anoFab: '2021',
+                anoMod: '2022',
+                cor: 'CINZA',
+                renavam: '01294829381',
+                chassi: '9883C72A1LK239478',
+                motor: 'T270G1284903',
+                combustivel: 'FLEX',
+                quilometragem: '34.120',
+                frente45Url: 'https://images.unsplash.com/photo-1617469767053-d3b508a0d145?auto=format&fit=crop&q=80&w=600',
+                traseira45Url: 'https://images.unsplash.com/photo-1532581291347-9c39cf10a73c?auto=format&fit=crop&q=80&w=600'
+            },
+            {
+                marcaModelo: 'HONDA / CIVIC TOURING 1.5T',
+                placa: 'HND8F42',
+                anoFab: '2019',
+                anoMod: '2020',
+                cor: 'BRANCA',
+                renavam: '01183928192',
+                chassi: '9881H82B9KK128492',
+                motor: 'L15B7894320',
+                combustivel: 'GASOLINA',
+                quilometragem: '52.890',
+                frente45Url: 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&q=80&w=600',
+                traseira45Url: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&q=80&w=600'
+            },
+            {
+                marcaModelo: 'CHEVROLET / ONIX PREMIER TURBO',
+                placa: 'ONX4H12',
+                anoFab: '2020',
+                anoMod: '2021',
+                cor: 'AZUL',
+                renavam: '01094838291',
+                chassi: '9885B61C8JK384910',
+                motor: 'CSS10128940',
+                combustivel: 'FLEX',
+                quilometragem: '41.350',
+                frente45Url: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=600',
+                traseira45Url: 'https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&q=80&w=600'
+            }
+        ];
+
+        // Escolhe um carro aleatório
+        const carro = carrosAleatorios[Math.floor(Math.random() * carrosAleatorios.length)];
+
+        // Atualiza o título e cabeçalho dinamicamente
+        document.title = `Laudo de Vistoria Teste - Placa ${carro.placa}`;
+        
+        // Mock de banco de dados
         const db = {
             cautelares: [{ id: 999, osId: 999, dossieNumero: '002.285.378', criadoEm: new Date().toISOString(), parecerFinal: 'com_ressalvas' }],
-            ordens_servico: [{ id: 999, clienteNome: 'FIAT / TORO FREEDOM AT', placa: 'ATO8I28', fabricacaoAno: '2016', modeloAno: '2017', cor: 'PRETA', renavam: '01085851483', chassi: '988226117HKA63015', motor: 'SS260S222968795', combustivel: 'ALCOOL / GASOLINA', unidadeId: 1 }],
+            ordens_servico: [{ 
+                id: 999, 
+                clienteNome: carro.marcaModelo, 
+                placa: carro.placa, 
+                fabricacaoAno: carro.anoFab, 
+                modeloAno: carro.anoMod, 
+                cor: carro.cor, 
+                renavam: carro.renavam, 
+                chassi: carro.chassi, 
+                motor: carro.motor, 
+                combustivel: carro.combustivel, 
+                unidadeId: 1 
+            }],
             unidades: [{ id: 1, nome: 'Certive Matriz - São José / Santa Catarina' }],
             operadores: [{ id: 999, nome: 'Romano Gonzales Mendes' }],
             cautelares_secoes: [
-                { id: 1, numeroSecao: 1, dadosJson: { combustivel: 'ALCOOL / GASOLINA', quilometragem: '79.424' } },
-                { id: 2, numeroSecao: 2, dadosJson: { chassiLido: '988226117HKA63015', motorLido: 'SS260S222968795', chassiOriginal: true, motorOriginal: true } },
+                { id: 1, numeroSecao: 1, dadosJson: { combustivel: carro.combustivel, quilometragem: carro.quilometragem } },
+                { id: 2, numeroSecao: 2, dadosJson: { chassiLido: carro.chassi, motorLido: carro.motor, chassiOriginal: true, motorOriginal: true } },
                 { id: 3, numeroSecao: 3, dadosJson: { parecerEstrutural: 'conforme', observacao: 'Não foram encontradas avarias ou soldas na estrutura de chassi/painéis.' } },
                 { id: 4, numeroSecao: 4, dadosJson: { parecerPintura: 'com_ressalvas', micrometro_1: 'Original', micrometro_2: 'Original', micrometro_3: 'Repintura', micrometro_14: 'Repintura' } },
                 { id: 5, numeroSecao: 5, dadosJson: { parecerVidros: 'conforme', label_chassis_vidros_status: 'Original', label_eta_compartimento_status: 'Original', label_eta_coluna_status: 'Original' } },
@@ -97,9 +161,8 @@
                 { id: 8, numeroSecao: 8, dadosJson: { signatureBase64: '', observacaoFinal: 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.' } }
             ],
             cautelares_fotos: [
-                // Inserindo fotos reais de carros livres da internet para simular fidelidade absoluta no preview de teste
-                { slotCodigo: 'frente_45_dir', url_original: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=400' },
-                { slotCodigo: 'traseira_45_esq', url_original: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=400' },
+                { slotCodigo: 'frente_45_dir', url_original: carro.frente45Url },
+                { slotCodigo: 'traseira_45_esq', url_original: carro.traseira45Url },
                 { slotCodigo: 'motor_vista_geral', url_original: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400' },
                 { slotCodigo: 'assoalho_porta_malas', url_original: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=400' },
                 { slotCodigo: 'painel_hodometro', url_original: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=400' }
