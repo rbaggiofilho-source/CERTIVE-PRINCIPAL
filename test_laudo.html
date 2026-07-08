@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste de Laudo Cautelar - Certive</title>
+    <!-- Montserrat Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Remix Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- qrcode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header-bar {
+            width: 100%;
+            max-width: 800px;
+            background: #0A1F3D;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            box-sizing: border-box;
+        }
+        .btn-download {
+            background: #C9A961;
+            color: #0A1F3D;
+            border: none;
+            padding: 10px 20px;
+            font-weight: 700;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            font-size: 11px;
+            transition: background 0.2s;
+        }
+        .btn-download:hover {
+            background: #e4ce99;
+        }
+        #laudo-preview-container {
+            width: 100%;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <div>
+            <h1 style="margin: 0; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Teste do Novo Laudo Cautelar</h1>
+            <p style="margin: 4px 0 0 0; font-size: 10px; color: #a3aab8;">Modelo de Referência: Fiat Toro (10 páginas)</p>
+        </div>
+        <button class="btn-download" onclick="baixarPdfTeste()"><i class="ri-file-pdf-line" style="font-size:16px;"></i> Baixar PDF</button>
+    </div>
+
+    <!-- Container do Laudo -->
+    <div id="laudo-preview-container"></div>
+
+    <!-- Script de dados e renderização do laudo -->
+    <script>
+        // Mock de dados e funções auxiliares necessárias
+        const db = {
+            cautelares: [{ id: 999, osId: 999, dossieNumero: '002.285.378', criadoEm: new Date().toISOString(), parecerFinal: 'com_ressalvas' }],
+            ordens_servico: [{ id: 999, clienteNome: 'FIAT/TORO FREEDOM AT', placa: 'ATO8I28', fabricacaoAno: '2016', modeloAno: '2017', cor: 'PRETA', renavam: '01085851483', chassi: '988226117HKA63015', unidadeId: 1 }],
+            unidades: [{ id: 1, nome: 'Certive Matriz - São José' }],
+            operadores: [{ id: 999, nome: 'Romano Gonzales Mendes' }],
+            cautelares_secoes: [
+                { id: 1, numeroSecao: 1, dadosJson: { combustivel: 'ALCOOL / GASOLINA', quilometragem: '79.424' } },
+                { id: 2, numeroSecao: 2, dadosJson: {} },
+                { id: 3, numeroSecao: 3, dadosJson: { parecerEstrutural: 'conforme', observacao: 'Não foram encontradas avarias ou soldas na estrutura de chassi/painéis.' } },
+                { id: 4, numeroSecao: 4, dadosJson: { parecerPintura: 'com_ressalvas', micrometro_1: 'Original', micrometro_2: 'Original', micrometro_3: 'Repintura', micrometro_14: 'Repintura' } },
+                { id: 5, numeroSecao: 5, dadosJson: { parecerVidros: 'conforme' } },
+                { id: 6, numeroSecao: 6, dadosJson: { parecerMotor: 'conforme' } },
+                { id: 7, numeroSecao: 7, dadosJson: { parecerDocumental: 'com_ressalvas', debitos: [
+                    { name: "IPVA", value: "R$ 0,00", status: "ok" },
+                    { name: "DPVAT", value: "R$ 0,00", status: "ok" },
+                    { name: "Licenciamento", value: "Existe débito", status: "alert" },
+                    { name: "Multas", value: "Existe débito", status: "alert" }
+                ] } },
+                { id: 8, numeroSecao: 8, dadosJson: { signatureBase64: '' } }
+            ],
+            cautelares_fotos: []
+        };
+
+        window.activeFinalizacaoCautelarId = 999;
+    </script>
+
+    <!-- Import do novo gerador de PDF -->
+    <script src="laudo_pdf_v2.js"></script>
+
+    <script>
+        // Inicializa a pré-visualização ao carregar a página
+        window.addEventListener('load', () => {
+            atualizarPreviewLaudo();
+        });
+
+        function baixarPdfTeste() {
+            const element = document.getElementById('laudo-preview-container');
+            const opt = {
+                margin: 0,
+                filename: 'LAUDO_CAUTELAR_TESTE_ATO8I28.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save();
+        }
+    </script>
+</body>
+</html>
