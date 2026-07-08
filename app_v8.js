@@ -10196,7 +10196,7 @@ function confirmOperatorSignature(showAlert = true) {
 /**
  * Renderiza a pré-visualização real-time do Laudo A4 de 9 páginas.
  */
-function atualizarPreviewLaudo() {
+function atualizarPreviewLaudo_old() {
     const previewContainer = document.getElementById('laudo-preview-container');
     if (!previewContainer) return;
 
