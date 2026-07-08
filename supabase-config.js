@@ -2,8 +2,8 @@
 // CERTIVE VISTORIAS — Supabase Configuration
 // ==========================================
 
-const SUPABASE_URL = 'https://aeajxahdflzqxmydxtgv.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_Ur22iF8Q6EXacyQ0ICGmVQ_dNh2KBHL';
+const SUPABASE_URL = 'https://xktsvimtkwjegzaljfpm.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_xuMeTcHg4M5S7qRi-H8nvQ_xN2F5wDa';
 
 // Initialize Supabase Client with safety check
 let supabaseClient;
