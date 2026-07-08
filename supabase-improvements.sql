@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_fat_parceiro_pago ON faturas("parceiroId", pago);
 -- ================================================
 -- 4. VIEW SEGURA para operadores (sem coluna senha)
 -- ================================================
-CREATE OR REPLACE VIEW operadores_safe AS
+CREATE OR REPLACE VIEW operadores_safe WITH (security_invoker = true) AS
 SELECT id, nome, login, funcao, "unidadeId", permissoes, ativo
 FROM operadores;
 

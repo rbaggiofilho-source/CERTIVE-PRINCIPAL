@@ -206,7 +206,12 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="os-placa">Placa do Veículo</label>
-                                    <input type="text" id="os-placa" placeholder="ABC1D23" maxlength="8" style="text-transform: uppercase; font-weight: 700;">
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="text" id="os-placa" placeholder="ABC1D23" maxlength="8" style="text-transform: uppercase; font-weight: 700; flex: 1;" oninput="checkPlacaLength()">
+                                        <button class="btn btn-primary" id="btn-consultar-placa" type="button" onclick="consultarPlacaAPI()" style="padding: 0 16px; border-radius: var(--radius-sm);" disabled title="Consultar dados da placa">
+                                            <i class="ri-search-line"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="os-renavam">Renavam</label>
@@ -1450,6 +1455,7 @@
                     <button class="tab-btn" onclick="switchConfigTab('parceiros', this)">Parceiros</button>
                     <button class="tab-btn" onclick="switchConfigTab('operadores', this)">Operadores & Unidades</button>
                     <button class="tab-btn" onclick="switchConfigTab('portarias', this)">Portarias por UF</button>
+                    <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
                 </div>
 
                 <!-- Config Tab: Preços e Taxas -->
@@ -1521,6 +1527,16 @@
                                         <div class="form-group">
                                             <label for="cfg-part-tel">Contato / Celular</label>
                                             <input type="text" id="cfg-part-tel" placeholder="(48) 99999-9999" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-part-whatsapp">WhatsApp Faturamento</label>
+                                            <input type="text" id="cfg-part-whatsapp" placeholder="(48) 99999-9999" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-email">E-mail Faturamento</label>
+                                            <input type="email" id="cfg-part-email" placeholder="financeiro@empresa.com">
                                         </div>
                                         <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; padding-top: 22px;">
                                             <label class="form-check" style="margin-bottom: 0;">
@@ -1782,6 +1798,35 @@
                                     </table>
                                 </div>
                             </div>
+                </div>
+
+                <!-- Config Tab: WhatsApp -->
+                <div id="tab-cfg-whatsapp" style="display: none;">
+                    <div class="panel-card" style="max-width: 600px;">
+                        <div class="panel-card-header">
+                            <h3><i class="ri-whatsapp-line"></i> Configurações de Notificações</h3>
+                        </div>
+                        <div class="panel-card-body">
+                            <form id="config-whatsapp-form" onsubmit="submitConfigWhatsApp(event)">
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label for="zap-responsavel">WhatsApp do Responsável</label>
+                                    <input type="text" id="zap-responsavel" placeholder="(99) 99999-9999" maxlength="15" oninput="this.value = typeof maskCelular === 'function' ? maskCelular(this.value) : this.value">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label for="zap-dias-aviso">Dias de antecedência do vencimento</label>
+                                    <input type="number" id="zap-dias-aviso" min="1" max="30" value="3" required>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label for="zap-template">Template da Mensagem</label>
+                                    <textarea id="zap-template" rows="4" style="resize: vertical; font-family: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); width: 100%; box-sizing: border-box;" required>Atenção: A conta {descricao} no valor de R$ {valor} vence no dia {vencimento}</textarea>
+                                    <small style="color: var(--text-muted); display: block; margin-top: 4px;">
+                                        Variáveis disponíveis: <strong>{descricao}</strong>, <strong>{valor}</strong>, <strong>{vencimento}</strong>
+                                    </small>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="ri-save-line"></i> Salvar Configurações
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -2184,7 +2229,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="supabase-config.js?v=8.2.12"></script>
+<script src="supabase-config.js?v=8.2.13"></script>
     <!-- MODAL: EDITAR OPERADOR -->
     <div id="modal-editar-operador" class="modal-overlay">
         <div class="modal-content" style="max-width: 500px;">
@@ -2271,7 +2316,7 @@
         </div>
     </div>
 
-<script src="supabase-db.js?v=8.2.12"></script>
-<script src="app_v8.js?v=8.2.12"></script>
+<script src="supabase-db.js?v=8.2.13"></script>
+<script src="app_v8.js?v=8.2.13"></script>
 </body>
 </html>

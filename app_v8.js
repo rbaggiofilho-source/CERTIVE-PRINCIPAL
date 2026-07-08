@@ -4446,6 +4446,53 @@ async function submitGirarFatura(event) {
             });
         }
         
+        // --- NOVO: Gerar PDF e Chamar Edge Function Asaas ---
+        try {
+            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
+            
+            // 1. Gera PDF e faz upload pro Supabase Storage
+            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+
+            showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
+            
+            // 2. Chama a Edge Function Asaas
+            const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
+            });
+            
+            if (functionRes.ok) {
+                const functionData = await functionRes.json();
+                finalInvoice.asaas_payment_id = functionData.paymentId;
+                finalInvoice.asaas_url = functionData.url;
+                finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
+                
+                // Salva atualizações do Asaas na fatura do banco de dados
+                await sbUpdate('faturas', inserted.id, {
+                    asaas_payment_id: finalInvoice.asaas_payment_id,
+                    asaas_url: finalInvoice.asaas_url,
+                    notificacao_zap: finalInvoice.notificacao_zap
+                });
+                
+                showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
+            } else {
+                let errText = "Erro desconhecido";
+                try {
+                    const functionData = await functionRes.json();
+                    errText = functionData.error || errText;
+                } catch(e) {}
+                showToast("Erro Asaas: " + errText, "error");
+            }
+        } catch(e) {
+            console.error(e);
+            showToast("Erro ao chamar Asaas / WhatsApp.", "error");
+        }
+        // ----------------------------------------
+        
         db.faturas.unshift(finalInvoice);
     } else {
         // Fluxo Original LocalStorage (Fallback / Offline)
@@ -4513,6 +4560,17 @@ function renderFatFaturas() {
             boletoBadge = '<span class="badge badge-cancelled"><span class="badge-dot"></span> Vencido</span>';
         }
 
+        let asaasBtn = '';
+        if (f.asaas_url) {
+            asaasBtn = `<a href="${f.asaas_url}" target="_blank" class="btn btn-secondary btn-sm btn-icon" title="Abrir Boleto Asaas" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); transition: background 0.2s;"><i class="ri-bank-card-line" style="font-size:14px;"></i></a>`;
+        } else {
+            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>`;
+        }
+
+        let zapBtn = f.notificacao_zap 
+            ? `<button class="btn btn-success btn-sm btn-icon" style="background:var(--success); border-color:var(--success); color:white; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;" title="Notificação por WhatsApp Enviada"><i class="ri-whatsapp-line" style="font-size:14px;"></i></button>`
+            : '';
+
         return `
             <tr>
                 <td><strong>${f.codigo}</strong></td>
@@ -4527,7 +4585,8 @@ function renderFatFaturas() {
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="Imprimir Fatura"><i class="ri-printer-line"></i></button>
-                        <button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>
+                        ${asaasBtn}
+                        ${zapBtn}
                         ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})"><i class="ri-check-line"></i> Baixar</button>` : ''}
                     </div>
                 </td>
@@ -6343,11 +6402,15 @@ function switchConfigTab(tab, btn) {
     document.getElementById('tab-cfg-parceiros').style.display = tab === 'parceiros' ? 'block' : 'none';
     document.getElementById('tab-cfg-operadores').style.display = tab === 'operadores' ? 'block' : 'none';
     document.getElementById('tab-cfg-portarias').style.display = tab === 'portarias' ? 'block' : 'none';
+    
+    const tabZap = document.getElementById('tab-cfg-whatsapp');
+    if (tabZap) tabZap.style.display = tab === 'whatsapp' ? 'block' : 'none';
 
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
     if (tab === 'portarias') renderConfigPortarias();
+    if (tab === 'whatsapp') renderConfigWhatsApp();
 }
 
 function renderConfigPage() {
@@ -6355,6 +6418,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'parceiros') renderConfigParceiros();
     else if (currentConfigTab === 'operadores') renderConfigOperadores();
     else if (currentConfigTab === 'portarias') renderConfigPortarias();
+    else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
 }
 
 // Config: Tabela de Preços e Taxas
@@ -6541,6 +6605,8 @@ function submitConfigPartner(event) {
     const cnpj = document.getElementById('cfg-part-cnpj').value.trim();
     const responsavel = document.getElementById('cfg-part-responsavel').value.trim();
     const tel = document.getElementById('cfg-part-tel').value.trim();
+    const whatsapp = document.getElementById('cfg-part-whatsapp').value.trim();
+    const email = document.getElementById('cfg-part-email').value.trim();
     const fat = document.getElementById('cfg-part-faturamento').checked;
     const shopping = document.getElementById('cfg-part-shopping').checked;
     const obs = document.getElementById('cfg-part-obs').value.trim();
@@ -6552,18 +6618,16 @@ function submitConfigPartner(event) {
         customPrecos[s.id] = val;
     });
 
-    const emailEl = document.getElementById('cfg-part-email');
-    const email = emailEl ? emailEl.value.trim() : '';
-
     const precoCombo = parseFloat(document.getElementById('cfg-part-preco-combo').value) || 0;
     const precoComboTransf = parseFloat(document.getElementById('cfg-part-preco-combo-transf').value) || 0;
 
-    // Payload sem 'email' (coluna não existe na tabela parceiros do banco)
     const partnerPayload = {
         nome: nome,
         cnpj: cnpj,
         responsavel: responsavel,
         telefone: tel,
+        whatsapp: whatsapp,
+        email: email,
         usaFaturamento: fat,
         observacoes: obs,
         tabelaPrecos: customPrecos,
@@ -6626,6 +6690,8 @@ function editPartnerDetails(id) {
     document.getElementById('cfg-part-cnpj').value = partner.cnpj;
     document.getElementById('cfg-part-responsavel').value = partner.responsavel || '';
     document.getElementById('cfg-part-tel').value = partner.telefone;
+    document.getElementById('cfg-part-whatsapp').value = partner.whatsapp || '';
+    document.getElementById('cfg-part-email').value = partner.email || '';
     document.getElementById('cfg-part-faturamento').checked = partner.usaFaturamento;
     document.getElementById('cfg-part-shopping').checked = !!partner.parceiroShopping;
     document.getElementById('cfg-part-preco-combo').value = partner.precoCombo !== undefined ? partner.precoCombo : '';
@@ -6983,6 +7049,80 @@ async function salvarEdicaoUnidade(event) {
 function maskPlaca(v) {
     v = v.replace(/[^A-Za-z0-9]/g, '').slice(0, 7);
     return v.length > 3 ? v.slice(0, 3) + '-' + v.slice(3) : v;
+}
+
+function checkPlacaLength() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    if (!placaInput || !btnConsultar) return;
+    
+    const placaValue = placaInput.value.replace(/[^a-zA-Z0-9]/g, '');
+    if (placaValue.length === 7) {
+        btnConsultar.disabled = false;
+    } else {
+        btnConsultar.disabled = true;
+    }
+}
+
+async function consultarPlacaAPI() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    if (!placaInput || !btnConsultar) return;
+    
+    const placa = placaInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (placa.length !== 7) return;
+
+    btnConsultar.disabled = true;
+    const originalIcon = btnConsultar.innerHTML;
+    btnConsultar.innerHTML = '<i class="ri-loader-4-line" style="animation: spin 1s linear infinite;"></i>';
+
+    try {
+        if (typeof supabaseClient === 'undefined' || supabaseClient === null) {
+            showToast("Supabase não configurado para consulta de placa.", "error");
+            return;
+        }
+
+        const { data: json, error } = await supabaseClient.functions.invoke('consultar-placa', {
+            body: { placa }
+        });
+
+        if (error) {
+            console.error("Erro na Edge Function:", error);
+            showToast("Veículo não encontrado ou erro na API.", "error");
+            return;
+        }
+
+        if (json && json.status === 'ok' && json.dados && json.dados.informacoes_veiculo && json.dados.informacoes_veiculo.dados_veiculo) {
+            const data = json.dados.informacoes_veiculo.dados_veiculo;
+            
+            const marca = data.marca || '';
+            const modelo = data.modelo || '';
+            const inputVeiculo = document.getElementById('os-veiculo-marca-modelo');
+            if (inputVeiculo) {
+                inputVeiculo.value = (marca + (marca && modelo ? ' / ' : '') + modelo).trim();
+            }
+            
+            const inputAno = document.getElementById('os-veiculo-ano');
+            if (inputAno) {
+                inputAno.value = data.ano_modelo || data.ano_fabricacao || '';
+            }
+            
+            const inputRenavam = document.getElementById('os-renavam');
+            if (inputRenavam && !inputRenavam.value) {
+                inputRenavam.value = data.renavam || '';
+            }
+            showToast("Dados do veículo preenchidos com sucesso!", "success");
+        } else {
+            showToast(json.mensagem || "Consulta concluída, mas dados incompletos. Preencha manualmente.", "info");
+        }
+        
+    } catch (error) {
+        console.error("Erro ao consultar placa:", error);
+        showToast("Serviço de consulta instável. Preencha manualmente.", "error");
+    } finally {
+        btnConsultar.innerHTML = originalIcon;
+        btnConsultar.disabled = false;
+    }
 }
 
 function maskCpfCnpj(v) {
@@ -10891,6 +11031,191 @@ function exibirPdfCautelar(cautelarId) {
                 fecharFinalizacaoDesktop();
             });
     }, 1500);
+}
+
+// Config: Notificações WhatsApp
+async function renderConfigWhatsApp() {
+    if (typeof supabaseClient === 'undefined' || supabaseClient === null) return;
+
+    try {
+        const { data, error } = await supabaseClient.from('configuracoes').select('*').limit(1).single();
+        if (error && error.code !== 'PGRST116') {
+            console.error("Erro ao carregar configuracoes:", error);
+            return;
+        }
+
+        if (data) {
+            document.getElementById('zap-responsavel').value = data.zap_responsavel || '';
+            document.getElementById('zap-dias-aviso').value = data.zap_dias_aviso || 3;
+            document.getElementById('zap-template').value = data.zap_template || 'Atenção: A conta {descricao} no valor de R$ {valor} vence no dia {vencimento}';
+            
+            if (data.zap_responsavel && typeof maskCelular === 'function') {
+                document.getElementById('zap-responsavel').value = maskCelular(data.zap_responsavel);
+            }
+        }
+    } catch (err) {
+        console.error("Erro ao buscar configuracoes do Whatsapp:", err);
+    }
+}
+
+async function submitConfigWhatsApp(event) {
+    event.preventDefault();
+    if (typeof supabaseClient === 'undefined' || supabaseClient === null) {
+        showToast("Supabase não configurado.", "error");
+        return;
+    }
+
+    const btnSubmit = event.target.querySelector('button[type="submit"]');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    const responsavel = document.getElementById('zap-responsavel').value.trim();
+    const dias = parseInt(document.getElementById('zap-dias-aviso').value, 10);
+    const template = document.getElementById('zap-template').value.trim();
+
+    try {
+        const { data: existing } = await supabaseClient.from('configuracoes').select('id').limit(1).single();
+        
+        let errorObj;
+        if (existing) {
+            const { error } = await supabaseClient.from('configuracoes').update({
+                zap_responsavel: responsavel,
+                zap_dias_aviso: dias,
+                zap_template: template
+            }).eq('id', existing.id);
+            errorObj = error;
+        } else {
+            const { error } = await supabaseClient.from('configuracoes').insert([{
+                zap_responsavel: responsavel,
+                zap_dias_aviso: dias,
+                zap_template: template
+            }]);
+            errorObj = error;
+        }
+
+        if (errorObj) {
+            console.error("Erro ao salvar config zap:", errorObj);
+            showToast("Erro ao salvar as configurações do WhatsApp.", "error");
+        } else {
+            showToast("Configurações salvas com sucesso!", "success");
+            logAudit("Configuração WhatsApp", "Atualizou configurações de notificação.");
+        }
+
+    } catch (err) {
+        console.error("Erro ao salvar config zap:", err);
+        showToast("Erro ao salvar configurações.", "error");
+    } finally {
+        if (btnSubmit) btnSubmit.disabled = false;
+    }
+}
+
+async function generateAndUploadInvoicePDF(f) {
+    if (!window.useSupabase) return null;
+
+    const partner = db.parceiros.find(p => p.id === f.parceiroId);
+    const unit = db.unidades.find(u => u.id === f.unidadeId);
+    const oss = db.ordens_servico.filter(o => f.ordensIds.includes(o.id));
+
+    let osRows = oss.map(o => `
+        <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
+            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
+            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
+            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
+            <td style="padding: 6px;">${o.observacoes || '—'}</td>
+            <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
+            <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
+        </tr>
+    `).join('');
+
+    if (!osRows) {
+        osRows = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: #666;">Nenhuma OS vinculada a esta fatura.</td></tr>`;
+    }
+
+    const div = document.createElement('div');
+    div.style.padding = '40px';
+    div.style.fontFamily = 'Outfit, sans-serif';
+    div.style.color = '#000';
+    div.style.width = '800px';
+    div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+            <div>
+                <h1 style="font-size: 24px; font-weight: 800; margin: 0;">CERTIVE VISTORIAS</h1>
+                <p style="font-size: 11px; text-transform: uppercase; margin: 4px 0 0 0;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+            </div>
+            <div style="border: 2px solid #000; padding: 8px 16px; font-weight: 800; font-size: 16px;">
+                FATURA ${f.codigo}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 30px;">
+            <div>
+                <strong>Prestador:</strong> ${unit.nome}<br>
+                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
+            </div>
+            <div style="text-align: right;">
+                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
+                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
+                <strong>Contato:</strong> ${partner.telefone}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+            <div>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Status de Pagamento:</strong> AGUARDANDO PAGAMENTO
+            </div>
+            <div style="text-align: right; font-size: 16px; font-weight: 800;">
+                VALOR TOTAL: ${formatCurrency(f.valorTotal)}
+            </div>
+        </div>
+
+        <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 40px;">
+            <div style="font-weight: 800; font-size: 12px; background: #eee; padding: 10px 14px; border-bottom: 1px solid #000;">
+                DEMONSTRATIVO DE SERVIÇOS PRESTADOS
+            </div>
+            <div style="padding: 10px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000; font-size: 10px; text-transform: uppercase;">
+                            <th style="padding: 6px;">OS</th>
+                            <th style="padding: 6px;">Data</th>
+                            <th style="padding: 6px;">Placa</th>
+                            <th style="padding: 6px;">Veículo / OBS</th>
+                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px; text-align: right;">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${osRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    try {
+        const pdfBlob = await html2pdf().from(div).set({
+            margin: 0,
+            filename: `Demonstrativo_${f.codigo}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).outputPdf('blob');
+
+        const fileName = `${f.codigo}_${Date.now()}.pdf`;
+        const { data, error } = await supabaseClient.storage.from('faturas').upload(fileName, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+        });
+
+        if (error) throw error;
+
+        const { data: urlData } = supabaseClient.storage.from('faturas').getPublicUrl(fileName);
+        return urlData.publicUrl;
+    } catch (e) {
+        console.error("Erro ao gerar/upar PDF:", e);
+        return null;
+    }
 }
 
 
