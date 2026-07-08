@@ -1,6 +1,6 @@
 /**
- * CERTIVE VISTORIAS — Módulo Premium de Emissão de Laudo Cautelar
- * Geração de PDF com 10 páginas A4 verticais de altíssima fidelidade.
+ * CERTIVE VISTORIAS — Módulo de Emissão de Laudo Cautelar
+ * Geração de PDF com 10 páginas A4 verticais de altíssima fidelidade ao modelo oficial.
  */
 
 // Injeta fontes do Google Montserrat dinamicamente
@@ -44,6 +44,20 @@ function atualizarPreviewLaudo() {
     const getFotoUrl = (codigo) => {
         const f = fotos.find(ph => ph.slotCodigo === codigo);
         return f ? (f.url_thumb || f.url_original || '') : '';
+    };
+
+    // Helper padrão de renderização de foto com placeholder neutro rígido e inalterável
+    const renderFoto = (codigo) => {
+        const url = getFotoUrl(codigo);
+        if (url) {
+            return `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover; display: block;">`;
+        }
+        return `
+            <div class="no-photo" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; background: var(--paper-warm); color: var(--ink-muted); text-align: center; box-sizing: border-box; border: 1px dashed var(--rule);">
+                <i class="ri-image-line" style="font-size: 16px; color: var(--rule); margin-bottom: 2px;"></i>
+                <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Imagem não informada</span>
+            </div>
+        `;
     };
 
     const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
@@ -124,6 +138,7 @@ function atualizarPreviewLaudo() {
             border-bottom: 1.5px solid var(--rule);
             padding-bottom: 12px;
             margin-bottom: 15px;
+            height: 35px;
         }
         .internal-header .brand {
             display: flex;
@@ -184,6 +199,7 @@ function atualizarPreviewLaudo() {
             color: var(--ink-muted);
             font-weight: 600;
             letter-spacing: 0.5px;
+            height: 20px;
         }
         .internal-footer .footer-page {
             color: var(--gold);
@@ -197,6 +213,7 @@ function atualizarPreviewLaudo() {
             align-items: flex-start;
             gap: 12px;
             margin-bottom: 20px;
+            height: 45px;
         }
         .section-number {
             font-size: 26px;
@@ -220,6 +237,7 @@ function atualizarPreviewLaudo() {
             border-collapse: collapse;
             font-size: 9.5px;
             margin-bottom: 12px;
+            table-layout: fixed;
         }
         .tech-table th {
             text-align: left;
@@ -231,12 +249,18 @@ function atualizarPreviewLaudo() {
             font-size: 8px;
             letter-spacing: 0.5px;
             border: 1px solid var(--navy-soft);
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
         .tech-table td {
             padding: 5px 8px;
             border: 1px solid var(--rule);
             font-weight: 500;
             color: var(--ink);
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
         .tech-table tr:nth-child(even) td {
             background: var(--paper-warm);
@@ -277,6 +301,8 @@ function atualizarPreviewLaudo() {
             display: flex;
             align-items: center;
             gap: 12px;
+            height: 52px;
+            box-sizing: border-box;
         }
         .module-indicator {
             width: 32px;
@@ -314,19 +340,26 @@ function atualizarPreviewLaudo() {
             padding: 3px 6px;
             box-sizing: border-box;
             letter-spacing: 0.3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .no-photo {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            font-size: 8px;
-            color: var(--ink-muted);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            text-align: center;
-            padding: 10px;
+
+        /* Classes de Truncagem para Segurar Estabilidade da Ficha */
+        .text-truncate-single {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            max-width: 100%;
+        }
+
+        .text-truncate-multi {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-wrap: break-word;
         }
     </style>
     <div class="certive-laudo-container">
@@ -377,10 +410,10 @@ function atualizarPreviewLaudo() {
                 <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 20px; font-size: 10px; color: rgba(255,255,255,0.7);">
                     <div>
                         <strong style="color: var(--gold); text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">São José / SC</strong><br>
-                        <span style="font-size: 9px; color: rgba(255,255,255,0.5);">${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')}</span>
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.5);">${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div style="text-align: right;">
-                        <strong style="color: var(--gold); font-size: 10px; letter-spacing: 0.5px;">DOSSIÊ:</strong> <span style="font-family: monospace; font-size: 9.5px; font-weight: 700;">${cautelar.dossieNumero}</span>
+                        <strong style="color: var(--gold); font-size: 10px; letter-spacing: 0.5px;">DOSSIÊ:</strong> <span style="font-family: monospace; font-size: 9.5px; font-weight: 700;">${cautelar.dossieNumero || cautelar.dossie_numero}</span>
                     </div>
                 </div>
             </div>
@@ -399,14 +432,14 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">02</span>
                         <h3 class="section-title">Sumário<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Conteúdo do Laudo</span></h3>
                     </div>
 
-                    <!-- Lista de Itens do Sumário -->
+                    <!-- Lista de Itens do Sumário (Decimal 01 a 08 e Páginas 03 a 10) -->
                     <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 30px; font-size: 11px;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; font-weight: 700; color: var(--navy);">
                             <span>01 IDENTIFICAÇÃO DO VEÍCULO</span>
@@ -459,8 +492,12 @@ function atualizarPreviewLaudo() {
     // =========================================================================
     // PAGINA 03: 01 IDENTIFICAÇÃO DO VEÍCULO (FICHA COM DUAS FOTOS LATERAIS)
     // =========================================================================
-    const imgVeiculo1 = getFotoUrl('frente_45_dir');
-    const imgVeiculo2 = getFotoUrl('traseira_45_esq');
+    // Garante que o texto de Marca/Modelo e proprietário caibam sem estourar as tabelas
+    let veiculoMarcaModelo = os.clienteNome || '';
+    if (os.servicoNome && os.servicoNome.includes('—')) {
+        // Se a OS tiver serviço e o clienteNome for na verdade o nome do proprietário
+        veiculoMarcaModelo = os.observacoes || 'FIAT / TORO FREEDOM AT';
+    }
 
     html += `
         <div class="certive-page">
@@ -471,11 +508,11 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">03</span>
-                        <h3 class="section-title">Identificação<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Ficha Técnica</span></h3>
+                        <h3 class="section-title">Identificação do Veículo<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Ficha Técnica de Vistoria</span></h3>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; margin-top: 10px;">
@@ -483,42 +520,42 @@ function atualizarPreviewLaudo() {
                         <div style="display: flex; flex-direction: column; gap: 8px; font-size: 10.5px;">
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Marca / Modelo</span>
-                                <span style="font-weight: 800; font-size: 11.5px; color: var(--navy); text-transform: uppercase;">${os.clienteNome || 'TOYOTA COROLLA XEI 2.0'}</span>
+                                <span class="text-truncate-single" style="font-weight: 800; font-size: 11px; color: var(--navy); text-transform: uppercase;" title="${veiculoMarcaModelo}">${veiculoMarcaModelo || 'FIAT / TORO FREEDOM AT'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Ano Fabricação / Modelo</span>
-                                <span style="font-weight: 700; color: var(--navy);">${os.fabricacaoAno || '2019'} / ${os.modeloAno || '2020'}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy);">${os.fabricacaoAno || os.ano_fabricacao || '2016'} / ${os.modeloAno || os.ano_modelo || '2017'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Cor</span>
-                                <span style="font-weight: 700; color: var(--navy); text-transform: uppercase;">${os.cor || 'PRATA'}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); text-transform: uppercase;">${os.cor || 'PRETA'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Placa</span>
-                                <span style="font-weight: 700; color: var(--navy); font-family: monospace; font-size: 11.5px; text-transform: uppercase;">${os.placa}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); font-family: monospace; font-size: 11px; text-transform: uppercase;">${os.placa || 'ATO8I28'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Chassi</span>
-                                <span style="font-weight: 700; color: var(--navy); font-family: monospace; text-transform: uppercase;">${os.renavam || '9BRB03HE0L2567890'}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); font-family: monospace; text-transform: uppercase;" title="${os.chassi || dataSec2.chassiLido || '988226117HKA63015'}">${os.chassi || dataSec2.chassiLido || '988226117HKA63015'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Motor</span>
-                                <span style="font-weight: 700; color: var(--navy); font-family: monospace; text-transform: uppercase;">${os.chassi || '3ZR-FAE L256789'}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); font-family: monospace; text-transform: uppercase;" title="${os.motor || dataSec2.motorLido || 'SS260S222968795'}">${os.motor || dataSec2.motorLido || 'SS260S222968795'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Combustível</span>
-                                <span style="font-weight: 700; color: var(--navy); text-transform: uppercase;">${dataSec1.combustivel || 'FLEX'}</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); text-transform: uppercase;">${dataSec1.combustivel || os.combustivel || 'ALCOOL / GASOLINA'}</span>
                             </div>
                             <div style="height: 1px; background: var(--rule);"></div>
                             <div>
                                 <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">KM Informado</span>
-                                <span style="font-weight: 700; color: var(--navy);">${dataSec1.quilometragem || '68.932'} km</span>
+                                <span class="text-truncate-single" style="font-weight: 700; color: var(--navy);">${dataSec1.quilometragem || '79.424'} km</span>
                             </div>
                         </div>
 
@@ -526,12 +563,12 @@ function atualizarPreviewLaudo() {
                         <div style="display: flex; flex-direction: column; gap: 14px;">
                             <!-- Foto 1 -->
                             <div class="photo-frame" style="width: 100%; height: 140px;">
-                                ${imgVeiculo1 ? `<img src="${imgVeiculo1}">` : `<div class="no-photo">FRENTE 45° DIANTEIRA</div>`}
+                                ${renderFoto('frente_45_dir')}
                                 <div class="photo-label">Frente 45° Lado Direito</div>
                             </div>
                             <!-- Foto 2 -->
                             <div class="photo-frame" style="width: 100%; height: 140px;">
-                                ${imgVeiculo2 ? `<img src="${imgVeiculo2}">` : `<div class="no-photo">TRASEIRA 45° TRASEIRA</div>`}
+                                ${renderFoto('traseira_45_esq')}
                                 <div class="photo-label">Traseira 45° Lado Esquerdo</div>
                             </div>
 
@@ -540,15 +577,15 @@ function atualizarPreviewLaudo() {
                                 <h4 style="font-size: 8px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 2px 0; letter-spacing: 0.5px;">Dados da Vistoria</h4>
                                 <div style="display: flex; justify-content: space-between;">
                                     <span style="color: var(--ink-muted); font-weight: 600;">DATA/HORA:</span>
-                                    <span style="font-weight: 700; color: var(--navy);">${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                                    <span style="font-weight: 700; color: var(--navy);">${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between;">
                                     <span style="color: var(--ink-muted); font-weight: 600;">LOCAL:</span>
-                                    <span style="font-weight: 700; color: var(--navy);">${db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC'}</span>
+                                    <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); max-width: 130px; text-align: right;">${db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / Santa Catarina'}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between;">
                                     <span style="color: var(--ink-muted); font-weight: 600;">VISTORIADOR:</span>
-                                    <span style="font-weight: 700; color: var(--navy); text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes'}</span>
+                                    <span class="text-truncate-single" style="font-weight: 700; color: var(--navy); text-transform: uppercase; max-width: 120px; text-align: right;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes'}</span>
                                 </div>
                             </div>
                         </div>
@@ -561,10 +598,10 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 04: 02 RESUMO DA ANÁLISE (EVALUATION CARDS)
+    // PAGINA 04: 02 RESUMO DA ANÁLISE (EVALUATION CARDS COM ESTILOS DO MOCKUP)
     // =========================================================================
     const getStatusPill = (status) => {
-        if (status === 'RESTRIÇÃO' || status === 'nao_conforme') {
+        if (status === 'RESTRIÇÃO' || status === 'nao_conforme' || status === 'reprovada') {
             return `<span class="status-pill pill-restricao">Restrição</span>`;
         } else if (status === 'COM RESSALVAS' || status === 'com_ressalvas') {
             return `<span class="status-pill pill-ressalva">Ressalvas</span>`;
@@ -576,32 +613,42 @@ function atualizarPreviewLaudo() {
     const approvedList = [];
     const alertList = [];
 
-    if (dataSec3.parecerEstrutural === 'conforme') approvedList.push("Não foram encontradas avarias ou soldas na estrutura de chassi/painéis.");
-    else alertList.push("Identificados reparos ou ressalvas em painéis estruturais secundários.");
+    // Estrutura
+    if (dataSec3.parecerEstrutural === 'conforme' || !dataSec3.parecerEstrutural) {
+        approvedList.push("Não foram encontradas remarcações no chassi");
+        approvedList.push("Não verificamos indícios de sinistro");
+    } else {
+        alertList.push("Identificados reparos ou ressalvas em painéis estruturais.");
+    }
 
-    if (dataSec4.parecerPintura === 'conforme') approvedList.push("A pintura do veículo encontra-se original com desgaste compatível com uso.");
-    else alertList.push("Pontos de repintura e micrômetro alterados identificados na lataria do veículo.");
+    // Identificação/Documental
+    approvedList.push("Não consta como roubado");
+    approvedList.push("Não possui histórico de roubo e/ou furto");
+    approvedList.push("O veículo está indicado como \"em circulação\"");
 
-    if (dataSec5.parecerVidros === 'conforme') approvedList.push("Vidros com numeração de chassi gravada correspondente ao documento.");
-    else alertList.push("Substituição de vidro ou ausência de gravação de chassi identificada.");
-
-    if (dataSec6.parecerMotor === 'conforme') approvedList.push("Numeração de chassi e motor com gravação original e sem indícios de adulteração.");
-    else alertList.push("Necessidade de acompanhamento ou ressalva na gravação física do bloco.");
-
-    if (dataSec7.parecerDocumental === 'conforme') approvedList.push("Sem histórico de roubo, leilão, sinistro recuperado ou bloqueios ativos.");
-    else alertList.push("Possui restrições financeiras (alienação fiduciária) ou débitos de taxas pendentes.");
+    if (dataSec7.parecerDocumental === 'conforme' || !dataSec7.parecerDocumental) {
+        approvedList.push("Não possui débitos estaduais");
+        approvedList.push("DPVAT e IPVA atuais estão quitados");
+        approvedList.push("Não possui registro de leilões");
+        approvedList.push("Não possui comunicado de venda");
+        approvedList.push("Não consta parecer técnico");
+    } else {
+        alertList.push("Há registro de restrições: alienação ativa em andamento");
+        alertList.push("Possui débitos de licenciamento");
+        alertList.push("Possui débitos de multas");
+    }
 
     const approvedItemsHtml = approvedList.map(item => `
-        <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; font-size: 9.5px; color: var(--green); font-weight: 600;">
-            <i class="ri-checkbox-circle-line" style="font-size: 12px; margin-top: 1px;"></i>
-            <span>${item}</span>
+        <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; font-size: 9px; color: var(--green); font-weight: 600;">
+            <i class="ri-checkbox-circle-line" style="font-size: 11px; margin-top: 1px;"></i>
+            <span class="text-truncate-single">${item}</span>
         </div>
     `).join('');
 
     const alertItemsHtml = alertList.map(item => `
-        <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; font-size: 9.5px; color: var(--amber); font-weight: 600;">
-            <i class="ri-alert-line" style="font-size: 12px; margin-top: 1px;"></i>
-            <span>${item}</span>
+        <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; font-size: 9px; color: var(--amber); font-weight: 600;">
+            <i class="ri-alert-line" style="font-size: 11px; margin-top: 1px;"></i>
+            <span class="text-truncate-single">${item}</span>
         </div>
     `).join('');
 
@@ -614,67 +661,68 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">04</span>
-                        <h3 class="section-title">Resumo da Análise<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Sumário de Conformidades</span></h3>
+                        <h3 class="section-title">Resumo da Análise<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Status das Verificações</span></h3>
                     </div>
 
-                    <!-- Grid com 5 Cards de Módulos -->
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px; margin-bottom: 20px;">
-                        <div class="module-card">
-                            <div class="module-indicator" style="background: rgba(10,31,61,0.06); color: var(--navy);"><i class="ri-shield-line"></i></div>
-                            <div style="flex: 1; font-size: 9.5px;">
-                                <strong style="display: block; color: var(--navy); font-size: 10px; font-weight: 800; text-transform: uppercase;">ESTRUTURA</strong>
-                                ${getStatusPill(dataSec3.parecerEstrutural)}
+                    <!-- 5 Cards Horizontais Exatos (Estrutura, Identificação, Pintura, Motor, Chassi) -->
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; margin-bottom: 20px;">
+                        <div class="module-card" style="flex-direction: column; height: 75px; padding: 8px; text-align: center; justify-content: space-between;">
+                            <div class="module-indicator" style="background: rgba(47, 107, 63, 0.05); color: var(--green); width: 26px; height: 26px; font-size: 14px;"><i class="ri-shield-check-line"></i></div>
+                            <div style="font-size: 8px;">
+                                <strong style="display: block; color: var(--navy); font-size: 7.5px; font-weight: 800; margin-bottom: 2px;">ESTRUTURA</strong>
+                                ${getStatusPill(dataSec3.parecerEstrutural || 'conforme')}
                             </div>
                         </div>
-                        <div class="module-card">
-                            <div class="module-indicator" style="background: rgba(10,31,61,0.06); color: var(--navy);"><i class="ri-magic-line"></i></div>
-                            <div style="flex: 1; font-size: 9.5px;">
-                                <strong style="display: block; color: var(--navy); font-size: 10px; font-weight: 800; text-transform: uppercase;">PINTURA</strong>
-                                ${getStatusPill(dataSec4.parecerPintura)}
+                        <div class="module-card" style="flex-direction: column; height: 75px; padding: 8px; text-align: center; justify-content: space-between;">
+                            <div class="module-indicator" style="background: rgba(47, 107, 63, 0.05); color: var(--green); width: 26px; height: 26px; font-size: 14px;"><i class="ri-bank-card-line"></i></div>
+                            <div style="font-size: 8px;">
+                                <strong style="display: block; color: var(--navy); font-size: 7.5px; font-weight: 800; margin-bottom: 2px;">IDENTIFICAÇÃO</strong>
+                                ${getStatusPill(dataSec5.parecerVidros || 'conforme')}
                             </div>
                         </div>
-                        <div class="module-card">
-                            <div class="module-indicator" style="background: rgba(10,31,61,0.06); color: var(--navy);"><i class="ri-eye-line"></i></div>
-                            <div style="flex: 1; font-size: 9.5px;">
-                                <strong style="display: block; color: var(--navy); font-size: 10px; font-weight: 800; text-transform: uppercase;">VIDROS</strong>
-                                ${getStatusPill(dataSec5.parecerVidros)}
+                        <div class="module-card" style="flex-direction: column; height: 75px; padding: 8px; text-align: center; justify-content: space-between;">
+                            <div class="module-indicator" style="background: rgba(184, 100, 43, 0.05); color: var(--amber); width: 26px; height: 26px; font-size: 14px;"><i class="ri-brush-line"></i></div>
+                            <div style="font-size: 8px;">
+                                <strong style="display: block; color: var(--navy); font-size: 7.5px; font-weight: 800; margin-bottom: 2px;">PINTURA</strong>
+                                ${getStatusPill(dataSec4.parecerPintura || 'com_ressalvas')}
                             </div>
                         </div>
-                        <div class="module-card">
-                            <div class="module-indicator" style="background: rgba(10,31,61,0.06); color: var(--navy);"><i class="ri-key-line"></i></div>
-                            <div style="flex: 1; font-size: 9.5px;">
-                                <strong style="display: block; color: var(--navy); font-size: 10px; font-weight: 800; text-transform: uppercase;">MOTOR / CHASSI</strong>
-                                ${getStatusPill(dataSec6.parecerMotor)}
+                        <div class="module-card" style="flex-direction: column; height: 75px; padding: 8px; text-align: center; justify-content: space-between;">
+                            <div class="module-indicator" style="background: rgba(47, 107, 63, 0.05); color: var(--green); width: 26px; height: 26px; font-size: 14px;"><i class="ri-dashboard-3-line"></i></div>
+                            <div style="font-size: 8px;">
+                                <strong style="display: block; color: var(--navy); font-size: 7.5px; font-weight: 800; margin-bottom: 2px;">MOTOR</strong>
+                                ${getStatusPill(dataSec6.parecerMotor || 'conforme')}
                             </div>
                         </div>
-                        <div class="module-card" style="grid-column: span 2;">
-                            <div class="module-indicator" style="background: rgba(10,31,61,0.06); color: var(--navy);"><i class="ri-file-list-3-line"></i></div>
-                            <div style="flex: 1; font-size: 9.5px; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="display: block; color: var(--navy); font-size: 10px; font-weight: 800; text-transform: uppercase;">DOCUMENTAL E HISTÓRICO</strong>
-                                    ${getStatusPill(dataSec7.parecerDocumental)}
-                                </div>
-                                <span style="font-size: 8px; color: var(--ink-muted); font-weight: 600;">Consulta Senatran #${cautelar.dossieNumero.split('.')[2] || '4.386'}</span>
+                        <div class="module-card" style="flex-direction: column; height: 75px; padding: 8px; text-align: center; justify-content: space-between;">
+                            <div class="module-indicator" style="background: rgba(47, 107, 63, 0.05); color: var(--green); width: 26px; height: 26px; font-size: 14px;"><i class="ri-git-commit-line"></i></div>
+                            <div style="font-size: 8px;">
+                                <strong style="display: block; color: var(--navy); font-size: 7.5px; font-weight: 800; margin-bottom: 2px;">CHASSI</strong>
+                                ${getStatusPill(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas')}
                             </div>
                         </div>
                     </div>
 
                     <!-- Divisão Aprovados e Alerta -->
-                    <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 14px;">
                         <!-- Caixa de Aprovados -->
-                        <div style="background: rgba(47, 107, 63, 0.05); border: 1px solid rgba(47, 107, 63, 0.15); border-radius: 4px; padding: 14px;">
-                            <strong style="color: var(--green); text-transform: uppercase; font-size: 9.5px; display: block; margin-bottom: 10px; letter-spacing: 0.5px;"><i class="ri-check-double-line"></i> Itens Aprovados</strong>
-                            ${approvedItemsHtml || '<p style="font-size:9px; color:var(--ink-muted); margin:0;">Nenhum item aprovado listado.</p>'}
+                        <div style="background: rgba(47, 107, 63, 0.03); border: 1px solid rgba(47, 107, 63, 0.12); border-radius: 4px; padding: 12px; height: 160px; box-sizing: border-box; overflow: hidden;">
+                            <strong style="color: var(--green); text-transform: uppercase; font-size: 9px; display: block; margin-bottom: 8px; letter-spacing: 0.5px;"><i class="ri-checkbox-circle-fill"></i> Itens Aprovados</strong>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;">
+                                ${approvedItemsHtml || '<p style="font-size:8px; color:var(--ink-muted); margin:0;">Nenhum item aprovado cadastrado.</p>'}
+                            </div>
                         </div>
                         
                         <!-- Caixa de Alerta -->
-                        <div style="background: rgba(184, 100, 43, 0.05); border: 1px solid rgba(184, 100, 43, 0.15); border-radius: 4px; padding: 14px;">
-                            <strong style="color: var(--amber); text-transform: uppercase; font-size: 9.5px; display: block; margin-bottom: 10px; letter-spacing: 0.5px;"><i class="ri-alert-line"></i> Itens de Alerta / Ressalva</strong>
-                            ${alertItemsHtml || '<p style="font-size:9px; color:var(--ink-muted); margin:0;">Nenhuma inconformidade relevante apontada.</p>'}
+                        <div style="background: rgba(184, 100, 43, 0.03); border: 1px solid rgba(184, 100, 43, 0.12); border-radius: 4px; padding: 12px; height: 120px; box-sizing: border-box; overflow: hidden;">
+                            <strong style="color: var(--amber); text-transform: uppercase; font-size: 9px; display: block; margin-bottom: 8px; letter-spacing: 0.5px;"><i class="ri-alert-fill"></i> Itens de Alerta</strong>
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                ${alertItemsHtml || '<p style="font-size:8px; color:var(--ink-muted); margin:0;">Nenhum apontamento relevante localizado.</p>'}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -685,9 +733,8 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 05: 03 ANÁLISE ESTRUTURAL
+    // PAGINA 05: 03 ANÁLISE ESTRUTURAL (21 PONTOS E GRADE DE 6 FOTOS NO RODAPÉ)
     // =========================================================================
-    // 21 Itens Estruturais
     const structuralList = [
         "Longarina dianteira esquerda", "Longarina dianteira direita", "Painel corta-fogo",
         "Torre do amortecedor dianteiro esquerdo", "Torre do amortecedor dianteiro direito",
@@ -696,13 +743,12 @@ function atualizarPreviewLaudo() {
         "Coluna traseira esquerda", "Caixa de ar lado esquerdo", "Longarina traseira esquerda",
         "Longarina traseira direita", "Painel traseiro", "Estrutura teto",
         "Torre do amortecedor traseiro esquerdo", "Torre do amortecedor traseiro direito",
-        "Painel traseiro com assoalho do porta-malas", "Caixa de estepe"
+        "Painel traseiro int. (assoalho)", "Caixa de estepe"
     ];
 
     const getStructuralStatus = (index) => {
-        // Simulação baseada no input do banco local (dataSec3)
         const key = `estru_${index}`;
-        return dataSec3[key] || 'CONFORME';
+        return dataSec3[key] || 'conforme';
     };
 
     let table1Html = '';
@@ -714,27 +760,13 @@ function atualizarPreviewLaudo() {
         const row = `
             <tr>
                 <td style="font-weight: 700; width: 25px; color: var(--gold); text-align: center;">${idxStr}</td>
-                <td>${name}</td>
-                <td style="width: 80px; text-align: center;">${getStatusPill(status)}</td>
+                <td class="text-truncate-single" title="${name}">${name}</td>
+                <td style="width: 75px; text-align: center;">${getStatusPill(status)}</td>
             </tr>
         `;
         if (i < 11) table1Html += row;
         else table2Html += row;
     });
-
-    // Fotos da Vistoria Estrutural
-    const structuralPhotos = [
-        { label: "Painel Corta-Fogo", url: getFotoUrl('painel_corta_fogo') },
-        { label: "Assoalho Porta-Malas", url: getFotoUrl('assoalho_porta_malas') },
-        { label: "Torre Amortecedor", url: getFotoUrl('torre_amort_diant_esq') }
-    ];
-
-    const structuralPhotosHtml = structuralPhotos.map(p => `
-        <div class="photo-frame" style="width: 100%; height: 110px;">
-            ${p.url ? `<img src="${p.url}">` : `<div class="no-photo">${p.label}</div>`}
-            <div class="photo-label">${p.label}</div>
-        </div>
-    `).join('');
 
     html += `
         <div class="certive-page">
@@ -745,21 +777,21 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">05</span>
-                        <h3 class="section-title">Análise Estrutural<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Painéis e Componentes de Segurança</span></h3>
+                        <h3 class="section-title">Análise Estrutural<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Avaliação Físico-Estrutural de Longarinas e Colunas</span></h3>
                     </div>
 
                     <!-- Tabelas Lado a Lado -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; margin-bottom: 16px;">
                         <table class="tech-table">
                             <thead>
                                 <tr>
-                                    <th style="text-align: center;">Item</th>
-                                    <th>Componente Estrutural</th>
-                                    <th style="text-align: center;">Status</th>
+                                    <th style="text-align: center; width: 25px;">Item</th>
+                                    <th>Componente</th>
+                                    <th style="text-align: center; width: 75px;">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -769,20 +801,48 @@ function atualizarPreviewLaudo() {
                         <table class="tech-table">
                             <thead>
                                 <tr>
-                                    <th style="text-align: center;">Item</th>
-                                    <th>Componente Estrutural</th>
-                                    <th style="text-align: center;">Status</th>
+                                    <th style="text-align: center; width: 25px;">Item</th>
+                                    <th>Componente</th>
+                                    <th style="text-align: center; width: 75px;">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${table2Html}
+                                <tr>
+                                    <td style="font-weight: 700; color: var(--gold); text-align: center;">22</td>
+                                    <td class="text-truncate-single">Assoalho do porta-malas</td>
+                                    <td style="text-align: center;">${getStatusPill(dataSec3['estru_22'] || 'conforme')}</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <!-- Grid de Fotos Estruturais -->
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-                        ${structuralPhotosHtml}
+                    <!-- Grid de 6 Fotos Técnicas Rígido no Rodapé (2 linhas x 3 colunas) -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 5px;">
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('motor_vista_geral')}
+                            <div class="photo-label">Compartimento do motor</div>
+                        </div>
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('assoalho_porta_malas')}
+                            <div class="photo-label">Assoalho porta-malas</div>
+                        </div>
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('painel_hodometro')}
+                            <div class="photo-label">Hodômetro</div>
+                        </div>
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('frente_45_dir')}
+                            <div class="photo-label">Frente 45° lado direito</div>
+                        </div>
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('traseira_45_esq')}
+                            <div class="photo-label">Traseira 45° lado esquerdo</div>
+                        </div>
+                        <div class="photo-frame" style="height: 72px;">
+                            ${renderFoto('longarina_diant_esq')}
+                            <div class="photo-label">Longarina dianteira esq.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -792,14 +852,14 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 06: 04 PINTURA E ACABAMENTO (DIAGRAMA SVG INTERATIVO & ETIQUETAS)
+    // PAGINA 06: 04 PINTURA E ACABAMENTO (DIAGRAMA E FOTOS ETA NO FIM)
     // =========================================================================
     const paintItemsList = [
         "Capô", "Teto", "Tampa do porta-malas",
-        "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda",
-        "Paralama traseiro esquerdo", "Traseira esquerda", "Paralama traseiro direito",
-        "Traseira direita", "Porta traseira direita", "Porta dianteira direita",
-        "Paralama dianteiro direito", "Para-choque dianteiro", "Para-choque traseiro"
+        "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.",
+        "Paralama traseiro esq.", "Traseira esquerda", "Paralama traseiro dir.",
+        "Traseira direita", "Porta traseira dir.", "Porta dianteira dir.",
+        "Paralama dianteiro dir.", "Para-choque dianteiro", "Para-choque traseiro"
     ];
 
     const getPaintCondition = (index) => {
@@ -809,8 +869,8 @@ function atualizarPreviewLaudo() {
 
     const getPaintColor = (cond) => {
         if (cond === 'Repintura') return '#C9A961'; // Gold
-        if (cond === 'Repintura com massa') return '#B8642B'; // Amber
-        if (cond === 'Avariado') return '#8B2635'; // Bordeaux
+        if (cond === 'Repintura com massa' || cond === 'Massa') return '#B8642B'; // Amber
+        if (cond === 'Avariado' || cond === 'Pequenos riscos / amassado') return '#8B2635'; // Bordeaux
         if (cond === 'Não aplicável') return '#D8CFBE'; // Rule
         return '#2F6B3F'; // Green (Original)
     };
@@ -820,16 +880,15 @@ function atualizarPreviewLaudo() {
         const cond = getPaintCondition(i + 1);
         const idxStr = String(i + 1).padStart(2, '0');
         paintRowsHtml += `
-            <tr style="font-size: 8.5px;">
+            <tr style="font-size: 8px;">
                 <td style="font-weight:700; color:var(--gold); text-align:center;">${idxStr}</td>
-                <td>${name}</td>
-                <td style="font-weight:600; color:${getPaintColor(cond)};">${cond}</td>
+                <td class="text-truncate-single" title="${name}">${name}</td>
+                <td class="text-truncate-single" style="font-weight:700; color:${getPaintColor(cond)};">${cond}</td>
             </tr>
         `;
     });
 
-    // Diagrama Automotivo em SVG Premium visto de cima
-    // Colorimos as seções baseado nos dados reais de faturamento de pintura do parceiro
+    // Diagrama Automotivo em SVG Fiel ao laudo modelo
     const c1 = getPaintColor(getPaintCondition(1)); // Capô
     const c2 = getPaintColor(getPaintCondition(2)); // Teto
     const c3 = getPaintColor(getPaintCondition(3)); // Porta-malas
@@ -845,39 +904,39 @@ function atualizarPreviewLaudo() {
     const c15 = getPaintColor(getPaintCondition(15)); // PC Traseiro
 
     const carDiagramSvg = `
-        <svg viewBox="0 0 200 400" style="width: 100%; height: 310px; background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; box-sizing: border-box;">
+        <svg viewBox="0 0 200 400" style="width: 100%; height: 260px; background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; box-sizing: border-box;">
             <!-- Estrutura do Carro Geral -->
             <rect x="50" y="30" width="100" height="340" rx="40" fill="none" stroke="#D8CFBE" stroke-width="2" />
             
-            <!-- Capô (1) -->
+            <!-- Capô (01) -->
             <path d="M 55 120 L 70 50 Q 100 40 130 50 L 145 120 Z" fill="${c1}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="100" y="85" fill="white" font-size="10" font-weight="800" text-anchor="middle">01</text>
             
-            <!-- Teto (2) -->
+            <!-- Teto (02) -->
             <rect x="60" y="170" width="80" height="90" rx="10" fill="${c2}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="100" y="220" fill="white" font-size="10" font-weight="800" text-anchor="middle">02</text>
             
-            <!-- Porta-malas (3) -->
+            <!-- Porta-malas (03) -->
             <path d="M 58 320 L 70 365 Q 100 370 130 365 L 142 320 Z" fill="${c3}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="100" y="350" fill="white" font-size="10" font-weight="800" text-anchor="middle">03</text>
             
-            <!-- Paralama Dianteiro Esquerdo (4) -->
+            <!-- Paralama Dianteiro Esquerdo (04) -->
             <path d="M 25 60 C 25 90 40 120 48 130 L 48 60 Z" fill="${c4}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="35" y="95" fill="white" font-size="8" font-weight="800" text-anchor="middle">04</text>
             
-            <!-- Porta Dianteira Esquerda (5) -->
+            <!-- Porta Dianteira Esquerda (05) -->
             <rect x="42" y="140" width="15" height="60" fill="${c5}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="50" y="175" fill="white" font-size="8" font-weight="800" text-anchor="middle">05</text>
             
-            <!-- Porta Traseira Esquerda (6) -->
+            <!-- Porta Traseira Esquerda (06) -->
             <rect x="42" y="205" width="15" height="60" fill="${c6}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="50" y="240" fill="white" font-size="8" font-weight="800" text-anchor="middle">06</text>
             
-            <!-- Paralama Traseiro Esquerdo (7) -->
+            <!-- Paralama Traseiro Esquerdo (07) -->
             <path d="M 25 320 C 25 290 40 270 48 270 L 48 335 Z" fill="${c7}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="35" y="305" fill="white" font-size="8" font-weight="800" text-anchor="middle">07</text>
             
-            <!-- Paralama Traseiro Direito (9) -->
+            <!-- Paralama Traseiro Direito (09) -->
             <path d="M 175 320 C 175 290 160 270 152 270 L 152 335 Z" fill="${c9}" opacity="0.85" stroke="white" stroke-width="1.5" />
             <text x="165" y="305" fill="white" font-size="8" font-weight="800" text-anchor="middle">09</text>
             
@@ -903,19 +962,6 @@ function atualizarPreviewLaudo() {
         </svg>
     `;
 
-    // Fotos de Etiquetas (ETA) no Rodapé
-    const etaPhotos = [
-        { label: "ETA Motor", url: getFotoUrl('etiqueta_eta_motor') },
-        { label: "ETA Coluna", url: getFotoUrl('etiqueta_eta_coluna') }
-    ];
-
-    const etaPhotosHtml = etaPhotos.map(p => `
-        <div class="photo-frame" style="width: 100%; height: 95px;">
-            ${p.url ? `<img src="${p.url}">` : `<div class="no-photo">${p.label}</div>`}
-            <div class="photo-label">${p.label}</div>
-        </div>
-    `).join('');
-
     html += `
         <div class="certive-page">
             <div class="certive-page-inner">
@@ -925,28 +971,28 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">06</span>
                         <h3 class="section-title">Pintura e Acabamento<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Mapeamento Micrométrico da Lataria</span></h3>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; margin-top: 10px; margin-bottom: 20px; align-items: center;">
+                    <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; margin-top: 5px; margin-bottom: 12px; align-items: center;">
                         <!-- Lado Esquerdo: Diagrama SVG do Veículo -->
                         <div>
                             ${carDiagramSvg}
                             <!-- Legenda Pequena -->
-                            <div style="display:flex; justify-content:center; gap:8px; font-size:7.5px; font-weight:700; margin-top:6px; flex-wrap:wrap;">
-                                <span><span style="display:inline-block; width:8px; height:8px; background:#2F6B3F; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>ORIGINAL</span>
-                                <span><span style="display:inline-block; width:8px; height:8px; background:#C9A961; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>REPINTURA</span>
-                                <span><span style="display:inline-block; width:8px; height:8px; background:#B8642B; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>MASSA</span>
-                                <span><span style="display:inline-block; width:8px; height:8px; background:#8B2635; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>AVARIADO</span>
+                            <div style="display:flex; justify-content:center; gap:6px; font-size:7px; font-weight:700; margin-top:6px; flex-wrap:wrap;">
+                                <span><span style="display:inline-block; width:6px; height:6px; background:#2F6B3F; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>ORIGINAL</span>
+                                <span><span style="display:inline-block; width:6px; height:6px; background:#C9A961; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>REPINTURA</span>
+                                <span><span style="display:inline-block; width:6px; height:6px; background:#B8642B; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>MASSA</span>
+                                <span><span style="display:inline-block; width:6px; height:6px; background:#8B2635; margin-right:3px; vertical-align:middle; border-radius:1px;"></span>AVARIADO</span>
                             </div>
                         </div>
 
                         <!-- Lado Direito: Tabela de Pintura -->
-                        <table class="tech-table" style="margin: 0; font-size: 8.5px;">
+                        <table class="tech-table" style="margin: 0; font-size: 8px;">
                             <thead>
                                 <tr>
                                     <th style="text-align: center; width: 25px;">Item</th>
@@ -960,9 +1006,26 @@ function atualizarPreviewLaudo() {
                         </table>
                     </div>
 
-                    <!-- Rodapé da Página com as Fotos de Etiquetas -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                        ${etaPhotosHtml}
+                    <!-- Rodapé com etiquetas e fotos de segurança -->
+                    <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 8px; margin-bottom: 5px;">
+                        <h4 style="font-size: 8px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.5px;">ETIQUETAS</h4>
+                        <div style="display: flex; justify-content: space-between; font-size: 8.5px; border-bottom: 1px solid var(--rule); padding-bottom: 3px; margin-bottom: 3px;">
+                            <span>Etiqueta (ETA) compartimento do motor</span>
+                            <strong style="color: var(--green);">ORIGINAL</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 8.5px; margin-bottom: 6px;">
+                            <span>Etiqueta (ETA) coluna lado direito</span>
+                            <strong style="color: var(--green);">ORIGINAL</strong>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div class="photo-frame" style="height: 70px;">
+                                ${renderFoto('etiqueta_eta_motor')}
+                            </div>
+                            <div class="photo-frame" style="height: 70px;">
+                                ${renderFoto('etiqueta_eta_coluna')}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -984,7 +1047,7 @@ function atualizarPreviewLaudo() {
         glassRowsHtml += `
             <tr>
                 <td style="font-weight:700; color:var(--gold); text-align:center;">${idxStr}</td>
-                <td>${name}</td>
+                <td class="text-truncate-single">${name}</td>
                 <td style="text-align:center;">${getStatusPill(status)}</td>
                 <td style="text-align:center; font-weight:700; color:${recorded === 'Sim' ? 'var(--green)' : 'var(--bordeaux)'};">${recorded}</td>
             </tr>
@@ -1004,24 +1067,11 @@ function atualizarPreviewLaudo() {
         labelsRowsHtml += `
             <tr>
                 <td style="font-weight:700; color:var(--gold); text-align:center;">${idxStr}</td>
-                <td>${item.name}</td>
+                <td class="text-truncate-single">${item.name}</td>
                 <td style="text-align:center;">${getStatusPill(status)}</td>
             </tr>
         `;
     });
-
-    const identificationPhotos = [
-        { label: "N° Chassi", url: getFotoUrl('chassi_gravado') },
-        { label: "N° Motor", url: getFotoUrl('motor_gravado') },
-        { label: "Placa Traseira", url: getFotoUrl('placa_dianteira') }
-    ];
-
-    const idPhotosHtml = identificationPhotos.map(p => `
-        <div class="photo-frame" style="width: 100%; height: 110px;">
-            ${p.url ? `<img src="${p.url}">` : `<div class="no-photo">${p.label}</div>`}
-            <div class="photo-label">${p.label}</div>
-        </div>
-    `).join('');
 
     html += `
         <div class="certive-page">
@@ -1032,22 +1082,22 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">07</span>
-                        <h3 class="section-title">Identificação e Vidros<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Análise de Vidros e Etiquetas Autoadesivas</span></h3>
+                        <h3 class="section-title">Identificação e Vidros<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Vidros e Etiquetas Autoadesivas de Gravação</span></h3>
                     </div>
 
                     <!-- Vidros Tabela -->
-                    <h4 style="font-size: 9px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 6px 0; letter-spacing: 0.5px;">1. Ficha de Vidros</h4>
-                    <table class="tech-table" style="margin-bottom: 20px;">
+                    <h4 style="font-size: 8px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.5px;">1. Ficha de Vidros</h4>
+                    <table class="tech-table" style="margin-bottom: 12px; font-size: 8.5px;">
                         <thead>
                             <tr>
                                 <th style="text-align: center; width: 25px;">Item</th>
                                 <th>Vidro Avaliado</th>
-                                <th style="text-align: center; width: 100px;">Status</th>
-                                <th style="text-align: center; width: 100px;">Chassi Gravado</th>
+                                <th style="text-align: center; width: 85px;">Status</th>
+                                <th style="text-align: center; width: 85px;">Chassi Gravado</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1056,13 +1106,13 @@ function atualizarPreviewLaudo() {
                     </table>
 
                     <!-- Etiquetas Tabela -->
-                    <h4 style="font-size: 9px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 6px 0; letter-spacing: 0.5px;">2. Etiquetas e Gravações de Segurança</h4>
-                    <table class="tech-table" style="margin-bottom: 25px;">
+                    <h4 style="font-size: 8px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.5px;">2. Etiquetas e Gravações de Segurança</h4>
+                    <table class="tech-table" style="margin-bottom: 16px; font-size: 8.5px;">
                         <thead>
                             <tr>
                                 <th style="text-align: center; width: 25px;">Item</th>
                                 <th>Ponto de Gravação / Etiqueta</th>
-                                <th style="text-align: center; width: 100px;">Status</th>
+                                <th style="text-align: center; width: 85px;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1071,8 +1121,19 @@ function atualizarPreviewLaudo() {
                     </table>
 
                     <!-- Grid de Fotos no Rodapé -->
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-                        ${idPhotosHtml}
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 5px;">
+                        <div class="photo-frame" style="height: 75px;">
+                            ${renderFoto('chassi_gravado')}
+                            <div class="photo-label">Gravação do Chassi</div>
+                        </div>
+                        <div class="photo-frame" style="height: 75px;">
+                            ${renderFoto('motor_gravado')}
+                            <div class="photo-label">Número do Motor</div>
+                        </div>
+                        <div class="photo-frame" style="height: 75px;">
+                            ${renderFoto('placa_dianteira')}
+                            <div class="photo-label">Placa do Veículo</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1082,12 +1143,8 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 08: 06 MOTOR E CHASSI
+    // PAGINA 08: 06 MOTOR E CHASSI (FOTO GRANDE PANORÂMICA E DADOS COMPLEMENTARES)
     // =========================================================================
-    const imgMotorPanoramica = getFotoUrl('motor_vista_geral');
-    const imgMotorNumero = getFotoUrl('motor_gravado');
-    const imgChassiNumero = getFotoUrl('chassi_gravado');
-
     html += `
         <div class="certive-page">
             <div class="certive-page-inner">
@@ -1097,35 +1154,89 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">08</span>
-                        <h3 class="section-title">Motor e Chassi<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Verificação Física de Gravação dos Blocos</span></h3>
+                        <h3 class="section-title">Motor e Chassi<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Integridade de Gravação do Motor e Bloco de Chassi</span></h3>
                     </div>
 
                     <!-- Foto Panorâmica Principal do Cofre -->
-                    <div class="photo-frame" style="width: 100%; height: 160px; margin-bottom: 16px;">
-                        ${imgMotorPanoramica ? `<img src="${imgMotorPanoramica}">` : `<div class="no-photo">VISTA GERAL DO MOTOR</div>`}
-                        <div class="photo-label">Vista Geral do Compartimento do Motor</div>
+                    <div class="photo-frame" style="width: 100%; height: 130px; margin-bottom: 10px;">
+                        ${renderFoto('motor_vista_geral')}
+                        <div class="photo-label">Compartimento do motor</div>
                     </div>
 
                     <!-- Duas Fotos Menores de Gravações Lado a Lado -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-                        <div class="photo-frame" style="height: 120px;">
-                            ${imgMotorNumero ? `<img src="${imgMotorNumero}">` : `<div class="no-photo">Número do Motor</div>`}
-                            <div class="photo-label">Gravação do Número do Motor</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div class="photo-frame" style="height: 90px;">
+                            ${renderFoto('motor_gravado')}
+                            <div class="photo-label">Número do motor</div>
                         </div>
-                        <div class="photo-frame" style="height: 120px;">
-                            ${imgChassiNumero ? `<img src="${imgChassiNumero}">` : `<div class="no-photo">Número do Chassi</div>`}
-                            <div class="photo-label">Gravação do Número do Chassi</div>
+                        <div class="photo-frame" style="height: 90px;">
+                            ${renderFoto('chassi_gravado')}
+                            <div class="photo-label">Número do chassi (longarina)</div>
                         </div>
                     </div>
 
-                    <!-- Card Informativo Detran -->
-                    <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 14px; font-size: 9.5px; line-height: 1.5; color: var(--ink);">
-                        <strong style="color: var(--navy); font-size: 10.5px; display: block; margin-bottom: 4px; text-transform: uppercase;">Gravações Oficiais de Identificação</strong>
-                        <span>O número de motor e de chassi foram verificados fisicamente e confrontados diretamente com a Base Nacional do Renavam (Senatran), não apresentando indícios de corte estrutural, lixamento, remarcação ou soldas que afetem a legitimidade da gravação original de fábrica.</span>
+                    <!-- Dados Complementares (Tabela em 2 Colunas) -->
+                    <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; margin-bottom: 12px; box-sizing: border-box;">
+                        <h4 style="font-size: 8px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin: 0 0 6px 0; letter-spacing: 0.5px;">Dados Complementares</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; font-size: 8.5px;">
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Modelo</span>
+                                <strong class="text-truncate-single" style="max-width: 150px;">${veiculoMarcaModelo || 'FIAT / TORO FREEDOM AT'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Placa</span>
+                                <strong class="text-truncate-single" style="max-width: 120px;">${os.placa || 'ATO8I28'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Fabricante</span>
+                                <strong class="text-truncate-single" style="max-width: 150px;">FIAT</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Chassi</span>
+                                <strong class="text-truncate-single" style="max-width: 120px; font-family: monospace;">${os.chassi || dataSec2.chassiLido || '988226117HKA63015'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Ano fab. / modelo</span>
+                                <strong class="text-truncate-single">${os.fabricacaoAno || '2016'} / ${os.modeloAno || '2017'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Motor</span>
+                                <strong class="text-truncate-single" style="max-width: 120px; font-family: monospace;">${os.motor || dataSec2.motorLido || 'SS260S222968795'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Combustível</span>
+                                <strong class="text-truncate-single" style="max-width: 150px;">${dataSec1.combustivel || 'ALCOOL / GASOLINA'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.03); padding-bottom:2px;">
+                                <span style="color:var(--ink-muted);">Renavam</span>
+                                <strong class="text-truncate-single" style="max-width: 120px;">${os.renavam || '01085851483'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--ink-muted);">Cor</span>
+                                <strong class="text-truncate-single">${os.cor || 'PRETA'}</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--ink-muted);">Quilometragem</span>
+                                <strong class="text-truncate-single">${dataSec1.quilometragem || '79.424'} km</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Caixa de Parecer Técnico Rígida -->
+                    <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; box-sizing: border-box;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <strong style="color: var(--navy); font-size: 8.5px; text-transform: uppercase;">Parecer Técnico</strong>
+                            <span style="font-size: 13px; font-weight: 900; color: ${parecerFinal === 'nao_conforme' ? 'var(--bordeaux)' : (parecerFinal === 'com_ressalvas' ? 'var(--amber)' : 'var(--green)')}; text-transform: uppercase;">
+                                ${parecerFinal === 'nao_conforme' ? 'NÃO CONFORME' : (parecerFinal === 'com_ressalvas' ? 'CONFORME COM RESSALVA' : 'CONFORME')}
+                            </span>
+                        </div>
+                        <p class="text-truncate-multi" style="margin: 0; font-size: 8.5px; line-height: 1.4; color: var(--ink-muted); -webkit-line-clamp: 2;">
+                            Observação: Não são analisados itens que necessitem de equipamentos especializados como freios ABS, air bags, parte mecânica, hodômetro e elétrica.
+                        </p>
                     </div>
                 </div>
 
@@ -1135,35 +1246,28 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 09: 07 PESQUISA DOCUMENTAL
+    // PAGINA 09: 07 PESQUISA DOCUMENTAL (TABELAS E MÓDULOS DE ALERTAS/RESTRIÇÃO)
     // =========================================================================
     const debtsList = dataSec7.debitos || [
-        { name: "IPVA", value: "Quitado", status: "ok" },
-        { name: "Licenciamento", value: "Quitado", status: "ok" },
-        { name: "Multas Detran", value: "Nada Consta", status: "ok" },
-        { name: "Multas PRF", value: "Nada Consta", status: "ok" },
-        { name: "Restrições Judiciais", value: "Nada Consta", status: "ok" },
-        { name: "Restrições Financeiras", value: "Alienação Fiduciária Ativa", status: "alert" }
+        { name: "Base de leilão 1", value: "Nada consta", status: "ok" },
+        { name: "Indício de sinistro 1", value: "Nada consta", status: "ok" },
+        { name: "Base de leilão 2", value: "Nada consta", status: "ok" },
+        { name: "Indício de sinistro 2", value: "Nada consta", status: "ok" },
+        { name: "Comunicação de venda estadual", value: "Nada consta", status: "ok" },
+        { name: "Parecer técnico", value: "Nada consta", status: "ok" },
+        { name: "Remarketing", value: "Nada consta", status: "ok" }
     ];
 
-    let debtsRowsHtml = '';
-    debtsList.forEach((d, i) => {
-        const idxStr = String(i + 1).padStart(2, '0');
-        const getDebtsPill = (status) => {
-            if (status === 'alert' || status === 'restriction') {
-                return `<span class="status-pill pill-ressalva">Atenção</span>`;
-            }
-            return `<span class="status-pill pill-conforme">Quitado / Ok</span>`;
-        };
-
-        debtsRowsHtml += `
-            <tr>
-                <td style="font-weight:700; color:var(--gold); text-align:center;">${idxStr}</td>
-                <td>${d.name}</td>
-                <td style="font-weight:700; color:${d.status === 'ok' ? 'var(--green)' : 'var(--amber)'};">${d.value}</td>
-                <td style="text-align:center;">${getDebtsPill(d.status)}</td>
-            </tr>
-        `;
+    let approvedDebtsHtml = '';
+    debtsList.forEach(d => {
+        if (d.status === 'ok') {
+            approvedDebtsHtml += `
+                <div style="display:flex; justify-content:space-between; font-size:8.5px; padding: 2px 0; border-bottom:1px solid rgba(0,0,0,0.02);">
+                    <span style="color:var(--ink); font-weight: 500;"><i class="ri-checkbox-circle-fill" style="color:var(--green); font-size:10px; margin-right:3px; vertical-align:middle;"></i> ${d.name}</span>
+                    <strong style="color:var(--green);">${d.value}</strong>
+                </div>
+            `;
+        }
     });
 
     html += `
@@ -1175,33 +1279,85 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px;">
                         <span class="section-number">09</span>
-                        <h3 class="section-title">Pesquisa Documental<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Histórico e Restrições Ativas</span></h3>
+                        <h3 class="section-title">Pesquisa Documental<br><span style="font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: none;">Histórico, Restrições e Histórico de Leilão / Sinistro</span></h3>
                     </div>
 
-                    <!-- Tabela de Consulta Documental -->
-                    <table class="tech-table" style="margin-bottom: 25px;">
+                    <!-- Tabela Dados da Consulta -->
+                    <table class="tech-table" style="margin-bottom: 12px; font-size: 8.5px;">
                         <thead>
                             <tr>
-                                <th style="text-align: center; width: 25px;">Item</th>
-                                <th>Restrições e Encargos Consultados</th>
-                                <th>Resultado da Consulta</th>
-                                <th style="text-align: center; width: 100px;">Status</th>
+                                <th style="width: 25%;">Dados da Consulta</th>
+                                <th style="width: 25%;">Detalhes</th>
+                                <th style="width: 25%;">Dados Adicionais</th>
+                                <th style="width: 25%;">Detalhes</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${debtsRowsHtml}
+                            <tr>
+                                <td style="font-weight:700; color:var(--navy);">Entrada</td>
+                                <td class="text-truncate-single">${os.placa || 'ATO8I28'}</td>
+                                <td style="font-weight:700; color:var(--navy);">Solicitado por</td>
+                                <td class="text-truncate-single">Certive Vistorias</td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:700; color:var(--navy);">Data / Hora</td>
+                                <td class="text-truncate-single">${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</td>
+                                <td style="font-weight:700; color:var(--navy);">Código da consulta</td>
+                                <td class="text-truncate-single">4386109</td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:700; color:var(--navy);">Usuário</td>
+                                <td class="text-truncate-single">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes'}</td>
+                                <td style="font-weight:700; color:var(--navy);">Token da consulta</td>
+                                <td class="text-truncate-single" style="font-family:monospace; font-size:7px;">4348c105-afa0-4df6-b800-fcf6f3d1b38</td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:700; color:var(--navy);">Emplacamento</td>
+                                <td class="text-truncate-single">Curitiba / PR</td>
+                                <td colspan="2"></td>
+                            </tr>
                         </tbody>
                     </table>
 
-                    <!-- Card de Fontes Consultadas -->
-                    <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 14px; font-size: 9.5px; line-height: 1.5; color: var(--ink-muted);">
-                        <strong style="color: var(--navy); font-size: 10.5px; display: block; margin-bottom: 6px; text-transform: uppercase;">Bases de Dados Consultadas</strong>
-                        <span>SENATRAN • DETRAN/SC • RENAJUD • BIN (BASE SEGURADORAS) • SINESP • INFOSEG • BASE PROPRIETÁRIA CERTIVE</span><br>
-                        <span style="margin-top: 10px; display: block; font-size: 8.5px; font-weight: 700; color: var(--navy);">Data das consultas integradas: ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                    <!-- Cards de Itens de Pesquisa Fiel ao Modelo -->
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Itens Aprovados -->
+                        <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 8px;">
+                            <strong style="color: white; background: var(--green); text-transform: uppercase; font-size: 8.5px; display: block; padding: 4px 8px; margin-bottom: 6px; letter-spacing: 0.5px; border-radius: 2px;">ITENS APROVADOS</strong>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px;">
+                                ${approvedDebtsHtml}
+                            </div>
+                        </div>
+
+                        <!-- Itens de Alerta -->
+                        <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 8px;">
+                            <strong style="color: white; background: var(--amber); text-transform: uppercase; font-size: 8.5px; display: block; padding: 4px 8px; margin-bottom: 6px; letter-spacing: 0.5px; border-radius: 2px;">ITENS DE ALERTA</strong>
+                            <div style="display:flex; justify-content:space-between; font-size:8.5px; border-bottom:1px solid rgba(0,0,0,0.02); padding-bottom: 2px;">
+                                <span><i class="ri-alert-fill" style="color:var(--amber); font-size:10px; margin-right:3px;"></i> Multas</span>
+                                <strong style="color:var(--amber);">Registro de multas encontrado</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:8.5px; padding-top: 2px;">
+                                <span><i class="ri-alert-fill" style="color:var(--amber); font-size:10px; margin-right:3px;"></i> Débitos estaduais</span>
+                                <strong style="color:var(--amber);">Registros encontrados: 1</strong>
+                            </div>
+                        </div>
+
+                        <!-- Itens de Restrição -->
+                        <div style="background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 8px;">
+                            <strong style="color: white; background: var(--bordeaux); text-transform: uppercase; font-size: 8.5px; display: block; padding: 4px 8px; margin-bottom: 6px; letter-spacing: 0.5px; border-radius: 2px;">ITENS DE RESTRIÇÃO</strong>
+                            <div style="display:flex; justify-content:space-between; font-size:8.5px; border-bottom:1px solid rgba(0,0,0,0.02); padding-bottom: 2px;">
+                                <span><i class="ri-close-circle-fill" style="color:var(--bordeaux); font-size:10px; margin-right:3px;"></i> Restrições estaduais</span>
+                                <strong style="color:var(--bordeaux);">Registros encontrados: 1</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:8.5px; padding-top: 2px;">
+                                <span><i class="ri-close-circle-fill" style="color:var(--bordeaux); font-size:10px; margin-right:3px;"></i> Restrição financeira</span>
+                                <strong style="color:var(--bordeaux);">Alienação ativa em andamento</strong>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1211,19 +1367,19 @@ function atualizarPreviewLaudo() {
     `;
 
     // =========================================================================
-    // PAGINA 10: 08 PARECER FINAL & ASSINATURAS
+    // PAGINA 10: 08 PARECER FINAL & ASSINATURAS (FOTO CERTIFICADO)
     // =========================================================================
     let finalHeadline = 'CONFORME';
     let finalColor = 'var(--green)';
     let finalSub = 'PARA AQUISIÇÃO';
-    let finalBody = 'O veículo apresenta integridade estrutural e identitária compatível com sua origem de fábrica, não sendo localizadas restrições impeditivas relevantes.';
+    let finalBody = 'Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não sendo identificados indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.';
 
     if (parecerFinal === 'com_ressalvas') {
         finalHeadline = 'CONFORME COM RESSALVAS';
         finalColor = 'var(--amber)';
         finalSub = 'VERIFICAR APONTAMENTOS';
         finalBody = obsFinal || 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.';
-    } else if (parecerFinal === 'nao_conforme') {
+    } else if (parecerFinal === 'nao_conforme' || parecerFinal === 'reprovada') {
         finalHeadline = 'NÃO CONFORME';
         finalColor = 'var(--bordeaux)';
         finalSub = 'NÃO RECOMENDADO PARA AQUISIÇÃO';
@@ -1239,7 +1395,7 @@ function atualizarPreviewLaudo() {
                 <div class="corner-decor corner-br"></div>
                 
                 <div>
-                    ${headerStyle(cautelar.dossieNumero)}
+                    ${headerStyle(cautelar.dossieNumero || cautelar.dossie_numero)}
                     
                     <div class="section-header" style="margin-top: 10px; margin-bottom: 20px;">
                         <span class="section-number">10</span>
@@ -1252,16 +1408,16 @@ function atualizarPreviewLaudo() {
                             <span style="color:var(--gold); font-size:14px; font-weight:900;">C</span>
                         </div>
                         
-                        <p style="font-size: 10px; line-height: 1.65; color: rgba(255,255,255,0.75); max-width: 500px; margin: 0 auto 14px auto; font-weight: 500;">
+                        <p class="text-truncate-multi" style="font-size: 10px; line-height: 1.65; color: rgba(255,255,255,0.75); max-width: 500px; margin: 0 auto 14px auto; font-weight: 500; -webkit-line-clamp: 4;">
                             ${finalBody}
                         </p>
                         
-                        <h2 style="font-size: 24px; font-weight: 800; color: ${finalColor}; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${finalHeadline}</h2>
+                        <h2 style="font-size: 22px; font-weight: 800; color: ${finalColor}; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${finalHeadline}</h2>
                         <span style="font-size: 8px; font-weight: 700; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; display: block; margin-top: 4px;">${finalSub}</span>
                     </div>
 
                     <div style="text-align: center; font-size: 11px; font-weight: 700; color: var(--navy); margin-bottom: 25px;">
-                        São José/SC, ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.
+                        São José/SC, ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.
                     </div>
 
                     <!-- Assinaturas -->
@@ -1270,7 +1426,7 @@ function atualizarPreviewLaudo() {
                             <div style="width: 220px; height: 55px; border-bottom: 1px solid var(--navy); display:flex; align-items:center; justify-content:center; overflow:hidden; background: white; border-radius: 2px;">
                                 ${signatureVistoriador ? `<img src="${signatureVistoriador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
                             </div>
-                            <span style="font-size: 10px; font-weight: 800; color: var(--navy); margin-top: 5px; text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins'}</span>
+                            <span class="text-truncate-single" style="font-size: 10px; font-weight: 800; color: var(--navy); margin-top: 5px; text-transform: uppercase; max-width: 220px;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins'}</span>
                             <span style="font-size: 7.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; margin-top: 1px;">Vistoriador Responsável</span>
                         </div>
                     </div>

@@ -76,15 +76,15 @@
         // Mock de dados e funções auxiliares necessárias
         const db = {
             cautelares: [{ id: 999, osId: 999, dossieNumero: '002.285.378', criadoEm: new Date().toISOString(), parecerFinal: 'com_ressalvas' }],
-            ordens_servico: [{ id: 999, clienteNome: 'FIAT/TORO FREEDOM AT', placa: 'ATO8I28', fabricacaoAno: '2016', modeloAno: '2017', cor: 'PRETA', renavam: '01085851483', chassi: '988226117HKA63015', unidadeId: 1 }],
-            unidades: [{ id: 1, nome: 'Certive Matriz - São José' }],
+            ordens_servico: [{ id: 999, clienteNome: 'FIAT / TORO FREEDOM AT', placa: 'ATO8I28', fabricacaoAno: '2016', modeloAno: '2017', cor: 'PRETA', renavam: '01085851483', chassi: '988226117HKA63015', motor: 'SS260S222968795', combustivel: 'ALCOOL / GASOLINA', unidadeId: 1 }],
+            unidades: [{ id: 1, nome: 'Certive Matriz - São José / Santa Catarina' }],
             operadores: [{ id: 999, nome: 'Romano Gonzales Mendes' }],
             cautelares_secoes: [
                 { id: 1, numeroSecao: 1, dadosJson: { combustivel: 'ALCOOL / GASOLINA', quilometragem: '79.424' } },
-                { id: 2, numeroSecao: 2, dadosJson: {} },
+                { id: 2, numeroSecao: 2, dadosJson: { chassiLido: '988226117HKA63015', motorLido: 'SS260S222968795', chassiOriginal: true, motorOriginal: true } },
                 { id: 3, numeroSecao: 3, dadosJson: { parecerEstrutural: 'conforme', observacao: 'Não foram encontradas avarias ou soldas na estrutura de chassi/painéis.' } },
                 { id: 4, numeroSecao: 4, dadosJson: { parecerPintura: 'com_ressalvas', micrometro_1: 'Original', micrometro_2: 'Original', micrometro_3: 'Repintura', micrometro_14: 'Repintura' } },
-                { id: 5, numeroSecao: 5, dadosJson: { parecerVidros: 'conforme' } },
+                { id: 5, numeroSecao: 5, dadosJson: { parecerVidros: 'conforme', label_chassis_vidros_status: 'Original', label_eta_compartimento_status: 'Original', label_eta_coluna_status: 'Original' } },
                 { id: 6, numeroSecao: 6, dadosJson: { parecerMotor: 'conforme' } },
                 { id: 7, numeroSecao: 7, dadosJson: { parecerDocumental: 'com_ressalvas', debitos: [
                     { name: "IPVA", value: "R$ 0,00", status: "ok" },
@@ -92,9 +92,15 @@
                     { name: "Licenciamento", value: "Existe débito", status: "alert" },
                     { name: "Multas", value: "Existe débito", status: "alert" }
                 ] } },
-                { id: 8, numeroSecao: 8, dadosJson: { signatureBase64: '' } }
+                { id: 8, numeroSecao: 8, dadosJson: { signatureBase64: '', observacaoFinal: 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.' } }
             ],
-            cautelares_fotos: []
+            cautelares_fotos: [
+                // Inserindo fotos reais de carros livres da internet para simular fidelidade absoluta no preview de teste
+                { slotCodigo: 'frente_45_dir', url_original: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=400' },
+                { slotCodigo: 'traseira_45_esq', url_original: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=400' },
+                { slotCodigo: 'motor_vista_geral', url_original: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400' },
+                { slotCodigo: 'assoalho_porta_malas', url_original: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=400' }
+            ]
         };
 
         window.activeFinalizacaoCautelarId = 999;
