@@ -10926,39 +10926,59 @@ function gerarLaudoFinalPdf() {
 
     logAudit("Finalizar Cautelar", `Finalizou laudo cautelar da placa ${os.placa} com parecer ${parecerFinal.toUpperCase()} e gerou PDF.`);
 
-    // 3. Renderiza a visualização final e exporta para PDF
+    // 3. Renderiza a visualização final e exporta para PDF usando pdf-lib AcroForm
     atualizarPreviewLaudo();
+    showToast("Gerando PDF com template oficial...", "info");
 
-    // Inicia exportação do PDF usando html2pdf.js
-    setTimeout(() => {
-        const element = document.getElementById('laudo-preview-container');
-        
-        // Configurações de layout A4 precisas para html2pdf
-        const opt = {
-            margin: 0,
-            filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, 
-                useCORS: true, 
-                letterRendering: true,
-                backgroundColor: '#ffffff'
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
+    generateInspectionReport(cautelar.id)
+        .then(async (pdfBytes) => {
+            const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const pdfUrl = URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = pdfUrl;
+            link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+            link.click();
+            
+            if (window.useSupabase) {
+                const storagePath = `laudos/${cautelar.id}/LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+                supabaseClient.storage.from('cautelares').upload(storagePath, pdfBlob, {
+                    contentType: 'application/pdf',
+                    upsert: true
+                }).then(({ data, error }) => {
+                    if (!error) {
+                        const { data: publicUrlData } = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath);
+                        sbUpdate('cautelares', cautelar.id, { pdf_url: publicUrlData.publicUrl });
+                        cautelar.pdfUrl = publicUrlData.publicUrl;
+                        saveDatabase();
+                    }
+                }).catch(e => console.warn("Supabase PDF upload error:", e));
+            }
 
-        // Exportação
-        html2pdf().from(element).set(opt).save()
-            .then(() => {
-                showToast("Laudo PDF exportado com sucesso!", "success");
-                fecharFinalizacaoDesktop();
-            })
-            .catch(err => {
-                console.error("Erro na exportação de PDF:", err);
-                showToast("Erro ao exportar PDF. Tente salvar a partir do navegador.", "error");
-                fecharFinalizacaoDesktop();
-            });
-    }, 500);
+            showToast("Laudo PDF exportado com sucesso!", "success");
+            fecharFinalizacaoDesktop();
+        })
+        .catch(err => {
+            console.error("Erro na geração do PDF via pdf-lib, usando fallback:", err);
+            // Fallback usando html2pdf.js
+            const element = document.getElementById('laudo-preview-container');
+            const opt = {
+                margin: 0,
+                filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save()
+                .then(() => {
+                    showToast("Laudo PDF exportado via visualizador!", "success");
+                    fecharFinalizacaoDesktop();
+                })
+                .catch(e => {
+                    console.error("Erro no fallback do PDF:", e);
+                    showToast("Erro ao exportar PDF.", "error");
+                    fecharFinalizacaoDesktop();
+                });
+        });
 }
 
 /**
@@ -11003,37 +11023,45 @@ function verResumoCautelar(cautelarId) {
  * Abre ou baixa o laudo PDF finalizado da Cautelar.
  */
 function exibirPdfCautelar(cautelarId) {
-    // Para baixar novamente, abrimos o resumo e disparamos a geração do PDF
     verResumoCautelar(cautelarId);
     
-    showToast("Gerando nova cópia do Laudo PDF...", "info");
+    showToast("Gerando cópia do Laudo PDF...", "info");
     setTimeout(() => {
-        const element = document.getElementById('laudo-preview-container');
         const cautelar = db.cautelares.find(c => c.id === cautelarId);
         const os = db.ordens_servico.find(o => o.id === cautelar.osId);
         
-        const opt = {
-            margin: 0,
-            filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, 
-                useCORS: true, 
-                letterRendering: true,
-                backgroundColor: '#ffffff'
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().from(element).set(opt).save()
-            .then(() => {
+        generateInspectionReport(cautelar.id)
+            .then(async (pdfBytes) => {
+                const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = pdfUrl;
+                link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+                link.click();
+                
+                showToast("Laudo PDF exportado com sucesso!", "success");
                 fecharFinalizacaoDesktop();
             })
             .catch(err => {
-                console.error("Erro na exportação de PDF:", err);
-                fecharFinalizacaoDesktop();
+                console.error("Erro na geração do PDF via pdf-lib, usando fallback:", err);
+                const element = document.getElementById('laudo-preview-container');
+                const opt = {
+                    margin: 0,
+                    filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save()
+                    .then(() => {
+                        fecharFinalizacaoDesktop();
+                    })
+                    .catch(e => {
+                        console.error("Erro no fallback do PDF:", e);
+                        fecharFinalizacaoDesktop();
+                    });
             });
-    }, 1500);
+    }, 1000);
 }
 
 // Config: Notificações WhatsApp

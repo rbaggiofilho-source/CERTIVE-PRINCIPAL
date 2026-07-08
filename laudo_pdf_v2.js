@@ -1,6 +1,7 @@
 /**
  * CERTIVE VISTORIAS — Módulo de Emissão de Laudo Cautelar
  * Geração de PDF com 10 páginas A4 verticais baseadas em BACKGROUND PNG FIXO e COORDENADAS ABSOLUTAS.
+ * Preenchimento via pdf-lib no template PDF editável original.
  */
 
 // Injeta fontes do Google Montserrat dinamicamente
@@ -101,6 +102,20 @@ function atualizarPreviewLaudo() {
     let html = `
     <style>
         .certive-laudo-container {
+            --navy-deep: #061428;
+            --navy: #0A1F3D;
+            --navy-soft: #102A4F;
+            --gold: #C9A961;
+            --gold-soft: #E4CE99;
+            --paper: #F7F4EE;
+            --paper-warm: #EFEAE0;
+            --ink: #1C1C1C;
+            --ink-muted: #5A544A;
+            --rule: #D8CFBE;
+            --green: #2F6B3F;
+            --amber: #B8642B;
+            --bordeaux: #8B2635;
+            
             font-family: 'Montserrat', Arial, sans-serif;
             background: #e2e8f0;
             padding: 20px 0;
@@ -344,6 +359,11 @@ function atualizarPreviewLaudo() {
     // =========================================================================
     // PAGINA 05: 03 ANÁLISE ESTRUTURAL (BACKGROUND pagina_05.png)
     // =========================================================================
+    const getStructuralStatus = (index) => {
+        const key = `estru_${index}`;
+        return dataSec3[key] || 'conforme';
+    };
+
     html += `
         <div class="certive-page" style="background-image: url('pagina_05.png');">
             <!-- Dossiê topo direito -->
@@ -401,6 +421,19 @@ function atualizarPreviewLaudo() {
     // =========================================================================
     // PAGINA 06: 04 PINTURA E ACABAMENTO (BACKGROUND pagina_06.png)
     // =========================================================================
+    const getPaintCondition = (index) => {
+        const key = `micrometro_${index}`;
+        return dataSec4[key] || 'Original';
+    };
+
+    const getPaintColor = (cond) => {
+        if (cond === 'Repintura') return '#C9A961';
+        if (cond === 'Repintura com massa' || cond === 'Massa') return '#B8642B';
+        if (cond === 'Avariado' || cond === 'Pequenos riscos / amassado') return '#8B2635';
+        if (cond === 'Não aplicável') return '#D8CFBE';
+        return '#2F6B3F';
+    };
+
     html += `
         <div class="certive-page" style="background-image: url('pagina_06.png');">
             <!-- Dossiê topo direito -->
@@ -702,4 +735,500 @@ function atualizarPreviewLaudo() {
             });
         }
     }, 200);
+}
+
+/**
+ * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
+ * Preenchimento direto do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib.
+ */
+async function generateInspectionReport(cautelarId) {
+    // 1. Carrega dados do banco local
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) throw new Error("Vistoria não encontrada");
+
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+    if (!os) throw new Error("Ordem de serviço não encontrada");
+
+    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+    const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
+    const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
+    const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
+    const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
+    const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
+    const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
+    const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
+    const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
+
+    const parecerFinal = cautelar.parecerFinal || 'conforme';
+    const obsFinal = dataSec8.observacaoFinal || '';
+    const signatureVistoriador = dataSec8.signatureBase64 || '';
+    
+    const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+
+    // 2. Fetch do template PDF e do Field Map
+    const fieldMap = await fetch('Certive_Template_Field_Map.json').then(res => res.json());
+    const templateBytes = await fetch('Certive_Template_Editavel.pdf').then(res => res.arrayBuffer());
+
+    // 3. Inicializa o PDF com pdf-lib
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.load(templateBytes);
+    const form = pdfDoc.getForm();
+
+    // 4. Prepara os dados textuais mapeados
+    const valOrFallback = (val) => {
+        if (val === undefined || val === null || String(val).trim() === '') {
+            return 'Não informado';
+        }
+        return String(val);
+    };
+
+    const dossie = valOrFallback(cautelar.dossieNumero || cautelar.dossie_numero);
+    const dataVistoria = valOrFallback(new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR'));
+    const horaVistoria = valOrFallback(new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}));
+    const vistoriador = valOrFallback(db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome);
+    const placa = valOrFallback(os.placa);
+    const cor = valOrFallback(os.cor);
+    const renavam = valOrFallback(os.renavam);
+    const chassi = valOrFallback(os.chassi || dataSec2.chassiLido);
+    const motor = valOrFallback(os.motor || dataSec2.motorLido);
+    const quilometragem = valOrFallback(dataSec1.quilometragem);
+    const combustivel = valOrFallback(dataSec1.combustivel || os.combustivel);
+    const anoFab = valOrFallback(os.fabricacaoAno || os.ano_fabricacao);
+    const anoMod = valOrFallback(os.modeloAno || os.ano_modelo);
+
+    let marca = 'Não informado';
+    let modelo = 'Não informado';
+    if (os.clienteNome) {
+        if (os.clienteNome.includes('/')) {
+            const parts = os.clienteNome.split('/');
+            marca = valOrFallback(parts[0]);
+            modelo = valOrFallback(parts[1]);
+        } else {
+            modelo = valOrFallback(os.clienteNome);
+        }
+    }
+
+    // Listas auxiliares para gerar os dados multiline do laudo
+    const approvedList = [];
+    const alertList = [];
+    if (dataSec3.parecerEstrutural === 'conforme' || !dataSec3.parecerEstrutural) {
+        approvedList.push("Não foram encontradas remarcações no chassi");
+        approvedList.push("Não verificamos indícios de sinistro");
+    } else {
+        alertList.push("Identificados reparos ou ressalvas em painéis estruturais.");
+    }
+    approvedList.push("Não consta como roubado");
+    approvedList.push("Não possui histórico de roubo e/ou furto");
+    approvedList.push("O veículo está indicado como \"em circulação\"");
+
+    if (dataSec7.parecerDocumental === 'conforme' || !dataSec7.parecerDocumental) {
+        approvedList.push("Não possui débitos estaduais");
+        approvedList.push("DPVAT e IPVA atuais estão quitados");
+        approvedList.push("Não possui registro de leilões");
+        approvedList.push("Não possui comunicado de venda");
+        approvedList.push("Não consta parecer técnico");
+    } else {
+        alertList.push("Há registro de restrições: alienação ativa em andamento");
+        alertList.push("Possui débitos de licenciamento");
+        alertList.push("Possui débitos de multas");
+    }
+
+    const approvedItemsText = approvedList.join('\n');
+    const alertItemsText = alertList.join('\n');
+
+    // Mapeia todas as peças avaliadas para pintar na Página 6
+    const paintItemsList = [
+        "Capô", "Teto", "Tampa do porta-malas",
+        "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.",
+        "Paralama traseiro esq.", "Traseira esquerda", "Paralama traseiro dir.",
+        "Traseira direita", "Porta traseira dir.", "Porta dianteira dir.",
+        "Paralama dianteiro dir.", "Para-choque dianteiro", "Para-choque traseiro"
+    ];
+    const getPaintCondition = (index) => dataSec4[`micrometro_${index}`] || 'Original';
+    let paintText = '';
+    paintItemsList.forEach((name, i) => {
+        const cond = getPaintCondition(i + 1);
+        paintText += `${String(i + 1).padStart(2, '0')} ${name.padEnd(25, '.')} ${cond}\n`;
+    });
+
+    // Mapeia os vidros avaliados para a Página 7
+    const glassList = ["Para-brisa", "Vidro dianteiro esquerdo", "Vidro traseiro esquerdo", "Vidro dianteiro direito", "Vidro traseiro direito", "Vidro traseiro"];
+    let glassText = '';
+    glassList.forEach((name, i) => {
+        const status = dataSec5[`vidro_${i+1}_status`] || 'Original';
+        const recorded = dataSec5[`vidro_${i+1}_chassis`] !== false ? 'Sim' : 'Não';
+        glassText += `${String(i + 1).padStart(2, '0')} ${name.padEnd(25, '.')} Status: ${status.padEnd(10, ' ')} Gravado: ${recorded}\n`;
+    });
+
+    const getStructuralStatus = (index) => dataSec3[`estru_${index}`] || 'conforme';
+    const getPillText = (status) => {
+        if (status === 'RESTRIÇÃO' || status === 'nao_conforme' || status === 'reprovada') return 'RESTRIÇÃO';
+        if (status === 'COM RESSALVAS' || status === 'com_ressalvas') return 'RESSALVAS';
+        return 'CONFORME';
+    };
+
+    // Dados complementares
+    const complementaryText = 
+        `Modelo: ${marca} / ${modelo}                  Placa: ${placa}\n` +
+        `Fabricante: FIAT                                Chassi: ${chassi}\n` +
+        `Ano Fab/Mod: ${anoFab} / ${anoMod}                  Motor: ${motor}\n` +
+        `Combustível: ${combustivel}             Renavam: ${renavam}\n` +
+        `Cor: ${cor}                                      Quilometragem: ${quilometragem} km`;
+
+    // Consulta documental
+    const consultationText = 
+        `Entrada: ${placa}                 Data/Hora: ${dataVistoria} ${horaVistoria}\n` +
+        `Solicitado por: Certive Vistorias         Código consulta: 4386109\n` +
+        `Token: 4348c105-afa0-4df6-b800-fcf6f3d1b38\n` +
+        `Emplacamento: Curitiba / PR`;
+
+    let finalHeadline = 'CONFORME';
+    let finalSub = 'PARA AQUISIÇÃO';
+    let finalBody = 'Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não sendo identificados indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.';
+
+    if (parecerFinal === 'com_ressalvas') {
+        finalHeadline = 'CONFORME COM RESSALVA';
+        finalSub = 'VERIFICAR APONTAMENTOS';
+        finalBody = obsFinal || 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.';
+    } else if (parecerFinal === 'nao_conforme' || parecerFinal === 'reprovada') {
+        finalHeadline = 'NÃO CONFORME';
+        finalSub = 'NÃO RECOMENDADO PARA AQUISIÇÃO';
+        finalBody = obsFinal || 'O veículo apresenta avarias ou vestígios de soldas estruturais incompatíveis com a originalidade de fábrica, gerando parecer desfavorável.';
+    }
+
+    // Mapa de valores dos campos AcroForm textuais
+    const dataValues = {
+        "inspection.city_state": "SÃO JOSÉ / SC",
+        "inspection.date_long": `${dataVistoria.split('/')[0]} DE ${obterMesPorExtenso(dataVistoria.split('/')[1])} DE ${dataVistoria.split('/')[2]}`,
+        "inspection.dossier_number": dossie,
+        "inspection.dossier_number_p3": dossie,
+        "inspection.dossier_number_p4": dossie,
+        "inspection.dossier_number_p5": dossie,
+        "inspection.dossier_number_p6": dossie,
+        "inspection.dossier_number_p7": dossie,
+        "inspection.dossier_number_p8": dossie,
+        "inspection.dossier_number_p9": dossie,
+        "inspection.dossier_number_p10": dossie,
+        "vehicle.brand_model": `${marca} / ${modelo}`,
+        "vehicle.year": `${anoFab} / ${anoMod}`,
+        "vehicle.color": cor,
+        "vehicle.plate": placa,
+        "vehicle.chassis": chassi,
+        "vehicle.engine_number": motor,
+        "vehicle.fuel": combustivel,
+        "vehicle.renavam": renavam,
+        "vehicle.odometer": `${quilometragem} km`,
+        "inspection.date_time": `${dataVistoria} às ${horaVistoria}`,
+        "inspection.location": db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC',
+        "inspector.name": vistoriador,
+        "inspector.full_name": vistoriador,
+        "inspector.role_document": `VISTORIADOR\nREGISTRO ECV: ${cautelar.vistoriadorId || '417.754'}`,
+        "structure.status": getPillText(dataSec3.parecerEstrutural || 'conforme'),
+        "identification.status": getPillText(dataSec5.parecerVidros || 'conforme'),
+        "paint.status": getPillText(dataSec4.parecerPintura || 'com_ressalvas'),
+        "engine.status": getPillText(dataSec6.parecerMotor || 'conforme'),
+        "chassis.status": getPillText(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'),
+        "summary.approved_items": approvedItemsText,
+        "summary.alert_items": alertItemsText,
+        
+        // Estrutural (Pág 5)
+        "structure.front_right": getPillText(getStructuralStatus(2)),
+        "structure.front_left": getPillText(getStructuralStatus(1)),
+        "structure.firewall": getPillText(getStructuralStatus(3)),
+        "structure.roof": getPillText(getStructuralStatus(17)),
+        "structure.rear_panel": getPillText(getStructuralStatus(16)),
+        "structure.spare_wheel_box": getPillText(getStructuralStatus(21)),
+        "structure.floor_trunk": getPillText(getStructuralStatus(20)),
+        "structure.final_status": getPillText(dataSec3.parecerEstrutural || 'conforme'),
+        
+        // Pintura (Pág 6)
+        "paint.table_items": paintText,
+        "labels.engine_bay_status": (dataSec5['label_eta_compartimento_status'] || 'Original').toUpperCase(),
+        "labels.column_status": (dataSec5['label_eta_coluna_status'] || 'Original').toUpperCase(),
+        
+        // Vidros (Pág 7)
+        "glass.table": glassText,
+        "identification.engine_status": getPillText(dataSec6.parecerMotor || 'conforme'),
+        "identification.chassis_status": getPillText(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'),
+        
+        // Complementares (Pág 8)
+        "vehicle.complementary_data": complementaryText,
+        "technical.opinion_status": getPillText(parecerFinal),
+        "technical.observation": "Observação: Não são analisados itens que necessitem de equipamentos especializados como freios ABS, air bags, parte mecânica, hodômetro e elétrica.",
+        
+        // Documental (Pág 9)
+        "document.consultation_data": consultationText,
+        "document.approved_items": "Não possui histórico de roubo e/ou furto\nNão consta sinistro ativo\nNão possui registro de leilão",
+        "document.alert_items": dataSec7.parecerDocumental !== 'conforme' ? "Multas em aberto localizadas\nDébito de licenciamento ativo" : "Nada consta",
+        "document.restriction_items": dataSec7.parecerDocumental !== 'conforme' ? "Alienação ativa em andamento" : "Nada consta",
+        
+        // Conclusão (Pág 10)
+        "final.opinion_text": finalBody,
+        "final.status": `${finalHeadline}\n${finalSub}`,
+        "inspection.final_date_city": `São José/SC, ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.`
+    };
+
+    // Preenche cada campo do formulário
+    for (const [fieldName, val] of Object.entries(dataValues)) {
+        try {
+            const field = form.getTextField(fieldName);
+            field.setText(val);
+        } catch (err) {
+            console.warn(`Campo AcroForm "${fieldName}" não encontrado ou não suportado no PDF.`);
+        }
+    }
+
+    // Coleta as fotos da vistoria
+    const fotosVistoria = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
+    
+    // Mapeamento de slot_codigo para as chaves photos.* do JSON
+    const photoSlotMap = {
+        "frente_45_dir": "photos.vehicle_front_45",
+        "traseira_45_esq": "photos.vehicle_rear_45",
+        "motor_vista_geral": "photos.engine_bay",
+        "assoalho_porta_malas": "photos.trunk_floor",
+        "painel_hodometro": "photos.odometer",
+        "longarina_diant_esq": "photos.rear_longeron_right",
+        "etiqueta_eta_motor": "photos.engine_label",
+        "etiqueta_eta_coluna": "photos.column_label",
+        "chassi_gravado": "photos.chassis_number",
+        "motor_gravado": "photos.engine_number",
+        "placa_dianteira": "photos.plate_rear"
+    };
+
+    // Também temos chaves de duplicidade de fotos em outras páginas
+    const duplicatePhotoMap = {
+        "photos.engine_compartment": "motor_vista_geral",
+        "photos.engine_number_p8": "motor_gravado",
+        "photos.chassis_number_p8": "chassi_gravado",
+        "photos.front_45_right": "frente_45_dir",
+        "photos.rear_45_left": "traseira_45_esq"
+    };
+
+    // Percorre todos os campos do Field Map
+    for (const field of fieldMap.fields) {
+        if (field.type === "image") {
+            const pageIndex = field.page - 1;
+            const pdfPage = pdfDoc.getPage(pageIndex);
+            const { width: pdfWidth, height: pdfHeight } = pdfPage.getSize();
+            
+            const scaleX = pdfWidth / fieldMap.page_size.width;
+            const scaleY = pdfHeight / fieldMap.page_size.height;
+            
+            const wReal = field.w * scaleX;
+            const hReal = field.h * scaleY;
+            const xReal = field.x * scaleX;
+            const yReal = pdfHeight - (field.y * scaleY) - hReal;
+
+            // Identifica qual é a imagem para esse campo
+            let slotCodigo = null;
+            for (const [slot, name] of Object.entries(photoSlotMap)) {
+                if (name === field.name) {
+                    slotCodigo = slot;
+                    break;
+                }
+            }
+
+            // Se for duplicado
+            if (!slotCodigo && duplicatePhotoMap[field.name]) {
+                slotCodigo = duplicatePhotoMap[field.name];
+            }
+
+            const photo = fotosVistoria.find(f => f.slotCodigo === slotCodigo);
+            const photoUrl = photo ? (photo.url_thumb || photo.url_original || '') : '';
+
+            if (photoUrl) {
+                try {
+                    // Corta e processa imagem com Canvas do navegador para proporção e tamanho ótimos
+                    const croppedBytes = await cropImageToFit(photoUrl, wReal, hReal);
+                    let pdfImg;
+                    try {
+                        pdfImg = await pdfDoc.embedJpg(croppedBytes);
+                    } catch (e) {
+                        pdfImg = await pdfDoc.embedPng(croppedBytes);
+                    }
+
+                    // Desenha a imagem cortada
+                    pdfPage.drawImage(pdfImg, {
+                        x: xReal,
+                        y: yReal,
+                        width: wReal,
+                        height: hReal
+                    });
+                } catch (err) {
+                    console.error(`Erro ao processar imagem ${field.name}:`, err);
+                    drawPhotoPlaceholder(pdfDoc, pdfPage, xReal, yReal, wReal, hReal, scaleX);
+                }
+            } else {
+                // Desenha placeholder de imagem ausente
+                drawPhotoPlaceholder(pdfDoc, pdfPage, xReal, yReal, wReal, hReal, scaleX);
+            }
+        }
+    }
+
+    // Assinatura do Vistoriador
+    const sigField = fieldMap.fields.find(f => f.name === "signature.image_or_name");
+    if (sigField && signatureVistoriador) {
+        try {
+            const pageIndex = sigField.page - 1;
+            const pdfPage = pdfDoc.getPage(pageIndex);
+            const { width: pdfWidth, height: pdfHeight } = pdfPage.getSize();
+            const scaleX = pdfWidth / fieldMap.page_size.width;
+            const scaleY = pdfHeight / fieldMap.page_size.height;
+            
+            const wReal = sigField.w * scaleX;
+            const hReal = sigField.h * scaleY;
+            const xReal = sigField.x * scaleX;
+            const yReal = pdfHeight - (sigField.y * scaleY) - hReal;
+
+            const sigBytes = await fetch(signatureVistoriador).then(res => res.arrayBuffer());
+            let sigImg;
+            try {
+                sigImg = await pdfDoc.embedPng(sigBytes);
+            } catch (e) {
+                sigImg = await pdfDoc.embedJpg(sigBytes);
+            }
+
+            // Desenha a assinatura com proporção centralizada
+            pdfPage.drawImage(sigImg, {
+                x: xReal + (wReal - wReal * 0.8) / 2,
+                y: yReal + (hReal - hReal * 0.8) / 2,
+                width: wReal * 0.8,
+                height: hReal * 0.8
+            });
+        } catch (err) {
+            console.error("Erro ao desenhar assinatura do vistoriador no PDF:", err);
+        }
+    }
+
+    // QR Code na Página 10
+    const qrDiv = document.createElement('div');
+    const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
+    new QRCode(qrDiv, {
+        text: validationUrl,
+        width: 150,
+        height: 150,
+        colorDark: '#0A1F3D',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+    });
+
+    // Espera o QRCode renderizar no canvas
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const qrCanvas = qrDiv.querySelector('canvas');
+    if (qrCanvas) {
+        try {
+            const qrDataUrl = qrCanvas.toDataURL('image/png');
+            const qrBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
+            const qrImg = await pdfDoc.embedPng(qrBytes);
+
+            const p10 = pdfDoc.getPage(9);
+            const { width: p10Width, height: p10Height } = p10.getSize();
+            const scaleX = p10Width / fieldMap.page_size.width;
+            const scaleY = p10Height / fieldMap.page_size.height;
+
+            const qrW = 24 * scaleX;
+            const qrH = 24 * scaleY;
+            const qrX = 278 * scaleX;
+            const qrY = p10Height - (412 * scaleY) - qrH;
+
+            p10.drawImage(qrImg, {
+                x: qrX,
+                y: qrY,
+                width: qrW,
+                height: qrH
+            });
+        } catch (err) {
+            console.error("Erro ao sobrepor QR Code no PDF:", err);
+        }
+    }
+
+    // 5. Achata os campos de formulário (AcroForm flattening)
+    form.flatten();
+
+    // 6. Salva o PDF finalizado
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
+
+// Helpers para generateInspectionReport
+function obterMesPorExtenso(mesNum) {
+    const meses = [
+        "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+        "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+    ];
+    return meses[parseInt(mesNum, 10) - 1] || 'JANEIRO';
+}
+
+async function cropImageToFit(imageUrl, wPoints, hPoints, scale = 2) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = wPoints * scale;
+            canvas.height = hPoints * scale;
+            const ctx = canvas.getContext('2d');
+            
+            const imgAspect = img.width / img.height;
+            const canvasAspect = canvas.width / canvas.height;
+            let sx, sy, sWidth, sHeight;
+            
+            if (imgAspect > canvasAspect) {
+                sHeight = img.height;
+                sWidth = img.height * canvasAspect;
+                sx = (img.width - sWidth) / 2;
+                sy = 0;
+            } else {
+                sWidth = img.width;
+                sHeight = img.width / canvasAspect;
+                sx = 0;
+                sy = (img.height - sHeight) / 2;
+            }
+            
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    blob.arrayBuffer().then(resolve).catch(reject);
+                } else {
+                    reject(new Error("Erro no canvas Blob"));
+                }
+            }, "image/jpeg", 0.85);
+        };
+        img.onerror = (err) => {
+            reject(err);
+        };
+        img.src = imageUrl;
+    });
+}
+
+async function drawPhotoPlaceholder(pdfDoc, pdfPage, x, y, w, h, scale) {
+    pdfPage.drawRectangle({
+        x: x,
+        y: y,
+        width: w,
+        height: h,
+        color: PDFLib.rgb(0.98, 0.98, 0.96),
+        borderColor: PDFLib.rgb(0.85, 0.81, 0.75),
+        borderWidth: 1
+    });
+    
+    try {
+        const font = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+        const fontSize = 6 * scale;
+        const text = "Imagem nao informada";
+        const textWidth = font.widthOfTextAtSize(text, fontSize);
+        const textHeight = font.heightAtSize(fontSize);
+        
+        pdfPage.drawText(text, {
+            x: x + (w - textWidth) / 2,
+            y: y + (h - textHeight) / 2,
+            size: fontSize,
+            font: font,
+            color: PDFLib.rgb(0.35, 0.33, 0.29)
+        });
+    } catch (err) {
+        console.error("Erro ao desenhar placeholder do PDF:", err);
+    }
 }

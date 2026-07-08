@@ -1,0 +1,53 @@
+Você deve implementar a geração do PDF de laudo cautelar usando exclusivamente o arquivo Certive_Template_Editavel.pdf como template oficial.
+
+REGRA PRINCIPAL
+Não recriar o layout. Não transformar imagens em HTML. Não redesenhar cabeçalho, rodapé, tabelas, linhas, logos, selos, cores ou espaçamentos. O PDF final deve partir do template existente e apenas substituir os campos variáveis.
+
+ARQUIVOS
+- Certive_Template_Editavel.pdf: template oficial com fundo fixo e campos nomeados.
+- Certive_Template_Field_Map.json: mapa dos campos, páginas e coordenadas.
+
+IMPLEMENTAÇÃO ESPERADA
+Criar a função generateInspectionReport(inspectionId).
+
+Fluxo:
+1. Buscar dados da vistoria pelo inspectionId.
+2. Buscar dados do veículo, cliente, vistoriador, análise, documentação e fotos.
+3. Abrir Certive_Template_Editavel.pdf.
+4. Preencher os campos de texto pelo nome do campo AcroForm.
+5. Para campos de foto, inserir a imagem no retângulo indicado no Field_Map, usando cover/crop centralizado, sem alterar o tamanho do quadro.
+6. Se um campo textual não existir, preencher com "Não informado".
+7. Se uma foto não existir, manter o placeholder "Imagem não informada" dentro do mesmo quadro.
+8. Achatar/flatten o PDF final para impedir edição acidental do laudo emitido.
+9. Salvar o PDF final vinculado à vistoria e disponibilizar visualizar/baixar.
+
+REGRAS OBRIGATÓRIAS
+- Nunca mover campos.
+- Nunca aumentar caixas.
+- Nunca criar novas páginas.
+- Nunca alterar o template visual.
+- Nunca depender de CSS responsivo.
+- Nunca gerar o laudo do zero.
+- Usar coordenadas absolutas do Field_Map.
+- Campos de texto devem respeitar a área existente. Se não couber, reduzir fonte até o mínimo; se ainda não couber, cortar com reticências.
+- Fotos devem ser inseridas exatamente nos retângulos mapeados, com corte centralizado para preencher o quadro.
+
+MAPEAMENTO DOS DADOS
+Substituir os campos conforme nomes do PDF/JSON. Exemplos:
+vehicle.plate = placa cadastrada do veículo.
+vehicle.brand_model = marca e modelo cadastrados.
+vehicle.year = ano fabricação/modelo.
+vehicle.chassis = chassi.
+vehicle.engine_number = número do motor.
+vehicle.odometer = quilometragem.
+inspection.dossier_number = número do dossiê.
+inspection.date_time = data e hora da vistoria.
+inspection.location = local da vistoria.
+inspector.name = nome do vistoriador.
+technical.opinion_status = resultado técnico.
+final.opinion_text = texto do parecer final.
+final.status = resultado final do laudo.
+photos.* = imagens enviadas durante a vistoria.
+
+CRITÉRIO DE ACEITE
+Gerar um PDF final visualmente idêntico ao template oficial, alterando somente os dados, status, pareceres e fotos da vistoria.
