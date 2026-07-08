@@ -1266,6 +1266,69 @@ function clearOSForm() {
     document.getElementById('os-parcelas-group').style.display = 'none';
     document.getElementById('os-parcelas').value = '1';
     selectClientType('particular');
+    if (typeof checkPlacaLength === 'function') checkPlacaLength();
+}
+
+function checkPlacaLength() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    if (!placaInput || !btnConsultar) return;
+    
+    // Validate Mercosul or normal plate formats: 7 alphanumeric chars
+    const placaValue = placaInput.value.replace(/[^a-zA-Z0-9]/g, '');
+    if (placaValue.length === 7) {
+        btnConsultar.disabled = false;
+    } else {
+        btnConsultar.disabled = true;
+    }
+}
+
+async function consultarPlacaAPI() {
+    const placaInput = document.getElementById('os-placa');
+    const btnConsultar = document.getElementById('btn-consultar-placa');
+    
+    const placa = placaInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (placa.length !== 7) return;
+
+    btnConsultar.disabled = true;
+    const originalIcon = btnConsultar.innerHTML;
+    btnConsultar.innerHTML = '<i class="ri-loader-4-line" style="animation: spin 1s linear infinite;"></i>';
+
+    try {
+        const { data: json, error } = await supabaseClient.functions.invoke('consultar-placa', {
+            body: { placa }
+        });
+
+        if (error) {
+            console.error("Erro na Edge Function:", error);
+            showToast("Veículo não encontrado ou erro na API.", "error");
+            return;
+        }
+
+        if (json && json.status === 'ok' && json.dados && json.dados.informacoes_veiculo && json.dados.informacoes_veiculo.dados_veiculo) {
+            const data = json.dados.informacoes_veiculo.dados_veiculo;
+            
+            const marca = data.marca || '';
+            const modelo = data.modelo || '';
+            document.getElementById('os-veiculo-marca-modelo').value = (marca + (marca && modelo ? ' / ' : '') + modelo).trim();
+            
+            document.getElementById('os-veiculo-ano').value = data.ano_modelo || data.ano_fabricacao || '';
+            
+            if (data.renavam && !document.getElementById('os-renavam').value) {
+                document.getElementById('os-renavam').value = data.renavam;
+            }
+            showToast("Dados do veículo preenchidos com sucesso!", "success");
+        } else {
+            showToast(json.mensagem || "Consulta concluída, mas dados incompletos. Preencha manualmente.", "info");
+        }
+        
+    } catch (error) {
+        console.error("Erro ao consultar placa:", error);
+        showToast("Serviço de consulta instável. Preencha manualmente.", "error");
+    } finally {
+        btnConsultar.innerHTML = originalIcon;
+        btnConsultar.disabled = false;
+    }
 }
 
 function submitOSForm() {
@@ -3807,6 +3870,40 @@ async function submitGirarFatura(event) {
             });
         }
         
+        // --- NOVO: Gerar PDF e Chamar Edge Function Asaas ---
+        try {
+            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
+            
+            // 1. Gera PDF e faz upload pro Supabase Storage
+            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+
+            showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
+            
+            // 2. Chama a Edge Function Asaas
+            const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
+            });
+            const functionData = await functionRes.json();
+            
+            if (functionRes.ok) {
+                finalInvoice.asaas_payment_id = functionData.paymentId;
+                finalInvoice.asaas_url = functionData.url;
+                finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
+                showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
+            } else {
+                showToast("Erro Asaas: " + (functionData.error || 'Erro desconhecido'), "error");
+            }
+        } catch(e) {
+            console.error(e);
+            showToast("Erro ao chamar Asaas.", "error");
+        }
+        // ----------------------------------------
+        
         db.faturas.unshift(finalInvoice);
     } else {
         // Fluxo Original LocalStorage (Fallback / Offline)
@@ -3873,6 +3970,17 @@ function renderFatFaturas() {
             boletoBadge = '<span class="badge badge-cancelled"><span class="badge-dot"></span> Vencido</span>';
         }
 
+        let asaasBtn = '';
+        if (f.asaas_url) {
+            asaasBtn = `<a href="${f.asaas_url}" target="_blank" class="btn btn-secondary btn-sm" title="Abrir Boleto Asaas"><i class="ri-bank-card-line"></i> Asaas</a>`;
+        } else {
+            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Antigo"><i class="ri-bank-card-line"></i></button>`;
+        }
+
+        let zapBtn = f.notificacao_zap 
+            ? `<button class="btn btn-success btn-sm btn-icon" style="background:var(--success);border-color:var(--success);" title="Enviado por ZAP"><i class="ri-whatsapp-line"></i></button>`
+            : '';
+
         return `
             <tr>
                 <td><strong>${f.codigo}</strong></td>
@@ -3887,7 +3995,8 @@ function renderFatFaturas() {
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="Imprimir Fatura"><i class="ri-printer-line"></i></button>
-                        <button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>
+                        ${asaasBtn}
+                        ${zapBtn}
                         ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})"><i class="ri-check-line"></i> Baixar</button>` : ''}
                     </div>
                 </td>
@@ -3937,6 +4046,123 @@ function liquidateInvoice(invoiceId) {
         logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
         
         renderFatFaturas();
+    }
+}
+
+// ==========================================
+// GERADOR DE PDF DE FATURA (html2pdf)
+// ==========================================
+async function generateAndUploadInvoicePDF(f) {
+    if (!window.useSupabase) return null;
+
+    const partner = db.parceiros.find(p => p.id === f.parceiroId);
+    const unit = db.unidades.find(u => u.id === f.unidadeId);
+    const oss = db.ordens_servico.filter(o => f.ordensIds.includes(o.id));
+
+    let osRows = oss.map(o => `
+        <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
+            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
+            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
+            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
+            <td style="padding: 6px;">${o.observacoes || '—'}</td>
+            <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
+            <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
+        </tr>
+    `).join('');
+
+    if (!osRows) {
+        osRows = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: #666;">Nenhuma OS vinculada a esta fatura.</td></tr>`;
+    }
+
+    // Criar um elemento invisível contendo o layout de impressão da Fatura
+    const div = document.createElement('div');
+    div.style.padding = '40px';
+    div.style.fontFamily = 'Outfit, sans-serif';
+    div.style.color = '#000';
+    div.style.width = '800px';
+    div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+            <div>
+                <h1 style="font-size: 24px; font-weight: 800; margin: 0;">CERTIVE VISTORIAS</h1>
+                <p style="font-size: 11px; text-transform: uppercase; margin: 4px 0 0 0;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+            </div>
+            <div style="border: 2px solid #000; padding: 8px 16px; font-weight: 800; font-size: 16px;">
+                FATURA ${f.codigo}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 30px;">
+            <div>
+                <strong>Prestador:</strong> ${unit.nome}<br>
+                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
+            </div>
+            <div style="text-align: right;">
+                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
+                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
+                <strong>Contato:</strong> ${partner.telefone}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+            <div>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Status de Pagamento:</strong> AGUARDANDO PAGAMENTO
+            </div>
+            <div style="text-align: right; font-size: 16px; font-weight: 800;">
+                VALOR TOTAL: ${formatCurrency(f.valorTotal)}
+            </div>
+        </div>
+
+        <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 40px;">
+            <div style="font-weight: 800; font-size: 12px; background: #eee; padding: 10px 14px; border-bottom: 1px solid #000;">
+                DEMONSTRATIVO DE SERVIÇOS PRESTADOS
+            </div>
+            <div style="padding: 10px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000; font-size: 10px; text-transform: uppercase;">
+                            <th style="padding: 6px;">OS</th>
+                            <th style="padding: 6px;">Data</th>
+                            <th style="padding: 6px;">Placa</th>
+                            <th style="padding: 6px;">Veículo / OBS</th>
+                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px; text-align: right;">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${osRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    try {
+        // Gerar o Blob do PDF
+        const pdfBlob = await html2pdf().from(div).set({
+            margin: 0,
+            filename: `Demonstrativo_${f.codigo}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).outputPdf('blob');
+
+        // Upload para o Supabase Storage (bucket 'faturas')
+        const fileName = `${f.codigo}_${Date.now()}.pdf`;
+        const { data, error } = await supabaseClient.storage.from('faturas').upload(fileName, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+        });
+
+        if (error) throw error;
+
+        // Pegar a URL pública
+        const { data: urlData } = supabaseClient.storage.from('faturas').getPublicUrl(fileName);
+        return urlData.publicUrl;
+    } catch (e) {
+        console.error("Erro ao gerar/upar PDF:", e);
+        return null; // Falha silenciosa, envia sem o PDF
     }
 }
 
@@ -5049,11 +5275,14 @@ function switchConfigTab(tab, btn) {
     document.getElementById('tab-cfg-parceiros').style.display = tab === 'parceiros' ? 'block' : 'none';
     document.getElementById('tab-cfg-operadores').style.display = tab === 'operadores' ? 'block' : 'none';
     document.getElementById('tab-cfg-portarias').style.display = tab === 'portarias' ? 'block' : 'none';
+    const tabZap = document.getElementById('tab-cfg-whatsapp');
+    if (tabZap) tabZap.style.display = tab === 'whatsapp' ? 'block' : 'none';
 
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
     if (tab === 'portarias') renderConfigPortarias();
+    if (tab === 'whatsapp') renderConfigWhatsApp();
 }
 
 function renderConfigPage() {
@@ -5061,6 +5290,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'parceiros') renderConfigParceiros();
     else if (currentConfigTab === 'operadores') renderConfigOperadores();
     else if (currentConfigTab === 'portarias') renderConfigPortarias();
+    else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
 }
 
 // Config: Tabela de Preços e Taxas
@@ -5200,6 +5430,81 @@ function submitConfigPortaria(event) {
     renderConfigPortarias();
 }
 
+// Config: Notificações WhatsApp
+async function renderConfigWhatsApp() {
+    if (typeof supabaseClient === 'undefined' || supabaseClient === null) return;
+
+    try {
+        const { data, error } = await supabaseClient.from('configuracoes').select('*').limit(1).single();
+        if (error && error.code !== 'PGRST116') {
+            console.error("Erro ao carregar configuracoes:", error);
+            return;
+        }
+
+        if (data) {
+            document.getElementById('zap-responsavel').value = data.zap_responsavel || '';
+            document.getElementById('zap-dias-aviso').value = data.zap_dias_aviso || 3;
+            document.getElementById('zap-template').value = data.zap_template || 'Atenção: A conta {descricao} no valor de R$ {valor} vence no dia {vencimento}';
+            
+            if (data.zap_responsavel && typeof maskCelular === 'function') {
+                document.getElementById('zap-responsavel').value = maskCelular(data.zap_responsavel);
+            }
+        }
+    } catch (err) {
+        console.error("Erro ao buscar configuracoes do Whatsapp:", err);
+    }
+}
+
+async function submitConfigWhatsApp(event) {
+    event.preventDefault();
+    if (typeof supabaseClient === 'undefined' || supabaseClient === null) {
+        showToast("Supabase não configurado.", "error");
+        return;
+    }
+
+    const btnSubmit = event.target.querySelector('button[type="submit"]');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    const responsavel = document.getElementById('zap-responsavel').value.trim();
+    const dias = parseInt(document.getElementById('zap-dias-aviso').value, 10);
+    const template = document.getElementById('zap-template').value.trim();
+
+    try {
+        const { data: existing } = await supabaseClient.from('configuracoes').select('id').limit(1).single();
+        
+        let errorObj;
+        if (existing) {
+            const { error } = await supabaseClient.from('configuracoes').update({
+                zap_responsavel: responsavel,
+                zap_dias_aviso: dias,
+                zap_template: template
+            }).eq('id', existing.id);
+            errorObj = error;
+        } else {
+            const { error } = await supabaseClient.from('configuracoes').insert([{
+                zap_responsavel: responsavel,
+                zap_dias_aviso: dias,
+                zap_template: template
+            }]);
+            errorObj = error;
+        }
+
+        if (errorObj) {
+            console.error("Erro ao salvar config zap:", errorObj);
+            showToast("Erro ao salvar as configurações do WhatsApp.", "error");
+        } else {
+            showToast("Configurações salvas com sucesso!", "success");
+            logAudit("Configuração WhatsApp", "Atualizou configurações de notificação.");
+        }
+
+    } catch (err) {
+        console.error(err);
+        showToast("Erro de conexão ao salvar as configurações.", "error");
+    } finally {
+        if (btnSubmit) btnSubmit.disabled = false;
+    }
+}
+
 // Config: Parceiros Conveniados
 function renderConfigParceiros() {
     const matrixContainer = document.getElementById('config-partner-matrix');
@@ -5253,15 +5558,19 @@ function submitConfigPartner(event) {
         customPrecos[s.id] = val;
     });
 
+    const whatsappEl = document.getElementById('cfg-part-whatsapp');
+    const whatsapp = whatsappEl ? whatsappEl.value.trim() : '';
     const emailEl = document.getElementById('cfg-part-email');
     const email = emailEl ? emailEl.value.trim() : '';
 
-    // Payload sem 'email' (coluna não existe na tabela parceiros do banco)
+    // Payload atualizado para incluir os novos campos de faturamento Asaas
     const partnerPayload = {
         nome: nome,
         cnpj: cnpj,
         responsavel: responsavel,
         telefone: tel,
+        whatsapp: whatsapp,
+        email: email,
         usaFaturamento: fat,
         observacoes: obs,
         tabelaPrecos: customPrecos
@@ -5320,7 +5629,9 @@ function editPartnerDetails(id) {
     document.getElementById('cfg-part-nome').value = partner.nome;
     document.getElementById('cfg-part-cnpj').value = partner.cnpj;
     document.getElementById('cfg-part-responsavel').value = partner.responsavel || '';
-    document.getElementById('cfg-part-tel').value = partner.telefone;
+    document.getElementById('cfg-part-tel').value = partner.telefone || '';
+    document.getElementById('cfg-part-whatsapp').value = partner.whatsapp || '';
+    document.getElementById('cfg-part-email').value = partner.email || '';
     document.getElementById('cfg-part-faturamento').checked = partner.usaFaturamento;
     document.getElementById('cfg-part-obs').value = partner.observacoes || '';
 
