@@ -1868,6 +1868,25 @@ function submitConcludeVistoria(osId, approved) {
         os.respostaShopping = ans;
     }
 
+    // Se for de parceiro e reprovado (approved === false)
+    if (os.clienteTipo === 'parceiro' && !approved) {
+        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
+        if (aplicarDesconto) {
+            const valorOriginal = os.valor;
+            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
+            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
+            
+            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
+            if (os.pago && os.formaPagamento !== 'faturamento') {
+                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
+                if (mov) {
+                    mov.valor = os.valor;
+                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
+                }
+            }
+        }
+    }
+
     // Save final status
     os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
     os.finalizadoEm = new Date().toISOString();
@@ -1875,6 +1894,8 @@ function submitConcludeVistoria(osId, approved) {
 
     dbSave('ordens_servico', {
         status: os.status,
+        valor: os.valor,
+        observacoes: os.observacoes,
         finalizadoEm: os.finalizadoEm,
         finalizadoPor: os.finalizadoPor,
         respostaDetranNet: os.respostaDetranNet || null,
@@ -2105,12 +2126,33 @@ function finalizeVistoria(id, approved) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
+    // Se for de parceiro e reprovado (approved === false)
+    if (os.clienteTipo === 'parceiro' && !approved) {
+        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
+        if (aplicarDesconto) {
+            const valorOriginal = os.valor;
+            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
+            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% applied (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
+            
+            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
+            if (os.pago && os.formaPagamento !== 'faturamento') {
+                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
+                if (mov) {
+                    mov.valor = os.valor;
+                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
+                }
+            }
+        }
+    }
+
     os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
     os.finalizadoEm = new Date().toISOString();
     os.finalizadoPor = currentSession.nome;
 
     dbSave('ordens_servico', {
         status: os.status,
+        valor: os.valor,
+        observacoes: os.observacoes,
         finalizadoEm: os.finalizadoEm,
         finalizadoPor: os.finalizadoPor
     }, 'update', os.id);
@@ -2424,30 +2466,7 @@ async function submitEditOSForm(event) {
     }
 }
 
-function deleteOS(id) {
-    const os = db.ordens_servico.find(o => o.id === id);
-    if (!os) return;
-    
-    if (os.status !== 'aberta') {
-        showToast("Operação bloqueada: Só é permitido excluir ordens de serviço em status ABERTA.", "error");
-        return;
-    }
 
-    if (confirm(`Tem certeza que deseja excluir permanentemente a OS ${os.numero}? Esta ação não poderá ser desfeita.`)) {
-        const index = db.ordens_servico.findIndex(o => o.id === id);
-        if (index !== -1) {
-            dbSave('ordens_servico', null, 'delete', id);
-            showToast(`OS ${os.numero} excluída com sucesso!`, "success");
-            logAudit("Exclusão OS", `Excluiu permanentemente a OS ${os.numero} (Placa: ${os.placa}).`);
-            
-            closeOSModal();
-            renderAtendimentoPage();
-            if (document.getElementById('panel-historico').classList.contains('active')) {
-                renderHistorico();
-            }
-        }
-    }
-}
 
 function closeEditOSModal(e) {
     if (e && e.target !== e.currentTarget) return;
@@ -3848,12 +3867,69 @@ async function submitFecharCaixa(event) {
                 }
             }
 
+            const estavaReaberto = window.modoDiaReaberto;
+
+            // Se estiver no modo Dia Reaberto, limpa e recalcula saldos
+            if (estavaReaberto) {
+                const caixasUnidade = db.caixa_diario
+                    .filter(x => x.unidadeId === activeUnitId)
+                    .sort((a, b) => new Date(a.data) - new Date(b.data));
+
+                const idxReaberto = caixasUnidade.findIndex(x => x.id === activeCaixa.id);
+                if (idxReaberto !== -1) {
+                    let saldoAnterior = 0.00;
+                    
+                    const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
+                    const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                    const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                    saldoAnterior = activeCaixa.saldoAbertura + cashPaymentsReaberto - cashSangriasReaberto;
+
+                    for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
+                        const proximoCaixa = caixasUnidade[i];
+                        proximoCaixa.saldoAbertura = saldoAnterior;
+
+                        if (window.useSupabase) {
+                            try {
+                                await sbUpdate('caixa_diario', proximoCaixa.id, {
+                                    saldoAbertura: proximoCaixa.saldoAbertura
+                                });
+                            } catch (e) {
+                                console.warn("Erro ao atualizar saldo de abertura em cascata:", e);
+                            }
+                        }
+
+                        const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
+                        const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                        const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                        saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
+                    }
+                }
+
+                window.modoDiaReaberto = false;
+                window.dataDiaReaberto = null;
+                window.caixaReabertoId = null;
+
+                localStorage.removeItem('certive_modoDiaReaberto');
+                localStorage.removeItem('certive_dataDiaReaberto');
+                localStorage.removeItem('certive_caixaReabertoId');
+
+                const banner = document.getElementById('dia-reaberto-banner');
+                if (banner) banner.style.display = 'none';
+            }
+
             saveDatabase();
-            showToast("Caixa diário fechado com sucesso!", "success");
-            logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)} e anexou relatório DETRAN.`);
             
-            document.getElementById('caixa-fechar-form').reset();
-            renderCaixaPage();
+            if (estavaReaberto) {
+                showToast("Caixa refechado e saldos propagados em cascata com sucesso!", "success");
+                logAudit("Fechamento Caixa Reaberto", `Encerrou o Modo Dia Reaberto. Lançamentos e saldos propagados em cascata.`);
+                document.getElementById('caixa-fechar-form').reset();
+                navigateTo('atendimento');
+            } else {
+                showToast("Caixa diário fechado com sucesso!", "success");
+                logAudit("Fechamento Caixa", `Fechou caixa com diferença de ${formatCurrency(diff)} e anexou relatório DETRAN.`);
+                document.getElementById('caixa-fechar-form').reset();
+                renderCaixaPage();
+            }
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");
@@ -4598,7 +4674,7 @@ function renderFatFaturas() {
     }).join('');
 }
 
-function liquidateInvoice(invoiceId) {
+async function liquidateInvoice(invoiceId) {
     // Requires an open cashier drawer to inject faturamento payments
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) {
@@ -4610,35 +4686,53 @@ function liquidateInvoice(invoiceId) {
     if (!invoice) return;
 
     if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
-        invoice.pago = true;
-        invoice.pagoEm = new Date().toISOString();
+        try {
+            invoice.pago = true;
+            invoice.pagoEm = new Date().toISOString();
 
-        // Mark all related OSs as settled/pago
-        invoice.ordensIds.forEach(id => {
-            const os = db.ordens_servico.find(o => o.id === id);
-            if (os) os.pago = true;
-        });
+            // Mark all related OSs as settled/pago
+            invoice.ordensIds.forEach(id => {
+                const os = db.ordens_servico.find(o => o.id === id);
+                if (os) os.pago = true;
+            });
 
-        // Insert cash drawer inflow (Pix by default)
-        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-        db.caixa_movimentos.push({
-            id: db.caixa_movimentos.length + 1,
-            caixaId: activeCaixa.id,
-            tipo: "entrada",
-            valor: invoice.valorTotal,
-            descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
-            formaPagamento: "pix",
-            data: new Date().toISOString(),
-            operador: currentSession.nome,
-            osId: null,
-            faturaId: invoice.id
-        });
+            // Insert cash drawer inflow (Pix by default)
+            const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+            const newMov = {
+                caixaId: activeCaixa.id,
+                tipo: "entrada",
+                valor: invoice.valorTotal,
+                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
+                formaPagamento: "pix",
+                data: new Date().toISOString(),
+                operador: currentSession.nome,
+                osId: null,
+                faturaId: invoice.id
+            };
 
-        saveDatabase();
-        showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
-        logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
-        
-        renderFatFaturas();
+            if (window.useSupabase) {
+                const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                db.caixa_movimentos.unshift(insertedMov);
+
+                await dbSave('faturas', { pago: true, pagoEm: invoice.pagoEm }, 'update', invoice.id);
+
+                for (const osId of invoice.ordensIds) {
+                    await dbSave('ordens_servico', { pago: true }, 'update', osId);
+                }
+            } else {
+                newMov.id = db.caixa_movimentos.length + 1;
+                db.caixa_movimentos.push(newMov);
+            }
+
+            saveDatabase();
+            showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
+            logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
+            
+            renderFatFaturas();
+        } catch (err) {
+            console.error("Erro ao liquidar fatura:", err);
+            showToast("Erro ao processar a baixa da fatura no banco de dados.", "error");
+        }
     }
 }
 
@@ -7185,6 +7279,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Validate current session and display screens
     checkSession();
 
+    // Auto-recuperação do Modo Dia Reaberto caso o caixa já tenha sido fechado
+    if (window.modoDiaReaberto && window.caixaReabertoId) {
+        const c = db.caixa_diario.find(x => x.id === window.caixaReabertoId);
+        if (c && c.status === 'fechado') {
+            console.log("♻️ Auto-recuperação: caixa reaberto " + window.caixaReabertoId + " já está fechado no banco. Limpando modo dia reaberto.");
+            window.modoDiaReaberto = false;
+            window.dataDiaReaberto = null;
+            window.caixaReabertoId = null;
+            localStorage.removeItem('certive_modoDiaReaberto');
+            localStorage.removeItem('certive_dataDiaReaberto');
+            localStorage.removeItem('certive_caixaReabertoId');
+            const banner = document.getElementById('dia-reaberto-banner');
+            if (banner) banner.style.display = 'none';
+        }
+    }
+
     // Hook especial para laudo teste de demonstração
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('test_laudo') === 'true') {
@@ -7606,36 +7716,53 @@ function simulatePayBoleto(invoiceId) {
     closeOSModal();
 }
 
-function liquidateInvoiceDirect(invoiceId) {
+async function liquidateInvoiceDirect(invoiceId) {
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
 
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice || invoice.pago) return;
 
-    invoice.pago = true;
-    invoice.pagoEm = new Date().toISOString();
+    try {
+        invoice.pago = true;
+        invoice.pagoEm = new Date().toISOString();
 
-    invoice.ordensIds.forEach(id => {
-        const os = db.ordens_servico.find(o => o.id === id);
-        if (os) os.pago = true;
-    });
+        invoice.ordensIds.forEach(id => {
+            const os = db.ordens_servico.find(o => o.id === id);
+            if (os) os.pago = true;
+        });
 
-    const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-    db.caixa_movimentos.push({
-        id: db.caixa_movimentos.length + 1,
-        caixaId: activeCaixa.id,
-        tipo: "entrada",
-        valor: invoice.valorTotal,
-        descricao: `Recebimento Fatura (Boleto) ${invoice.codigo} — ${partner.nome}`,
-        formaPagamento: "pix",
-        data: new Date().toISOString(),
-        operador: currentSession.nome,
-        osId: null,
-        faturaId: invoice.id
-    });
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+        const newMov = {
+            caixaId: activeCaixa.id,
+            tipo: "entrada",
+            valor: invoice.valorTotal,
+            descricao: `Recebimento Fatura (Boleto) ${invoice.codigo} — ${partner.nome}`,
+            formaPagamento: "pix",
+            data: new Date().toISOString(),
+            operador: currentSession.nome,
+            osId: null,
+            faturaId: invoice.id
+        };
 
-    saveDatabase();
+        if (window.useSupabase) {
+            const insertedMov = await sbInsert('caixa_movimentos', newMov);
+            db.caixa_movimentos.unshift(insertedMov);
+
+            await dbSave('faturas', { pago: true, pagoEm: invoice.pagoEm }, 'update', invoice.id);
+
+            for (const osId of invoice.ordensIds) {
+                await dbSave('ordens_servico', { pago: true }, 'update', osId);
+            }
+        } else {
+            newMov.id = db.caixa_movimentos.length + 1;
+            db.caixa_movimentos.push(newMov);
+        }
+
+        saveDatabase();
+    } catch (err) {
+        console.error("Erro na liquidação direta da fatura:", err);
+    }
 }
 
 // Global mobile sidebar helper
@@ -7982,11 +8109,9 @@ async function closeAndExitReopenMode() {
     }
 
     const dataOriginal = window.dataDiaReaberto;
+    let base64Pdf = c.pdfConsolidado;
 
     try {
-
-        let base64Pdf = c.pdfConsolidado;
-
         if (base64Pdf) {
             const keepPdf = confirm("Este caixa já possui o relatório do DETRAN anexado. Deseja manter o arquivo original?");
             if (!keepPdf) {
@@ -8005,7 +8130,9 @@ async function closeAndExitReopenMode() {
                 
                 fileInput.onchange = (e) => {
                     const selectedFile = e.target.files[0];
-                    document.body.removeChild(fileInput);
+                    if (fileInput.parentElement) {
+                        document.body.removeChild(fileInput);
+                    }
                     resolve(selectedFile);
                 };
                 
@@ -8053,62 +8180,85 @@ async function closeAndExitReopenMode() {
                 });
             } catch (dbErr) {
                 console.warn("⚠️ Erro ao salvar PDF consolidado no Supabase. Salvando apenas status fechado por contingência:", dbErr);
-                await sbUpdate('caixa_diario', c.id, {
-                    status: c.status,
-                    fechadoPor: c.fechadoPor,
-                    fechadoEm: c.fechadoEm,
-                    pdfConsolidado: null
-                });
+                try {
+                    await sbUpdate('caixa_diario', c.id, {
+                        status: c.status,
+                        fechadoPor: c.fechadoPor,
+                        fechadoEm: c.fechadoEm,
+                        pdfConsolidado: null
+                    });
+                } catch (retryErr) {
+                    console.error("Erro crítico ao salvar status de fechamento:", retryErr);
+                }
                 showToast("Caixa refechado (PDF salvo apenas no cache local por limite de payload).", "warning");
             }
         }
 
         // 2. Recálculo em Cascata dos Saldos de Abertura
-        // Obter todos os caixas da unidade ativa ordenados por data crescente
-        const caixasUnidade = db.caixa_diario
-            .filter(x => x.unidadeId === activeUnitId)
-            .sort((a, b) => new Date(a.data) - new Date(b.data));
+        try {
+            // Obter todos os caixas da unidade ativa ordenados por data crescente
+            const caixasUnidade = db.caixa_diario
+                .filter(x => x.unidadeId === activeUnitId)
+                .sort((a, b) => new Date(a.data) - new Date(b.data));
 
-        // Encontrar o índice do caixa que foi reaberto
-        const idxReaberto = caixasUnidade.findIndex(x => x.id === c.id);
-        
-        if (idxReaberto !== -1) {
-            let saldoAnterior = 0.00;
+            // Encontrar o índice do caixa que foi reaberto
+            const idxReaberto = caixasUnidade.findIndex(x => x.id === c.id);
             
-            // Passo 1: Calcular o saldo final do dia reaberto
-            const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-            const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-            const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-            saldoAnterior = c.saldoAbertura + cashPaymentsReaberto - cashSangriasReaberto;
-
-            // Passo 2: Propagar em cascata para todos os caixas subsequentes
-            for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
-                const proximoCaixa = caixasUnidade[i];
+            if (idxReaberto !== -1) {
+                let saldoAnterior = 0.00;
                 
-                // O saldo de abertura do dia subsequente é o saldo final do dia anterior
-                proximoCaixa.saldoAbertura = saldoAnterior;
+                // Passo 1: Calcular o saldo final do dia reaberto
+                const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === c.id);
+                const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                saldoAnterior = parseFloat(c.saldoAbertura || 0) + cashPaymentsReaberto - cashSangriasReaberto;
 
-                // Atualiza o saldo de abertura do dia subsequente no banco
-                if (window.useSupabase) {
-                    await sbUpdate('caixa_diario', proximoCaixa.id, {
-                        saldoAbertura: proximoCaixa.saldoAbertura
-                    });
+                // Passo 2: Propagar em cascata para todos os caixas subsequentes
+                for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
+                    const proximoCaixa = caixasUnidade[i];
+                    
+                    // O saldo de abertura do dia subsequente é o saldo final do dia anterior
+                    proximoCaixa.saldoAbertura = parseFloat(saldoAnterior.toFixed(2));
+
+                    // Atualiza o saldo de abertura do dia subsequente no banco
+                    if (window.useSupabase) {
+                        try {
+                            await sbUpdate('caixa_diario', proximoCaixa.id, {
+                                saldoAbertura: proximoCaixa.saldoAbertura
+                            });
+                        } catch (errDbCascade) {
+                            console.warn("Erro ao salvar saldo de abertura em cascata no banco para o caixa " + proximoCaixa.data, errDbCascade);
+                        }
+                    }
+
+                    // Calcula o saldo final deste dia subsequente para a próxima iteração
+                    const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
+                    const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                    const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                    saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
                 }
-
-                // Calcula o saldo final deste dia subsequente para a próxima iteração
-                const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
-                const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
             }
+        } catch (errCascade) {
+            console.error("Erro no recálculo em cascata:", errCascade);
+            showToast("Aviso: Falha ao recalcular saldos subsequentes no banco de dados.", "warning");
         }
 
         saveDatabase();
 
         // 3. Registrar auditoria de encerramento e recálculo
-        logAudit("Fechamento Caixa Reaberto", `Encerrou o Modo Dia Reaberto do dia ${formatDateBr(dataOriginal)}. Lançamentos e saldos propagados em cascata.`);
+        try {
+            logAudit("Fechamento Caixa Reaberto", `Encerrou o Modo Dia Reaberto do dia ${formatDateBr(dataOriginal)}. Lançamentos e saldos propagados em cascata.`);
+        } catch (errAudit) {
+            console.warn("Erro ao gerar log de auditoria do fechamento:", errAudit);
+        }
 
-        // 4. Limpar estado global
+        showToast("Caixa refechado e saldos propagados em cascata com sucesso!", "success");
+
+    } catch (err) {
+        console.error("Erro ao encerrar modo reaberto:", err);
+        showToast("Erro ao processar fechamento do caixa: " + err.message, "error");
+    } finally {
+        // 4. Limpar estado global sob qualquer circunstância
         window.modoDiaReaberto = false;
         window.dataDiaReaberto = null;
         window.caixaReabertoId = null;
@@ -8121,16 +8271,9 @@ async function closeAndExitReopenMode() {
         const banner = document.getElementById('dia-reaberto-banner');
         if (banner) banner.style.display = 'none';
 
-        showToast("Caixa refechado e saldos propagados em cascata com sucesso!", "success");
-
         // 5. Retornar ao Atendimento (Dia Atual)
         navigateTo('atendimento');
         renderAtendimentoPage();
-
-    } catch (err) {
-        console.error("Erro ao encerrar modo reaberto:", err);
-        showToast("Erro ao processar fechamento e cascata de saldos.", "error");
-    } finally {
     }
 }
 
@@ -10886,8 +11029,35 @@ function gerarLaudoFinalPdf() {
     cautelar.finalizadoEm = new Date().toISOString();
     cautelar.finalizadoPor = currentSession.nome;
 
+    const approved = parecerFinal !== 'nao_conforme';
+
+    // Se for de parceiro e reprovado
+    if (os.clienteTipo === 'parceiro' && !approved) {
+        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
+        if (aplicarDesconto) {
+            const valorOriginal = os.valor;
+            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
+            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
+            
+            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
+            if (os.pago && os.formaPagamento !== 'faturamento') {
+                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
+                if (mov) {
+                    mov.valor = os.valor;
+                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
+                }
+            }
+        }
+    }
+
+    cautelar.hashLaudo = hashLaudo;
+    cautelar.parecerFinal = parecerFinal;
+    cautelar.status = "concluida";
+    cautelar.finalizadoEm = new Date().toISOString();
+    cautelar.finalizadoPor = currentSession.nome;
+
     // Atualiza a OS
-    os.status = parecerFinal === 'nao_conforme' ? 'concluida_reprovada' : 'concluida_aprovada';
+    os.status = approved ? 'concluida_aprovada' : 'concluida_reprovada';
     os.finalizadoEm = cautelar.finalizadoEm;
     os.finalizadoPor = currentSession.nome;
 
@@ -10914,6 +11084,8 @@ function gerarLaudoFinalPdf() {
             }),
             sbUpdate('ordens_servico', os.id, {
                 status: os.status,
+                valor: os.valor,
+                observacoes: os.observacoes,
                 finalizado_em: os.finalizadoEm,
                 finalizado_por: os.finalizadoPor
             }),

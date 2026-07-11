@@ -128,7 +128,8 @@ CREATE TABLE contas_pagar (
   "pagoEm" DATE,
   recorrente BOOLEAN NOT NULL DEFAULT FALSE,
   frequencia TEXT CHECK (frequencia IN ('semanal', 'mensal', 'anual')),
-  "recorrenciaGrupoId" BIGINT
+  "recorrenciaGrupoId" BIGINT,
+  "criadoPor" TEXT
 );
 
 -- 10. Faturas (Invoices Corporativas Mensais)
