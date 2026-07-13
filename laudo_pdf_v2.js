@@ -734,18 +734,7 @@ function atualizarPreviewLaudo() {
             }
         }, 200);
 
-        // Fatiamento dinâmico automático dos backgrounds se as imagens individuais não existirem
-        for (let p = 1; p <= 10; p++) {
-            const pageId = `certive-page-${p}`;
-            slicePageFromGrid(p).then(bytes => {
-                const blob = new Blob([bytes], { type: 'image/png' });
-                const url = URL.createObjectURL(blob);
-                const el = document.getElementById(pageId);
-                if (el) el.style.backgroundImage = `url('${url}')`;
-            }).catch(err => {
-                console.warn(`Background individual ou fatiamento da página ${p} pendente/indisponível.`);
-            });
-        }
+        // Os fundos agora carregam nativamente e de forma direta a partir de pagina_01.png a pagina_10.png no servidor.
         
     } catch (err) {
         console.error("Erro no preview do laudo:", err);
