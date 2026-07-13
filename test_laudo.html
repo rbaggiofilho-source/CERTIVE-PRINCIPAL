@@ -161,11 +161,11 @@
                 { id: 8, numeroSecao: 8, dadosJson: { signatureBase64: '', observacaoFinal: 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.' } }
             ],
             cautelares_fotos: [
-                { slotCodigo: 'frente_45_dir', url_original: carro.frente45Url },
-                { slotCodigo: 'traseira_45_esq', url_original: carro.traseira45Url },
-                { slotCodigo: 'motor_vista_geral', url_original: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400' },
-                { slotCodigo: 'assoalho_porta_malas', url_original: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=400' },
-                { slotCodigo: 'painel_hodometro', url_original: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=400' }
+                { slotCodigo: 'frente_45_dir', url_original: carro.frente45Url, secaoId: 3 },
+                { slotCodigo: 'traseira_45_esq', url_original: carro.traseira45Url, secaoId: 3 },
+                { slotCodigo: 'motor_vista_geral', url_original: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400', secaoId: 3 },
+                { slotCodigo: 'assoalho_porta_malas', url_original: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=400', secaoId: 3 },
+                { slotCodigo: 'painel_hodometro', url_original: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=400', secaoId: 3 }
             ]
         };
 
@@ -173,7 +173,7 @@
     </script>
 
     <!-- Import do novo gerador de PDF -->
-    <script src="laudo_pdf_v2.js?v=8.3.2"></script>
+    <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 
     <script>
         // Inicializa a pré-visualização ao carregar a página

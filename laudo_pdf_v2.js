@@ -947,6 +947,35 @@ async function generateInspectionReport(cautelarId) {
             });
         };
 
+        const drawEraserMaskAbs = (left, top, width, height, colorHex) => {
+            const wReal = width * scaleX;
+            const hReal = height * scaleY;
+            const xReal = left * scaleX;
+            const yReal = 841.89 - (top * scaleY) - hReal;
+
+            let r = 1, g = 1, b = 1;
+            if (colorHex.startsWith('#')) {
+                r = parseInt(colorHex.substring(1, 3), 16) / 255;
+                g = parseInt(colorHex.substring(3, 5), 16) / 255;
+                b = parseInt(colorHex.substring(5, 7), 16) / 255;
+            } else if (colorHex === 'var(--navy-deep)') {
+                r = 0x06 / 255; g = 0x14 / 255; b = 0x28 / 255;
+            } else if (colorHex === 'var(--navy)') {
+                r = 0x0A / 255; g = 0x1F / 255; b = 0x3D / 255;
+            } else if (colorHex === '#06152B') {
+                r = 0x06 / 255; g = 0x15 / 255; b = 0x2B / 255;
+            }
+            
+            page.drawRectangle({
+                x: xReal,
+                y: yReal,
+                width: wReal,
+                height: hReal,
+                color: PDFLib.rgb(r, g, b),
+                borderWidth: 0
+            });
+        };
+
         const drawPhotoAbs = async (slotCodigo, left, top, width, height) => {
             const photo = fotosVistoria.find(f => f.slotCodigo === slotCodigo);
             const photoUrl = photo ? (photo.url_thumb || photo.url_original || '') : '';
@@ -1017,14 +1046,20 @@ async function generateInspectionReport(cautelarId) {
 
         // RENDERIZA OS DADOS DA PÁGINA ESPECÍFICA
         if (p === 1) {
+            drawEraserMaskAbs(50, 940, 700, 60, 'var(--navy-deep)');
             drawTextAbs("SÃO JOSÉ / SC", 70, 960, 11, true, "#FFFFFF");
             drawTextAbs(dataVistoria, 70, 978, 9, false, "rgba(255,255,255,0.7)");
             drawTextAbs("DOSSIÊ: " + dossie, 724, 960, 11, true, "#FFFFFF", "right");
         } 
         else if (p === 2) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
         } 
         else if (p === 3) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(50, 280, 300, 520, '#F8FAF9');
+            drawEraserMaskAbs(388, 250, 360, 470, '#FFFFFF');
+            drawEraserMaskAbs(200, 825, 500, 100, '#FAF9F6');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
             drawTextAbs(marca + " / " + modelo, 55, 290, 11, true);
             drawTextAbs(anoFab + " / " + anoMod, 55, 350, 11, true);
@@ -1044,6 +1079,10 @@ async function generateInspectionReport(cautelarId) {
             drawTextAbs(vistoriador, 202, 900, 11, true);
         } 
         else if (p === 4) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(80, 375, 660, 30, '#FAF9F6');
+            drawEraserMaskAbs(135, 500, 520, 270, '#FFFFFF');
+            drawEraserMaskAbs(135, 825, 550, 180, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
             
             drawTextAbs(getPillText(dataSec3.parecerEstrutural || 'conforme'), 88 + 55, 380, 11, true, getPillColor(dataSec3.parecerEstrutural || 'conforme'), "center");
@@ -1080,6 +1119,10 @@ async function generateInspectionReport(cautelarId) {
             drawMultilineTextAbs(alertList.join('\n'), 140, 830, 9, true, "var(--amber)", "left", 14);
         } 
         else if (p === 5) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(305, 285, 70, 280, '#FAF9F6');
+            drawEraserMaskAbs(685, 285, 70, 250, '#FAF9F6');
+            drawEraserMaskAbs(48, 638, 700, 290, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             const getStructuralStatus = (index) => dataSec3[`estru_${index}`] || 'conforme';
@@ -1105,6 +1148,10 @@ async function generateInspectionReport(cautelarId) {
             await drawPhotoAbs('longarina_diant_esq', 525, 805, 215, 110);
         } 
         else if (p === 6) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(690, 255, 95, 320, '#FFFFFF');
+            drawEraserMaskAbs(620, 820, 100, 45, '#FFFFFF');
+            drawEraserMaskAbs(48, 880, 700, 120, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             const paintItemsList = [
@@ -1140,6 +1187,10 @@ async function generateInspectionReport(cautelarId) {
             await drawPhotoAbs('etiqueta_eta_coluna', 405, 885, 335, 110);
         } 
         else if (p === 7) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(440, 258, 280, 135, '#FFFFFF');
+            drawEraserMaskAbs(460, 518, 140, 50, '#FFFFFF');
+            drawEraserMaskAbs(48, 600, 700, 180, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             const getPaintColor = (cond) => {
@@ -1170,6 +1221,9 @@ async function generateInspectionReport(cautelarId) {
             await drawPhotoAbs('placa_dianteira', 525, 605, 215, 165);
         } 
         else if (p === 8) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(48, 190, 700, 600, '#FFFFFF');
+            drawEraserMaskAbs(70, 825, 660, 100, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             await drawPhotoAbs('motor_vista_geral', 52, 195, 688, 190);
@@ -1194,6 +1248,11 @@ async function generateInspectionReport(cautelarId) {
             drawTextAbs("Observação: Não são analisados itens que necessitem de equipamentos especializados como freios ABS, air bags, parte mecânica, hodômetro e elétrica.", 80, 878, 9, false, "#5A544A");
         } 
         else if (p === 9) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(210, 245, 540, 120, '#FFFFFF');
+            drawEraserMaskAbs(275, 435, 470, 110, '#FFFFFF');
+            drawEraserMaskAbs(435, 605, 290, 55, '#FFFFFF');
+            drawEraserMaskAbs(435, 720, 290, 55, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             // Dados Consulta
@@ -1217,6 +1276,11 @@ async function generateInspectionReport(cautelarId) {
             drawMultilineTextAbs(docRestr, 720, 728, 8.5, true, "var(--bordeaux)", "right", 15);
         } 
         else if (p === 10) {
+            drawEraserMaskAbs(550, 80, 170, 40, '#FFFFFF');
+            drawEraserMaskAbs(135, 370, 520, 150, '#06152B');
+            drawEraserMaskAbs(135, 540, 520, 170, '#FFFFFF');
+            drawEraserMaskAbs(280, 755, 240, 80, '#FFFFFF');
+            drawEraserMaskAbs(50, 890, 700, 70, '#FFFFFF');
             drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
 
             let finalHeadline = 'CONFORME';
