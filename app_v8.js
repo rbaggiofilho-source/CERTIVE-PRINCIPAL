@@ -413,7 +413,99 @@ function initDatabase() {
 }
 
 function saveDatabase() {
-    localStorage.setItem('certive_db', JSON.stringify(db));
+    try {
+        localStorage.setItem('certive_db', JSON.stringify(db));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+            console.warn("localStorage quota exceeded! Starting database optimization...");
+            
+            // 1. Limpa auditoria antiga (mantém apenas as últimas 50 entradas)
+            if (db.auditoria && db.auditoria.length > 50) {
+                db.auditoria = db.auditoria.slice(-50);
+            }
+            
+            // 2. Otimização de fotos: remove Base64 local se a foto já tiver URL pública na nuvem (http/https)
+            if (db.cautelares_fotos && db.cautelares_fotos.length > 0) {
+                let cleanedCount = 0;
+                db.cautelares_fotos.forEach(f => {
+                    const isUploaded = (f.urlOriginal && f.urlOriginal.startsWith('http')) || (f.url_original && f.url_original.startsWith('http'));
+                    if (isUploaded) {
+                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) {
+                            f.urlThumb = '';
+                            cleanedCount++;
+                        }
+                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) {
+                            f.urlOriginal = '';
+                        }
+                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) {
+                            f.url_thumb = '';
+                            cleanedCount++;
+                        }
+                        if (f.url_original && f.url_original.startsWith('data:image')) {
+                            f.url_original = '';
+                        }
+                    }
+                });
+                console.log(`Cleaned ${cleanedCount} Base64 thumbnails from cache.`);
+            }
+            
+            // 3. Limpa Base64 de fotos de vistorias finalizadas/concluídas
+            const activeCautelarIds = (db.cautelares || [])
+                .filter(c => c.status !== 'finalizado' && c.status !== 'concluido')
+                .map(c => c.id);
+            
+            if (db.cautelares_fotos) {
+                db.cautelares_fotos.forEach(f => {
+                    const secao = (db.cautelares_secoes || []).find(s => s.id === f.secaoId);
+                    const parentId = secao ? secao.cautelarId : null;
+                    
+                    if (parentId && !activeCautelarIds.includes(parentId)) {
+                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
+                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
+                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
+                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
+                    }
+                });
+            }
+
+            // 4. Tenta salvar novamente após a otimização
+            try {
+                localStorage.setItem('certive_db', JSON.stringify(db));
+                console.log("Database saved successfully after optimization!");
+            } catch (retryErr) {
+                console.error("Soft cleanup failed, executing aggressive database truncation...", retryErr);
+                
+                // Limpeza agressiva: zera toda a auditoria e limpa TODOS os Base64 locais
+                db.auditoria = [];
+                if (db.cautelares_fotos) {
+                    db.cautelares_fotos.forEach(f => {
+                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
+                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
+                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
+                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
+                    });
+                }
+                
+                // Remove vistorias finalizadas antigas do banco local
+                if (db.cautelares && db.cautelares.length > 5) {
+                    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                    db.cautelares = db.cautelares.filter(c => {
+                        const date = new Date(c.criadoEm || c.criado_em).getTime();
+                        return c.status !== 'finalizado' || date > sevenDaysAgo;
+                    });
+                }
+
+                try {
+                    localStorage.setItem('certive_db', JSON.stringify(db));
+                    console.log("Database saved successfully after aggressive cleanup!");
+                } catch (aggErr) {
+                    console.error("Critical: LocalStorage database write failed even after aggressive truncation!", aggErr);
+                }
+            }
+        } else {
+            console.error("Error writing to localStorage:", e);
+        }
+    }
 }
 
 function loadDatabase() {
