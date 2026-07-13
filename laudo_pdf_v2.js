@@ -801,10 +801,10 @@ async function slicePageFromGrid(pageIndex) {
             const sy = row * sh;
 
             if (isLandscape) {
-                // Rotaciona 90 graus no sentido anti-horário (direita para cima)
+                // Rotaciona 90 graus no sentido horário (esquerda para cima)
                 ctx.save();
                 ctx.translate(targetW / 2, targetH / 2);
-                ctx.rotate(-90 * Math.PI / 180);
+                ctx.rotate(90 * Math.PI / 180);
                 ctx.drawImage(img, sx, sy, sw, sh, -targetH / 2, -targetW / 2, targetH, targetW);
                 ctx.restore();
             } else {
