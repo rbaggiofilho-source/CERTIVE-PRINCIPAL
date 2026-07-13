@@ -741,6 +741,71 @@ function atualizarPreviewLaudo() {
  * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
  * Preenchimento direto do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib.
  */
+// Helpers para fatiamento dinâmico no browser a partir das grades
+async function getPageBackgroundBytes(pageIndex) {
+    const fileName = `pagina_${String(pageIndex).padStart(2, '0')}.png`;
+    try {
+        const res = await fetch(fileName);
+        if (!res.ok) throw new Error("File not found on server");
+        return await res.arrayBuffer();
+    } catch (err) {
+        console.warn(`Background individual "${fileName}" não encontrado. Utilizando fatiamento dinâmico de laudo_grade...`);
+        return await slicePageFromGrid(pageIndex);
+    }
+}
+
+async function slicePageFromGrid(pageIndex) {
+    const isPage10 = pageIndex === 10;
+    const gridImgUrl = isPage10 ? 'laudo_grade_2.png' : 'laudo_grade_1.png';
+    const gridIndex = isPage10 ? 8 : (pageIndex - 1); // Página 10 é a 9ª subdivisão (índice 8) da grade 2
+
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const targetW = 800;
+            const targetH = 1130;
+            canvas.width = targetW;
+            canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+
+            const isLandscape = img.naturalWidth > img.naturalHeight;
+            const sw = img.naturalWidth / 3;
+            const sh = img.naturalHeight / 3;
+            const col = gridIndex % 3;
+            const row = Math.floor(gridIndex / 3);
+            const sx = col * sw;
+            const sy = row * sh;
+
+            if (isLandscape) {
+                // Rotaciona 90 graus no sentido anti-horário (direita para cima)
+                ctx.save();
+                ctx.translate(targetW / 2, targetH / 2);
+                ctx.rotate(-90 * Math.PI / 180);
+                ctx.drawImage(img, sx, sy, sw, sh, -targetH / 2, -targetW / 2, targetH, targetW);
+                ctx.restore();
+            } else {
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+            }
+
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    blob.arrayBuffer().then(resolve).catch(reject);
+                } else {
+                    reject(new Error("Erro ao gerar Blob da imagem de fundo"));
+                }
+            }, 'image/png');
+        };
+        img.onerror = (err) => reject(err);
+        img.src = gridImgUrl;
+    });
+}
+
+/**
+ * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
+ * Geração dinâmica de PDF de 10 páginas desenhando diretamente sobre os backgrounds de imagem fatiados.
+ */
 async function generateInspectionReport(cautelarId) {
     // 1. Carrega dados do banco local
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
@@ -765,16 +830,15 @@ async function generateInspectionReport(cautelarId) {
     
     const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 
-    // 2. Fetch do template PDF e do Field Map
-    const fieldMap = await fetch('Certive_Template_Field_Map.json').then(res => res.json());
-    const templateBytes = await fetch('Certive_Template_Editavel.pdf').then(res => res.arrayBuffer());
-
-    // 3. Inicializa o PDF com pdf-lib
+    // 2. Inicializa o PDF com pdf-lib
     const { PDFDocument } = PDFLib;
-    const pdfDoc = await PDFDocument.load(templateBytes);
-    const form = pdfDoc.getForm();
+    const pdfDoc = await PDFDocument.create();
 
-    // 4. Prepara os dados textuais mapeados
+    // Carrega as fontes padrão
+    const fontRegular = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+
+    // 3. Prepara os dados textuais mapeados
     const valOrFallback = (val) => {
         if (val === undefined || val === null || String(val).trim() === '') {
             return 'Não informado';
@@ -795,6 +859,7 @@ async function generateInspectionReport(cautelarId) {
     const combustivel = valOrFallback(dataSec1.combustivel || os.combustivel);
     const anoFab = valOrFallback(os.fabricacaoAno || os.ano_fabricacao);
     const anoMod = valOrFallback(os.modeloAno || os.ano_modelo);
+    const unidadeNome = valOrFallback(db.unidades.find(u => u.id === os.unidadeId)?.nome);
 
     let marca = 'Não informado';
     let modelo = 'Não informado';
@@ -808,238 +873,80 @@ async function generateInspectionReport(cautelarId) {
         }
     }
 
-    // Listas auxiliares para gerar os dados multiline do laudo
-    const approvedList = [];
-    const alertList = [];
-    if (dataSec3.parecerEstrutural === 'conforme' || !dataSec3.parecerEstrutural) {
-        approvedList.push("Não foram encontradas remarcações no chassi");
-        approvedList.push("Não verificamos indícios de sinistro");
-    } else {
-        alertList.push("Identificados reparos ou ressalvas em painéis estruturais.");
-    }
-    approvedList.push("Não consta como roubado");
-    approvedList.push("Não possui histórico de roubo e/ou furto");
-    approvedList.push("O veículo está indicado como \"em circulação\"");
-
-    if (dataSec7.parecerDocumental === 'conforme' || !dataSec7.parecerDocumental) {
-        approvedList.push("Não possui débitos estaduais");
-        approvedList.push("DPVAT e IPVA atuais estão quitados");
-        approvedList.push("Não possui registro de leilões");
-        approvedList.push("Não possui comunicado de venda");
-        approvedList.push("Não consta parecer técnico");
-    } else {
-        alertList.push("Há registro de restrições: alienação ativa em andamento");
-        alertList.push("Possui débitos de licenciamento");
-        alertList.push("Possui débitos de multas");
-    }
-
-    const approvedItemsText = approvedList.join('\n');
-    const alertItemsText = alertList.join('\n');
-
-    // Mapeia todas as peças avaliadas para pintar na Página 6
-    const paintItemsList = [
-        "Capô", "Teto", "Tampa do porta-malas",
-        "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.",
-        "Paralama traseiro esq.", "Traseira esquerda", "Paralama traseiro dir.",
-        "Traseira direita", "Porta traseira dir.", "Porta dianteira dir.",
-        "Paralama dianteiro dir.", "Para-choque dianteiro", "Para-choque traseiro"
-    ];
-    const getPaintCondition = (index) => dataSec4[`micrometro_${index}`] || 'Original';
-    let paintText = '';
-    paintItemsList.forEach((name, i) => {
-        const cond = getPaintCondition(i + 1);
-        paintText += `${String(i + 1).padStart(2, '0')} ${name.padEnd(25, '.')} ${cond}\n`;
-    });
-
-    // Mapeia os vidros avaliados para a Página 7
-    const glassList = ["Para-brisa", "Vidro dianteiro esquerdo", "Vidro traseiro esquerdo", "Vidro dianteiro direito", "Vidro traseiro direito", "Vidro traseiro"];
-    let glassText = '';
-    glassList.forEach((name, i) => {
-        const status = dataSec5[`vidro_${i+1}_status`] || 'Original';
-        const recorded = dataSec5[`vidro_${i+1}_chassis`] !== false ? 'Sim' : 'Não';
-        glassText += `${String(i + 1).padStart(2, '0')} ${name.padEnd(25, '.')} Status: ${status.padEnd(10, ' ')} Gravado: ${recorded}\n`;
-    });
-
-    const getStructuralStatus = (index) => dataSec3[`estru_${index}`] || 'conforme';
-    const getPillText = (status) => {
-        if (status === 'RESTRIÇÃO' || status === 'nao_conforme' || status === 'reprovada') return 'RESTRIÇÃO';
-        if (status === 'COM RESSALVAS' || status === 'com_ressalvas') return 'RESSALVAS';
-        return 'CONFORME';
-    };
-
-    // Dados complementares
-    const complementaryText = 
-        `Modelo: ${marca} / ${modelo}                  Placa: ${placa}\n` +
-        `Fabricante: FIAT                                Chassi: ${chassi}\n` +
-        `Ano Fab/Mod: ${anoFab} / ${anoMod}                  Motor: ${motor}\n` +
-        `Combustível: ${combustivel}             Renavam: ${renavam}\n` +
-        `Cor: ${cor}                                      Quilometragem: ${quilometragem} km`;
-
-    // Consulta documental
-    const consultationText = 
-        `Entrada: ${placa}                 Data/Hora: ${dataVistoria} ${horaVistoria}\n` +
-        `Solicitado por: Certive Vistorias         Código consulta: 4386109\n` +
-        `Token: 4348c105-afa0-4df6-b800-fcf6f3d1b38\n` +
-        `Emplacamento: Curitiba / PR`;
-
-    let finalHeadline = 'CONFORME';
-    let finalSub = 'PARA AQUISIÇÃO';
-    let finalBody = 'Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não sendo identificados indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.';
-
-    if (parecerFinal === 'com_ressalvas') {
-        finalHeadline = 'CONFORME COM RESSALVA';
-        finalSub = 'VERIFICAR APONTAMENTOS';
-        finalBody = obsFinal || 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.';
-    } else if (parecerFinal === 'nao_conforme' || parecerFinal === 'reprovada') {
-        finalHeadline = 'NÃO CONFORME';
-        finalSub = 'NÃO RECOMENDADO PARA AQUISIÇÃO';
-        finalBody = obsFinal || 'O veículo apresenta avarias ou vestígios de soldas estruturais incompatíveis com a originalidade de fábrica, gerando parecer desfavorável.';
-    }
-
-    // Mapa de valores dos campos AcroForm textuais
-    const dataValues = {
-        "inspection.city_state": "SÃO JOSÉ / SC",
-        "inspection.date_long": `${dataVistoria.split('/')[0]} DE ${obterMesPorExtenso(dataVistoria.split('/')[1])} DE ${dataVistoria.split('/')[2]}`,
-        "inspection.dossier_number": dossie,
-        "inspection.dossier_number_p3": dossie,
-        "inspection.dossier_number_p4": dossie,
-        "inspection.dossier_number_p5": dossie,
-        "inspection.dossier_number_p6": dossie,
-        "inspection.dossier_number_p7": dossie,
-        "inspection.dossier_number_p8": dossie,
-        "inspection.dossier_number_p9": dossie,
-        "inspection.dossier_number_p10": dossie,
-        "vehicle.brand_model": `${marca} / ${modelo}`,
-        "vehicle.year": `${anoFab} / ${anoMod}`,
-        "vehicle.color": cor,
-        "vehicle.plate": placa,
-        "vehicle.chassis": chassi,
-        "vehicle.engine_number": motor,
-        "vehicle.fuel": combustivel,
-        "vehicle.renavam": renavam,
-        "vehicle.odometer": `${quilometragem} km`,
-        "inspection.date_time": `${dataVistoria} às ${horaVistoria}`,
-        "inspection.location": db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC',
-        "inspector.name": vistoriador,
-        "inspector.full_name": vistoriador,
-        "inspector.role_document": `VISTORIADOR\nREGISTRO ECV: ${cautelar.vistoriadorId || '417.754'}`,
-        "structure.status": getPillText(dataSec3.parecerEstrutural || 'conforme'),
-        "identification.status": getPillText(dataSec5.parecerVidros || 'conforme'),
-        "paint.status": getPillText(dataSec4.parecerPintura || 'com_ressalvas'),
-        "engine.status": getPillText(dataSec6.parecerMotor || 'conforme'),
-        "chassis.status": getPillText(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'),
-        "summary.approved_items": approvedItemsText,
-        "summary.alert_items": alertItemsText,
-        
-        // Estrutural (Pág 5)
-        "structure.front_right": getPillText(getStructuralStatus(2)),
-        "structure.front_left": getPillText(getStructuralStatus(1)),
-        "structure.firewall": getPillText(getStructuralStatus(3)),
-        "structure.roof": getPillText(getStructuralStatus(17)),
-        "structure.rear_panel": getPillText(getStructuralStatus(16)),
-        "structure.spare_wheel_box": getPillText(getStructuralStatus(21)),
-        "structure.floor_trunk": getPillText(getStructuralStatus(20)),
-        "structure.final_status": getPillText(dataSec3.parecerEstrutural || 'conforme'),
-        
-        // Pintura (Pág 6)
-        "paint.table_items": paintText,
-        "labels.engine_bay_status": (dataSec5['label_eta_compartimento_status'] || 'Original').toUpperCase(),
-        "labels.column_status": (dataSec5['label_eta_coluna_status'] || 'Original').toUpperCase(),
-        
-        // Vidros (Pág 7)
-        "glass.table": glassText,
-        "identification.engine_status": getPillText(dataSec6.parecerMotor || 'conforme'),
-        "identification.chassis_status": getPillText(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'),
-        
-        // Complementares (Pág 8)
-        "vehicle.complementary_data": complementaryText,
-        "technical.opinion_status": getPillText(parecerFinal),
-        "technical.observation": "Observação: Não são analisados itens que necessitem de equipamentos especializados como freios ABS, air bags, parte mecânica, hodômetro e elétrica.",
-        
-        // Documental (Pág 9)
-        "document.consultation_data": consultationText,
-        "document.approved_items": "Não possui histórico de roubo e/ou furto\nNão consta sinistro ativo\nNão possui registro de leilão",
-        "document.alert_items": dataSec7.parecerDocumental !== 'conforme' ? "Multas em aberto localizadas\nDébito de licenciamento ativo" : "Nada consta",
-        "document.restriction_items": dataSec7.parecerDocumental !== 'conforme' ? "Alienação ativa em andamento" : "Nada consta",
-        
-        // Conclusão (Pág 10)
-        "final.opinion_text": finalBody,
-        "final.status": `${finalHeadline}\n${finalSub}`,
-        "inspection.final_date_city": `São José/SC, ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.`
-    };
-
-    // Preenche cada campo do formulário
-    for (const [fieldName, val] of Object.entries(dataValues)) {
-        try {
-            const field = form.getTextField(fieldName);
-            field.setText(val);
-        } catch (err) {
-            console.warn(`Campo AcroForm "${fieldName}" não encontrado ou não suportado no PDF.`);
-        }
-    }
-
-    // Coleta as fotos da vistoria
     const fotosVistoria = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-    
-    // Mapeamento de slot_codigo para as chaves photos.* do JSON
-    const photoSlotMap = {
-        "frente_45_dir": "photos.vehicle_front_45",
-        "traseira_45_esq": "photos.vehicle_rear_45",
-        "motor_vista_geral": "photos.engine_bay",
-        "assoalho_porta_malas": "photos.trunk_floor",
-        "painel_hodometro": "photos.odometer",
-        "longarina_diant_esq": "photos.rear_longeron_right",
-        "etiqueta_eta_motor": "photos.engine_label",
-        "etiqueta_eta_coluna": "photos.column_label",
-        "chassi_gravado": "photos.chassis_number",
-        "motor_gravado": "photos.engine_number",
-        "placa_dianteira": "photos.plate_rear"
-    };
 
-    // Também temos chaves de duplicidade de fotos em outras páginas
-    const duplicatePhotoMap = {
-        "photos.engine_compartment": "motor_vista_geral",
-        "photos.engine_number_p8": "motor_gravado",
-        "photos.chassis_number_p8": "chassi_gravado",
-        "photos.front_45_right": "frente_45_dir",
-        "photos.rear_45_left": "traseira_45_esq"
-    };
+    // Fator de escala de pixels HTML (794x1122) para pontos PDF (595.27x841.89)
+    const scaleX = 595.27 / 794;
+    const scaleY = 841.89 / 1122;
 
-    // Percorre todos os campos do Field Map
-    for (const field of fieldMap.fields) {
-        if (field.type === "image") {
-            const pageIndex = field.page - 1;
-            const pdfPage = pdfDoc.getPage(pageIndex);
-            const { width: pdfWidth, height: pdfHeight } = pdfPage.getSize();
+    // Loop para gerar cada uma das 10 páginas
+    for (let p = 1; p <= 10; p++) {
+        const bgBytes = await getPageBackgroundBytes(p);
+        const page = pdfDoc.addPage([595.27, 841.89]);
+        
+        // Insere o background
+        const bgImg = await pdfDoc.embedPng(bgBytes);
+        page.drawImage(bgImg, { x: 0, y: 0, width: 595.27, height: 841.89 });
+
+        // Helpers de desenho absoluto locais para essa página
+        const drawTextAbs = (text, left, top, size, isBold = false, colorHex = '#1C1C1C', align = 'left') => {
+            const font = isBold ? fontBold : fontRegular;
+            const pdfSize = size * 0.90;
             
-            const scaleX = pdfWidth / fieldMap.page_size.width;
-            const scaleY = pdfHeight / fieldMap.page_size.height;
-            
-            const wReal = field.w * scaleX;
-            const hReal = field.h * scaleY;
-            const xReal = field.x * scaleX;
-            const yReal = pdfHeight - (field.y * scaleY) - hReal;
-
-            // Identifica qual é a imagem para esse campo
-            let slotCodigo = null;
-            for (const [slot, name] of Object.entries(photoSlotMap)) {
-                if (name === field.name) {
-                    slotCodigo = slot;
-                    break;
-                }
+            let r = 0x1C / 255, g = 0x1C / 255, b = 0x1C / 255;
+            if (colorHex.startsWith('#')) {
+                r = parseInt(colorHex.substring(1, 3), 16) / 255;
+                g = parseInt(colorHex.substring(3, 5), 16) / 255;
+                b = parseInt(colorHex.substring(5, 7), 16) / 255;
+            } else if (colorHex === 'var(--green)') {
+                r = 0x2F / 255; g = 0x6B / 255; b = 0x3F / 255;
+            } else if (colorHex === 'var(--amber)') {
+                r = 0xB8 / 255; g = 0x64 / 255; b = 0x2B / 255;
+            } else if (colorHex === 'var(--bordeaux)') {
+                r = 0x8B / 255; g = 0x26 / 255; b = 0x35 / 255;
+            } else if (colorHex === 'var(--gold)') {
+                r = 0xC9 / 255; g = 0xA9 / 255; b = 0x61 / 255;
             }
 
-            // Se for duplicado
-            if (!slotCodigo && duplicatePhotoMap[field.name]) {
-                slotCodigo = duplicatePhotoMap[field.name];
+            let x = left * scaleX;
+            let y = 841.89 - (top * scaleY) - (pdfSize * 0.85);
+
+            if (align === 'right') {
+                const textWidth = font.widthOfTextAtSize(text, pdfSize);
+                x = (left * scaleX) - textWidth;
+            } else if (align === 'center') {
+                // left funciona como centro do eixo X se alinhado ao centro
+                const textWidth = font.widthOfTextAtSize(text, pdfSize);
+                x = (left * scaleX) - (textWidth / 2);
             }
 
+            page.drawText(text, {
+                x: x,
+                y: y,
+                size: pdfSize,
+                font: font,
+                color: PDFLib.rgb(r, g, b)
+            });
+        };
+
+        const drawMultilineTextAbs = (linesText, left, top, size, isBold, colorHex, align = 'left', lineSpacing = 13.5) => {
+            const lines = String(linesText).split('\n');
+            lines.forEach((line, idx) => {
+                drawTextAbs(line, left, top + (idx * lineSpacing), size, isBold, colorHex, align);
+            });
+        };
+
+        const drawPhotoAbs = async (slotCodigo, left, top, width, height) => {
             const photo = fotosVistoria.find(f => f.slotCodigo === slotCodigo);
             const photoUrl = photo ? (photo.url_thumb || photo.url_original || '') : '';
+            
+            const wReal = width * scaleX;
+            const hReal = height * scaleY;
+            const xReal = left * scaleX;
+            const yReal = 841.89 - (top * scaleY) - hReal;
 
             if (photoUrl) {
                 try {
-                    // Corta e processa imagem com Canvas do navegador para proporção e tamanho ótimos
                     const croppedBytes = await cropImageToFit(photoUrl, wReal, hReal);
                     let pdfImg;
                     try {
@@ -1047,106 +954,354 @@ async function generateInspectionReport(cautelarId) {
                     } catch (e) {
                         pdfImg = await pdfDoc.embedPng(croppedBytes);
                     }
-
-                    // Desenha a imagem cortada
-                    pdfPage.drawImage(pdfImg, {
+                    page.drawImage(pdfImg, {
                         x: xReal,
                         y: yReal,
                         width: wReal,
                         height: hReal
                     });
                 } catch (err) {
-                    console.error(`Erro ao processar imagem ${field.name}:`, err);
-                    drawPhotoPlaceholder(pdfDoc, pdfPage, xReal, yReal, wReal, hReal, scaleX);
+                    console.error(`Erro ao processar imagem ${slotCodigo}:`, err);
+                    drawPhotoPlaceholderAbs(xReal, yReal, wReal, hReal);
                 }
             } else {
-                // Desenha placeholder de imagem ausente
-                drawPhotoPlaceholder(pdfDoc, pdfPage, xReal, yReal, wReal, hReal, scaleX);
+                drawPhotoPlaceholderAbs(xReal, yReal, wReal, hReal);
             }
-        }
-    }
+        };
 
-    // Assinatura do Vistoriador
-    const sigField = fieldMap.fields.find(f => f.name === "signature.image_or_name");
-    if (sigField && signatureVistoriador) {
-        try {
-            const pageIndex = sigField.page - 1;
-            const pdfPage = pdfDoc.getPage(pageIndex);
-            const { width: pdfWidth, height: pdfHeight } = pdfPage.getSize();
-            const scaleX = pdfWidth / fieldMap.page_size.width;
-            const scaleY = pdfHeight / fieldMap.page_size.height;
+        const drawPhotoPlaceholderAbs = (x, y, w, h) => {
+            page.drawRectangle({
+                x: x,
+                y: y,
+                width: w,
+                height: h,
+                color: PDFLib.rgb(0.98, 0.98, 0.96),
+                borderColor: PDFLib.rgb(0.85, 0.81, 0.75),
+                borderWidth: 1
+            });
+            const fontSize = 6.5 * scaleX;
+            const text = "Imagem nao informada";
+            const textWidth = fontBold.widthOfTextAtSize(text, fontSize);
+            const textHeight = fontBold.heightAtSize(fontSize);
+            page.drawText(text, {
+                x: x + (w - textWidth) / 2,
+                y: y + (h - textHeight) / 2,
+                size: fontSize,
+                font: fontBold,
+                color: PDFLib.rgb(0.35, 0.33, 0.29)
+            });
+        };
+
+        const getPillText = (status) => {
+            if (status === 'RESTRIÇÃO' || status === 'nao_conforme' || status === 'reprovada') return 'RESTRIÇÃO';
+            if (status === 'COM RESSALVAS' || status === 'com_ressalvas') return 'RESSALVAS';
+            return 'CONFORME';
+        };
+
+        const getPillColor = (status) => {
+            if (status === 'RESTRIÇÃO' || status === 'nao_conforme' || status === 'reprovada') return 'var(--bordeaux)';
+            if (status === 'COM RESSALVAS' || status === 'com_ressalvas') return 'var(--amber)';
+            return 'var(--green)';
+        };
+
+        // RENDERIZA OS DADOS DA PÁGINA ESPECÍFICA
+        if (p === 1) {
+            drawTextAbs("SÃO JOSÉ / SC", 70, 960, 11, true, "#FFFFFF");
+            drawTextAbs(dataVistoria, 70, 978, 9, false, "rgba(255,255,255,0.7)");
+            drawTextAbs("DOSSIÊ: " + dossie, 724, 960, 11, true, "#FFFFFF", "right");
+        } 
+        else if (p === 2) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+        } 
+        else if (p === 3) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+            drawTextAbs(marca + " / " + modelo, 55, 290, 11, true);
+            drawTextAbs(anoFab + " / " + anoMod, 55, 350, 11, true);
+            drawTextAbs(cor, 55, 410, 11, true);
+            drawTextAbs(placa, 55, 472, 11, true);
+            drawTextAbs(chassi, 55, 532, 11, true);
+            drawTextAbs(motor, 55, 592, 11, true);
+            drawTextAbs(combustivel, 55, 655, 11, true);
+            drawTextAbs(renavam, 55, 715, 11, true);
+            drawTextAbs(quilometragem + " km", 55, 775, 11, true);
+
+            await drawPhotoAbs('frente_45_dir', 388, 255, 350, 215);
+            await drawPhotoAbs('traseira_45_esq', 388, 492, 350, 215);
+
+            drawTextAbs(dataVistoria + " às " + horaVistoria, 202, 832, 11, true);
+            drawTextAbs(unidadeNome, 202, 865, 11, true);
+            drawTextAbs(vistoriador, 202, 900, 11, true);
+        } 
+        else if (p === 4) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
             
-            const wReal = sigField.w * scaleX;
-            const hReal = sigField.h * scaleY;
-            const xReal = sigField.x * scaleX;
-            const yReal = pdfHeight - (sigField.y * scaleY) - hReal;
+            drawTextAbs(getPillText(dataSec3.parecerEstrutural || 'conforme'), 88 + 55, 380, 11, true, getPillColor(dataSec3.parecerEstrutural || 'conforme'), "center");
+            drawTextAbs(getPillText(dataSec5.parecerVidros || 'conforme'), 220 + 55, 380, 11, true, getPillColor(dataSec5.parecerVidros || 'conforme'), "center");
+            drawTextAbs(getPillText(dataSec4.parecerPintura || 'com_ressalvas'), 355 + 55, 380, 11, true, getPillColor(dataSec4.parecerPintura || 'com_ressalvas'), "center");
+            drawTextAbs(getPillText(dataSec6.parecerMotor || 'conforme'), 490 + 55, 380, 11, true, getPillColor(dataSec6.parecerMotor || 'conforme'), "center");
+            drawTextAbs(getPillText(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'), 622 + 55, 380, 11, true, getPillColor(dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas'), "center");
 
-            const sigBytes = await fetch(signatureVistoriador).then(res => res.arrayBuffer());
-            let sigImg;
-            try {
-                sigImg = await pdfDoc.embedPng(sigBytes);
-            } catch (e) {
-                sigImg = await pdfDoc.embedJpg(sigBytes);
+            const approvedList = [];
+            const alertList = [];
+            if (dataSec3.parecerEstrutural === 'conforme' || !dataSec3.parecerEstrutural) {
+                approvedList.push("Não foram encontradas remarcações no chassi");
+                approvedList.push("Não verificamos indícios de sinistro");
+            } else {
+                alertList.push("Identificados reparos ou ressalvas em painéis estruturais.");
+            }
+            approvedList.push("Não consta como roubado");
+            approvedList.push("Não possui histórico de roubo e/ou furto");
+            approvedList.push("O veículo está indicado como \"em circulação\"");
+
+            if (dataSec7.parecerDocumental === 'conforme' || !dataSec7.parecerDocumental) {
+                approvedList.push("Não possui débitos estaduais");
+                approvedList.push("DPVAT e IPVA atuais estão quitados");
+                approvedList.push("Não possui registro de leilões");
+                approvedList.push("Não possui comunicado de venda");
+                approvedList.push("Não consta parecer técnico");
+            } else {
+                alertList.push("Há registro de restrições: alienação ativa em andamento");
+                alertList.push("Possui débitos de licenciamento");
+                alertList.push("Possui débitos de multas");
             }
 
-            // Desenha a assinatura com proporção centralizada
-            pdfPage.drawImage(sigImg, {
-                x: xReal + (wReal - wReal * 0.8) / 2,
-                y: yReal + (hReal - hReal * 0.8) / 2,
-                width: wReal * 0.8,
-                height: hReal * 0.8
+            drawMultilineTextAbs(approvedList.join('\n'), 140, 505, 9, true, "var(--green)", "left", 14);
+            drawMultilineTextAbs(alertList.join('\n'), 140, 830, 9, true, "var(--amber)", "left", 14);
+        } 
+        else if (p === 5) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            const getStructuralStatus = (index) => dataSec3[`estru_${index}`] || 'conforme';
+            for (let i = 1; i <= 21; i++) {
+                const status = getStructuralStatus(i);
+                const text = getPillText(status);
+                const color = getPillColor(status);
+                
+                if (i <= 11) {
+                    const topOffset = 290 + ((i - 1) * 24.5);
+                    drawTextAbs(text, 310 + 30, topOffset, 9, true, color, "center");
+                } else {
+                    const topOffset = 290 + ((i - 12) * 24.5);
+                    drawTextAbs(text, 690 + 30, topOffset, 9, true, color, "center");
+                }
+            }
+
+            await drawPhotoAbs('motor_vista_geral', 52, 642, 215, 110);
+            await drawPhotoAbs('assoalho_porta_malas', 288, 642, 215, 110);
+            await drawPhotoAbs('painel_hodometro', 525, 642, 215, 110);
+            await drawPhotoAbs('frente_45_dir', 52, 805, 215, 110);
+            await drawPhotoAbs('traseira_45_esq', 288, 805, 215, 110);
+            await drawPhotoAbs('longarina_diant_esq', 525, 805, 215, 110);
+        } 
+        else if (p === 6) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            const paintItemsList = [
+                "Capô", "Teto", "Tampa do porta-malas",
+                "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.",
+                "Paralama traseiro esq.", "Traseira esquerda", "Paralama traseiro dir.",
+                "Traseira direita", "Porta traseira dir.", "Porta dianteira dir.",
+                "Paralama dianteiro dir.", "Para-choque dianteiro", "Para-choque traseiro"
+            ];
+            const getPaintCondition = (index) => dataSec4[`micrometro_${index}`] || 'Original';
+            const getPaintColor = (cond) => {
+                if (cond === 'Repintura') return '#C9A961';
+                if (cond === 'Repintura com massa' || cond === 'Massa') return '#B8642B';
+                if (cond === 'Avariado' || cond === 'Pequenos riscos / amassado') return '#8B2635';
+                if (cond === 'Não aplicável') return '#D8CFBE';
+                return '#2F6B3F';
+            };
+
+            paintItemsList.forEach((name, i) => {
+                const cond = getPaintCondition(i + 1);
+                const color = getPaintColor(cond);
+                const topOffset = 260 + (i * 20.2);
+                drawTextAbs(cond, 695, topOffset, 8.5, true, color);
             });
-        } catch (err) {
-            console.error("Erro ao desenhar assinatura do vistoriador no PDF:", err);
+
+            const etaMotorStatus = dataSec5['label_eta_compartimento_status'] || 'Original';
+            const etaColunaStatus = dataSec5['label_eta_coluna_status'] || 'Original';
+
+            drawTextAbs(etaMotorStatus, 714, 825, 9, true, getPaintColor(etaMotorStatus), "right");
+            drawTextAbs(etaColunaStatus, 714, 848, 9, true, getPaintColor(etaColunaStatus), "right");
+
+            await drawPhotoAbs('etiqueta_eta_motor', 52, 885, 335, 110);
+            await drawPhotoAbs('etiqueta_eta_coluna', 405, 885, 335, 110);
+        } 
+        else if (p === 7) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            const getPaintColor = (cond) => {
+                if (cond === 'Repintura') return '#C9A961';
+                if (cond === 'Repintura com massa' || cond === 'Massa') return '#B8642B';
+                if (cond === 'Avariado' || cond === 'Pequenos riscos / amassado') return '#8B2635';
+                if (cond === 'Não aplicável') return '#D8CFBE';
+                return '#2F6B3F';
+            };
+
+            for (let i = 1; i <= 6; i++) {
+                const status = dataSec5[`vidro_${i}_status`] || 'Original';
+                const recorded = dataSec5[`vidro_${i}_chassis`] !== false ? 'Sim' : 'Não';
+                const topOffset = 262 + ((i - 1) * 21);
+                
+                drawTextAbs(status, 450 + 50, topOffset, 8.5, true, getPaintColor(status), "center");
+                drawTextAbs(recorded === 'Sim' ? 'GRAVADO' : 'NÃO GRAVADO', 590 + 50, topOffset, 8.5, true, recorded === 'Sim' ? 'var(--green)' : 'var(--bordeaux)', "center");
+            }
+
+            const idMotorStatus = dataSec6.parecerMotor || 'conforme';
+            const idChassiStatus = dataSec2.chassiOriginal !== false ? 'conforme' : 'com_ressalvas';
+
+            drawTextAbs(getPillText(idMotorStatus), 470 + 60, 523, 9, true, getPillColor(idMotorStatus), "center");
+            drawTextAbs(getPillText(idChassiStatus), 470 + 60, 554, 9, true, getPillColor(idChassiStatus), "center");
+
+            await drawPhotoAbs('chassi_gravado', 52, 605, 215, 165);
+            await drawPhotoAbs('motor_gravado', 288, 605, 215, 165);
+            await drawPhotoAbs('placa_dianteira', 525, 605, 215, 165);
+        } 
+        else if (p === 8) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            await drawPhotoAbs('motor_vista_geral', 52, 195, 688, 190);
+            await drawPhotoAbs('motor_gravado', 52, 398, 335, 140);
+            await drawPhotoAbs('chassi_gravado', 405, 398, 335, 140);
+
+            // Dados Complementares Coluna 1
+            drawTextAbs(marca + " / " + modelo, 430, 642, 9, true, "#1C1C1C", "right");
+            drawTextAbs("FIAT", 430, 666, 9, true, "#1C1C1C", "right");
+            drawTextAbs(anoFab + " / " + anoMod, 430, 702, 9, true, "#1C1C1C", "right");
+            drawTextAbs(combustivel, 430, 736, 9, true, "#1C1C1C", "right");
+            drawTextAbs(cor, 430, 770, 9, true, "#1C1C1C", "right");
+
+            // Dados Complementares Coluna 2
+            drawTextAbs(placa, 730, 642, 9, true, "#1C1C1C", "right");
+            drawTextAbs(chassi, 730, 666, 9, true, "#1C1C1C", "right");
+            drawTextAbs(motor, 730, 702, 9, true, "#1C1C1C", "right");
+            drawTextAbs(renavam, 730, 736, 9, true, "#1C1C1C", "right");
+            drawTextAbs(quilometragem + " km", 730, 770, 9, true, "#1C1C1C", "right");
+
+            drawTextAbs(parecerFinal === 'nao_conforme' ? 'NÃO CONFORME' : (parecerFinal === 'com_ressalvas' ? 'CONFORME COM RESSALVA' : 'CONFORME'), 714, 835, 16, true, getPillColor(parecerFinal), "right");
+            drawTextAbs("Observação: Não são analisados itens que necessitem de equipamentos especializados como freios ABS, air bags, parte mecânica, hodômetro e elétrica.", 80, 878, 9, false, "#5A544A");
+        } 
+        else if (p === 9) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            // Dados Consulta
+            drawTextAbs(placa, 215, 252, 9, true);
+            drawTextAbs(dataVistoria + " às " + horaVistoria, 215, 285, 9, true);
+            drawTextAbs(vistoriador, 215, 318, 9, true);
+            
+            drawTextAbs("Certive Vistorias", 605, 252, 9, true);
+            drawTextAbs("4386109", 605, 285, 9, true);
+            drawTextAbs("4348c105-afa0-4df6-b800-fcf6f3d1b38", 605, 318, 7.5, true);
+            drawTextAbs("Curitiba / PR", 605, 350, 9, true);
+
+            // Aprovados, Alerta e Restrição
+            drawMultilineTextAbs("Nada consta\nNada consta\nNada consta\nNada consta", 400, 440, 8.5, true, "var(--green)", "right");
+            drawMultilineTextAbs("Nada consta\nNada consta\nNada consta", 735, 440, 8.5, true, "var(--green)", "right");
+
+            const docAlert = dataSec7.parecerDocumental !== 'conforme' ? "Multas em aberto localizadas\nDébito de licenciamento ativo" : "Nada consta";
+            const docRestr = dataSec7.parecerDocumental !== 'conforme' ? "Alienação ativa em andamento" : "Nada consta";
+
+            drawMultilineTextAbs(docAlert, 720, 612, 8.5, true, "var(--amber)", "right", 15);
+            drawMultilineTextAbs(docRestr, 720, 728, 8.5, true, "var(--bordeaux)", "right", 15);
+        } 
+        else if (p === 10) {
+            drawTextAbs(dossie, 714, 95, 10, true, "#0A1F3D", "right");
+
+            let finalHeadline = 'CONFORME';
+            let finalColor = 'var(--green)';
+            let finalSub = 'PARA AQUISIÇÃO';
+            let finalBody = 'Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não sendo identificados indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.';
+
+            if (parecerFinal === 'com_ressalvas') {
+                finalHeadline = 'CONFORME COM RESSALVA';
+                finalColor = 'var(--amber)';
+                finalSub = 'VERIFICAR APONTAMENTOS';
+                finalBody = obsFinal || 'O veículo apresenta integridade estrutural original de fábrica, porém com ressalvas estéticas de pintura ou pequenas pendências documentais em aberto.';
+            } else if (parecerFinal === 'nao_conforme' || parecerFinal === 'reprovada') {
+                finalHeadline = 'NÃO CONFORME';
+                finalColor = 'var(--bordeaux)';
+                finalSub = 'NÃO RECOMENDADO PARA AQUISIÇÃO';
+                finalBody = obsFinal || 'O veículo apresenta avarias ou vestígios de soldas estruturais incompatíveis com a originalidade de fábrica, gerando parecer desfavorável.';
+            }
+
+            // Word wrap inteligente para o Parecer Final
+            const words = finalBody.split(' ');
+            let currentLine = '';
+            const lines = [];
+            words.forEach(word => {
+                if ((currentLine + ' ' + word).length > 70) {
+                    lines.push(currentLine);
+                    currentLine = word;
+                } else {
+                    currentLine = currentLine ? currentLine + ' ' + word : word;
+                }
+            });
+            if (currentLine) lines.push(currentLine);
+            
+            lines.forEach((line, idx) => {
+                drawTextAbs(line, 140 + 255, 375 + (idx * 16.5), 10.5, false, "#FFFFFF", "center");
+            });
+
+            drawTextAbs(finalHeadline, 140 + 255, 550, 24, true, finalColor, "center");
+            drawTextAbs(finalSub, 140 + 255, 590, 8.5, true, "var(--gold)", "center");
+
+            const dataLonga = `São José/SC, ${new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.`;
+            drawTextAbs(dataLonga, 140 + 255, 692, 11, true, "#0A1F3D", "center");
+
+            // Assinatura Vistoriador
+            if (signatureVistoriador) {
+                try {
+                    const sigBytes = await fetch(signatureVistoriador).then(res => res.arrayBuffer());
+                    let sigImg;
+                    try {
+                        sigImg = await pdfDoc.embedPng(sigBytes);
+                    } catch (e) {
+                        sigImg = await pdfDoc.embedJpg(sigBytes);
+                    }
+                    const wReal = 220 * scaleX;
+                    const hReal = 50 * scaleY;
+                    const xReal = 288 * scaleX;
+                    const yReal = 841.89 - (760 * scaleY) - hReal;
+                    page.drawImage(sigImg, {
+                        x: xReal + (wReal - wReal * 0.8) / 2,
+                        y: yReal + (hReal - hReal * 0.8) / 2,
+                        width: wReal * 0.8,
+                        height: hReal * 0.8
+                    });
+                } catch (errSig) {
+                    console.error("Erro ao desenhar assinatura no PDF:", errSig);
+                }
+            }
+
+            drawTextAbs(vistoriador, 288 + 110, 825, 10, true, "#0A1F3D", "center");
+            drawTextAbs(hashLaudo, 60, 928, 7.5, false, "#5A544A");
+
+            // Desenhar o QR Code
+            const qrCanvas = document.querySelector('#laudo-preview-qrcode canvas');
+            if (qrCanvas) {
+                try {
+                    const qrDataUrl = qrCanvas.toDataURL('image/png');
+                    const qrBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
+                    const qrImg = await pdfDoc.embedPng(qrBytes);
+                    const qrW = 60 * scaleX;
+                    const qrH = 60 * scaleY;
+                    const qrX = (794 - 52 - 60) * scaleX;
+                    const qrY = 841.89 - (895 * scaleY) - qrH;
+                    page.drawImage(qrImg, {
+                        x: qrX,
+                        y: qrY,
+                        width: qrW,
+                        height: qrH
+                    });
+                } catch (errQr) {
+                    console.error("Erro ao processar QR code:", errQr);
+                }
+            }
         }
     }
 
-    // QR Code na Página 10
-    const qrDiv = document.createElement('div');
-    const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
-    new QRCode(qrDiv, {
-        text: validationUrl,
-        width: 150,
-        height: 150,
-        colorDark: '#0A1F3D',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-    });
-
-    // Espera o QRCode renderizar no canvas
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const qrCanvas = qrDiv.querySelector('canvas');
-    if (qrCanvas) {
-        try {
-            const qrDataUrl = qrCanvas.toDataURL('image/png');
-            const qrBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
-            const qrImg = await pdfDoc.embedPng(qrBytes);
-
-            const p10 = pdfDoc.getPage(9);
-            const { width: p10Width, height: p10Height } = p10.getSize();
-            const scaleX = p10Width / fieldMap.page_size.width;
-            const scaleY = p10Height / fieldMap.page_size.height;
-
-            const qrW = 24 * scaleX;
-            const qrH = 24 * scaleY;
-            const qrX = 278 * scaleX;
-            const qrY = p10Height - (412 * scaleY) - qrH;
-
-            p10.drawImage(qrImg, {
-                x: qrX,
-                y: qrY,
-                width: qrW,
-                height: qrH
-            });
-        } catch (err) {
-            console.error("Erro ao sobrepor QR Code no PDF:", err);
-        }
-    }
-
-    // 5. Achata os campos de formulário (AcroForm flattening)
-    form.flatten();
-
-    // 6. Salva o PDF finalizado
+    // 5. Salva o PDF finalizado
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Certive - Fatiador de Templates</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 30px;
+            text-align: center;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #0f172a;
+            margin-bottom: 10px;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button.download-btn {
+            background: #10b981;
+        }
+        button.download-btn:hover {
+            background: #059669;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .page-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        .page-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        .page-card img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fatiador de Templates Certive</h1>
+        <p>Este utilitário carrega as imagens de grade, realiza o recorte e a rotação e gera as 10 páginas individuais.</p>
+
+        <div class="controls">
+            <label><strong>Rotação:</strong></label>
+            <button onclick="processAndRender(90)">90° Horário (Direita)</button>
+            <button onclick="processAndRender(-90)">90° Anti-Horário (Esquerda)</button>
+            <button onclick="processAndRender(0)">Sem Rotação</button>
+            <button class="download-btn" onclick="downloadAll()">Download de todas as 10 páginas</button>
+        </div>
+
+        <div id="status-msg" style="font-weight: bold; margin: 15px 0; color: #64748b;">Carregando imagens...</div>
+
+        <div class="preview-grid" id="preview-grid"></div>
+    </div>
+
+    <script>
+        const pagesData = []; // Guarda as URLs Base64 das páginas fatiadas
+
+        // Carrega as imagens de grade da raiz
+        const imgGrid1 = new Image();
+        const imgGrid2 = new Image();
+        imgGrid1.src = 'laudo_grade_1.png';
+        imgGrid2.src = 'laudo_grade_2.png';
+
+        let loadedCount = 0;
+        const onImageLoaded = () => {
+            loadedCount++;
+            if (loadedCount === 2) {
+                document.getElementById('status-msg').innerText = "Imagens carregadas! Escolha a rotação para processar.";
+                // Roda o processamento padrão com 90 graus no sentido anti-horário (comum para a maioria dos uploads de celular deitados)
+                processAndRender(-90);
+            }
+        };
+
+        imgGrid1.onload = onImageLoaded;
+        imgGrid2.onload = onImageLoaded;
+        imgGrid1.onerror = () => document.getElementById('status-msg').innerText = "Erro ao carregar laudo_grade_1.png. Certifique-se de que a imagem está na raiz.";
+        imgGrid2.onerror = () => document.getElementById('status-msg').innerText = "Erro ao carregar laudo_grade_2.png. Certifique-se de que a imagem está na raiz.";
+
+        function processAndRender(rotationDegrees) {
+            document.getElementById('status-msg').innerText = `Processando com rotação de ${rotationDegrees}°...`;
+            const grid = document.getElementById('preview-grid');
+            grid.innerHTML = '';
+            pagesData.length = 0;
+
+            const targetW = 800;
+            const targetH = 1130;
+
+            // Gera as 10 páginas
+            for (let p = 1; p <= 10; p++) {
+                const isPage10 = p === 10;
+                const img = isPage10 ? imgGrid2 : imgGrid1;
+                const gridIndex = isPage10 ? 8 : (p - 1); // Página 10 é o último quadro (índice 8) da grade 2
+
+                const canvas = document.createElement('canvas');
+                canvas.width = targetW;
+                canvas.height = targetH;
+                const ctx = canvas.getContext('2d');
+
+                const sw = img.naturalWidth / 3;
+                const sh = img.naturalHeight / 3;
+                const col = gridIndex % 3;
+                const row = Math.floor(gridIndex / 3);
+                const sx = col * sw;
+                const sy = row * sh;
+
+                if (rotationDegrees === 90) {
+                    ctx.save();
+                    ctx.translate(targetW / 2, targetH / 2);
+                    ctx.rotate(90 * Math.PI / 180);
+                    ctx.drawImage(img, sx, sy, sw, sh, -targetH / 2, -targetW / 2, targetH, targetW);
+                    ctx.restore();
+                } else if (rotationDegrees === -90) {
+                    ctx.save();
+                    ctx.translate(targetW / 2, targetH / 2);
+                    ctx.rotate(-90 * Math.PI / 180);
+                    ctx.drawImage(img, sx, sy, sw, sh, -targetH / 2, -targetW / 2, targetH, targetW);
+                    ctx.restore();
+                } else {
+                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+                }
+
+                const dataUrl = canvas.toDataURL('image/png');
+                pagesData.push(dataUrl);
+
+                // Adiciona card de preview
+                const card = document.createElement('div');
+                card.className = 'page-card';
+                card.innerHTML = `
+                    <h3>Página ${String(p).padStart(2, '0')}</h3>
+                    <img src="${dataUrl}" alt="Página ${p}">
+                `;
+                grid.appendChild(card);
+            }
+
+            document.getElementById('status-msg').innerText = "Fatiamento concluído com sucesso!";
+        }
+
+        function downloadAll() {
+            if (pagesData.length === 0) {
+                alert("Nenhuma página processada ainda.");
+                return;
+            }
+            document.getElementById('status-msg').innerText = "Baixando imagens...";
+            pagesData.forEach((dataUrl, idx) => {
+                const p = idx + 1;
+                const link = document.createElement('a');
+                link.download = `pagina_${String(p).padStart(2, '0')}.png`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            document.getElementById('status-msg').innerText = "Downloads iniciados! Mova os arquivos da sua pasta de Downloads para a pasta raiz do projeto.";
+        }
+    </script>
+</body>
+</html>
