@@ -911,6 +911,29 @@ function seedHistoricalData() {
 }
 
 // Helper formatting functions
+function parseDividedPayment(obsText) {
+    if (!obsText) return null;
+    const match = obsText.match(/\[PAG_DIVIDIDO: ([^\]]+)\]/);
+    if (!match) return null;
+    const parts = match[1].split(';');
+    const result = [];
+    parts.forEach(p => {
+        const kv = p.split('=');
+        if (kv.length === 2) {
+            result.push({
+                forma: kv[0],
+                valor: parseFloat(kv[1])
+            });
+        }
+    });
+    return result.length === 2 ? result : null;
+}
+
+function removeDividedPaymentTag(obsText) {
+    if (!obsText) return '';
+    return obsText.replace(/\[PAG_DIVIDIDO: [^\]]+\]/, '').trim();
+}
+
 function formatCurrency(val) {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -1356,7 +1379,9 @@ function selectClientType(type) {
     } else {
         partnerSelectGroup.style.display = 'block';
         valWarning.textContent = "Preço pré-definido em contrato com parceiro. Não negociável no balcão.";
-        priceInput.disabled = true;
+        const selectedSvc = db.servicos.find(s => s.id === currentSelectedServiceId);
+        const isSupercar = selectedSvc && selectedSvc.nome.toUpperCase().includes('SUPERCARRO');
+        priceInput.disabled = (currentSelectedServiceId !== 6 && !isSupercar);
     }
 
     renderOSFormServices();
@@ -1488,9 +1513,9 @@ function renderOSFormServices() {
     // Determinar os IDs de serviços disponíveis com base no tipo de cliente (Item A.2)
     let allowedServiceIds = [];
     if (currentClientType === 'particular') {
-        allowedServiceIds = [1, 2, 3, 4, 5, 6];
+        allowedServiceIds = [1, 2, 3, 4, 5, 6, 9, 10];
     } else {
-        allowedServiceIds = [1, 2, 3, 4, 7, 8, 5];
+        allowedServiceIds = [1, 2, 3, 4, 7, 8, 5, 9, 10];
     }
 
     const filteredServices = db.servicos.filter(s => allowedServiceIds.includes(s.id));
@@ -1518,7 +1543,8 @@ function renderOSFormServices() {
                     ? 'ri-vip-crown-line' 
                     : 'ri-search-eye-line'));
         
-        const priceLabel = s.id === 6 ? 'A NEGOCIAR' : formatCurrency(price);
+        const isSupercar = s.nome.toUpperCase().includes('SUPERCARRO');
+        const priceLabel = (s.id === 6 || isSupercar) ? 'A NEGOCIAR' : formatCurrency(price);
         
         let serviceName = s.nome.toUpperCase();
         // Ajustar nomenclaturas quando o tipo de cliente for parceiro (Item A.2)
@@ -1533,10 +1559,9 @@ function renderOSFormServices() {
         }
         
         return `
-            <label class="service-option" id="lbl-svc-${s.id}" onclick="selectService(${s.id}, ${price})">
-                <input type="radio" name="os-svc-radio" value="${s.id}">
-                <div class="radio-dot"></div>
-                <i class="${iconClass}" style="font-size: 18px; color: var(--accent);"></i>
+            <input type="radio" name="os-servico" id="svc-${s.id}" value="${s.id}" style="display: none;" onchange="selectService(${s.id}, ${price})">
+            <label for="svc-${s.id}" class="service-option" id="lbl-svc-${s.id}">
+                <div class="service-icon"><i class="${iconClass}"></i></div>
                 <div class="service-info">
                     <div class="service-name">${serviceName}</div>
                     <div class="service-price">${priceLabel}</div>
@@ -1556,7 +1581,10 @@ function selectService(id, price) {
     document.getElementById(`lbl-svc-${id}`).classList.add('selected');
     
     const priceInput = document.getElementById('os-valor');
-    if (id === 6) {
+    const service = db.servicos.find(s => s.id === id);
+    const isSupercar = service && service.nome.toUpperCase().includes('SUPERCARRO');
+    
+    if (id === 6 || isSupercar) {
         priceInput.value = '';
         priceInput.disabled = false;
         priceInput.placeholder = 'DIGITE O VALOR ACORDADO';
@@ -1570,20 +1598,54 @@ function selectService(id, price) {
 function toggleInstallmentsNewOS() {
     const pag = document.getElementById('os-pagamento').value;
     const group = document.getElementById('os-parcelas-group');
+    const divGroup = document.getElementById('os-dividido-group');
+    
     if (pag === 'credito_parcelado') {
         group.style.display = 'block';
+        if (divGroup) divGroup.style.display = 'none';
+    } else if (pag === 'dividido') {
+        group.style.display = 'none';
+        if (divGroup) {
+            divGroup.style.display = 'block';
+            const totalVal = parseFloat(document.getElementById('os-valor').value) || 0;
+            if (totalVal > 0) {
+                document.getElementById('os-div-valor-1').value = (totalVal / 2).toFixed(2);
+                document.getElementById('os-div-valor-2').value = (totalVal / 2).toFixed(2);
+            } else {
+                document.getElementById('os-div-valor-1').value = '';
+                document.getElementById('os-div-valor-2').value = '';
+            }
+        }
     } else {
         group.style.display = 'none';
+        if (divGroup) divGroup.style.display = 'none';
     }
 }
 
 function toggleInstallmentsEditOS() {
     const pag = document.getElementById('edit-os-pagamento').value;
     const group = document.getElementById('edit-os-parcelas-group');
+    const divGroup = document.getElementById('edit-os-dividido-group');
+    
     if (pag === 'credito_parcelado') {
         group.style.display = 'block';
+        if (divGroup) divGroup.style.display = 'none';
+    } else if (pag === 'dividido') {
+        group.style.display = 'none';
+        if (divGroup) {
+            divGroup.style.display = 'block';
+            const totalVal = parseFloat(document.getElementById('edit-os-valor').value) || 0;
+            if (totalVal > 0) {
+                document.getElementById('edit-os-div-valor-1').value = (totalVal / 2).toFixed(2);
+                document.getElementById('edit-os-div-valor-2').value = (totalVal / 2).toFixed(2);
+            } else {
+                document.getElementById('edit-os-div-valor-1').value = '';
+                document.getElementById('edit-os-div-valor-2').value = '';
+            }
+        }
     } else {
         group.style.display = 'none';
+        if (divGroup) divGroup.style.display = 'none';
     }
 }
 
@@ -1692,12 +1754,32 @@ function submitOSForm() {
             return;
         }
 
+        let finalObs = obs;
+        if (pagamento === 'dividido') {
+            const f1 = document.getElementById('os-div-forma-1').value;
+            const v1 = parseFloat(document.getElementById('os-div-valor-1').value) || 0;
+            const f2 = document.getElementById('os-div-forma-2').value;
+            const v2 = parseFloat(document.getElementById('os-div-valor-2').value) || 0;
+            
+            if (v1 <= 0 || v2 <= 0) {
+                showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
+                return;
+            }
+            
+            if (Math.abs((v1 + v2) - valor) > 0.01) {
+                showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
+                return;
+            }
+            
+            finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+        }
+
         if (!docVeiculo || !docIdentidade) {
             showToast("Erro: É obrigatório apresentar os documentos físicos do solicitante e do veículo.", "error");
             return;
         }
 
-const service = db.servicos.find(s => s.id === currentSelectedServiceId);
+        const service = db.servicos.find(s => s.id === currentSelectedServiceId);
         if (!service) {
             showToast("Erro: Serviço selecionado inválido.", "error");
             return;
@@ -1742,7 +1824,7 @@ const service = db.servicos.find(s => s.id === currentSelectedServiceId);
             servicoId: service.id,
             servicoNome: finalServiceName,
             valor: valor,
-            observacoes: obs,
+            observacoes: finalObs,
             pago: pagamento !== 'faturamento',
             formaPagamento: pagamento,
             parcelas: parcelas,
@@ -2102,6 +2184,16 @@ function openOSDetailsModal(id) {
         }
     }
 
+    let cobrancaLabel = os.formaPagamento.toUpperCase();
+    if (os.formaPagamento === 'credito_parcelado') {
+        cobrancaLabel = `CRÉDITO PARCELADO (${os.parcelas}x)`;
+    } else if (os.formaPagamento === 'dividido') {
+        const splitData = parseDividedPayment(os.observacoes);
+        if (splitData) {
+            cobrancaLabel = `DIVIDIDO (${splitData[0].forma.toUpperCase()}: R$ ${splitData[0].valor.toFixed(2)} / ${splitData[1].forma.toUpperCase()}: R$ ${splitData[1].valor.toFixed(2)})`;
+        }
+    }
+
     document.getElementById('detalhes-os-body').innerHTML = `
         ${recheckBannerHtml}
         <div class="detail-grid">
@@ -2115,11 +2207,11 @@ function openOSDetailsModal(id) {
             <div class="detail-item"><label>Celular</label><span>${os.clienteCelular}</span></div>
             <div class="detail-item"><label>Serviço Executado</label><span>${os.servicoNome}</span></div>
             <div class="detail-item"><label>Valor Final</label><strong style="color: var(--success);">${formatCurrency(os.valor)}</strong></div>
-            <div class="detail-item"><label>Cobrança</label><span>${os.formaPagamento === 'credito_parcelado' ? `CRÉDITO PARCELADO (${os.parcelas}x)` : os.formaPagamento.toUpperCase()}</span></div>
+            <div class="detail-item"><label>Cobrança</label><span>${cobrancaLabel}</span></div>
             <div class="detail-item"><label>DETRAN-SC Registrada</label><span>${os.detranRegistrado ? '🟢 Registrada' : '🔴 Não Registrada'}</span></div>
             <div class="detail-item"><label>Status NFS-e</label><span style="font-weight: 700; color: ${os.statusNfse === 'Emitida' ? 'var(--success)' : (os.statusNfse === 'Pendente de emissão' ? 'var(--warning)' : 'var(--text-secondary)')};">${os.statusNfse || 'Não solicitada'}</span></div>
             <div class="detail-item"><label>Detalhes NFS-e</label><span>${os.numeroNfse ? `Nº ${os.numeroNfse} (${formatDateBr(os.dataNfse)})` : '—'}</span></div>
-            <div class="detail-item" style="grid-column: span 2;"><label>Observações do Veículo (Modelo, Ano, Cor)</label><span>${os.observacoes || '—'}</span></div>
+            <div class="detail-item" style="grid-column: span 2;"><label>Observações do Veículo (Modelo, Ano, Cor)</label><span>${removeDividedPaymentTag(os.observacoes) || '—'}</span></div>
         </div>
         <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--accent);">Histórico de Fluxo:</h4>
         ${timelineHtml}
@@ -2315,16 +2407,16 @@ function openEditOSModal(id) {
     document.getElementById('edit-os-veiculo-chassi').value = os.veiculoChassi || '';
     document.getElementById('edit-os-veiculo-marca-modelo').value = os.veiculoMarcaModelo || '';
     document.getElementById('edit-os-veiculo-ano').value = os.veiculoAno || '';
-    document.getElementById('edit-os-obs').value = os.observacoes || '';
+    document.getElementById('edit-os-obs').value = removeDividedPaymentTag(os.observacoes);
     
     // Populate service dropdown
     const select = document.getElementById('edit-os-servico');
     if (select) {
         let allowedServiceIds = [];
         if (os.clienteTipo === 'particular') {
-            allowedServiceIds = [1, 2, 3, 4, 5, 6];
+            allowedServiceIds = [1, 2, 3, 4, 5, 6, 9, 10];
         } else {
-            allowedServiceIds = [1, 2, 3, 4, 7, 8, 5];
+            allowedServiceIds = [1, 2, 3, 4, 7, 8, 5, 9, 10];
         }
         
         const filteredServices = db.servicos.filter(s => allowedServiceIds.includes(s.id));
@@ -2351,10 +2443,24 @@ function openEditOSModal(id) {
         document.getElementById('edit-os-parcelas-group').style.display = 'none';
         document.getElementById('edit-os-parcelas').value = '1';
     }
+
+    if (os.formaPagamento === 'dividido') {
+        const splitData = parseDividedPayment(os.observacoes);
+        if (splitData) {
+            document.getElementById('edit-os-div-forma-1').value = splitData[0].forma;
+            document.getElementById('edit-os-div-valor-1').value = splitData[0].valor.toFixed(2);
+            document.getElementById('edit-os-div-forma-2').value = splitData[1].forma;
+            document.getElementById('edit-os-div-valor-2').value = splitData[1].valor.toFixed(2);
+        }
+    }
+    toggleInstallmentsEditOS();
+
     document.getElementById('edit-os-detran').checked = os.detranRegistrado;
     
     const priceInput = document.getElementById('edit-os-valor');
-    if (os.servicoId === 6) {
+    const service = db.servicos.find(s => s.id === os.servicoId);
+    const isSupercar = service && service.nome.toUpperCase().includes('SUPERCARRO');
+    if (os.servicoId === 6 || isSupercar) {
         priceInput.disabled = false;
     } else {
         priceInput.disabled = (os.clienteTipo === 'parceiro');
@@ -2374,7 +2480,9 @@ function updateEditOSPrice() {
     if (!service) return;
     
     const priceInput = document.getElementById('edit-os-valor');
-    if (serviceId === 6) {
+    const isSupercar = service.nome.toUpperCase().includes('SUPERCARRO');
+    
+    if (serviceId === 6 || isSupercar) {
         priceInput.disabled = false;
         priceInput.value = '';
         priceInput.placeholder = 'DIGITE O VALOR ACORDADO';
@@ -2432,6 +2540,26 @@ async function submitEditOSForm(event) {
         return;
     }
 
+    let finalObs = obs;
+    if (pagamento === 'dividido') {
+        const f1 = document.getElementById('edit-os-div-forma-1').value;
+        const v1 = parseFloat(document.getElementById('edit-os-div-valor-1').value) || 0;
+        const f2 = document.getElementById('edit-os-div-forma-2').value;
+        const v2 = parseFloat(document.getElementById('edit-os-div-valor-2').value) || 0;
+        
+        if (v1 <= 0 || v2 <= 0) {
+            showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
+            return;
+        }
+        
+        if (Math.abs((v1 + v2) - valor) > 0.01) {
+            showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
+            return;
+        }
+        
+        finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+    }
+
     const service = db.servicos.find(s => s.id === serviceId);
     
     os.clienteNome = nome;
@@ -2445,7 +2573,7 @@ async function submitEditOSForm(event) {
     os.veiculoChassi = chassi;
     os.veiculoMarcaModelo = marcaModelo;
     os.veiculoAno = ano;
-    os.observacoes = obs;
+    os.observacoes = finalObs;
     os.servicoId = service.id;
     
     // Classificação dinâmica do serviço em CAPS LOCK na edição (Item A.2)
@@ -2473,33 +2601,46 @@ async function submitEditOSForm(event) {
 
     // Sincronizar o Caixa Diário na Edição da OS
     const activeCaixa = getTodayOpenCaixa();
-    const existingMov = db.caixa_movimentos.find(m => m.osId === os.id);
 
     try {
-        if (os.reapresentacaoOrigemID) {
-            // Se for reteste, não deve ter entrada no caixa diário. Deletar se existir.
-            if (existingMov) {
-                if (window.useSupabase) {
-                    await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
-                }
-                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
+        // Deletar todas as movimentações de entrada do caixa associadas a esta OS e recriar
+        const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
+        for (const m of existingMovs) {
+            if (window.useSupabase) {
+                await sbDeleteWhere('caixa_movimentos', 'id', m.id);
             }
-        } else {
-            // É pago à vista
-            if (existingMov) {
-                // Atualizar movimentação existente
-                existingMov.valor = os.valor;
-                existingMov.formaPagamento = os.formaPagamento;
-                existingMov.descricao = `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`;
-                if (window.useSupabase) {
-                    await sbUpdate('caixa_movimentos', existingMov.id, {
-                        valor: existingMov.valor,
-                        formaPagamento: existingMov.formaPagamento,
-                        descricao: existingMov.descricao
-                    });
+            db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
+        }
+
+        if (os.reapresentacaoOrigemID) {
+            // Se for reteste, não deve ter entrada no caixa diário.
+        } else if (activeCaixa && os.pago) {
+            if (os.formaPagamento === 'dividido') {
+                const splitData = parseDividedPayment(os.observacoes);
+                if (splitData) {
+                    for (let i = 0; i < splitData.length; i++) {
+                        const part = splitData[i];
+                        const newMov = {
+                            caixaId: activeCaixa.id,
+                            tipo: "entrada",
+                            valor: part.valor,
+                            descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                            formaPagamento: part.forma,
+                            data: new Date().toISOString(),
+                            operador: currentSession.nome,
+                            osId: os.id,
+                            faturaId: null
+                        };
+                        if (window.useSupabase) {
+                            const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                            db.caixa_movimentos.unshift(insertedMov);
+                        } else {
+                            newMov.id = db.caixa_movimentos.length + 1;
+                            db.caixa_movimentos.push(newMov);
+                        }
+                    }
                 }
-            } else if (activeCaixa) {
-                // Inserir novo lançamento de caixa
+            } else {
                 const newMov = {
                     caixaId: activeCaixa.id,
                     tipo: "entrada",
@@ -3202,23 +3343,46 @@ async function confirmContratoAndSaveOS() {
                     <option value="credito">Cartão de Crédito à Vista</option>
                     <option value="credito_parcelado">Crédito Parcelado</option>
                     <option value="especie">Dinheiro (Espécie)</option>
+                    <option value="dividido">Dividido em 2 formas</option>
                     <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
                 `;
             } else {
                 // Fluxo padrão: Lançamento de Caixa (Tudo gera caixa, incluindo faturamento)
-                const newMov = {
-                    caixaId: activeCaixa.id,
-                    tipo: "entrada",
-                    valor: os.valor,
-                    descricao: `Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
-                    formaPagamento: os.formaPagamento,
-                    data: new Date().toISOString(),
-                    operador: currentSession.nome,
-                    osId: os.id,
-                    faturaId: null
-                };
-                const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                db.caixa_movimentos.unshift(insertedMov);
+                if (os.formaPagamento === 'dividido') {
+                    const splitData = parseDividedPayment(os.observacoes);
+                    if (splitData) {
+                        for (let i = 0; i < splitData.length; i++) {
+                            const part = splitData[i];
+                            const newMov = {
+                                caixaId: activeCaixa.id,
+                                tipo: "entrada",
+                                valor: part.valor,
+                                descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                                formaPagamento: part.forma,
+                                data: new Date().toISOString(),
+                                operador: currentSession.nome,
+                                osId: os.id,
+                                faturaId: null
+                            };
+                            const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                            db.caixa_movimentos.unshift(insertedMov);
+                        }
+                    }
+                } else {
+                    const newMov = {
+                        caixaId: activeCaixa.id,
+                        tipo: "entrada",
+                        valor: os.valor,
+                        descricao: `Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                        formaPagamento: os.formaPagamento,
+                        data: new Date().toISOString(),
+                        operador: currentSession.nome,
+                        osId: os.id,
+                        faturaId: null
+                    };
+                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                    db.caixa_movimentos.unshift(insertedMov);
+                }
             }
             
             // Inserir no cache local
@@ -3248,24 +3412,47 @@ async function confirmContratoAndSaveOS() {
                     <option value="credito">Cartão de Crédito à Vista</option>
                     <option value="credito_parcelado">Crédito Parcelado</option>
                     <option value="especie">Dinheiro (Espécie)</option>
+                    <option value="dividido">Dividido em 2 formas</option>
                     <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
                 `;
             } else {
                 if (os.pago) {
                     os.status = "paga";
-                    const movId = db.caixa_movimentos.length + 1;
-                    db.caixa_movimentos.push({
-                        id: movId,
-                        caixaId: activeCaixa.id,
-                        tipo: "entrada",
-                        valor: os.valor,
-                        descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: os.formaPagamento,
-                        data: new Date().toISOString(),
-                        operador: currentSession.nome,
-                        osId: os.id,
-                        faturaId: null
-                    });
+                    if (os.formaPagamento === 'dividido') {
+                        const splitData = parseDividedPayment(os.observacoes);
+                        if (splitData) {
+                            for (let i = 0; i < splitData.length; i++) {
+                                const part = splitData[i];
+                                const movId = db.caixa_movimentos.length + 1;
+                                db.caixa_movimentos.push({
+                                    id: movId,
+                                    caixaId: activeCaixa.id,
+                                    tipo: "entrada",
+                                    valor: part.valor,
+                                    descricao: `[DIVIDIDO ${i+1}/2] Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
+                                    formaPagamento: part.forma,
+                                    data: new Date().toISOString(),
+                                    operador: currentSession.nome,
+                                    osId: os.id,
+                                    faturaId: null
+                                });
+                            }
+                        }
+                    } else {
+                        const movId = db.caixa_movimentos.length + 1;
+                        db.caixa_movimentos.push({
+                            id: movId,
+                            caixaId: activeCaixa.id,
+                            tipo: "entrada",
+                            valor: os.valor,
+                            descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
+                            formaPagamento: os.formaPagamento,
+                            data: new Date().toISOString(),
+                            operador: currentSession.nome,
+                            osId: os.id,
+                            faturaId: null
+                        });
+                    }
                 }
                 
                 db.ordens_servico.unshift(os);
@@ -4228,7 +4415,7 @@ function printCaixaById(caixaId) {
         const plate = os ? os.placa : "—";
         const clientType = os ? os.clienteTipo.toUpperCase() : "FAT. RECEBIDO";
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const obsText = os && os.observacoes ? `<br><small style="color: #666; font-size: 9px;">Veículo: ${os.observacoes}</small>` : '';
+        const obsText = os && os.observacoes ? `<br><small style="color: #666; font-size: 9px;">Veículo: ${removeDividedPaymentTag(os.observacoes)}</small>` : '';
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
@@ -4497,7 +4684,7 @@ function renderFatPendentes() {
                 <td>${partner ? partner.nome : '—'}</td>
                 <td>
                     <strong>${o.placa}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">${o.observacoes || '—'}</small>
+                    <small style="color: var(--text-secondary); font-weight: 500;">${removeDividedPaymentTag(o.observacoes) || '—'}</small>
                 </td>
                 <td>${o.servicoNome.split(' — ')[0]}</td>
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${formatCurrency(o.valor)}</td>
@@ -4846,7 +5033,7 @@ function printInvoiceById(invoiceId) {
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
             <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.observacoes || '—'}</td>
+            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -7877,6 +8064,12 @@ function openChangePaymentModal(id) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
+    // Limpa campos de dividido residuais
+    document.getElementById('alt-pag-div-valor-1').value = "";
+    document.getElementById('alt-pag-div-valor-2').value = "";
+    document.getElementById('alt-pag-div-forma-1').value = "pix";
+    document.getElementById('alt-pag-div-forma-2').value = "especie";
+
     // Preenche dados da OS no modal
     document.getElementById('alt-pag-os-id').value = os.id;
     document.getElementById('alt-pag-os-numero').textContent = os.numero;
@@ -7889,13 +8082,21 @@ function openChangePaymentModal(id) {
         'concluida_reprovada': '❌ REPROVADA'
     };
     document.getElementById('alt-pag-os-status-vistoria').textContent = statusMap[os.status] || os.status;
-
+    
     // Configura valor da forma de pagamento e parcelas
     const formaSelect = document.getElementById('alt-pag-forma');
     formaSelect.value = os.formaPagamento;
     
     if (os.formaPagamento === 'credito_parcelado') {
         document.getElementById('alt-pag-parcelas').value = os.parcelas || "1";
+    } else if (os.formaPagamento === 'dividido') {
+        const splitData = parseDividedPayment(os.observacoes);
+        if (splitData) {
+            document.getElementById('alt-pag-div-forma-1').value = splitData[0].forma;
+            document.getElementById('alt-pag-div-valor-1').value = splitData[0].valor.toFixed(2);
+            document.getElementById('alt-pag-div-forma-2').value = splitData[1].forma;
+            document.getElementById('alt-pag-div-valor-2').value = splitData[1].valor.toFixed(2);
+        }
     }
     toggleInstallmentsChangePayment();
 
@@ -7929,10 +8130,29 @@ function closeChangePaymentModal(e) {
 function toggleInstallmentsChangePayment() {
     const forma = document.getElementById('alt-pag-forma').value;
     const group = document.getElementById('alt-pag-parcelas-group');
+    const divGroup = document.getElementById('alt-pag-dividido-group');
+    
     if (forma === 'credito_parcelado') {
         group.style.display = 'block';
+        if (divGroup) divGroup.style.display = 'none';
+    } else if (forma === 'dividido') {
+        group.style.display = 'none';
+        if (divGroup) {
+            divGroup.style.display = 'block';
+            const val1 = parseFloat(document.getElementById('alt-pag-div-valor-1').value) || 0;
+            const val2 = parseFloat(document.getElementById('alt-pag-div-valor-2').value) || 0;
+            if (val1 === 0 && val2 === 0) {
+                const osId = parseInt(document.getElementById('alt-pag-os-id').value);
+                const os = db.ordens_servico.find(o => o.id === osId);
+                if (os) {
+                    document.getElementById('alt-pag-div-valor-1').value = (os.valor / 2).toFixed(2);
+                    document.getElementById('alt-pag-div-valor-2').value = (os.valor / 2).toFixed(2);
+                }
+            }
+        }
     } else {
         group.style.display = 'none';
+        if (divGroup) divGroup.style.display = 'none';
     }
 }
 
@@ -8027,14 +8247,14 @@ async function submitChangePayment(event) {
             }
         }
 
-        // Remover SEMPRE a movimentação de caixa original existente correspondente a esta OS (tipo 'entrada' e sem faturaId)
-        // Isso evita duplicidade no caixa diário quando migramos de Faturamento para Método Direto.
-        const existingMov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
-        if (existingMov) {
+        // Remover SEMPRE todas as movimentações de caixa originais existentes correspondentes a esta OS (tipo 'entrada' e sem faturaId)
+        // Isso evita duplicidade no caixa diário quando migramos ou alteramos o pagamento.
+        const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
+        for (const m of existingMovs) {
             if (window.useSupabase) {
-                await sbDeleteWhere('caixa_movimentos', 'id', existingMov.id);
+                await sbDeleteWhere('caixa_movimentos', 'id', m.id);
             }
-            db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== existingMov.id);
+            db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
         }
 
         // Agora, aplica o novo estado baseado na nova forma de pagamento:
@@ -8094,9 +8314,10 @@ async function submitChangePayment(event) {
             os.formaPagamento = 'faturamento';
             os.pago = false;
             os.parcelas = null;
+            os.observacoes = removeDividedPaymentTag(os.observacoes);
 
         } else {
-            // O novo método de pagamento é Direto (Pix, Espécie, Débito, Crédito, Crédito Parcelado)
+            // O novo método de pagamento é Direto (Pix, Espécie, Débito, Crédito, Crédito Parcelado, Dividido)
             
             // Localiza ou abre um caixa para a data informada
             let caixaDestino = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
@@ -8122,24 +8343,73 @@ async function submitChangePayment(event) {
             }
 
             // Cria o novo movimento de entrada no caixa correspondente
-            const newMov = {
-                caixaId: caixaDestino.id,
-                tipo: "entrada",
-                valor: os.valor,
-                descricao: `Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                formaPagamento: newForma,
-                data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
-                operador: currentSession.nome,
-                osId: os.id,
-                faturaId: null
-            };
-
-            if (window.useSupabase) {
-                const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                db.caixa_movimentos.unshift(insertedMov);
+            if (newForma === 'dividido') {
+                const f1 = document.getElementById('alt-pag-div-forma-1').value;
+                const v1 = parseFloat(document.getElementById('alt-pag-div-valor-1').value) || 0;
+                const f2 = document.getElementById('alt-pag-div-forma-2').value;
+                const v2 = parseFloat(document.getElementById('alt-pag-div-valor-2').value) || 0;
+                
+                if (v1 <= 0 || v2 <= 0) {
+                    showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
+                    return;
+                }
+                
+                if (Math.abs((v1 + v2) - os.valor) > 0.01) {
+                    showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${os.valor.toFixed(2)}).`, "error");
+                    return;
+                }
+                
+                const parts = [
+                    { forma: f1, valor: v1 },
+                    { forma: f2, valor: v2 }
+                ];
+                
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    const newMov = {
+                        caixaId: caixaDestino.id,
+                        tipo: "entrada",
+                        valor: part.valor,
+                        descricao: `[DIVIDIDO ${i+1}/2] Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                        formaPagamento: part.forma,
+                        data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
+                        operador: currentSession.nome,
+                        osId: os.id,
+                        faturaId: null
+                    };
+                    if (window.useSupabase) {
+                        const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                        db.caixa_movimentos.unshift(insertedMov);
+                    } else {
+                        newMov.id = db.caixa_movimentos.length + 1;
+                        db.caixa_movimentos.push(newMov);
+                    }
+                }
+                
+                let cleanObs = removeDividedPaymentTag(os.observacoes);
+                os.observacoes = cleanObs + `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
             } else {
-                newMov.id = db.caixa_movimentos.length + 1;
-                db.caixa_movimentos.push(newMov);
+                const newMov = {
+                    caixaId: caixaDestino.id,
+                    tipo: "entrada",
+                    valor: os.valor,
+                    descricao: `Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                    formaPagamento: newForma,
+                    data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                };
+
+                if (window.useSupabase) {
+                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                    db.caixa_movimentos.unshift(insertedMov);
+                } else {
+                    newMov.id = db.caixa_movimentos.length + 1;
+                    db.caixa_movimentos.push(newMov);
+                }
+                
+                os.observacoes = removeDividedPaymentTag(os.observacoes);
             }
 
             os.formaPagamento = newForma;
@@ -8154,7 +8424,8 @@ async function submitChangePayment(event) {
                 formaPagamento: os.formaPagamento,
                 pago: os.pago,
                 parcelas: os.parcelas,
-                faturaId: os.faturaId
+                faturaId: os.faturaId,
+                observacoes: os.observacoes
             });
         }
         
@@ -8169,13 +8440,13 @@ async function submitChangePayment(event) {
         // Fecha o modal de alteração e recarrega os dados em tela
         document.getElementById('modal-alterar-pagamento').classList.remove('active');
         
-        // Re-renderiza views
-        if (currentTab === 'caixa') {
+        // Re-renderiza views de forma reativa conforme a aba atualmente ativa
+        if (document.getElementById('panel-caixa').classList.contains('active')) {
             await renderCaixaPage();
-        } else if (currentTab === 'faturamento') {
+        } else if (document.getElementById('panel-faturamento').classList.contains('active')) {
             renderFatFaturas();
-        } else if (currentTab === 'vendas') {
-            renderOrdensServicoTable();
+        } else if (document.getElementById('panel-historico').classList.contains('active')) {
+            renderHistorico();
         }
         
         // Atualiza a ficha de OS que está exibida por trás
@@ -8752,7 +9023,7 @@ function filterCautelares() {
             return `
                 <tr>
                     <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${item.os.placa}</td>
-                    <td>${item.os.observacoes}</td>
+                    <td>${removeDividedPaymentTag(item.os.observacoes)}</td>
                     <td>${item.os.clienteNome}</td>
                     <td>${statusBadge}</td>
                     <td><i class="ri-user-line" style="font-size: 12px; color: var(--text-secondary); margin-right: 4px;"></i>${item.vistoriador}</td>
@@ -8776,7 +9047,7 @@ function filterCautelares() {
                         ${statusBadge}
                     </div>
                     <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
-                        <span><strong>Veículo:</strong> ${item.os.observacoes}</span>
+                        <span><strong>Veículo:</strong> ${removeDividedPaymentTag(item.os.observacoes)}</span>
                         <span><strong>Cliente:</strong> ${item.os.clienteNome}</span>
                         <span><strong>Vistoriador:</strong> ${item.vistoriador}</span>
                         <span><strong>Iniciada em:</strong> ${item.iniciadoEm}</span>
@@ -9023,7 +9294,7 @@ const CAUTELAR_SLOTS = {
         { codigo: 'placa_dianteira', nome: 'PLACA DIANTEIRA EM CLOSE' }
     ],
     2: [
-        { codigo: 'chassi_gravado', nome: 'NÚMERO DO CHASSI GRAVADO (DIANTEIRO)' },
+        { codigo: 'chassi_gravado', nome: 'NÚMERO DO CHASSI GRAVADO' },
         { codigo: 'chassi_secundario', nome: 'NÚMERO DO CHASSI (PLAQUETAS/SECUNDÁRIO)' },
         { codigo: 'motor_gravado', nome: 'NÚMERO DO MOTOR GRAVADO' },
         { codigo: 'etiqueta_eta', nome: 'ETIQUETA ETA COMPARTIMENTO MOTOR' }
@@ -9038,18 +9309,17 @@ const CAUTELAR_SLOTS = {
         { codigo: 'torre_amort_tras_esq', nome: 'TORRE DO AMORTECEDOR TRASEIRO ESQUERDO' },
         { codigo: 'torre_amort_tras_dir', nome: 'TORRE DO AMORTECEDOR TRASEIRO DIREITO' },
         { codigo: 'painel_corta_fogo', nome: 'PAINEL CORTA-FOGO (ESTRUTURA)' },
-        { codigo: 'assoalho_porta_malas', nome: 'ASSOALHO DO PORTA-MALAS' },
-        { codigo: 'estrutura_teto', nome: 'ESTRUTURA DO TETO (INTERNA)' }
+        { codigo: 'assoalho_porta_malas', nome: 'ASSOALHO DO PORTA-MALAS' }
     ],
     4: [
         { codigo: 'medidor_pintura_uso', nome: 'FOTO DO MEDIDOR MINIPA EM USO (EVIDÊNCIA)' }
     ],
     5: [
         { codigo: 'vidro_parabrisa', nome: 'GRAVAÇÃO VIDRO PARA-BRISA' },
-        { codigo: 'vidro_porta_diant_esq', nome: 'GRAVAÇÃO PORTA DIANTEIRA ESQUERDA' },
-        { codigo: 'vidro_porta_diant_dir', nome: 'GRAVAÇÃO PORTA DIANTEIRA DIREITA' },
-        { codigo: 'vidro_porta_tras_esq', nome: 'GRAVAÇÃO PORTA TRASEIRA ESQUERDA' },
-        { codigo: 'vidro_porta_tras_dir', nome: 'GRAVAÇÃO PORTA TRASEIRA DIREITA' },
+        { codigo: 'vidro_porta_diant_esq', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA ESQUERDA' },
+        { codigo: 'vidro_porta_diant_dir', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA DIREITA' },
+        { codigo: 'vidro_porta_tras_esq', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA ESQUERDA' },
+        { codigo: 'vidro_porta_tras_dir', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA DIREITA' },
         { codigo: 'vidro_traseiro', nome: 'GRAVAÇÃO VIDRO TRASEIRO' }
     ],
     6: [
@@ -9218,16 +9488,23 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     // Seletor do status de pintura ou estrutura para fotos da Seção III e V
     let extraControls = '';
     if (window.activeSecaoNum === 3) {
-        const currentStatus = photo ? photo.metadados_json?.status_estrutural : 'original';
+        const currentStatus = photo ? photo.metadados_json?.status_estrutural || 'original' : 'original';
+        const obsPeca = photo ? photo.metadados_json?.observacao_peca || '' : '';
         extraControls = `
-            <div style="margin-top: 12px; text-align: left;">
-                <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">AVALIAÇÃO ESTRUTURAL</label>
-                <select id="status-foto-${slot.codigo}" onchange="salvarStatusFoto('${slot.codigo}', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px;">
-                    <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original (Conforme)</option>
-                    <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Reparo Aparente (Atenção)</option>
-                    <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Substituição (Não Conforme)</option>
-                    <option value="nao_aplicavel" ${currentStatus === 'nao_aplicavel' ? 'selected' : ''}>Não Aplicável</option>
-                </select>
+            <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">AVALIAÇÃO ESTRUTURAL</label>
+                    <select id="status-foto-${slot.codigo}" onchange="salvarStatusFoto('${slot.codigo}', 'status', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px; width: 100%;">
+                        <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original</option>
+                        <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Indícios de Reparo</option>
+                        <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Indícios de Substituição</option>
+                        <option value="nao_aplicavel" ${currentStatus === 'nao_aplicavel' ? 'selected' : ''}>Não se Aplica</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">OBSERVAÇÕES DA PEÇA (OPCIONAL)</label>
+                    <input type="text" id="obs-foto-${slot.codigo}" value="${obsPeca}" placeholder="Ex: pequeno amassado, solda..." oninput="salvarStatusFoto('${slot.codigo}', 'observacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; width: 100%;">
+                </div>
             </div>
         `;
     } else if (window.activeSecaoNum === 5) {
@@ -9256,9 +9533,11 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     if (photo) {
         // Exibe preview da foto tirada (local Blob ou url base64)
         const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
+        const isLocalBlob = displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
+        
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
-                <img src="${displayUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
+                <img id="img-preview-${slot.codigo}" src="${isLocalBlob ? '' : displayUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
                 <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
                     <i class="ri-delete-bin-line"></i>
                 </button>
@@ -9267,6 +9546,22 @@ function getPhotoSlotCardHtml(slot, secaoId) {
             <span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada com sucesso</span>
             ${extraControls}
         `;
+
+        if (isLocalBlob) {
+            // Puxa o Blob real do IndexedDB assincronamente e cria uma URL temporária válida
+            CautelarOfflineDB.getFoto(window.activeCautelarId, slot.codigo).then(record => {
+                if (record && record.blob) {
+                    const freshUrl = URL.createObjectURL(record.blob);
+                    const imgEl = document.getElementById(`img-preview-${slot.codigo}`);
+                    if (imgEl) imgEl.src = freshUrl;
+                } else if (photo.urlThumb) {
+                    const imgEl = document.getElementById(`img-preview-${slot.codigo}`);
+                    if (imgEl) imgEl.src = photo.urlThumb;
+                }
+            }).catch(err => {
+                console.error("Erro ao ler foto do IndexedDB:", err);
+            });
+        }
     } else {
         // Exibe slot vazio para tirar a foto
         card.innerHTML = `
@@ -9377,46 +9672,61 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             break;
 
         case 3:
+            const showEnchenteObs = data.indicioEnchente === 'sim';
+            const showBatidaObs = data.indicioBatida === 'sim';
+            const showParecerObs = data.parecerEstrutural && data.parecerEstrutural !== 'conforme';
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
                         <label for="caut-enchente">Indícios de Enchente? <span style="color:var(--danger)">*</span></label>
-                        <select id="caut-enchente" onchange="autoSaveCampo('indicioEnchente', this.value); toggleObsRequiredSec3();" required>
+                        <select id="caut-enchente" onchange="autoSaveCampo('indicioEnchente', this.value); toggleDynamicFieldsSec3();" required>
                             <option value="nao" ${data.indicioEnchente === 'sim' ? '' : 'selected'}>NÃO</option>
-                            <option value="sim" ${data.indicioEnchente === 'sim' ? 'selected' : ''}>SIM (Indica carpete úmido, ferrugem sob painel, etc.)</option>
+                            <option value="sim" ${data.indicioEnchente === 'sim' ? 'selected' : ''}>SIM</option>
                         </select>
                     </div>
+                    <div class="form-group" id="caut-enchente-obs-container" style="display: ${showEnchenteObs ? 'block' : 'none'};">
+                        <label for="caut-enchente-obs">Descreva os indícios de enchente <span style="color:var(--danger)">*</span></label>
+                        <textarea id="caut-enchente-obs" placeholder="Descreva os sinais de enchente encontrados (carpete úmido, lama, ferrugem...)" oninput="autoSaveCampo('obsEnchente', this.value)" ${showEnchenteObs ? 'required' : ''}>${data.obsEnchente || ''}</textarea>
+                    </div>
+
                     <div class="form-group">
                         <label for="caut-batida">Indícios de Batida / Deformação Estrutural? <span style="color:var(--danger)">*</span></label>
-                        <select id="caut-batida" onchange="autoSaveCampo('indicioBatida', this.value); toggleObsRequiredSec3();" required>
+                        <select id="caut-batida" onchange="autoSaveCampo('indicioBatida', this.value); toggleDynamicFieldsSec3();" required>
                             <option value="nao" ${data.indicioBatida === 'sim' ? '' : 'selected'}>NÃO</option>
-                            <option value="sim" ${data.indicioBatida === 'sim' ? 'selected' : ''}>SIM (Longarinas deformadas, cortes, soldas adicionais)</option>
+                            <option value="sim" ${data.indicioBatida === 'sim' ? 'selected' : ''}>SIM</option>
                         </select>
                     </div>
+                    <div class="form-group" id="caut-batida-obs-container" style="display: ${showBatidaObs ? 'block' : 'none'};">
+                        <label for="caut-batida-obs">Descreva os indícios de batida/deformação <span style="color:var(--danger)">*</span></label>
+                        <textarea id="caut-batida-obs" placeholder="Descreva os danos, cortes ou soldas estruturais encontrados..." oninput="autoSaveCampo('obsBatida', this.value)" ${showBatidaObs ? 'required' : ''}>${data.obsBatida || ''}</textarea>
+                    </div>
+
                     <div class="form-group">
                         <label for="caut-parecer-estrutural">Parecer Estrutural Consolidado <span style="color:var(--danger)">*</span></label>
-                        <select id="caut-parecer-estrutural" onchange="autoSaveCampo('parecerEstrutural', this.value)" required>
-                            <option value="conforme" ${data.parecerEstrutural === 'conforme' ? 'selected' : ''}>CONFORME</option>
-                            <option value="com_ressalvas" ${data.parecerEstrutural === 'com_ressalvas' ? 'selected' : ''}>COM RESSALVAS (Pequenos amassados sem risco estrutural)</option>
-                            <option value="nao_conforme" ${data.parecerEstrutural === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME (Estrutura comprometida / colisão gravíssima)</option>
+                        <select id="caut-parecer-estrutural" onchange="autoSaveCampo('parecerEstrutural', this.value); toggleDynamicFieldsSec3();" required>
+                            <option value="conforme" ${data.parecerEstrutural === 'conforme' || !data.parecerEstrutural ? 'selected' : ''}>CONFORME</option>
+                            <option value="com_ressalvas" ${data.parecerEstrutural === 'com_ressalvas' ? 'selected' : ''}>CONFORME COM RESSALVAS</option>
+                            <option value="nao_conforme" ${data.parecerEstrutural === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="caut-secao3-obs" id="caut-secao3-obs-label">Observações Técnicas</label>
-                        <textarea id="caut-secao3-obs" placeholder="DIGITE A ANÁLISE ESTRUTURAL DETALHADA..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                    <div class="form-group" id="caut-parecer-obs-container" style="display: ${showParecerObs ? 'block' : 'none'};">
+                        <label for="caut-secao3-obs" id="caut-secao3-obs-label">Comentários e Justificativa do Parecer <span style="color:var(--danger)">*</span></label>
+                        <textarea id="caut-secao3-obs" placeholder="Justifique o parecer com ressalvas ou não conforme..." oninput="autoSaveCampo('observacao', this.value)" ${showParecerObs ? 'required' : ''}>${data.observacao || ''}</textarea>
                     </div>
                 </div>
             `;
-            setTimeout(() => toggleObsRequiredSec3(), 100);
+            setTimeout(() => toggleDynamicFieldsSec3(), 100);
             break;
 
         case 4:
             // Painéis de espessura
             const paineis = [
-                "Capô", "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda",
-                "Paralama traseiro esquerdo", "Teto", "Paralama traseiro direito", "Porta traseira direito",
-                "Porta dianteira direita", "Paralama dianteiro direito", "Tampa traseira", "Para-choque dianteiro",
-                "Para-choque traseiro", "Coluna A esquerda", "Coluna A direita"
+                "Capô", "Teto", "Tampa traseira",
+                "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
+                "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
+                "Coluna A esquerda", "Coluna A direita",
+                "Coluna B esquerda", "Coluna B direita",
+                "Coluna C esquerda", "Coluna C direita"
             ];
             
             const tableRowsHtml = paineis.map((p, idx) => {
@@ -9582,19 +9892,35 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
 }
 
 // Helpers para validação e requerimento de campos dinâmicos
-function toggleObsRequiredSec3() {
+function toggleDynamicFieldsSec3() {
     const enchente = document.getElementById('caut-enchente')?.value;
     const batida = document.getElementById('caut-batida')?.value;
-    const label = document.getElementById('caut-secao3-obs-label');
-    const input = document.getElementById('caut-secao3-obs');
+    const parecer = document.getElementById('caut-parecer-estrutural')?.value;
 
-    if (enchente === 'sim' || batida === 'sim') {
-        if (label) label.innerHTML = `Observações Técnicas <span style="color:var(--danger)">* (Obrigatório devido aos indícios)</span>`;
-        if (input) input.required = true;
-    } else {
-        if (label) label.innerHTML = `Observações Técnicas (Opcional)`;
-        if (input) input.required = false;
+    const enchenteContainer = document.getElementById('caut-enchente-obs-container');
+    const enchenteInput = document.getElementById('caut-enchente-obs');
+    if (enchenteContainer && enchenteInput) {
+        const show = enchente === 'sim';
+        enchenteContainer.style.display = show ? 'block' : 'none';
+        enchenteInput.required = show;
     }
+
+    const batidaContainer = document.getElementById('caut-batida-obs-container');
+    const batidaInput = document.getElementById('caut-batida-obs');
+    if (batidaContainer && batidaInput) {
+        const show = batida === 'sim';
+        batidaContainer.style.display = show ? 'block' : 'none';
+        batidaInput.required = show;
+    }
+
+    const parecerContainer = document.getElementById('caut-parecer-obs-container');
+    const parecerInput = document.getElementById('caut-secao3-obs');
+    if (parecerContainer && parecerInput) {
+        const show = parecer && parecer !== 'conforme';
+        parecerContainer.style.display = show ? 'block' : 'none';
+        parecerInput.required = show;
+    }
+
     validarSecaoCompleta();
 }
 
@@ -9651,14 +9977,22 @@ function atualizarMedidorPintura(key, val) {
 /**
  * Salva a avaliação estrutural da foto na Seção III.
  */
-function salvarStatusFoto(slotCodigo, value) {
-    const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+function salvarStatusFoto(slotCodigo, field, value) {
     const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === 3);
     const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
 
     if (photo) {
         photo.metadados_json = photo.metadados_json || {};
-        photo.metadados_json.status_estrutural = value;
+        // Se a chamada antiga vier apenas com 2 argumentos, trata como salvar status_estrutural
+        if (arguments.length === 2) {
+            value = field;
+            field = 'status';
+        }
+        if (field === 'status') {
+            photo.metadados_json.status_estrutural = value;
+        } else if (field === 'observacao') {
+            photo.metadados_json.observacao_peca = value;
+        }
         saveDatabase();
         if (window.useSupabase) {
             sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
@@ -9735,10 +10069,23 @@ function validarSecaoCompleta() {
             }
             break;
         case 3:
-            const enchenteInput = document.getElementById('caut-secao3-obs');
-            if (enchenteInput && enchenteInput.required && !enchenteInput.value.trim()) {
+            const enchenteVal = document.getElementById('caut-enchente')?.value;
+            const enchenteObsVal = document.getElementById('caut-enchente-obs')?.value;
+            if (enchenteVal === 'sim' && (!enchenteObsVal || !enchenteObsVal.trim())) {
                 isComplete = false;
-                pendingItems.push("Observações Técnicas Estruturais");
+                pendingItems.push("Observações de Indícios de Enchente");
+            }
+            const batidaVal = document.getElementById('caut-batida')?.value;
+            const batidaObsVal = document.getElementById('caut-batida-obs')?.value;
+            if (batidaVal === 'sim' && (!batidaObsVal || !batidaObsVal.trim())) {
+                isComplete = false;
+                pendingItems.push("Observações de Indícios de Batida");
+            }
+            const parecerVal = document.getElementById('caut-parecer-estrutural')?.value;
+            const parecerObsVal = document.getElementById('caut-secao3-obs')?.value;
+            if (parecerVal && parecerVal !== 'conforme' && (!parecerObsVal || !parecerObsVal.trim())) {
+                isComplete = false;
+                pendingItems.push("Comentários e Justificativa do Parecer Estrutural");
             }
             break;
         case 7:
@@ -11415,7 +11762,7 @@ async function generateAndUploadInvoicePDF(f) {
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
             <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.observacoes || '—'}</td>
+            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
