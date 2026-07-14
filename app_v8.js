@@ -4404,7 +4404,7 @@ function printCaixaById(caixaId) {
     const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
     const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
     const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito' || m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
     const totalFaturamento = db.ordens_servico
         .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
         .reduce((sum, o) => sum + o.valor, 0);
