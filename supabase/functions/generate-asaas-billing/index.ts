@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     const paymentPayload = {
       customer: asaasCustomerId,
-      billingType: 'UNDEFINED', // Deixa o Asaas decidir (Boleto/Pix)
+      billingType: 'PIX', // Aceitar apenas PIX (Desativa a opção de boleto)
       value: fatura.valorTotal,
       dueDate: dueDateStr,
       description: `Faturamento Mensal Certive - Fatura #${fatura.codigo}`,
