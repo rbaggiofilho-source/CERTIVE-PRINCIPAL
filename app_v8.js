@@ -4680,6 +4680,17 @@ function renderFaturamentoKPIs() {
     
     if (elPesq) elPesq.textContent = pesquisasCount;
     if (elPesqVal) elPesqVal.textContent = formatCurrency(pesquisasVal);
+
+    // Novo: Histórico de Faturas Emitidas
+    const activeUnitFaturas = db.faturas.filter(f => f.unidadeId === activeUnitId);
+    const totalHistorico = activeUnitFaturas.reduce((sum, f) => sum + f.valorTotal, 0);
+    const totalHistoricoQtd = activeUnitFaturas.length;
+
+    const elHistorico = document.getElementById('fat-db-total-historico');
+    const elHistoricoQtd = document.getElementById('fat-db-total-historico-qtd');
+
+    if (elHistorico) elHistorico.textContent = formatCurrency(totalHistorico);
+    if (elHistoricoQtd) elHistoricoQtd.textContent = `${totalHistoricoQtd} faturas`;
 }
 
 function renderFaturamentoPage() {
@@ -5189,7 +5200,93 @@ function renderContasGears() {
     }
 }
 
+function renderContasKPIs() {
+    const kpiGrid = document.getElementById('contas-kpis-grid');
+    if (!kpiGrid) return;
+
+    if (!db.contas_pagar) return;
+
+    const list = db.contas_pagar.filter(c => c.unidadeId === activeUnitId);
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentMonthStr = todayStr.substring(0, 7); // Ex: "2026-07"
+
+    // 1. Contas do mês atual (vencimento no mês atual)
+    const contasDoMes = list.filter(c => c.vencimento && c.vencimento.startsWith(currentMonthStr));
+    
+    const totalMes = contasDoMes.reduce((sum, c) => sum + c.valor, 0);
+    const pagoMes = contasDoMes.filter(c => c.pago).reduce((sum, c) => sum + c.valor, 0);
+    const pendenteMes = contasDoMes.filter(c => !c.pago).reduce((sum, c) => sum + c.valor, 0);
+
+    const pctPago = totalMes > 0 ? (pagoMes / totalMes) * 100 : 0;
+    const pctPendente = totalMes > 0 ? (pendenteMes / totalMes) * 100 : 0;
+
+    // 2. Contas em atraso (vencimento < hoje e não pagas)
+    const contasAtrasadas = list.filter(c => !c.pago && c.vencimento < todayStr);
+    const totalAtrasado = contasAtrasadas.reduce((sum, c) => sum + c.valor, 0);
+    const qtdAtrasado = contasAtrasadas.length;
+
+    // 3. Renderizar o HTML dos cards
+    let atrasadoCardHtml = '';
+    if (qtdAtrasado > 0) {
+        atrasadoCardHtml = `
+            <div class="kpi-card" style="border: 1.5px solid var(--danger); background: rgba(239, 68, 68, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
+                <div class="kpi-icon" style="color: var(--danger); background: var(--danger-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ri-error-warning-line"></i></div>
+                <div class="kpi-info" style="display: flex; flex-direction: column;">
+                    <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--danger); letter-spacing: 0.5px; text-transform: uppercase;">Contas em Atraso</span>
+                    <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--danger); margin: 2px 0 0 0;">${formatCurrency(totalAtrasado)}</h3>
+                    <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">${qtdAtrasado} contas atrasadas</span>
+                </div>
+            </div>
+        `;
+    } else {
+        atrasadoCardHtml = `
+            <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); opacity: 0.85; width: 100%; box-sizing: border-box;">
+                <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.15);"><i class="ri-checkbox-circle-line"></i></div>
+                <div class="kpi-info" style="display: flex; flex-direction: column;">
+                    <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--success); letter-spacing: 0.5px; text-transform: uppercase;">Contas em Atraso</span>
+                    <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">R$ 0,00</h3>
+                    <span class="kpi-subtext" style="font-size: 10px; color: var(--success); margin-top: 1px; font-weight: 600;">Nenhuma atrasada</span>
+                </div>
+            </div>
+        `;
+    }
+
+    kpiGrid.innerHTML = `
+        <!-- Total no Mês -->
+        <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
+            <div class="kpi-icon" style="color: var(--text-primary); background: var(--navy-light); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid var(--border);"><i class="ri-wallet-3-line"></i></div>
+            <div class="kpi-info" style="display: flex; flex-direction: column;">
+                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Total do Mês</span>
+                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">${formatCurrency(totalMes)}</h3>
+                <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">Despesas para este mês</span>
+            </div>
+        </div>
+        <!-- Pago no Mês -->
+        <div class="kpi-card" style="border: 1.5px solid var(--success); background: rgba(16, 185, 129, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
+            <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.2);"><i class="ri-checkbox-circle-line"></i></div>
+            <div class="kpi-info" style="display: flex; flex-direction: column;">
+                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--success); letter-spacing: 0.5px; text-transform: uppercase;">Valor Pago (Mês)</span>
+                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--success); margin: 2px 0 0 0;">${formatCurrency(pagoMes)}</h3>
+                <span class="kpi-subtext" style="font-size: 10px; color: var(--success); margin-top: 1px; font-weight: 600;">${pctPago.toFixed(1)}% liquidado</span>
+            </div>
+        </div>
+        <!-- Pendente no Mês -->
+        <div class="kpi-card" style="border: 1.5px solid var(--warning); background: rgba(245, 158, 11, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
+            <div class="kpi-icon" style="color: var(--warning); background: var(--warning-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(245, 158, 11, 0.2);"><i class="ri-time-line"></i></div>
+            <div class="kpi-info" style="display: flex; flex-direction: column;">
+                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--warning); letter-spacing: 0.5px; text-transform: uppercase;">Valor Pendente (Mês)</span>
+                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--warning); margin: 2px 0 0 0;">${formatCurrency(pendenteMes)}</h3>
+                <span class="kpi-subtext" style="font-size: 10px; color: var(--warning); margin-top: 1px; font-weight: 600;">${pctPendente.toFixed(1)}% a vencer</span>
+            </div>
+        </div>
+        <!-- Atrasados -->
+        ${atrasadoCardHtml}
+    `;
+}
+
 function renderContasGerais() {
+    renderContasKPIs();
     const tbody = document.getElementById('contas-tbody');
     const list = db.contas_pagar
         .filter(c => c.unidadeId === activeUnitId)

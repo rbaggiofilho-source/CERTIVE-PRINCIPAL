@@ -898,20 +898,23 @@
             <!-- ================= PÁGINA: FATURAMENTO DE PARCEIROS ================= -->
             <section class="section-panel" id="panel-faturamento">
                 <div class="page-header">
-                    <div>
-                        <h2>📂 Faturamento de Parceiros</h2>
-                        <p>Consolide as ordens de serviço a prazo de lojistas/despachantes e gerencie faturas.</p>
-                    </div>
-                </div>
-
-                <!-- DASHBOARD DE FATURAMENTO -->
-                <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; width: 100%; box-sizing: border-box;">
+                               <!-- DASHBOARD DE FATURAMENTO -->
+                <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; width: 100%; box-sizing: border-box;">
                     <!-- Card 1: Valor total das faturas com lote não fechado -->
                     <div class="kpi-card" style="background: linear-gradient(135deg, rgba(212, 160, 23, 0.1) 0%, rgba(212, 160, 23, 0.02) 100%); border: 1px solid rgba(212, 160, 23, 0.25); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
                         <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(212, 160, 23, 0.2);"><i class="ri-money-dollar-box-line"></i></div>
                         <div class="kpi-info" style="display: flex; flex-direction: column;">
                             <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; text-transform: uppercase;">Lote Não Fechado</span>
                             <h3 class="kpi-value" id="fat-db-total-receber" style="font-size: 18px; font-weight: 800; color: var(--accent-light); margin: 2px 0 0 0;">R$ 0,00</h3>
+                        </div>
+                    </div>
+                    <!-- Card 6: Histórico de Faturas Emitidas (Novo) -->
+                    <div class="kpi-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%); border: 1px solid rgba(16, 185, 129, 0.25); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-sizing: border-box; box-shadow: var(--shadow);">
+                        <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.2);"><i class="ri-history-line"></i></div>
+                        <div class="kpi-info" style="display: flex; flex-direction: column;">
+                            <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--success); letter-spacing: 0.5px; text-transform: uppercase;">Histórico Emitido</span>
+                            <h3 class="kpi-value" id="fat-db-total-historico" style="font-size: 18px; font-weight: 800; color: var(--success); margin: 2px 0 0 0;">R$ 0,00</h3>
+                            <span class="kpi-subtext" id="fat-db-total-historico-qtd" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">0 faturas</span>
                         </div>
                     </div>
                     <!-- Card 2: Quantidade de OSs em aberto -->
@@ -1027,6 +1030,11 @@
                         <h2>💳 Contas a Pagar</h2>
                         <p>Gerencie as despesas fixas da unidade e consolide os custos de taxas de terceiros (DETRAN).</p>
                     </div>
+                </div>
+
+                <!-- DASHBOARD DE CONTAS A PAGAR (NOVO) -->
+                <div class="kpi-grid" id="contas-kpis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; width: 100%; box-sizing: border-box;">
+                    <!-- Preenchido dinamicamente via JS -->
                 </div>
 
                 <div class="tabs-bar">
