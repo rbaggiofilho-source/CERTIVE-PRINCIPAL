@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         cpfCnpj: parceiro.cnpj?.replace(/\D/g, '') || '',
         email: parceiro.email || '',
         mobilePhone: parceiro.whatsapp?.replace(/\D/g, '') || '',
-        notificationDisabled: true // Desabilitamos as notificações do Asaas, pois faremos a nossa via ZAP-API
+        notificationDisabled: false // Habilita notificações nativas do Asaas (WhatsApp/E-mail)
       };
 
       const customerRes = await fetch(`${asaasUrl}/customers`, {
