@@ -1524,6 +1524,7 @@
                     <button class="tab-btn" onclick="switchConfigTab('operadores', this)">Operadores & Unidades</button>
                     <button class="tab-btn" onclick="switchConfigTab('portarias', this)">Portarias por UF</button>
                     <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
+                    <button class="tab-btn" onclick="switchConfigTab('auditoria', this)" id="btn-cfg-auditoria"><i class="ri-shield-check-line"></i> Auditoria Contábil</button>
                 </div>
 
                 <!-- Config Tab: Preços e Taxas -->
@@ -1897,6 +1898,41 @@
                                     <i class="ri-save-line"></i> Salvar Configurações
                                 </button>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Auditoria Contábil -->
+                <div id="tab-cfg-auditoria" style="display: none;">
+                    <div class="panel-card" style="max-width: 800px; margin-bottom: 24px;">
+                        <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3><i class="ri-shield-keyhole-line" style="color: var(--accent);"></i> Ferramenta de Integridade & Auditoria Contábil (Self-Healing)</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="runIntegrityAudit()"><i class="ri-refresh-line"></i> Executar Varredura</button>
+                        </div>
+                        <div class="panel-card-body" style="padding: 20px;">
+                            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px;">
+                                Esta ferramenta faz uma varredura cruzada no banco de dados Supabase e na memória local do sistema em busca de inconsistências como lançamentos de caixa duplicados ou órfãos (movimentações financeiras de OSs que foram excluídas) e faturas vazias geradas por timeouts de rede.
+                            </p>
+                            
+                            <!-- Status da Auditoria -->
+                            <div id="auditoria-status-container" style="margin-bottom: 24px; padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-primary); display: flex; align-items: center; gap: 12px;">
+                                <i class="ri-checkbox-circle-fill" style="color: var(--success); font-size: 24px;"></i>
+                                <div>
+                                    <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 0;">Sistema Íntegro</h4>
+                                    <p style="font-size: 11px; color: var(--text-secondary); margin: 2px 0 0 0;">Nenhuma inconsistência de rede ou contabilidade foi localizada.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Lista de Inconsistências Localizadas -->
+                            <div id="auditoria-inconsistencias-list" style="display: none; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                                <!-- Gerado dinamicamente via JS -->
+                            </div>
+                            
+                            <div id="auditoria-acoes" style="display: none; justify-content: flex-end;">
+                                <button class="btn btn-primary" id="btn-resolver-auditoria" onclick="resolveAuditoriaInconsistencies()" style="box-shadow: 0 4px 12px rgba(212, 160, 23, 0.25);">
+                                    <i class="ri-magic-line"></i> Corrigir Inconsistências Localizadas
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -6825,12 +6825,16 @@ function switchConfigTab(tab, btn) {
     
     const tabZap = document.getElementById('tab-cfg-whatsapp');
     if (tabZap) tabZap.style.display = tab === 'whatsapp' ? 'block' : 'none';
+    
+    const tabAuditoria = document.getElementById('tab-cfg-auditoria');
+    if (tabAuditoria) tabAuditoria.style.display = tab === 'auditoria' ? 'block' : 'none';
 
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
     if (tab === 'portarias') renderConfigPortarias();
     if (tab === 'whatsapp') renderConfigWhatsApp();
+    if (tab === 'auditoria') runIntegrityAudit();
 }
 
 function renderConfigPage() {
@@ -6839,6 +6843,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'operadores') renderConfigOperadores();
     else if (currentConfigTab === 'portarias') renderConfigPortarias();
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
+    else if (currentConfigTab === 'auditoria') runIntegrityAudit();
 }
 
 // Config: Tabela de Preços e Taxas
@@ -11928,6 +11933,166 @@ async function generateAndUploadInvoicePDF(f) {
     } catch (e) {
         console.error("Erro ao gerar/upar PDF:", e);
         return null;
+    }
+}
+
+// ==========================================
+// INTEGRITY AUDIT & SELF-HEALING (MÓDULO DE AUDITORIA CONTÁBIL)
+// ==========================================
+function auditDatabaseIntegrity() {
+    const inconsistencies = [];
+
+    if (!db.caixa_movimentos || !db.ordens_servico || !db.faturas) return [];
+
+    // 1. Encontrar Movimentações de Caixa Órfãs
+    db.caixa_movimentos.forEach(m => {
+        if (m.osId) {
+            const osExists = db.ordens_servico.some(o => o.id === m.osId);
+            if (!osExists) {
+                inconsistencies.push({
+                    tipo: 'movimento_orfan',
+                    id: m.id,
+                    descricao: `Movimento de Caixa ID #${m.id} (${m.descricao || ''}) no valor de R$ ${m.valor.toFixed(2)} órfão (OS ID ${m.osId} deletada).`,
+                    record: m
+                });
+            }
+        }
+    });
+
+    // 2. Encontrar Faturas Vazias ou Inválidas
+    db.faturas.forEach(f => {
+        const ordensIds = f.ordensIds || [];
+        const validOSCount = ordensIds.filter(id => db.ordens_servico.some(o => o.id === id)).length;
+        if (validOSCount === 0 || f.valorTotal <= 0) {
+            inconsistencies.push({
+                tipo: 'fatura_invalida',
+                id: f.id,
+                descricao: `Fatura ID #${f.id} (${f.codigo}) com valor de R$ ${f.valorTotal.toFixed(2)} inválida (sem OS vinculadas válidas).`,
+                record: f
+            });
+        }
+    });
+
+    return inconsistencies;
+}
+
+function runIntegrityAudit() {
+    const statusContainer = document.getElementById('auditoria-status-container');
+    const listContainer = document.getElementById('auditoria-inconsistencias-list');
+    const actionContainer = document.getElementById('auditoria-acoes');
+
+    if (!statusContainer || !listContainer || !actionContainer) return;
+
+    const list = auditDatabaseIntegrity();
+
+    if (list.length === 0) {
+        statusContainer.innerHTML = `
+            <i class="ri-checkbox-circle-fill" style="color: var(--success); font-size: 24px;"></i>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 0;">Sistema 100% Íntegro</h4>
+                <p style="font-size: 11px; color: var(--text-secondary); margin: 2px 0 0 0;">Nenhuma inconsistência contábil ou de rede foi localizada.</p>
+            </div>
+        `;
+        statusContainer.style.borderColor = 'var(--success)';
+        statusContainer.style.background = 'rgba(16, 185, 129, 0.05)';
+        listContainer.style.display = 'none';
+        actionContainer.style.display = 'none';
+    } else {
+        statusContainer.innerHTML = `
+            <i class="ri-alert-fill" style="color: var(--warning); font-size: 24px;"></i>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 0;">Inconsistências Localizadas</h4>
+                <p style="font-size: 11px; color: var(--text-secondary); margin: 2px 0 0 0;">Foram encontradas <strong>${list.length} inconsistências</strong> contábeis em registros remotos.</p>
+            </div>
+        `;
+        statusContainer.style.borderColor = 'var(--warning)';
+        statusContainer.style.background = 'rgba(245, 158, 11, 0.05)';
+
+        listContainer.innerHTML = list.map(item => `
+            <div style="padding: 12px 16px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-family: 'JetBrains Mono', monospace;">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--text-primary);">
+                    <i class="ri-error-warning-line" style="color: var(--warning); font-size: 16px;"></i>
+                    <span>${item.descricao}</span>
+                </div>
+                <span style="font-size: 9px; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;">
+                    ${item.tipo === 'movimento_orfan' ? 'ÓRFÃO' : 'INVÁLIDO'}
+                </span>
+            </div>
+        `).join('');
+        listContainer.style.display = 'flex';
+        actionContainer.style.display = 'flex';
+    }
+}
+
+async function resolveAuditoriaInconsistencies() {
+    if (!isMasterSession()) {
+        showToast("Erro: Apenas operadores Master podem corrigir inconsistências do banco.", "error");
+        return;
+    }
+
+    const list = auditDatabaseIntegrity();
+    if (list.length === 0) {
+        showToast("Nenhuma inconsistência pendente.", "info");
+        return;
+    }
+
+    if (!confirm(`Deseja corrigir automaticamente as ${list.length} inconsistência(s) localizadas? Isso fará a deleção física e permanente dos registros órfãos no banco Supabase.`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-resolver-auditoria');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="ri-loader-4-line spinning"></i> Processando correções...`;
+
+    try {
+        let correctedCount = 0;
+        for (const item of list) {
+            if (item.tipo === 'movimento_orfan') {
+                if (window.useSupabase) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/caixa_movimentos?id=eq.${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        }
+                    });
+                }
+                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== item.id);
+                correctedCount++;
+            } else if (item.tipo === 'fatura_invalida') {
+                if (window.useSupabase) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/faturas?id=eq.${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        }
+                    });
+                }
+                db.faturas = db.faturas.filter(f => f.id !== item.id);
+                correctedCount++;
+            }
+        }
+
+        showToast(`${correctedCount} inconsistência(s) contábeis foram corrigidas com sucesso!`, "success");
+        
+        // Atualizar visualizações
+        if (document.getElementById('caixa-mov-tbody')) {
+            renderCaixaPage();
+        }
+        if (typeof renderFatFaturas === 'function') {
+            renderFatFaturas();
+        }
+        runIntegrityAudit();
+
+        if (typeof saveDatabase === 'function') saveDatabase();
+    } catch (err) {
+        console.error("Erro ao resolver inconsistências:", err);
+        showToast("Erro durante a resolução de inconsistências.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 
