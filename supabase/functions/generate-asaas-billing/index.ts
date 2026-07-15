@@ -74,14 +74,38 @@ Deno.serve(async (req) => {
 
     // 3. Criar ou Obter Cobrança no Asaas
     let paymentData;
+    let dueDate: Date;
     if (fatura.asaas_payment_id && fatura.asaas_url) {
       console.log(`ℹ️ Fatura #${fatura.id} já possui cobrança no Asaas. Ignorando criação e partindo para envio.`);
       paymentData = {
         id: fatura.asaas_payment_id,
         invoiceUrl: fatura.asaas_url
       };
+
+      try {
+        const paymentFetchRes = await fetch(`${asaasUrl}/payments/${fatura.asaas_payment_id}`, {
+          method: 'GET',
+          headers: {
+            'access_token': asaasKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (paymentFetchRes.ok) {
+          const paymentDetails = await paymentFetchRes.json();
+          dueDate = new Date(paymentDetails.dueDate + 'T12:00:00');
+        } else {
+          console.warn(`⚠️ Não foi possível obter detalhes do pagamento ${fatura.asaas_payment_id} no Asaas:`, await paymentFetchRes.text());
+          dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 5);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao buscar dados do pagamento no Asaas:', err);
+        dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 5);
+      }
     } else {
-      const dueDate = new Date();
+      dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 5); // Vencimento em 5 dias
       const dueDateStr = dueDate.toISOString().split('T')[0];
 
