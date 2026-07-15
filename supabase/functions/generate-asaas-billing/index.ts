@@ -72,40 +72,49 @@ Deno.serve(async (req) => {
       await supabase.from('parceiros').update({ asaas_customer_id: asaasCustomerId }).eq('id', parceiro.id);
     }
 
-    // 3. Criar Cobrança no Asaas
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 5); // Vencimento em 5 dias
-    const dueDateStr = dueDate.toISOString().split('T')[0];
+    // 3. Criar ou Obter Cobrança no Asaas
+    let paymentData;
+    if (fatura.asaas_payment_id && fatura.asaas_url) {
+      console.log(`ℹ️ Fatura #${fatura.id} já possui cobrança no Asaas. Ignorando criação e partindo para envio.`);
+      paymentData = {
+        id: fatura.asaas_payment_id,
+        invoiceUrl: fatura.asaas_url
+      };
+    } else {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 5); // Vencimento em 5 dias
+      const dueDateStr = dueDate.toISOString().split('T')[0];
 
-    const paymentPayload = {
-      customer: asaasCustomerId,
-      billingType: 'UNDEFINED', // Deixa o Asaas decidir (Boleto/Pix/Cartão conforme configurado na sua conta Asaas)
-      value: fatura.valorTotal,
-      dueDate: dueDateStr,
-      description: `Faturamento Mensal Certive - Fatura #${fatura.codigo}`,
-      externalReference: String(fatura.id)
-    };
+      const paymentPayload = {
+        customer: asaasCustomerId,
+        billingType: 'UNDEFINED', // Deixa o Asaas decidir (Boleto/Pix/Cartão conforme configurado na sua conta Asaas)
+        value: fatura.valorTotal,
+        dueDate: dueDateStr,
+        description: `Faturamento Mensal Certive - Fatura #${fatura.codigo}`,
+        externalReference: String(fatura.id)
+      };
 
-    const paymentRes = await fetch(`${asaasUrl}/payments`, {
-      method: 'POST',
-      headers: {
-        'access_token': asaasKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(paymentPayload)
-    });
+      const paymentRes = await fetch(`${asaasUrl}/payments`, {
+        method: 'POST',
+        headers: {
+          'access_token': asaasKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentPayload)
+      });
 
-    if (!paymentRes.ok) {
-      throw new Error(`Asaas Payment Error: ${await paymentRes.text()}`);
+      if (!paymentRes.ok) {
+        throw new Error(`Asaas Payment Error: ${await paymentRes.text()}`);
+      }
+
+      paymentData = await paymentRes.json();
+      
+      // Atualizar fatura no banco com os dados da cobrança
+      await supabase.from('faturas').update({
+        asaas_payment_id: paymentData.id,
+        asaas_url: paymentData.invoiceUrl
+      }).eq('id', fatura.id);
     }
-
-    const paymentData = await paymentRes.json();
-    
-    // Atualizar fatura no banco com os dados da cobrança
-    await supabase.from('faturas').update({
-      asaas_payment_id: paymentData.id,
-      asaas_url: paymentData.invoiceUrl
-    }).eq('id', fatura.id);
 
     // 4. Enviar mensagem via ZAP-API
     let zapStatus = 'nao_enviado';

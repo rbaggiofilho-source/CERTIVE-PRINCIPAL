@@ -4980,9 +4980,12 @@ function renderFatFaturas() {
             asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>`;
         }
 
-        let zapBtn = f.notificacao_zap 
-            ? `<button class="btn btn-success btn-sm btn-icon" style="background:var(--success); border-color:var(--success); color:white; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;" title="Notificação por WhatsApp Enviada"><i class="ri-whatsapp-line" style="font-size:14px;"></i></button>`
-            : '';
+        let zapBtn = '';
+        if (f.asaas_url) {
+            const zapColor = f.notificacao_zap ? "var(--success)" : "var(--text-secondary)";
+            const zapTitle = f.notificacao_zap ? "Reenviar Fatura por WhatsApp" : "Enviar Fatura por WhatsApp";
+            zapBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="sendInvoiceWhatsApp(${f.id}, this)" title="${zapTitle}" style="color: ${zapColor}; border-color: var(--border); background: var(--bg-card); display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); transition: all 0.2s;"><i class="ri-whatsapp-line" style="font-size:14px;"></i></button>`;
+        }
 
         return `
             <tr>
@@ -12235,5 +12238,62 @@ async function resolveAuditoriaInconsistencies() {
         btn.innerHTML = originalText;
     }
 }
+
+async function sendInvoiceWhatsApp(faturaId, btn) {
+    if (!window.useSupabase) {
+        showToast("Erro: A integração com WhatsApp só está disponível no modo online (Supabase).", "error");
+        return;
+    }
+
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line spinning" style="font-size:14px;"></i>';
+
+    try {
+        const fatura = db.faturas.find(x => x.id === faturaId);
+        if (!fatura) return;
+
+        showToast("Enviando fatura pelo WhatsApp...", "info");
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({ faturaId: faturaId })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.zapStatus === 'enviado') {
+                fatura.notificacao_zap = true;
+                if (typeof saveDatabase === 'function') saveDatabase();
+                showToast("Mensagem de WhatsApp enviada com sucesso!", "success");
+                btn.style.color = "var(--success)";
+                btn.title = "Reenviar Fatura por WhatsApp";
+            } else {
+                showToast("Erro: A API de WhatsApp não pôde concluir o disparo. Verifique o status no painel.", "warning");
+            }
+        } else {
+            let errText = "Erro desconhecido";
+            try {
+                const data = await res.json();
+                errText = data.error || errText;
+            } catch(e) {}
+            showToast("Erro ao enviar WhatsApp: " + errText, "error");
+        }
+    } catch (err) {
+        console.error("Erro no reenvio de WhatsApp:", err);
+        showToast("Erro de rede ao conectar à API de WhatsApp.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        if (typeof renderFatFaturas === 'function') {
+            renderFatFaturas();
+        }
+    }
+}
+
 
 
