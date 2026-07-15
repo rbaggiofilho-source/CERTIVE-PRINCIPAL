@@ -6209,6 +6209,32 @@ function renderBI() {
     const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal;
     const netProfit = totalRevenue - totalExpenses;
 
+    // === CÁLCULO DO REGIME DE CAIXA (ENTRADAS REAIS DE DINHEIRO) ===
+    let periodMovs = [];
+    if (period === '30') {
+        const startDate = new Date();
+        startDate.setDate(today.getDate() - 30);
+        periodMovs = db.caixa_movimentos.filter(m => new Date(m.data) >= startDate);
+    } else if (period === 'todos') {
+        periodMovs = [...db.caixa_movimentos];
+    } else {
+        periodMovs = db.caixa_movimentos.filter(m => m.data && m.data.startsWith(period));
+    }
+
+    if (unitFilter !== 'todas') {
+        const uId = parseInt(unitFilter);
+        periodMovs = periodMovs.filter(m => {
+            const cx = db.caixa_diario.find(c => c.id === m.caixaId);
+            return cx && cx.unidadeId === uId;
+        });
+    }
+
+    const cashInflows = periodMovs.filter(m => m.tipo === 'entrada');
+    const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => sum + m.valor, 0);
+    const directPaymentsReceived = cashInflows.filter(m => m.faturaId === null).reduce((sum, m) => sum + m.valor, 0);
+    const totalCashRevenue = directPaymentsReceived + fatPaymentsReceived;
+    const netCashProfit = totalCashRevenue - totalExpenses;
+
     const avgCostPerOS = osCount ? totalExpenses / osCount : 0;
     const ticketMedio = osCount ? totalRevenue / osCount : 0;
 
@@ -6238,33 +6264,50 @@ function renderBI() {
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow);"><i class="ri-line-chart-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalRevenue)}</div>
-                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Receita Bruta Total</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Receita de Serviços (Competência)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Soma do valor de todas as OSs geradas no período.</div>
+                </div>
+                <div class="kpi-card" style="border: 1.5px solid var(--accent); background: rgba(201, 169, 97, 0.04);">
+                    <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow);"><i class="ri-wallet-line"></i></div>
+                    <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalCashRevenue)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Receita Efetiva em Caixa (Caixa)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Direto: ${formatCurrency(directPaymentsReceived)} | Faturas: ${formatCurrency(fatPaymentsReceived)}</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--danger); background: var(--danger-bg);"><i class="ri-wallet-3-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalExpenses)}</div>
                     <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custos Totais (Fixo + Variável + Taxas)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Despesas operacionais e taxas do período.</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; background: ${netProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};"><i class="ri-funds-line"></i></div>
                     <div class="kpi-value" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; font-size: 20px; font-weight: 800;">${formatCurrency(netProfit)}</div>
-                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Lucro Líquido Estimado</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Lucro Estimado (Competência)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Resultado baseado nas OSs executadas.</div>
+                </div>
+                <div class="kpi-card" style="border: 1.5px solid ${netCashProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; background: ${netCashProfit >= 0 ? 'rgba(16, 185, 129, 0.02)' : 'rgba(239, 68, 68, 0.02)'};">
+                    <div class="kpi-icon" style="color: ${netCashProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; background: ${netCashProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};"><i class="ri-bank-card-line"></i></div>
+                    <div class="kpi-value" style="color: ${netCashProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; font-size: 20px; font-weight: 800;">${formatCurrency(netCashProfit)}</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Lucro Real Efetivo (Caixa)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Dinheiro líquido que realmente entrou em caixa.</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--info); background: var(--info-bg);"><i class="ri-percent-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${roiPercent.toFixed(1)}%</div>
                     <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">ROI (Retorno sobre Investimento)</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px; font-weight: 500;">${roiReturnText}</div>
+                    <div style="font-size: 9px; color: var(--text-secondary); margin-top: 4px; font-weight: 500;">${roiReturnText}</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--purple); background: var(--purple-bg);"><i class="ri-money-dollar-circle-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(avgCostPerOS)}</div>
                     <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custo Médio por OS</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Custos totais divididos pela quantidade de OSs.</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--accent); background: var(--accent-glow);"><i class="ri-coupon-2-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(ticketMedio)}</div>
-                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Valor de Venda Médio Geral</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Ticket Médio (Competência)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Valor de venda médio por vistoria.</div>
                 </div>
             `;
         }
