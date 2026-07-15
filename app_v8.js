@@ -1672,6 +1672,14 @@ function clearOSForm() {
     document.getElementById('os-parcelas-group').style.display = 'none';
     document.getElementById('os-parcelas').value = '1';
     
+    // Limpar campos divididos
+    document.getElementById('os-div-valor-1').value = '';
+    document.getElementById('os-div-valor-2').value = '';
+    document.getElementById('os-div-forma-1').value = 'pix';
+    document.getElementById('os-div-forma-2').value = 'especie';
+    const osDivididoGroup = document.getElementById('os-dividido-group');
+    if (osDivididoGroup) osDivididoGroup.style.display = 'none';
+    
     // Limpar campos do solicitante recorrente
     document.getElementById('os-salvar-recorrente').checked = false;
     document.getElementById('os-solicitante-recorrente-select').innerHTML = '<option value="">Selecione um solicitante recorrente...</option>';
@@ -2395,6 +2403,14 @@ function openEditOSModal(id) {
         showToast("Operação bloqueada: Só é permitido editar ordens de serviço em status ABERTA.", "error");
         return;
     }
+
+    // Limpa campos divididos residuais de edições anteriores
+    document.getElementById('edit-os-div-valor-1').value = '';
+    document.getElementById('edit-os-div-valor-2').value = '';
+    document.getElementById('edit-os-div-forma-1').value = 'pix';
+    document.getElementById('edit-os-div-forma-2').value = 'especie';
+    const editOsDivididoGroup = document.getElementById('edit-os-dividido-group');
+    if (editOsDivididoGroup) editOsDivididoGroup.style.display = 'none';
 
     document.getElementById('edit-os-id').value = os.id;
     document.getElementById('edit-os-nome').value = os.clienteNome;
@@ -3678,6 +3694,34 @@ async function renderCaixaPage() {
 
 async function openTodayCaixaDrawer() {
     const today = getOperativeDate();
+    
+    if (window.useSupabase) {
+        // Proteção R3: Consulta direta à API do Supabase para garantir que não haja outro caixa para a mesma data e filial
+        try {
+            const checkUrl = `${SUPABASE_URL}/rest/v1/caixa_diario?unidadeId=eq.${activeUnitId}&data=eq.${today}&limit=1`;
+            const checkResponse = await fetch(checkUrl, {
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+            });
+            const existingDrawer = await checkResponse.json();
+            if (existingDrawer && existingDrawer.length > 0) {
+                const ex = prepareRecordFromDb('caixa_diario', existingDrawer[0]);
+                const idx = db.caixa_diario.findIndex(c => c.id === ex.id);
+                if (idx === -1) {
+                    db.caixa_diario.push(ex);
+                } else {
+                    db.caixa_diario[idx] = ex;
+                }
+                showToast("Aviso: O caixa para esta data já estava aberto ou fechado no servidor. Sincronizado!", "warning");
+                renderCaixaPage();
+                return;
+            }
+        } catch (errCheck) {
+            console.error("Falha ao validar caixa existente no Supabase:", errCheck);
+        }
+    }
     
     // Buscar o saldo final do dia anterior
     let saldoAberturaEstimado = 0.00;
@@ -7555,6 +7599,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("🚀 Sistema carregado com sucesso via Supabase!");
     }
     
+    // Remove o overlay de loading da inicialização de dados
+    const initialLoadingOverlay = document.getElementById('app-loading-overlay');
+    if (initialLoadingOverlay) {
+        initialLoadingOverlay.style.opacity = '0';
+        setTimeout(() => {
+            initialLoadingOverlay.style.display = 'none';
+        }, 300);
+    }
+    
     // 2. Validate current session and display screens
     checkSession();
 
@@ -8321,6 +8374,24 @@ async function submitChangePayment(event) {
             
             // Localiza ou abre um caixa para a data informada
             let caixaDestino = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
+            if (!caixaDestino && window.useSupabase) {
+                try {
+                    const checkUrl = `${SUPABASE_URL}/rest/v1/caixa_diario?unidadeId=eq.${os.unidadeId}&data=eq.${inputDataPagamento}&limit=1`;
+                    const checkResponse = await fetch(checkUrl, {
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        }
+                    });
+                    const existingDrawer = await checkResponse.json();
+                    if (existingDrawer && existingDrawer.length > 0) {
+                        caixaDestino = prepareRecordFromDb('caixa_diario', existingDrawer[0]);
+                        db.caixa_diario.push(caixaDestino);
+                    }
+                } catch (errCheck) {
+                    console.error("Falha ao validar caixa existente na alteração de pagamento:", errCheck);
+                }
+            }
             if (!caixaDestino) {
                 const newDrawer = {
                     unidadeId: os.unidadeId,
