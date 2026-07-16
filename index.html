@@ -2,9 +2,18 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Certive Vistorias — Sistema de Gestão Premium</title>
     <meta name="description" content="Sistema de Gestão integrado para Certive Vistorias. Controle de OS, Caixa, Faturamento de Parceiros e Contas a Pagar.">
+    
+    <!-- PWA e iOS Metatags -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#080d1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Certive">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <link rel="stylesheet" href="styles.css?v=20260707_1230">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12,16 +21,20 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         /* Correção de Layout Forçada (Bypass de Cache de CSS) */
-        .atendimento-layout {
-            grid-template-columns: 460px minmax(0, 1fr) !important;
+        @media (min-width: 1201px) {
+            .atendimento-layout {
+                grid-template-columns: 460px minmax(0, 1fr) !important;
+            }
         }
         .table-container {
             overflow-x: auto !important;
             overflow-y: hidden !important;
         }
-        .table-container table {
-            width: 100% !important;
-            min-width: 800px !important; /* Garante que a tabela tenha largura mínima suficiente para ativar a rolagem no card */
+        @media (min-width: 769px) {
+            .table-container table {
+                width: 100% !important;
+                min-width: 800px !important; /* Garante que a tabela tenha largura mínima suficiente para ativar a rolagem no card */
+            }
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -2511,5 +2524,14 @@
 <script src="app_v8.js?v=20260715_0115"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('[PWA] Service Worker registrado com sucesso: ', reg.scope))
+        .catch(err => console.error('[PWA] Falha ao registrar Service Worker: ', err));
+    });
+  }
+</script>
 </body>
 </html>
