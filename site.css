@@ -570,6 +570,9 @@ footer.site-footer p {
 
 /* Media Queries (Mobile e Responsividade) */
 @media (max-width: 992px) {
+  .hero-section {
+    padding: 100px 0 60px !important;
+  }
   .hero-grid {
     grid-template-columns: 1fr;
     text-align: center;
@@ -582,9 +585,13 @@ footer.site-footer p {
   }
   .hero-actions {
     justify-content: center;
+    align-items: center !important;
   }
   .hero-visual {
     margin-top: 24px;
+  }
+  .hero-visual img {
+    max-width: 260px !important;
   }
   .differentials-grid {
     grid-template-columns: 1fr;
