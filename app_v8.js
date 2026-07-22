@@ -7922,7 +7922,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         controls.innerHTML = `
             <span style="color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1.5px solid rgba(255,255,255,0.15); padding-right: 12px; margin-right: 4px;">📂 LAUDO TESTE COROLLA</span>
             <button onclick="window.exibirPdfCautelar(999)" style="background: #C9A961; border: none; color: #050E1A; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: transform 0.2s;"><i class="ri-file-pdf-line" style="font-size:14px;"></i> BAIXAR PDF OFICIAL</button>
-            <button onclick="window.location.href='index.html'" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.2s;">VOLTAR PARA O ERP</button>
+            <button onclick="window.location.href='app.html'" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.2s;">VOLTAR PARA O ERP</button>
         `;
         document.body.appendChild(controls);
 

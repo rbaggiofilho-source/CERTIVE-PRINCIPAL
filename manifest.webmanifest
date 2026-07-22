@@ -2,7 +2,7 @@
   "name": "Certive Vistorias — Gestão",
   "short_name": "Certive",
   "description": "Sistema de Gestão integrado para Certive Vistorias.",
-  "start_url": "/",
+  "start_url": "/app.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#080d1a",

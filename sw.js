@@ -1,7 +1,8 @@
-const CACHE_NAME = 'certive-cache-v20260716_1116';
+const CACHE_NAME = 'certive-cache-v20260722_1046';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
+  '/app.html',
   '/styles.css',
   '/app_v8.js',
   '/svg_templates.js',
@@ -84,7 +85,7 @@ self.addEventListener('fetch', (event) => {
           
           // Se for uma navegação e falhar totalmente (sem cache e sem rede)
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match('/app.html');
           }
 
           // Retorna erro básico de rede se não houver cache
