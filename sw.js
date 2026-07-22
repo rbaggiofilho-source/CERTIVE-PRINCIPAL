@@ -1,4 +1,4 @@
-const CACHE_NAME = 'certive-cache-v20260722_1231';
+const CACHE_NAME = 'certive-cache-v20260722_1235';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
