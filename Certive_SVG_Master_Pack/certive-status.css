@@ -1,0 +1,4 @@
+:root{--certive-navy:#0E2A3A;--certive-gold:#C7A15A;--status-conforme:#2F6B3F;--status-ressalva:#B8642B;--status-nao-conforme:#8B2635}
+.status-conforme{fill:var(--status-conforme)!important;stroke:var(--status-conforme)!important}
+.status-ressalva{fill:var(--status-ressalva)!important;stroke:var(--status-ressalva)!important}
+.status-nao-conforme{fill:var(--status-nao-conforme)!important;stroke:var(--status-nao-conforme)!important}

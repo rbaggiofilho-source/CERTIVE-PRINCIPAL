@@ -1,4 +1,4 @@
-const CACHE_NAME = 'certive-cache-v20260722_1217';
+const CACHE_NAME = 'certive-cache-v20260722_1221';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -13,7 +13,7 @@ const ASSETS_TO_CACHE = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-512-maskable.png',
-  '/icons/selo_procedencia.jpg',
+  '/icons/selo_procedencia.png',
   'https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://unpkg.com/pdf-lib/dist/pdf-lib.min.js',

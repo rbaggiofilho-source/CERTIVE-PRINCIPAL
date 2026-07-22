@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+
+<rect width="2480" height="3508" fill="#0E2A3A"/><rect x="85" y="85" width="2310" height="3338" fill="none" stroke="#C7A15A" stroke-width="4"/>
+<rect x="180" y="180" width="130" height="130" rx="26" fill="#C7A15A"/>
+<text x="355" y="245" style="font-family:Montserrat;font-size:78px;font-weight:700;fill:#fff">CERTIVE</text>
+<text x="360" y="298" style="font-family:Inter;font-size:26px;letter-spacing:10px;fill:#D9E0E4">VISTORIAS</text>
+<text x="1240.0" y="1430" text-anchor="middle" style="font-family:Montserrat;font-size:96px;font-weight:700;fill:#fff">LAUDO CAUTELAR</text>
+<text x="1240.0" y="1525" text-anchor="middle" style="font-family:Inter;font-size:34px;letter-spacing:8px;fill:#D9E0E4">VISTORIA VEICULAR</text>
+<text x="260" y="3010" class="small">CIDADE/UF</text><rect id="field-city" x="260" y="3040" width="660" height="90" rx="8" class="dynamic-field"/>
+<text x="980" y="3010" class="small">DATA</text><rect id="field-date" x="980" y="3040" width="480" height="90" rx="8" class="dynamic-field"/>
+<text x="1520" y="3010" class="small">Nº DO DOSSIÊ</text><rect id="field-dossier" x="1520" y="3040" width="700" height="90" rx="8" class="dynamic-field"/>
+</svg>

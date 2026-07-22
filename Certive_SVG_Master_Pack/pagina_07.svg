@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+<rect class="bg" width="2480" height="3508"/>
+<g id="header">
+<rect x="150" y="110" width="110" height="110" rx="22" class="navy"/>
+<path d="M185 135 l35 20 v40 c0 38-22 67-35 76-13-9-35-38-35-76v-40z" fill="#C7A15A"/>
+<path d="M167 193 l14 14 26-32" fill="none" stroke="#F7F3EA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="285" y="165" class="title" style="font-size:54px">CERTIVE</text>
+<text x="288" y="205" class="small" style="letter-spacing:7px">VISTORIAS</text>
+<text x="1840" y="145" class="small">DOSSIÊ</text><rect id="field-dossier" x="1840" y="165" width="490" height="72" rx="8" class="dynamic-field"/>
+<line x1="150" y1="275" x2="2330" y2="275" stroke="#C7A15A" stroke-width="5"/>
+<text x="150" y="390" class="section">SEÇÃO 5</text><text x="150" y="470" class="title">IDENTIFICAÇÃO E VIDROS</text></g><text x="150" y="610" class="label">ITEM</text><text x="1170" y="610" class="label">ORIGINAL / SUBSTITUÍDO</text><text x="1860" y="610" class="label">GRAVAÇÃO</text><rect id="glass-row-1" x="150" y="650" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="724" class="body">Para-brisa</text><rect id="glass-original-1" x="1110" y="674" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-1" x="1810" y="674" width="490" height="72" rx="20" class="status-slot"/><rect id="glass-row-2" x="150" y="778" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="852" class="body">Vidro traseiro</text><rect id="glass-original-2" x="1110" y="802" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-2" x="1810" y="802" width="490" height="72" rx="20" class="status-slot"/><rect id="glass-row-3" x="150" y="906" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="980" class="body">Lateral dianteiro direito</text><rect id="glass-original-3" x="1110" y="930" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-3" x="1810" y="930" width="490" height="72" rx="20" class="status-slot"/><rect id="glass-row-4" x="150" y="1034" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="1108" class="body">Lateral dianteiro esquerdo</text><rect id="glass-original-4" x="1110" y="1058" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-4" x="1810" y="1058" width="490" height="72" rx="20" class="status-slot"/><rect id="glass-row-5" x="150" y="1162" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="1236" class="body">Lateral traseiro direito</text><rect id="glass-original-5" x="1110" y="1186" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-5" x="1810" y="1186" width="490" height="72" rx="20" class="status-slot"/><rect id="glass-row-6" x="150" y="1290" width="2180" height="120" rx="0" class="dynamic-field"/><text x="175" y="1364" class="body">Lateral traseiro esquerdo</text><rect id="glass-original-6" x="1110" y="1314" width="620" height="72" rx="20" class="status-slot"/><rect id="glass-engraving-6" x="1810" y="1314" width="490" height="72" rx="20" class="status-slot"/><text x="150" y="1570" class="label">REGISTRO FOTOGRÁFICO</text><text x="150" y="1640" class="label">CHASSI GRAVADO</text><rect id="id-photo-1" x="150" y="1680" width="680" height="800" rx="12" class="photo-slot"/><text x="890" y="1640" class="label">MOTOR GRAVADO</text><rect id="id-photo-2" x="890" y="1680" width="680" height="800" rx="12" class="photo-slot"/><text x="1630" y="1640" class="label">PLACA DIANTEIRA</text><rect id="id-photo-3" x="1630" y="1680" width="680" height="800" rx="12" class="photo-slot"/><text x="150" y="2620" class="label">OBSERVAÇÕES</text><rect id="id-observations" x="150" y="2660" width="2180" height="470" rx="12" class="dynamic-field"/><g id="footer"><line x1="150" y1="3358" x2="2330" y2="3358" stroke="#D7D1C4" stroke-width="3"/>
+<text x="150" y="3413" class="small">CERTIVE VISTORIAS • LAUDO CAUTELAR</text>
+<text x="2270" y="3413" class="label">07</text></g></svg>

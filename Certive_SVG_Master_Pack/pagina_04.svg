@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+<rect class="bg" width="2480" height="3508"/>
+<g id="header">
+<rect x="150" y="110" width="110" height="110" rx="22" class="navy"/>
+<path d="M185 135 l35 20 v40 c0 38-22 67-35 76-13-9-35-38-35-76v-40z" fill="#C7A15A"/>
+<path d="M167 193 l14 14 26-32" fill="none" stroke="#F7F3EA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="285" y="165" class="title" style="font-size:54px">CERTIVE</text>
+<text x="288" y="205" class="small" style="letter-spacing:7px">VISTORIAS</text>
+<text x="1840" y="145" class="small">DOSSIÊ</text><rect id="field-dossier" x="1840" y="165" width="490" height="72" rx="8" class="dynamic-field"/>
+<line x1="150" y1="275" x2="2330" y2="275" stroke="#C7A15A" stroke-width="5"/>
+<text x="150" y="390" class="section">SEÇÃO 2</text><text x="150" y="470" class="title">RESUMO DA ANÁLISE</text></g><rect id="status-card-1" x="150" y="640" width="390" height="210" rx="14" class="status-slot"/><text x="175" y="705" class="label">ESTRUTURA</text><rect id="status-pill-1" x="175" y="745" width="340" height="65" rx="20" class="dynamic-field"/><rect id="status-card-2" x="600" y="640" width="390" height="210" rx="14" class="status-slot"/><text x="625" y="705" class="label">VIDROS</text><rect id="status-pill-2" x="625" y="745" width="340" height="65" rx="20" class="dynamic-field"/><rect id="status-card-3" x="1050" y="640" width="390" height="210" rx="14" class="status-slot"/><text x="1075" y="705" class="label">PINTURA</text><rect id="status-pill-3" x="1075" y="745" width="340" height="65" rx="20" class="dynamic-field"/><rect id="status-card-4" x="1500" y="640" width="390" height="210" rx="14" class="status-slot"/><text x="1525" y="705" class="label">MOTOR</text><rect id="status-pill-4" x="1525" y="745" width="340" height="65" rx="20" class="dynamic-field"/><rect id="status-card-5" x="1950" y="640" width="390" height="210" rx="14" class="status-slot"/><text x="1975" y="705" class="label">CHASSI</text><rect id="status-pill-5" x="1975" y="745" width="340" height="65" rx="20" class="dynamic-field"/><text x="150" y="1010" class="label">ITENS CONFORMES</text><rect id="approved-items" x="150" y="1050" width="1050" height="1500" rx="12" class="dynamic-field"/><text x="1280" y="1010" class="label">ITENS COM RESSALVAS / NÃO CONFORMES</text><rect id="alert-items" x="1280" y="1050" width="1050" height="1500" rx="12" class="dynamic-field"/><text x="150" y="2690" class="label">OBSERVAÇÕES GERAIS</text><rect id="summary-observations" x="150" y="2730" width="2180" height="420" rx="12" class="dynamic-field"/><g id="footer"><line x1="150" y1="3358" x2="2330" y2="3358" stroke="#D7D1C4" stroke-width="3"/>
+<text x="150" y="3413" class="small">CERTIVE VISTORIAS • LAUDO CAUTELAR</text>
+<text x="2270" y="3413" class="label">04</text></g></svg>

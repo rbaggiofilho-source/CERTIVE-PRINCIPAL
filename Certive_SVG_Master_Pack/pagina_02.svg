@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+<rect class="bg" width="2480" height="3508"/>
+<g id="header">
+<rect x="150" y="110" width="110" height="110" rx="22" class="navy"/>
+<path d="M185 135 l35 20 v40 c0 38-22 67-35 76-13-9-35-38-35-76v-40z" fill="#C7A15A"/>
+<path d="M167 193 l14 14 26-32" fill="none" stroke="#F7F3EA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="285" y="165" class="title" style="font-size:54px">CERTIVE</text>
+<text x="288" y="205" class="small" style="letter-spacing:7px">VISTORIAS</text>
+<text x="1840" y="145" class="small">DOSSIÊ</text><rect id="field-dossier" x="1840" y="165" width="490" height="72" rx="8" class="dynamic-field"/>
+<line x1="150" y1="275" x2="2330" y2="275" stroke="#C7A15A" stroke-width="5"/>
+<text x="150" y="390" class="section">02</text><text x="150" y="470" class="title">SUMÁRIO</text></g><text x="190" y="690" class="section">1</text><text x="290" y="690" class="label">Identificação do Veículo</text><line x1="290" y1="710" x2="2100" y2="710" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="690" class="label" text-anchor="end">03</text><text x="190" y="955" class="section">2</text><text x="290" y="955" class="label">Resumo da Análise</text><line x1="290" y1="975" x2="2100" y2="975" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="955" class="label" text-anchor="end">04</text><text x="190" y="1220" class="section">3</text><text x="290" y="1220" class="label">Análise Estrutural</text><line x1="290" y1="1240" x2="2100" y2="1240" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="1220" class="label" text-anchor="end">05</text><text x="190" y="1485" class="section">4</text><text x="290" y="1485" class="label">Pintura e Acabamento</text><line x1="290" y1="1505" x2="2100" y2="1505" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="1485" class="label" text-anchor="end">06</text><text x="190" y="1750" class="section">5</text><text x="290" y="1750" class="label">Identificação e Vidros</text><line x1="290" y1="1770" x2="2100" y2="1770" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="1750" class="label" text-anchor="end">07</text><text x="190" y="2015" class="section">6</text><text x="290" y="2015" class="label">Motor e Chassi</text><line x1="290" y1="2035" x2="2100" y2="2035" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="2015" class="label" text-anchor="end">08</text><text x="190" y="2280" class="section">7</text><text x="290" y="2280" class="label">Pesquisa Documental</text><line x1="290" y1="2300" x2="2100" y2="2300" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="2280" class="label" text-anchor="end">09</text><text x="190" y="2545" class="section">8</text><text x="290" y="2545" class="label">Parecer Final</text><line x1="290" y1="2565" x2="2100" y2="2565" stroke="#D7D1C4" stroke-width="2" stroke-dasharray="8 10"/><text x="2260" y="2545" class="label" text-anchor="end">10</text><rect id="summary-note" x="190" y="2830" width="2100" height="300" rx="12" class="dynamic-field"/><text x="230" y="2895" class="label">SOBRE O LAUDO</text><g id="footer"><line x1="150" y1="3358" x2="2330" y2="3358" stroke="#D7D1C4" stroke-width="3"/>
+<text x="150" y="3413" class="small">CERTIVE VISTORIAS • LAUDO CAUTELAR</text>
+<text x="2270" y="3413" class="label">02</text></g></svg>

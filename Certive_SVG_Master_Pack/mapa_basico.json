@@ -1,0 +1,19 @@
+{
+  "page_size": {
+    "width": 2480,
+    "height": 3508,
+    "dpi": 300
+  },
+  "margins": {
+    "left": 150,
+    "right": 150,
+    "top": 110,
+    "bottom": 150
+  },
+  "status_colors": {
+    "conforme": "#2F6B3F",
+    "ressalva": "#B8642B",
+    "nao_conforme": "#8B2635"
+  },
+  "usage": "Localize os campos pelos IDs embutidos em cada SVG."
+}

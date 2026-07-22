@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+<rect class="bg" width="2480" height="3508"/>
+<g id="header">
+<rect x="150" y="110" width="110" height="110" rx="22" class="navy"/>
+<path d="M185 135 l35 20 v40 c0 38-22 67-35 76-13-9-35-38-35-76v-40z" fill="#C7A15A"/>
+<path d="M167 193 l14 14 26-32" fill="none" stroke="#F7F3EA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="285" y="165" class="title" style="font-size:54px">CERTIVE</text>
+<text x="288" y="205" class="small" style="letter-spacing:7px">VISTORIAS</text>
+<text x="1840" y="145" class="small">DOSSIÊ</text><rect id="field-dossier" x="1840" y="165" width="490" height="72" rx="8" class="dynamic-field"/>
+<line x1="150" y1="275" x2="2330" y2="275" stroke="#C7A15A" stroke-width="5"/>
+<text x="150" y="390" class="section">SEÇÃO 7</text><text x="150" y="470" class="title">PESQUISA DOCUMENTAL E HISTÓRICO</text></g><rect id="doc-query-1" x="150" y="650" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="715" class="label">ROUBO E FURTO</text><rect id="doc-status-1" x="1710" y="688" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-2" x="150" y="845" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="910" class="label">LEILÃO</text><rect id="doc-status-2" x="1710" y="883" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-3" x="150" y="1040" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="1105" class="label">SINISTROS</text><rect id="doc-status-3" x="1710" y="1078" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-4" x="150" y="1235" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="1300" class="label">RESTRIÇÕES JUDICIAIS</text><rect id="doc-status-4" x="1710" y="1273" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-5" x="150" y="1430" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="1495" class="label">DÉBITOS</text><rect id="doc-status-5" x="1710" y="1468" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-6" x="150" y="1625" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="1690" class="label">MULTAS</text><rect id="doc-status-6" x="1710" y="1663" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-7" x="150" y="1820" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="1885" class="label">ALIENAÇÃO FIDUCIÁRIA</text><rect id="doc-status-7" x="1710" y="1858" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-8" x="150" y="2015" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="2080" class="label">RECALL</text><rect id="doc-status-8" x="1710" y="2053" width="590" height="82" rx="20" class="status-slot"/><rect id="doc-query-9" x="150" y="2210" width="2180" height="180" rx="12" class="dynamic-field"/><text x="185" y="2275" class="label">HISTÓRICO DE PROPRIETÁRIOS</text><rect id="doc-status-9" x="1710" y="2248" width="590" height="82" rx="20" class="status-slot"/><text x="150" y="2500" class="label">DETALHES DA CONSULTA</text><rect id="doc-details" x="150" y="2540" width="2180" height="610" rx="12" class="dynamic-field"/><g id="footer"><line x1="150" y1="3358" x2="2330" y2="3358" stroke="#D7D1C4" stroke-width="3"/>
+<text x="150" y="3413" class="small">CERTIVE VISTORIAS • LAUDO CAUTELAR</text>
+<text x="2270" y="3413" class="label">09</text></g></svg>

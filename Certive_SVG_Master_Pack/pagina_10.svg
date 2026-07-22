@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2480" height="3508" viewBox="0 0 2480 3508">
+
+<style>
+.bg{fill:#F7F3EA}.navy{fill:#0E2A3A}.gold{fill:#C7A15A}
+.title{font-family:Montserrat,Arial,sans-serif;font-size:62px;font-weight:700;fill:#0E2A3A}
+.section{font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:700;letter-spacing:4px;fill:#C7A15A}
+.label{font-family:Inter,Arial,sans-serif;font-size:24px;font-weight:700;fill:#0E2A3A}
+.body{font-family:Inter,Arial,sans-serif;font-size:24px;fill:#30343B}
+.small{font-family:Inter,Arial,sans-serif;font-size:20px;fill:#6F7782}
+.dynamic-field{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.photo-slot{fill:#fff;stroke:#D7D1C4;stroke-width:3;stroke-dasharray:14 12}
+.status-slot{fill:#fff;stroke:#D7D1C4;stroke-width:2}
+.status-conforme{fill:#2F6B3F}.status-ressalva{fill:#B8642B}.status-nao-conforme{fill:#8B2635}
+</style>
+<rect class="bg" width="2480" height="3508"/>
+<g id="header">
+<rect x="150" y="110" width="110" height="110" rx="22" class="navy"/>
+<path d="M185 135 l35 20 v40 c0 38-22 67-35 76-13-9-35-38-35-76v-40z" fill="#C7A15A"/>
+<path d="M167 193 l14 14 26-32" fill="none" stroke="#F7F3EA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="285" y="165" class="title" style="font-size:54px">CERTIVE</text>
+<text x="288" y="205" class="small" style="letter-spacing:7px">VISTORIAS</text>
+<text x="1840" y="145" class="small">DOSSIÊ</text><rect id="field-dossier" x="1840" y="165" width="490" height="72" rx="8" class="dynamic-field"/>
+<line x1="150" y1="275" x2="2330" y2="275" stroke="#C7A15A" stroke-width="5"/>
+<text x="150" y="390" class="section">SEÇÃO 8</text><text x="150" y="470" class="title">PARECER FINAL</text></g><text x="150" y="610" class="label">CONCLUSÃO DO VISTORIADOR</text><rect id="final-conclusion" x="150" y="650" width="2180" height="1100" rx="14" class="dynamic-field"/><text x="150" y="1870" class="label">PARECER FINAL</text><rect id="final-status-banner" x="150" y="1910" width="2180" height="250" rx="24" class="status-slot"/><text x="150" y="2300" class="small">CIDADE / UF</text><rect id="final-city" x="150" y="2330" width="650" height="90" rx="8" class="dynamic-field"/><text x="870" y="2300" class="small">DATA POR EXTENSO</text><rect id="final-date" x="870" y="2330" width="700" height="90" rx="8" class="dynamic-field"/><text x="1640" y="2300" class="small">VISTORIADOR</text><rect id="final-inspector" x="1640" y="2330" width="690" height="90" rx="8" class="dynamic-field"/><text x="150" y="2570" class="label">ASSINATURA DIGITAL</text><rect id="signature-area" x="150" y="2610" width="980" height="480" rx="12" class="dynamic-field"/><text x="1210" y="2570" class="label">VALIDAÇÃO</text><rect id="qr-code" x="1210" y="2610" width="420" height="420" rx="12" class="dynamic-field"/><text x="1690" y="2570" class="label">HASH CRIPTOGRÁFICO</text><rect id="hash-area" x="1690" y="2610" width="640" height="420" rx="12" class="dynamic-field"/><g id="footer"><line x1="150" y1="3358" x2="2330" y2="3358" stroke="#D7D1C4" stroke-width="3"/>
+<text x="150" y="3413" class="small">CERTIVE VISTORIAS • LAUDO CAUTELAR</text>
+<text x="2270" y="3413" class="label">10</text></g></svg>
