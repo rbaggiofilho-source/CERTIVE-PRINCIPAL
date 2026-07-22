@@ -49,15 +49,21 @@
     <section class="hero-section" id="home">
         <div class="container hero-grid">
             <div class="hero-content">
-                <h2>Segurança e precisão em <span>Vistorias Veiculares</span></h2>
-                <p>Proteja seu investimento e garanta a procedência do seu veículo com os laudos técnicos e vistorias cautelares de maior credibilidade do mercado. Tecnologia de ponta, emissão rápida e conformidade total com o DETRAN.</p>
-                <div class="hero-actions">
-                    <a href="https://wa.me/5548991512658?text=Olá,%20gostaria%20de%20agendar%20uma%20vistoria!" target="_blank" class="btn-primary">
-                        <i class="ri-whatsapp-line"></i> Agendar Vistoria
-                    </a>
-                    <a href="app.html" class="btn-secondary">
-                        <i class="ri-login-box-line"></i> Portal do Cliente / Lojista
-                    </a>
+                <h2>A Certive entrega mais do que um laudo: entrega <span>convicção</span>.</h2>
+                <p>Unimos agilidade, tecnologia e profundidade técnica em uma experiência única, pensada para quem precisa decidir com clareza — seja na compra do carro dos sonhos, seja na gestão de uma frota que sustenta o seu negócio.</p>
+                <div class="hero-actions" style="flex-direction: column; align-items: flex-start; gap: 20px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <a href="https://wa.me/5548933816198?text=Olá,%20gostaria%20de%20agendar%20uma%20vistoria!" target="_blank" class="btn-primary">
+                            <i class="ri-whatsapp-line"></i> Agendar Vistoria
+                        </a>
+                        <span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; display: block; font-weight: 500;">Organize seu tempo, dispense filas! Agende sua vistoria conosco.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap;">
+                        <span style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Já é nosso cliente?</span>
+                        <a href="app.html" class="btn-secondary" style="padding: 10px 24px; font-size: 13px;">
+                            <i class="ri-login-box-line"></i> Portal do Cliente
+                        </a>
+                    </div>
                 </div>
             </div>
             <div class="hero-visual">
@@ -80,21 +86,31 @@
                 <span>Nossas Soluções</span>
                 <h2>Serviços de Alta Precisão</h2>
             </div>
-            <div class="services-grid">
+            <div class="services-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px;">
+                <div class="service-card">
+                    <div class="service-icon"><i class="ri-file-list-3-line"></i></div>
+                    <h3>Laudo de transferência DETRAN SC</h3>
+                    <p>Laudo oficial obrigatório exigido para a transferência de propriedade ou município do veículo, atestando a originalidade das numerações e dos itens de segurança.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon"><i class="ri-shield-star-line"></i></div>
+                    <h3>Laudo Cautelar Essencial</h3>
+                    <p>Inspeção concentrada nos principais itens de identificação, integridade de numerações e verificação básica de histórico de leilão e furto/roubo.</p>
+                </div>
                 <div class="service-card">
                     <div class="service-icon"><i class="ri-shield-check-line"></i></div>
-                    <h3>Vistoria Cautelar</h3>
-                    <p>Análise minuciosa da estrutura do chassi, motor, pintura, histórico de leilão, sinistros e pendências financeiras. Ideal para segurança na compra e venda.</p>
+                    <h3>Laudo Cautelar Avançado</h3>
+                    <p>Inspeção estrutural profunda, mapeamento micrométrico de lataria contra colisões camufladas e dossiê de procedência documental.</p>
                 </div>
                 <div class="service-card">
-                    <div class="service-icon"><i class="ri-git-commit-line"></i></div>
-                    <h3>Vistoria de Transferência</h3>
-                    <p>Laudo obrigatório exigido pelo DETRAN para a transferência de propriedade ou de município do veículo, garantindo chassi e motor originais.</p>
+                    <div class="service-icon"><i class="ri-shield-flash-line"></i></div>
+                    <h3>Laudo Cautelar Absoluto</h3>
+                    <p>Nosso laudo mais detalhado do mercado. Exame completo da integridade mecânica externa, chassi, motor, longarinas, repinturas e histórico integral de gravames e passagens por leilão.</p>
                 </div>
                 <div class="service-card">
-                    <div class="service-icon"><i class="ri-roadster-line"></i></div>
-                    <h3>Vistoria de Pintura e Lataria</h3>
-                    <p>Inspeção especializada com medidores de espessura micrométricos para identificar peças repintadas, massas plásticas e batidas estruturais ocultas.</p>
+                    <div class="service-icon"><i class="ri-search-eye-line"></i></div>
+                    <h3>Pesquisa Veicular Completa</h3>
+                    <p>Consulta aprofundada de histórico cadastral, restrições financeiras e administrativas, passagens por leilões, sinistros e gravames.</p>
                 </div>
             </div>
         </div>
@@ -104,39 +120,46 @@
     <section class="section" id="diferenciais">
         <div class="container differentials-grid">
             <div class="diff-visual">
-                <div class="diff-visual-card">
-                    <h3>Emissão em A4 Real</h3>
-                    <p>Nossos laudos e relatórios de conformidade são emitidos seguindo as especificações exatas em PDF pronto para impressão ou compartilhamento via WhatsApp.</p>
-                    <div class="diff-visual-badge">
-                        <i class="ri-checkbox-circle-fill"></i> Laudo Premium Certificado
+                <div class="diff-visual-card" style="display: flex; flex-direction: column; gap: 20px;">
+                    <div style="display: flex; gap: 12px; align-items: flex-start;">
+                        <i class="ri-file-paper-line" style="color: var(--accent); font-size: 24px; margin-top: 2px;"></i>
+                        <p style="color: var(--text-primary); font-size: 14px; margin: 0; line-height: 1.5; text-align: left;">Nossos laudos cautelares fazem parte da documentação oficial do seu veículo, solicitamos que o laudo seja armazenado junto ao manual do veículo.</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: flex-start; border-top: 1px solid var(--border-light); padding-top: 16px;">
+                        <i class="ri-percent-line" style="color: var(--accent); font-size: 24px; margin-top: 2px;"></i>
+                        <p style="color: var(--text-primary); font-size: 14px; margin: 0; line-height: 1.5; text-align: left;">Qualquer veículo que possuir um laudo registrado na Certive recebe <strong>15% de desconto</strong> no ato da renovação.</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: flex-start; border-top: 1px solid var(--border-light); padding-top: 16px;">
+                        <i class="ri-bookmark-3-line" style="color: var(--accent); font-size: 24px; margin-top: 2px;"></i>
+                        <p style="color: var(--text-primary); font-size: 14px; margin: 0; line-height: 1.5; text-align: left;">Renovação do selo de procedência vitalícia: procure a Certive para substituir o selo de procedência mediante a qualquer dano, extravio ou rasura sem custo algum.</p>
                     </div>
                 </div>
             </div>
             <div class="diff-content">
                 <div class="section-title" style="text-align: left; margin-bottom: 32px;">
-                    <span>Por que nos escolher?</span>
-                    <h2>Os Diferenciais Certive</h2>
+                    <span>Pilares Certive</span>
+                    <h2>Nossos Três Pilares</h2>
                 </div>
                 <div class="diff-list">
                     <div class="diff-item">
                         <div class="diff-item-icon"><i class="ri-flashlight-line"></i></div>
                         <div class="diff-item-content">
-                            <h3>Velocidade e Praticidade</h3>
-                            <p>Vistoria rápida e envio imediato do PDF de demonstrativo para o celular dos interessados.</p>
+                            <h3>Agilidade</h3>
+                            <p>Processos digitais otimizados para garantir o agendamento sem filas e a liberação rápida do laudo diretamente no seu WhatsApp.</p>
                         </div>
                     </div>
                     <div class="diff-item">
-                        <div class="diff-item-icon"><i class="ri-database-2-line"></i></div>
+                        <div class="diff-item-icon"><i class="ri-cpu-line"></i></div>
                         <div class="diff-item-content">
-                            <h3>Integração Digital</h3>
-                            <p>Plataforma própria conectada diretamente via Supabase para faturamento rápido de lojistas conveniados.</p>
+                            <h3>Tecnologia</h3>
+                            <p>Sistemas integrados via Supabase, equipamentos de micragem micrométrica para lataria e plataforma mobile de alta performance.</p>
                         </div>
                     </div>
                     <div class="diff-item">
-                        <div class="diff-item-icon"><i class="ri-check-double-line"></i></div>
+                        <div class="diff-item-icon"><i class="ri-shield-user-line"></i></div>
                         <div class="diff-item-content">
-                            <h3>Precisão de Diagnóstico</h3>
-                            <p>Equipamentos de última geração e profissionais capacitados em detectar qualquer fraude veicular.</p>
+                            <h3>Profundidade Técnica</h3>
+                            <p>Análise pericial de chassi, motor, pintura e integridade estrutural efetuada por especialistas capacitados em detectar qualquer inconformidade.</p>
                         </div>
                     </div>
                 </div>
@@ -154,20 +177,19 @@
                 </div>
                 <div class="contact-block">
                     <h3>Endereço</h3>
-                    <p><i class="ri-map-pin-2-line"></i> Av. Principal de Vistorias, 1024 - Centro - Florianópolis, SC</p>
+                    <p><i class="ri-map-pin-2-line"></i> Rua das Camélias 345, Bairro Kobrasol – São José SC CEP 88102-480</p>
                 </div>
                 <div class="contact-block">
                     <h3>Horário de Funcionamento</h3>
-                    <p><i class="ri-time-line"></i> Segunda a Sexta: 08:00 às 18:00<br>Sábado: 08:00 às 12:00</p>
+                    <p><i class="ri-time-line"></i> Segunda a Sexta: 08:00 às 19:00<br>Sábado: 09:00 às 19:00</p>
                 </div>
                 <div class="contact-block">
                     <h3>Contato Direto</h3>
-                    <p><i class="ri-phone-line"></i> (48) 99151-2658 (WhatsApp Comercial)</p>
+                    <p><i class="ri-phone-line"></i> (48) 93381-6198 (WhatsApp Comercial)</p>
                 </div>
             </div>
             <div class="map-container">
-                <!-- Iframe do mapa integrado -->
-                <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d113117.81898748365!2d-48.6186085!3d-27.6180373!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x9527394efbef1085%3A0x6bfe7d1ef106604!2sFlorian%C3%B3polis%20-%20SC!5e0!3m2!1spt-BR!2sbr!4v1721650000000!5m2!1spt-BR!2sbr" allowfullscreen="" loading="lazy"></iframe>
+                <iframe src="https://maps.google.com/maps?q=Rua%20das%20Cam%C3%A9lias%20345,%20Kobrasol,%20S%C3%A3o%20Jos%C3%A9,%20SC&t=&z=15&ie=UTF8&iwloc=&output=embed" allowfullscreen="" loading="lazy"></iframe>
             </div>
         </div>
     </section>
@@ -189,7 +211,7 @@
     <footer class="site-footer">
         <div class="container">
             <p>&copy; 2026 Certive Vistorias Veiculares. Todos os direitos reservados.</p>
-            <p>Florianópolis - Santa Catarina - Brasil</p>
+            <p>São José - Santa Catarina - Brasil</p>
         </div>
     </footer>
 
