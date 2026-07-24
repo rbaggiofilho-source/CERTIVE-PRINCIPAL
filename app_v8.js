@@ -3814,12 +3814,38 @@ function renderCaixaMovimentos(activeCaixa) {
 
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     
-    if (movs.length === 0) {
+    // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
+    const isentas = db.ordens_servico.filter(os => {
+        const osDate = getLocalDateString(os.criadoEm);
+        return osDate === activeCaixa.data && 
+               os.unidadeId === activeCaixa.unidadeId && 
+               os.status !== 'cancelada' && 
+               os.formaPagamento === 'isento' && 
+               !os.reapresentacaoOrigemID;
+    });
+
+    const simulatedMovs = isentas.map(os => ({
+        id: `isenta-${os.id}`,
+        caixaId: activeCaixa.id,
+        tipo: 'entrada',
+        valor: 0,
+        descricao: `Vistoria Isenta: ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+        formaPagamento: 'isento',
+        data: os.criadoEm,
+        operador: os.criadoPor || 'Sistema',
+        osId: os.id,
+        faturaId: null,
+        isSimulated: true
+    }));
+
+    const allMovs = [...movs, ...simulatedMovs].sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    if (allMovs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhum lançamento realizado hoje.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = movs.map(m => {
+    tbody.innerHTML = allMovs.map(m => {
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const valEntrada = m.tipo === 'entrada' ? formatCurrency(m.valor) : '—';
         const valSaida = m.tipo === 'saida' ? formatCurrency(m.valor) : '—';
@@ -3836,7 +3862,7 @@ function renderCaixaMovimentos(activeCaixa) {
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${valEntrada}</td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSaida}</td>
                 <td>
-                    ${!isSystem ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteCaixaMov(${m.id})" title="Excluir Lançamento"><i class="ri-delete-bin-line"></i></button>` : '—'}
+                    ${(!isSystem && !m.isSimulated) ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteCaixaMov(${m.id})" title="Excluir Lançamento"><i class="ri-delete-bin-line"></i></button>` : '—'}
                 </td>
             </tr>
         `;
@@ -3942,8 +3968,33 @@ function generateCashierPdfData(c) {
     const unit = db.unidades.find(u => u.id === c.unidadeId);
     const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
 
-    const entries = movs.filter(m => m.tipo === 'entrada');
-    const exits = movs.filter(m => m.tipo === 'saida');
+    // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
+    const isentas = db.ordens_servico.filter(os => {
+        const osDate = getLocalDateString(os.criadoEm);
+        return osDate === c.data && 
+               os.unidadeId === c.unidadeId && 
+               os.status !== 'cancelada' && 
+               os.formaPagamento === 'isento' && 
+               !os.reapresentacaoOrigemID;
+    });
+
+    const simulatedMovs = isentas.map(os => ({
+        id: `isenta-${os.id}`,
+        caixaId: c.id,
+        tipo: 'entrada',
+        valor: 0,
+        descricao: `Vistoria Isenta: ${(os.servicoNome || 'VISTORIA').split(' — ')[0]}`,
+        formaPagamento: 'isento',
+        data: os.criadoEm,
+        operador: os.criadoPor || 'Sistema',
+        osId: os.id,
+        faturaId: null
+    }));
+
+    const allMovs = [...movs, ...simulatedMovs].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+    const entries = allMovs.filter(m => m.tipo === 'entrada');
+    const exits = allMovs.filter(m => m.tipo === 'saida');
 
     const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
@@ -4011,6 +4062,8 @@ function generateCashierPdfData(c) {
     doc.text(`Total Credito Vista: ${formatCurrency(totalCredito)}`, 110, 78);
     doc.text(`Total Credito Parcelado: ${formatCurrency(totalCreditoParcelado)}`, 110, 84);
     doc.text(`Total Faturamento: ${formatCurrency(totalFaturamento)}`, 110, 90);
+    doc.text(`Vistorias Isentas: ${isentas.length} vistorias`, 110, 96);
+    doc.text(`Total Vistorias: ${entries.filter(m => m.osId).length} vistorias`, 110, 102);
 
     doc.setFont("Helvetica", "bold");
     doc.text(`Saldo Fisico Estimado: ${formatCurrency(estimatedCash)}`, 14, 98);
@@ -4034,7 +4087,7 @@ function generateCashierPdfData(c) {
 
     let y = 137;
     doc.setFont("Helvetica", "normal");
-    movs.forEach((m) => {
+    allMovs.forEach((m) => {
         if (y > 270) {
             doc.addPage();
             y = 20;
@@ -4433,8 +4486,33 @@ function printCaixaById(caixaId) {
     const unit = db.unidades.find(u => u.id === c.unidadeId);
     const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
 
-    const entries = movs.filter(m => m.tipo === 'entrada');
-    const exits = movs.filter(m => m.tipo === 'saida');
+    // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
+    const isentas = db.ordens_servico.filter(os => {
+        const osDate = getLocalDateString(os.criadoEm);
+        return osDate === c.data && 
+               os.unidadeId === c.unidadeId && 
+               os.status !== 'cancelada' && 
+               os.formaPagamento === 'isento' && 
+               !os.reapresentacaoOrigemID;
+    });
+
+    const simulatedMovs = isentas.map(os => ({
+        id: `isenta-${os.id}`,
+        caixaId: c.id,
+        tipo: 'entrada',
+        valor: 0,
+        descricao: `Vistoria Isenta: ${(os.servicoNome || 'VISTORIA').split(' — ')[0]}`,
+        formaPagamento: 'isento',
+        data: os.criadoEm,
+        operador: os.criadoPor || 'Sistema',
+        osId: os.id,
+        faturaId: null
+    }));
+
+    const allMovs = [...movs, ...simulatedMovs].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+    const entries = allMovs.filter(m => m.tipo === 'entrada');
+    const exits = allMovs.filter(m => m.tipo === 'saida');
 
     const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
     const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
@@ -4457,7 +4535,7 @@ function printCaixaById(caixaId) {
     let entryRows = entries.map(m => {
         const os = m.osId ? db.ordens_servico.find(o => o.id === m.osId) : null;
         const plate = os ? os.placa : "—";
-        const clientType = os ? os.clienteTipo.toUpperCase() : "FAT. RECEBIDO";
+        const clientType = os ? (os.formaPagamento === 'isento' ? 'ISENTO' : os.clienteTipo.toUpperCase()) : "FAT. RECEBIDO";
         const time = new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const obsText = os && os.observacoes ? `<br><small style="color: #666; font-size: 9px;">Veículo: ${removeDividedPaymentTag(os.observacoes)}</small>` : '';
         return `
@@ -4565,9 +4643,13 @@ function printCaixaById(caixaId) {
                     <strong>Total em Espécie:</strong> ${formatCurrency(totalEspecie)}<br>
                     <strong>Total em Débito:</strong> ${formatCurrency(totalDebito)}<br>
                     <strong>Total em Crédito:</strong> ${formatCurrency(totalCredito)}<br>
-                    <strong>Total em Faturamento:</strong> ${formatCurrency(totalFaturamento)}
+                    <strong>Total em Faturamento:</strong> ${formatCurrency(totalFaturamento)}<br>
+                    <strong>Vistorias Isentas:</strong> ${isentas.length} vistorias
                 </div>
                 <div style="border-left: 1px solid #ccc; padding-left: 16px;">
+                    <strong style="text-transform: uppercase;">Controle de Serviços (DETRAN):</strong><br>
+                    <strong>Total de Vistorias:</strong> ${entries.filter(m => m.osId).length} vistorias<br>
+                    <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
                     <strong style="text-transform: uppercase;">Resumo Financeiro:</strong><br>
                     <strong>Fundo Inicial (Abertura):</strong> ${formatCurrency(c.saldoAbertura)}<br>
                     <strong>Total de Entradas (+):</strong> ${formatCurrency(totalEntradas)}<br>
