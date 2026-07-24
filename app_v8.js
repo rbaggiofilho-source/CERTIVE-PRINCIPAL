@@ -3820,8 +3820,7 @@ function renderCaixaMovimentos(activeCaixa) {
         return osDate === activeCaixa.data && 
                os.unidadeId === activeCaixa.unidadeId && 
                os.status !== 'cancelada' && 
-               os.formaPagamento === 'isento' && 
-               !os.reapresentacaoOrigemID;
+               os.formaPagamento === 'isento';
     });
 
     const simulatedMovs = isentas.map(os => ({
@@ -3974,8 +3973,7 @@ function generateCashierPdfData(c) {
         return osDate === c.data && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
-               os.formaPagamento === 'isento' && 
-               !os.reapresentacaoOrigemID;
+               os.formaPagamento === 'isento';
     });
 
     const simulatedMovs = isentas.map(os => ({
@@ -4492,8 +4490,7 @@ function printCaixaById(caixaId) {
         return osDate === c.data && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
-               os.formaPagamento === 'isento' && 
-               !os.reapresentacaoOrigemID;
+               os.formaPagamento === 'isento';
     });
 
     const simulatedMovs = isentas.map(os => ({
