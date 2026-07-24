@@ -37,6 +37,10 @@ function normalizeRecord(table, record) {
             record.tabelaPrecos[key] = parseFloat(record.tabelaPrecos[key]) || 0;
         }
     }
+    // Special: taxas_referencia backward compatibility for .tax vs .taxa
+    if (table === 'taxas_referencia' && record) {
+        record.tax = record.taxa;
+    }
     return record;
 }
 
@@ -532,6 +536,13 @@ async function sbUpsertMetas(unidadeId, metasObject) {
  * Synchronously updates the local cache db to keep the UI immediate, then does the DB write.
  */
 async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
+    // Agenda sincronização das taxas flutuantes do DETRAN para após a conclusão da gravação dos dados
+    if (typeof window.syncDetranFloatingPayable === 'function' && (table === 'ordens_servico' || table === 'taxas_referencia')) {
+        setTimeout(() => {
+            window.syncDetranFloatingPayable().catch(err => console.error("[DETRAN Sincronizador] Erro:", err));
+        }, 150); // 150ms garante que até gravações pesadas do Supabase terminaram
+    }
+
     if (window.useSupabase) {
         try {
             let result;

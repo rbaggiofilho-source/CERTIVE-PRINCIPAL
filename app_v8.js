@@ -190,12 +190,12 @@ function initDatabase() {
 
         // 3. Seed Reference Tax / Fees (DETRAN-SC / Custos de Terceiros)
         db.taxas_referencia = [
-            { servicoId: 1, taxa: 27.00 }, // Transferência Pequeno
-            { servicoId: 2, taxa: 27.00 }, // Transferência Médio
-            { servicoId: 3, taxa: 27.00 }, // Transferência Grande
-            { servicoId: 4, taxa: 10.00 }, // Cautelar
-            { servicoId: 5, taxa: 5.00 },  // Pesquisa
-            { servicoId: 6, taxa: 0.00 }   // Exótico
+            { servicoId: 1, taxa: 27.00, tax: 27.00 }, // Transferência Pequeno
+            { servicoId: 2, taxa: 27.00, tax: 27.00 }, // Transferência Médio
+            { servicoId: 3, taxa: 27.00, tax: 27.00 }, // Transferência Grande
+            { servicoId: 4, taxa: 10.00, tax: 10.00 }, // Cautelar
+            { servicoId: 5, taxa: 5.00, tax: 5.00 },  // Pesquisa
+            { servicoId: 6, taxa: 0.00, tax: 0.00 }   // Exótico
         ];
 
         // 4. Seed Operators (Operadores e Permissões)
@@ -5189,7 +5189,10 @@ function switchContasTab(tab, btn) {
     if (tab === 'assessor') renderAssessorTab();
 }
 
-function renderContasPage() {
+async function renderContasPage() {
+    if (typeof window.syncDetranFloatingPayable === 'function') {
+        await window.syncDetranFloatingPayable();
+    }
     renderContasGears();
 }
 
@@ -7745,6 +7748,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         initDatabase();
     } else {
         console.log("🚀 Sistema carregado com sucesso via Supabase!");
+    }
+
+    // Sincronização inicial de taxas flutuantes do DETRAN
+    if (typeof window.syncDetranFloatingPayable === 'function') {
+        window.syncDetranFloatingPayable().catch(err => console.error("Erro na sincronização inicial DETRAN:", err));
     }
     
     // Remove o overlay de loading da inicialização de dados
@@ -12294,6 +12302,118 @@ async function sendInvoiceWhatsApp(faturaId, btn) {
         }
     }
 }
+
+// Sincronizador Automático de Taxas Flutuantes do DETRAN
+window.syncDetranFloatingPayable = async function() {
+    if (typeof activeUnitId === 'undefined' || !activeUnitId) return;
+    if (!db || !db.ordens_servico || !db.contas_pagar) return;
+
+    try {
+        // 1. Obter mês e ano de faturamento correntes
+        let now = new Date();
+        if (window.modoDiaReaberto && window.dataDiaReaberto) {
+            now = new Date(window.dataDiaReaberto);
+        }
+        const year = now.getFullYear().toString();
+        const monthNum = String(now.getMonth() + 1).padStart(2, '0');
+        
+        const meses = {
+            '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+            '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+            '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+        };
+        const monthLabel = meses[monthNum];
+        const targetDesc = `Taxas DETRAN-SC — Provisão ${monthLabel}/${year}`;
+
+        // 2. Calcular valor flutuante total baseado no número de vistorias com detranRegistrado === true no mês corrente
+        let totalTaxas = 0;
+        const monthlyOSs = db.ordens_servico.filter(o => 
+            o.unidadeId === activeUnitId && 
+            o.detranRegistrado === true &&
+            o.status && o.status.startsWith('concluida') && 
+            o.criadoEm && o.criadoEm.startsWith(`${year}-${monthNum}`)
+        );
+
+        monthlyOSs.forEach(o => {
+            const ref = db.taxas_referencia.find(t => t.servicoId === o.servicoId);
+            const rate = ref ? (parseFloat(ref.taxa) || 0) : 27.00;
+            totalTaxas += rate;
+        });
+
+        // 3. Buscar se já existe uma provisão para este mês/ano e unidade
+        const existingPayable = db.contas_pagar.find(c => 
+            c.unidadeId === activeUnitId && 
+            c.descricao === targetDesc
+        );
+
+        // O vencimento é o dia 10 do mês seguinte
+        let nextMonth = now.getMonth() + 1;
+        let nextYear = now.getFullYear();
+        if (nextMonth > 11) {
+            nextMonth = 0;
+            nextYear++;
+        }
+        const nextMonthNum = String(nextMonth + 1).padStart(2, '0');
+        const dueDate = `${nextYear}-${nextMonthNum}-10`;
+
+        if (existingPayable) {
+            // Se existir e não estiver paga, atualiza se o valor mudou
+            if (!existingPayable.pago) {
+                if (existingPayable.valor !== totalTaxas) {
+                    console.log(`[DETRAN Sincronizador] Atualizando valor da conta de provisão para: ${totalTaxas}`);
+                    existingPayable.valor = totalTaxas;
+                    
+                    if (window.useSupabase) {
+                        await supabaseClient.from('contas_pagar')
+                            .update({ valor: totalTaxas })
+                            .eq('id', existingPayable.id)
+                            .catch(err => console.error('[DETRAN Sincronizador] Erro Supabase:', err));
+                    }
+                    cacheUpdate('contas_pagar', existingPayable.id, { valor: totalTaxas });
+                }
+            }
+        } else {
+            // Se não existir e o valor acumulado for maior que zero, cria a provisão
+            if (totalTaxas > 0) {
+                console.log(`[DETRAN Sincronizador] Criando nova conta de provisão no valor de: ${totalTaxas}`);
+                const newPayable = {
+                    unidadeId: activeUnitId,
+                    descricao: targetDesc,
+                    tipo: "variavel",
+                    vencimento: dueDate,
+                    valor: totalTaxas,
+                    pago: false,
+                    pagoEm: null,
+                    categoria: "Impostos / Taxas",
+                    fornecedor: "DETRAN-SC",
+                    comprovante: null,
+                    criadoPor: "Sistema (Automático)"
+                };
+
+                if (window.useSupabase) {
+                    const { data, error } = await supabaseClient.from('contas_pagar')
+                        .insert(newPayable)
+                        .select()
+                        .single();
+                    if (!error && data) {
+                        const normalized = normalizeRecord('contas_pagar', data);
+                        cacheInsert('contas_pagar', normalized);
+                    } else {
+                        console.error('[DETRAN Sincronizador] Erro de inserção Supabase:', error);
+                    }
+                } else {
+                    const arr = db.contas_pagar || [];
+                    newPayable.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
+                    cacheInsert('contas_pagar', newPayable);
+                    if (typeof saveDatabase === 'function') saveDatabase();
+                }
+            }
+        }
+    } catch (e) {
+        console.error("[DETRAN Sincronizador] Falha crítica na execução:", e);
+    }
+};
+
 
 
 
