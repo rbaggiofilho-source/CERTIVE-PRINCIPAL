@@ -3816,8 +3816,10 @@ function renderCaixaMovimentos(activeCaixa) {
     
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
-        const osDate = getLocalDateString(os.criadoEm);
-        return osDate === activeCaixa.data && 
+        const osDateLocal = getLocalDateString(os.criadoEm);
+        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
+        const isSameDay = osDateLocal === activeCaixa.data || osDateUTC === activeCaixa.data;
+        return isSameDay && 
                os.unidadeId === activeCaixa.unidadeId && 
                os.status !== 'cancelada' && 
                os.formaPagamento === 'isento';
@@ -3969,8 +3971,10 @@ function generateCashierPdfData(c) {
 
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
-        const osDate = getLocalDateString(os.criadoEm);
-        return osDate === c.data && 
+        const osDateLocal = getLocalDateString(os.criadoEm);
+        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
+        const isSameDay = osDateLocal === c.data || osDateUTC === c.data;
+        return isSameDay && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
                os.formaPagamento === 'isento';
@@ -4486,8 +4490,10 @@ function printCaixaById(caixaId) {
 
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
-        const osDate = getLocalDateString(os.criadoEm);
-        return osDate === c.data && 
+        const osDateLocal = getLocalDateString(os.criadoEm);
+        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
+        const isSameDay = osDateLocal === c.data || osDateUTC === c.data;
+        return isSameDay && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
                os.formaPagamento === 'isento';
