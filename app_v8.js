@@ -5217,8 +5217,23 @@ function renderContasKPIs() {
     const todayStr = new Date().toISOString().split('T')[0];
     const currentMonthStr = todayStr.substring(0, 7); // Ex: "2026-07"
 
-    // 1. Contas do mês atual (vencimento no mês atual)
-    const contasDoMes = list.filter(c => c.vencimento && c.vencimento.startsWith(currentMonthStr));
+    // Provisão específica do faturamento do mês atual (independente de vencer no mês seguinte)
+    const meses = {
+        '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+        '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+        '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+    };
+    const currentMonthLabel = meses[currentMonthStr.substring(5, 7)];
+    const currentYearLabel = currentMonthStr.substring(0, 4);
+    const currentProvisionDesc = `Taxas DETRAN-SC — Provisão ${currentMonthLabel}/${currentYearLabel}`;
+
+    // 1. Contas do mês atual (vencimento no mês atual OU provisão flutuante faturada no mês atual)
+    const contasDoMes = list.filter(c => {
+        if (!c.vencimento) return false;
+        if (c.vencimento.startsWith(currentMonthStr)) return true;
+        if (c.descricao === currentProvisionDesc) return true;
+        return false;
+    });
     
     const totalMes = contasDoMes.reduce((sum, c) => sum + c.valor, 0);
     const pagoMes = contasDoMes.filter(c => c.pago).reduce((sum, c) => sum + c.valor, 0);
@@ -6298,9 +6313,9 @@ function renderBI() {
     const nonCancelledOSs = OSs.filter(o => o.status !== 'cancelada');
     const osCount = nonCancelledOSs.length;
 
-    // Custos e Despesas
+    // Custos e Despesas (exclui lançamentos manuais do DETRAN para não duplicar com o cálculo de taxas das OSs)
     const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-    const variableExpensesVal = Expenses.filter(c => c.tipo === 'variavel' || c.tipo === 'variável').reduce((sum, c) => sum + c.valor, 0);
+    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
     
     // Taxas operacionais do DETRAN
     const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
@@ -12308,6 +12323,26 @@ window.syncDetranFloatingPayable = async function() {
     if (typeof activeUnitId === 'undefined' || !activeUnitId) return;
     if (!db || !db.ordens_servico || !db.contas_pagar) return;
 
+    // Função interna para obter o 5º dia útil do mês subsequente (desconsiderando finais de semana)
+    function getFifthWorkingDay(year, month) {
+        // month é 0-indexed: 0 = Jan, 1 = Fev, etc.
+        let date = new Date(year, month, 1);
+        let workingDaysCount = 0;
+        while (workingDaysCount < 5) {
+            const dayOfWeek = date.getDay(); // 0 = Domingo, 6 = Sábado
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                workingDaysCount++;
+            }
+            if (workingDaysCount < 5) {
+                date.setDate(date.getDate() + 1);
+            }
+        }
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
     try {
         // 1. Obter mês e ano de faturamento correntes
         let now = new Date();
@@ -12346,15 +12381,14 @@ window.syncDetranFloatingPayable = async function() {
             c.descricao === targetDesc
         );
 
-        // O vencimento é o dia 10 do mês seguinte
+        // O vencimento é o 5º dia útil do mês seguinte
         let nextMonth = now.getMonth() + 1;
         let nextYear = now.getFullYear();
         if (nextMonth > 11) {
             nextMonth = 0;
             nextYear++;
         }
-        const nextMonthNum = String(nextMonth + 1).padStart(2, '0');
-        const dueDate = `${nextYear}-${nextMonthNum}-10`;
+        const dueDate = getFifthWorkingDay(nextYear, nextMonth);
 
         if (existingPayable) {
             // Se existir e não estiver paga, atualiza se o valor mudou
