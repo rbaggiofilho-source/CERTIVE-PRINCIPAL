@@ -989,7 +989,10 @@
                                 <!-- JS -->
                             </select>
                         </div>
-                        <div style="margin-left: auto; display: flex; align-items: flex-end;">
+                        <div style="margin-left: auto; display: flex; align-items: flex-end; gap: 12px;">
+                            <button class="btn btn-secondary" id="btn-fat-credito" onclick="openCreditoCortesiaModal()" style="display: none;">
+                                <i class="ri-refund-2-line"></i> Lançar Crédito/Cortesia
+                            </button>
                             <button class="btn btn-primary" onclick="openGirarFaturaModal()">
                                 <i class="ri-folder-zip-line"></i> Fechar Lote & Gerar Fatura
                             </button>
@@ -2014,13 +2017,62 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Vistorias Selecionadas (<span id="fat-modal-qtd">0</span>)</label>
-                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-weight: 700; color: var(--success); font-size: 16px;">
-                        Valor Total Consolidado: <span id="fat-modal-total">R$ 0,00</span>
+                    <label>Resumo Financeiro do Lote</label>
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary);">
+                            <span>Total Bruto (Vistorias <span id="fat-modal-qtd">0</span>):</span>
+                            <span id="fat-modal-total-bruto" style="font-weight: 600;">R$ 0,00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--danger);">
+                            <span>Créditos/Cortesias Disponíveis:</span>
+                            <span id="fat-modal-total-creditos" style="font-weight: 600;">- R$ 0,00</span>
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid var(--border); margin: 6px 0;">
+                        <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; color: var(--success);">
+                            <span>Valor Líquido da Fatura:</span>
+                            <span id="fat-modal-total-liquido">R$ 0,00</span>
+                        </div>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 12px;">
                     <i class="ri-check-double-line"></i> Fechar Lote & Registrar Fatura
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE LANÇAMENTO DE CRÉDITO/CORTESIA ===== -->
+<div class="modal-overlay" id="modal-fat-credito" onclick="closeCreditoCortesiaModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3>Lançar Crédito ou Cortesia</h3>
+            <button class="modal-close" onclick="closeCreditoCortesiaModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="fat-credito-form" onsubmit="submitCreditoCortesiaForm(event)">
+                <div class="form-group">
+                    <label>Parceiro Conveniado</label>
+                    <input type="text" id="cred-modal-parceiro-nome" readonly style="background: var(--bg-secondary); border-color: var(--border);">
+                    <input type="hidden" id="cred-modal-parceiro-id">
+                </div>
+                <div class="form-group">
+                    <label for="cred-modal-tipo">Tipo de Lançamento</label>
+                    <select id="cred-modal-tipo" required>
+                        <option value="credito">Crédito (Pagamento Adiantado / Abatimento)</option>
+                        <option value="cortesia">Cortesia (Desconto / Bonificação)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cred-modal-valor">Valor (R$)</label>
+                    <input type="number" step="0.01" id="cred-modal-valor" required placeholder="0,00" min="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="cred-modal-desc">Descrição / Motivo</label>
+                    <input type="text" id="cred-modal-desc" placeholder="Ex: Pix adiantamento 24/07, Cortesia OS cortada, etc." required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700; margin-top: 12px;">
+                    <i class="ri-check-line"></i> Registrar Lançamento
                 </button>
             </form>
         </div>

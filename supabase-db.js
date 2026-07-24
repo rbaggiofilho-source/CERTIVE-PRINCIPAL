@@ -14,7 +14,8 @@ const DECIMAL_FIELDS = {
     caixa_movimentos: ['valor'],
     contas_pagar: ['valor'],
     faturas: ['valorTotal'],
-    parceiros: ['precoCombo', 'precoComboTransferencia']
+    parceiros: ['precoCombo', 'precoComboTransferencia'],
+    parceiros_creditos: ['valor']
 };
 
 /**
@@ -248,7 +249,8 @@ async function loadAllFromSupabase() {
             auditoria: true,
             solicitantes_parceiros: true,
             portarias_uf: true,
-            metas_despesas: true
+            metas_despesas: true,
+            parceiros_creditos: true
         };
         
         const [
@@ -365,6 +367,16 @@ async function loadAllFromSupabase() {
         db.cautelares_fotos = cautelares_fotos || [];
         db.cautelares_pesquisas = cautelares_pesquisas || [];
 
+        // Tabela de Créditos/Cortesias de Parceiros - carregamento defensivo
+        let parceiros_creditos = [];
+        try {
+            parceiros_creditos = await sbSelectAll('parceiros_creditos');
+            window.onlineTables['parceiros_creditos'] = true;
+        } catch (e) {
+            console.warn("⚠️ Tabela parceiros_creditos indisponível no Supabase. Usando array vazio.", e.message);
+        }
+        db.parceiros_creditos = parceiros_creditos || [];
+
         // Process Portarias UF
         db.portarias_uf = {};
         (portarias_uf || []).forEach(p => {
@@ -396,6 +408,9 @@ async function loadAllFromSupabase() {
         db.cautelares_secoes.forEach(cs => normalizeRecord('cautelares_secoes', cs));
         db.cautelares_fotos.forEach(cf => normalizeRecord('cautelares_fotos', cf));
         db.cautelares_pesquisas.forEach(cp => normalizeRecord('cautelares_pesquisas', cp));
+        if (db.parceiros_creditos) {
+            db.parceiros_creditos.forEach(pc => normalizeRecord('parceiros_creditos', pc));
+        }
 
         console.log(`✅ Dados carregados do Supabase: ${ordens_servico.length} OSs, ${caixa_diario.length} caixas, ${faturas.length} faturas`);
         return true;

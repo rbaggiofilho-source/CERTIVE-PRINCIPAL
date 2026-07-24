@@ -4719,6 +4719,12 @@ function renderFatPendentes() {
     const tbody = document.getElementById('fat-pendentes-tbody');
     const partnerId = parseInt(document.getElementById('fat-parceiro-filter').value);
     
+    // Mostrar/ocultar botão de crédito/cortesia
+    const btnCredito = document.getElementById('btn-fat-credito');
+    if (btnCredito) {
+        btnCredito.style.display = partnerId ? 'inline-flex' : 'none';
+    }
+    
     let list = getUnbilledOSs();
     if (partnerId) {
         list = list.filter(o => o.parceiroId === partnerId);
@@ -4782,11 +4788,24 @@ function openGirarFaturaModal() {
     const partner = db.parceiros.find(p => p.id === partnerIds[0]);
     const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
 
+    // Calcular créditos/cortesias disponíveis
+    const creditosDisponiveis = (db.parceiros_creditos || []).filter(c => c.parceiroId === partner.id && !c.utilizado);
+    const totalCreditos = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
+    const liquidoVal = Math.max(0, totalVal - totalCreditos);
+
     // Populate modal
     document.getElementById('fat-modal-parceiro').value = partner.nome;
     document.getElementById('fat-modal-parceiro-id').value = partner.id;
     document.getElementById('fat-modal-qtd').textContent = selectedOSs.length;
-    document.getElementById('fat-modal-total').textContent = formatCurrency(totalVal);
+    
+    // Atualiza os novos spans financeiros
+    const elBruto = document.getElementById('fat-modal-total-bruto');
+    const elCreditos = document.getElementById('fat-modal-total-creditos');
+    const elLiquido = document.getElementById('fat-modal-total-liquido');
+    
+    if (elBruto) elBruto.textContent = formatCurrency(totalVal);
+    if (elCreditos) elCreditos.textContent = `- ${formatCurrency(totalCreditos)}`;
+    if (elLiquido) elLiquido.textContent = formatCurrency(liquidoVal);
     
     // Autofill dates (oldest and newest of selected OSs)
     const dates = selectedOSs.map(o => new Date(o.criadoEm));
@@ -4810,6 +4829,82 @@ function closeFatModal(e) {
     document.getElementById('modal-faturamento-fechar').classList.remove('active');
 }
 
+function openCreditoCortesiaModal() {
+    const partnerId = parseInt(document.getElementById('fat-parceiro-filter').value);
+    if (!partnerId) {
+        showToast("Selecione um parceiro conveniado primeiro.", "error");
+        return;
+    }
+    const partner = db.parceiros.find(p => p.id === partnerId);
+    if (!partner) return;
+
+    document.getElementById('cred-modal-parceiro-nome').value = partner.nome;
+    document.getElementById('cred-modal-parceiro-id').value = partner.id;
+    document.getElementById('cred-modal-tipo').value = "credito";
+    document.getElementById('cred-modal-valor').value = "";
+    document.getElementById('cred-modal-desc').value = "";
+
+    document.getElementById('modal-fat-credito').classList.add('active');
+}
+
+function closeCreditoCortesiaModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modal-fat-credito').classList.remove('active');
+}
+
+async function submitCreditoCortesiaForm(event) {
+    event.preventDefault();
+    const partnerId = parseInt(document.getElementById('cred-modal-parceiro-id').value);
+    const tipo = document.getElementById('cred-modal-tipo').value;
+    const valor = parseFloat(document.getElementById('cred-modal-valor').value);
+    const descricao = document.getElementById('cred-modal-desc').value.trim();
+
+    if (!partnerId || isNaN(valor) || valor <= 0 || !descricao) {
+        showToast("Preencha todos os campos corretamente.", "error");
+        return;
+    }
+
+    const newRecord = {
+        parceiroId: partnerId,
+        tipo: tipo,
+        valor: valor,
+        descricao: descricao,
+        faturaId: null,
+        utilizado: false,
+        criadoEm: new Date().toISOString(),
+        criadoPor: (window.currentSession && window.currentSession.nome) ? window.currentSession.nome : "Operador"
+    };
+
+    try {
+        showToast("Registrando lançamento...", "info");
+        let savedRecord;
+        if (window.useSupabase && window.onlineTables['parceiros_creditos']) {
+            savedRecord = await sbInsert('parceiros_creditos', newRecord);
+        } else {
+            // Modo local (localStorage)
+            const arr = db.parceiros_creditos || [];
+            newRecord.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
+            savedRecord = newRecord;
+        }
+
+        // Atualizar cache local
+        if (!db.parceiros_creditos) db.parceiros_creditos = [];
+        cacheInsert('parceiros_creditos', savedRecord);
+        if (typeof saveDatabase === 'function') saveDatabase();
+
+        showToast(`${tipo === 'credito' ? 'Crédito' : 'Cortesia'} lançado com sucesso!`, "success");
+        closeCreditoCortesiaModal();
+        
+        // Recalcular faturamento pendente
+        if (typeof renderFatPendentes === 'function') {
+            renderFatPendentes();
+        }
+    } catch (err) {
+        console.error("Erro ao registrar crédito/cortesia:", err);
+        showToast("Erro de rede ao salvar no banco online.", "error");
+    }
+}
+
 async function submitGirarFatura(event) {
     event.preventDefault();
     const partnerId = parseInt(document.getElementById('fat-modal-parceiro-id').value);
@@ -4819,6 +4914,40 @@ async function submitGirarFatura(event) {
 
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
     const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
+
+    // 1. Obter e ordenar créditos/cortesias disponíveis do parceiro (mais antigos primeiro)
+    const creditosDisponiveis = (db.parceiros_creditos || [])
+        .filter(c => c.parceiroId === partnerId && !c.utilizado)
+        .sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
+
+    let valorRestanteFatura = totalVal;
+    let creditosParaUsar = [];
+
+    creditosDisponiveis.forEach(c => {
+        if (valorRestanteFatura <= 0) return;
+
+        if (c.valor <= valorRestanteFatura) {
+            // Consome o crédito inteiro
+            creditosParaUsar.push({
+                credito: c,
+                valorUtilizado: c.valor,
+                sobra: 0
+            });
+            valorRestanteFatura -= c.valor;
+        } else {
+            // Consome parte do crédito (crédito maior que a fatura restante)
+            creditosParaUsar.push({
+                credito: c,
+                valorUtilizado: valorRestanteFatura,
+                sobra: c.valor - valorRestanteFatura
+            });
+            valorRestanteFatura = 0;
+        }
+    });
+
+    const totalCreditosAbatidos = creditosParaUsar.reduce((sum, item) => sum + item.valorUtilizado, 0);
+    const liquidoVal = Math.max(0, totalVal - totalCreditosAbatidos);
+    const pagoIntegral = (liquidoVal === 0);
 
     let finalInvoice;
     let code = "";
@@ -4831,10 +4960,10 @@ async function submitGirarFatura(event) {
             unidadeId: activeUnitId,
             periodoInicio: dateIni,
             periodoFim: dateFim,
-            valorTotal: totalVal,
+            valorTotal: liquidoVal,
             ordensIds: selectedIds,
-            pago: false,
-            pagoEm: null,
+            pago: pagoIntegral,
+            pagoEm: pagoIntegral ? new Date().toISOString() : null,
             criadoEm: new Date().toISOString(),
             criadoPor: currentSession.nome
         };
@@ -4855,53 +4984,92 @@ async function submitGirarFatura(event) {
                 faturaId: inserted.id
             });
         }
-        
-        // --- NOVO: Gerar PDF e Chamar Edge Function Asaas ---
-        try {
-            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
-            
-            // 1. Gera PDF e faz upload pro Supabase Storage
-            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
 
-            showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
-            
-            // 2. Chama a Edge Function Asaas
-            const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-                },
-                body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
-            });
-            
-            if (functionRes.ok) {
-                const functionData = await functionRes.json();
-                finalInvoice.asaas_payment_id = functionData.paymentId;
-                finalInvoice.asaas_url = functionData.url;
-                finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
+        // 4. Registrar baixa nos créditos consumidos e gerar sobras se aplicável
+        for (const item of creditosParaUsar) {
+            if (window.onlineTables['parceiros_creditos']) {
+                await sbUpdate('parceiros_creditos', item.credito.id, {
+                    utilizado: true,
+                    faturaId: inserted.id
+                });
+            }
+            item.credito.utilizado = true;
+            item.credito.faturaId = inserted.id;
+
+            if (item.sobra > 0) {
+                const sobraRecord = {
+                    parceiroId: partnerId,
+                    tipo: "credito",
+                    valor: item.sobra,
+                    descricao: `Saldo remanescente de crédito após faturamento ${code}`,
+                    faturaId: null,
+                    utilizado: false,
+                    criadoEm: new Date().toISOString(),
+                    criadoPor: currentSession.nome
+                };
+                let savedSobra;
+                if (window.onlineTables['parceiros_creditos']) {
+                    savedSobra = await sbInsert('parceiros_creditos', sobraRecord);
+                } else {
+                    const arr = db.parceiros_creditos || [];
+                    sobraRecord.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
+                    savedSobra = sobraRecord;
+                }
+                db.parceiros_creditos.push(savedSobra);
+                normalizeRecord('parceiros_creditos', savedSobra);
+            }
+        }
+        
+        // --- Gerar PDF e Chamar Edge Function Asaas se líquido > 0 ---
+        try {
+            if (!pagoIntegral) {
+                showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
                 
-                // Salva atualizações do Asaas na fatura do banco de dados
-                await sbUpdate('faturas', inserted.id, {
-                    asaas_payment_id: finalInvoice.asaas_payment_id,
-                    asaas_url: finalInvoice.asaas_url,
-                    notificacao_zap: finalInvoice.notificacao_zap
+                // 1. Gera PDF e faz upload pro Supabase Storage
+                const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+
+                showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
+                
+                // 2. Chama a Edge Function Asaas
+                const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    },
+                    body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
                 });
                 
-                showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
-            } else {
-                let errText = "Erro desconhecido";
-                try {
+                if (functionRes.ok) {
                     const functionData = await functionRes.json();
-                    errText = functionData.error || errText;
-                } catch(e) {}
-                showToast("Erro Asaas: " + errText, "error");
+                    finalInvoice.asaas_payment_id = functionData.paymentId;
+                    finalInvoice.asaas_url = functionData.url;
+                    finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
+                    
+                    // Salva atualizações do Asaas na fatura do banco de dados
+                    await sbUpdate('faturas', inserted.id, {
+                        asaas_payment_id: finalInvoice.asaas_payment_id,
+                        asaas_url: finalInvoice.asaas_url,
+                        notificacao_zap: finalInvoice.notificacao_zap
+                    });
+                    
+                    showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
+                } else {
+                    let errText = "Erro desconhecido";
+                    try {
+                        const functionData = await functionRes.json();
+                        errText = functionData.error || errText;
+                    } catch(e) {}
+                    showToast("Erro Asaas: " + errText, "error");
+                }
+            } else {
+                showToast("Fatura liquidada 100% via créditos! Gerando comprovante...", "info");
+                await generateAndUploadInvoicePDF(finalInvoice);
             }
         } catch(e) {
             console.error(e);
             showToast("Erro ao chamar Asaas / WhatsApp.", "error");
         }
-        // ----------------------------------------
         
         db.faturas.unshift(finalInvoice);
     } else {
@@ -4916,10 +5084,10 @@ async function submitGirarFatura(event) {
             unidadeId: activeUnitId,
             periodoInicio: dateIni,
             periodoFim: dateFim,
-            valorTotal: totalVal,
+            valorTotal: liquidoVal,
             ordensIds: selectedIds,
-            pago: false,
-            pagoEm: null,
+            pago: pagoIntegral,
+            pagoEm: pagoIntegral ? new Date().toISOString() : null,
             criadoEm: new Date().toISOString(),
             criadoPor: currentSession.nome
         };
@@ -4930,11 +5098,33 @@ async function submitGirarFatura(event) {
             o.faturaId = fatId;
         });
 
+        // Dar baixa nos créditos locais
+        for (const item of creditosParaUsar) {
+            item.credito.utilizado = true;
+            item.credito.faturaId = fatId;
+
+            if (item.sobra > 0) {
+                const sobraRecord = {
+                    id: (db.parceiros_creditos || []).length + 1,
+                    parceiroId: partnerId,
+                    tipo: "credito",
+                    valor: item.sobra,
+                    descricao: `Saldo remanescente de crédito após faturamento ${code}`,
+                    faturaId: null,
+                    utilizado: false,
+                    criadoEm: new Date().toISOString(),
+                    criadoPor: currentSession.nome
+                };
+                if (!db.parceiros_creditos) db.parceiros_creditos = [];
+                db.parceiros_creditos.push(sobraRecord);
+            }
+        }
+
         saveDatabase();
     }
 
     showToast(`Fatura ${code} gerada com sucesso!`, "success");
-    logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value}.`);
+    logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value} (Créditos abatidos: ${formatCurrency(totalCreditosAbatidos)}).`);
     
     closeFatModal();
     renderFaturamentoPage();
@@ -12014,6 +12204,36 @@ async function generateAndUploadInvoicePDF(f) {
         osRows = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: #666;">Nenhuma OS vinculada a esta fatura.</td></tr>`;
     }
 
+    // Créditos e descontos aplicados nesta fatura
+    const creditosAbatidos = (db.parceiros_creditos || []).filter(c => c.faturaId === f.id);
+    const totalCreditos = creditosAbatidos.reduce((sum, c) => sum + c.valor, 0);
+    const totalBruto = oss.reduce((sum, o) => sum + o.valor, 0);
+
+    let creditosHtml = '';
+    if (creditosAbatidos.length > 0) {
+        const creditosRows = creditosAbatidos.map(c => `
+            <tr style="border-bottom: 1px dotted #ffcdd2; font-size: 11px; color: #b71c1c;">
+                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${c.descricao}</td>
+                <td style="padding: 6px; text-align: right; font-weight: 600;" colspan="2">- ${formatCurrency(c.valor)}</td>
+            </tr>
+        `).join('');
+
+        creditosHtml = `
+            <div style="border: 1px solid #e53935; border-radius: 4px; overflow: hidden; margin-bottom: 30px; margin-top: 15px;">
+                <div style="font-weight: 800; font-size: 12px; background: #ffebee; color: #c62828; padding: 10px 14px; border-bottom: 1px solid #e53935;">
+                    CRÉDITOS E CORTESIAS ABATIDOS NESTA FATURA
+                </div>
+                <div style="padding: 10px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <tbody>
+                            ${creditosRows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
     const div = document.createElement('div');
     div.style.padding = '40px';
     div.style.fontFamily = 'Outfit, sans-serif';
@@ -12046,14 +12266,16 @@ async function generateAndUploadInvoicePDF(f) {
         <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
             <div>
                 <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
-                <strong>Status de Pagamento:</strong> AGUARDANDO PAGAMENTO
+                <strong>Status de Pagamento:</strong> ${f.pago ? 'PAGO / LIQUIDADO' : 'AGUARDANDO PAGAMENTO'}
             </div>
-            <div style="text-align: right; font-size: 16px; font-weight: 800;">
-                VALOR TOTAL: ${formatCurrency(f.valorTotal)}
+            <div style="text-align: right; font-size: 13px; line-height: 1.4;">
+                <strong>Bruto OSs:</strong> ${formatCurrency(totalBruto)}<br>
+                <strong>Créditos/Descontos:</strong> - ${formatCurrency(totalCreditos)}<br>
+                <span style="font-size: 16px; font-weight: 800; color: #2e7d32;">VALOR LÍQUIDO: ${formatCurrency(f.valorTotal)}</span>
             </div>
         </div>
 
-        <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 40px;">
+        <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 20px;">
             <div style="font-weight: 800; font-size: 12px; background: #eee; padding: 10px 14px; border-bottom: 1px solid #000;">
                 DEMONSTRATIVO DE SERVIÇOS PRESTADOS
             </div>
@@ -12075,6 +12297,8 @@ async function generateAndUploadInvoicePDF(f) {
                 </table>
             </div>
         </div>
+        
+        ${creditosHtml}
     `;
 
     try {

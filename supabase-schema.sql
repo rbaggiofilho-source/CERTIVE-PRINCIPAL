@@ -148,7 +148,20 @@ CREATE TABLE faturas (
   "criadoPor" TEXT NOT NULL
 );
 
--- 11. Auditoria (Trilha de Logs Gerenciais)
+-- 11. Créditos e Cortesias de Parceiros
+CREATE TABLE parceiros_creditos (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "parceiroId" BIGINT NOT NULL REFERENCES parceiros(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('credito', 'cortesia')),
+  valor DECIMAL(10,2) NOT NULL,
+  descricao TEXT,
+  "faturaId" BIGINT REFERENCES faturas(id) ON DELETE SET NULL,
+  utilizado BOOLEAN NOT NULL DEFAULT FALSE,
+  "criadoEm" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "criadoPor" TEXT NOT NULL
+);
+
+-- 12. Auditoria (Trilha de Logs Gerenciais)
 CREATE TABLE auditoria (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   operador TEXT NOT NULL,
@@ -196,6 +209,7 @@ ALTER TABLE caixa_movimentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contas_pagar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faturas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parceiros_creditos ENABLE ROW LEVEL SECURITY;
 
 -- Políticas permissivas para todas as tabelas
 CREATE POLICY "allow_all_unidades" ON unidades FOR ALL USING (true) WITH CHECK (true);
@@ -209,3 +223,4 @@ CREATE POLICY "allow_all_movimentos" ON caixa_movimentos FOR ALL USING (true) WI
 CREATE POLICY "allow_all_contas" ON contas_pagar FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_faturas" ON faturas FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_auditoria" ON auditoria FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_creditos" ON parceiros_creditos FOR ALL USING (true) WITH CHECK (true);
