@@ -12389,6 +12389,82 @@ async function gerarLaudoFinalPdf() {
         });
 }
 
+async function reabrirLaudo(placa) {
+    if (!placa) {
+        showToast("Por favor, informe a placa do veículo.", "warning");
+        return;
+    }
+    
+    try {
+        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase() === placa.toUpperCase());
+        if (!os) {
+            showToast(`Ordem de serviço não encontrada para a placa ${placa}`, "error");
+            return;
+        }
+
+        const cautelar = db.cautelares.find(c => c.osId === os.id);
+        if (!cautelar) {
+            showToast(`Vistoria Cautelar não encontrada para a OS ${os.id}`, "error");
+            return;
+        }
+
+        console.log(`Reabrindo laudo da placa ${placa} (OS: ${os.id}, Cautelar: ${cautelar.id})...`);
+        
+        os.status = 'em_execucao';
+        os.finalizadoEm = null;
+        os.finalizadoPor = null;
+        
+        cautelar.status = 'em_andamento';
+        cautelar.dadosIaConfeccionado = null;
+        cautelar.hashLaudo = null;
+        cautelar.finalizadoEm = null;
+        cautelar.finalizadoPor = null;
+        cautelar.pdfUrl = null;
+
+        const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+        const secao8 = secoes.find(s => s.numeroSecao === 8);
+        if (secao8) {
+            secao8.dadosJson = secao8.dadosJson || {};
+            secao8.dadosJson.observacaoFinal = "";
+            secao8.dadosJson.parecerFinal = "";
+            secao8.status = "pendente";
+        }
+
+        saveDatabase();
+
+        if (window.useSupabase) {
+            await Promise.all([
+                sbUpdate('cautelares', cautelar.id, {
+                    status: 'em_andamento',
+                    pdf_url: null,
+                    pdfHash: null,
+                    dataHoraFinalizacao: null,
+                    finalizadoPorId: null,
+                    dadosIaConfeccionado: null
+                }),
+                sbUpdate('ordens_servico', os.id, {
+                    status: 'em_execucao',
+                    finalizadoEm: null,
+                    finalizadoPor: null
+                }),
+                secao8 ? sbUpdate('cautelares_secoes', secao8.id, {
+                    dadosJson: secao8.dadosJson,
+                    status: 'pendente'
+                }) : Promise.resolve()
+            ]).catch(err => console.error("Erro ao sincronizar reabertura com Supabase:", err));
+        }
+
+        showToast(`Laudo da placa ${placa.toUpperCase()} reaberto com sucesso!`, "success");
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    } catch (err) {
+        console.error("Erro ao reabrir laudo:", err);
+        showToast("Erro crítico ao reabrir laudo.", "error");
+    }
+}
+window.reabrirLaudo = reabrirLaudo;
+
 /**
  * Abre a visualização resumida (modo leitura) da Cautelar.
  */
