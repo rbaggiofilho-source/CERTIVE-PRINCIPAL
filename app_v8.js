@@ -12223,20 +12223,20 @@ async function gerarLaudoFinalPdf() {
         await Promise.all([
             sbUpdate('cautelares', cautelar.id, {
                 status: cautelar.status,
-                parecer_final: cautelar.parecerFinal,
-                hash_laudo: cautelar.hashLaudo,
-                finalizado_em: cautelar.finalizadoEm,
-                finalizado_por: cautelar.finalizadoPor
+                "parecerConsolidado": cautelar.parecerFinal,
+                "pdfHash": cautelar.hashLaudo,
+                "dataHoraFinalizacao": cautelar.finalizadoEm,
+                "finalizadoPorId": currentSession.id || null
             }),
             sbUpdate('ordens_servico', os.id, {
                 status: os.status,
                 valor: os.valor,
                 observacoes: os.observacoes,
-                finalizado_em: os.finalizadoEm,
-                finalizado_por: os.finalizadoPor
+                "finalizadoEm": os.finalizadoEm,
+                "finalizadoPor": os.finalizadoPor
             }),
             sbUpdate('cautelares_secoes', secao8.id, {
-                dados_json: secao8.dadosJson,
+                "dadosJson": secao8.dadosJson,
                 status: 'completa'
             })
         ]).catch(e => console.warn("Supabase final sync warning:", e));
