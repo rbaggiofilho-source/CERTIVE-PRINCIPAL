@@ -7345,6 +7345,9 @@ function switchConfigTab(tab, btn) {
     const tabChatGPT = document.getElementById('tab-cfg-chatgpt');
     if (tabChatGPT) tabChatGPT.style.display = tab === 'chatgpt' ? 'block' : 'none';
 
+    const tabBackup = document.getElementById('tab-cfg-backup');
+    if (tabBackup) tabBackup.style.display = tab === 'backup' ? 'block' : 'none';
+
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
@@ -7362,6 +7365,44 @@ function renderConfigPage() {
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
     else if (currentConfigTab === 'auditoria') runIntegrityAudit();
     else if (currentConfigTab === 'chatgpt') renderConfigChatGPT();
+}
+
+function exportEmergencyBackup() {
+    try {
+        const backupData = {
+            versao: "1.0",
+            exportadoEm: new Date().toISOString(),
+            exportadoPor: currentSession ? currentSession.nome : "Desconhecido",
+            banco_local: db,
+            fila_sincronizacao: typeof getSyncQueue === 'function' ? getSyncQueue() : [],
+            unidadeAtivaId: activeUnitId
+        };
+        
+        const jsonStr = JSON.stringify(backupData, null, 4);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const dateStr = new Date().toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
+        const filename = `backup_certive_emergencia_${dateStr}.json`;
+        
+        const tempLink = document.createElement('a');
+        tempLink.href = url;
+        tempLink.download = filename;
+        tempLink.style.display = 'none';
+        
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(tempLink);
+            URL.revokeObjectURL(url);
+        }, 100);
+        
+        showToast("Backup de emergência exportado com sucesso!", "success");
+    } catch (e) {
+        console.error("Erro ao gerar backup de emergência:", e);
+        showToast("Erro crítico ao gerar o arquivo de backup.", "error");
+    }
 }
 
 // Config: Tabela de Preços e Taxas
@@ -8120,6 +8161,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         initDatabase();
     } else {
         console.log("🚀 Sistema carregado com sucesso via Supabase!");
+    }
+
+    // Iniciar indicador visual de sincronização offline (Fase 3)
+    if (typeof updateSyncIndicatorUI === 'function') {
+        updateSyncIndicatorUI();
+    }
+    // Tentar processar a fila se estiver online
+    if (typeof processSyncQueue === 'function' && navigator.onLine) {
+        processSyncQueue().catch(err => console.error("Erro no processamento inicial da fila de sync:", err));
     }
 
     // Sincronização inicial de taxas flutuantes do DETRAN

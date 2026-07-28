@@ -422,7 +422,12 @@ async function loadAllFromSupabase() {
             db.parceiros_creditos.forEach(pc => normalizeRecord('parceiros_creditos', pc));
         }
 
-        console.log(`✅ Dados carregados do Supabase: ${ordens_servico.length} OSs, ${caixa_diario.length} caixas, ${faturas.length} faturas`);
+        // Aplicar localmente quaisquer pendências de sincronização que ainda residam na fila local
+        if (typeof applyPendingQueueToLocalCache === 'function') {
+            applyPendingQueueToLocalCache();
+        }
+
+        console.log(`✅ Dados carregados do Supabase: ${db.ordens_servico.length} OSs, ${db.caixa_diario.length} caixas, ${db.faturas.length} faturas`);
         return true;
     } catch (error) {
         console.error('❌ Erro ao carregar dados do Supabase:', error);
@@ -606,6 +611,7 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
         } catch (error) {
             console.error(`❌ Erro no dbSave online (${table}, ${action}):`, error);
             showToast("Falha no banco online. Salvando localmente...", "warning");
+            enqueueSyncItem(table, action, recordOrUpdates, id);
         }
     }
     
@@ -652,3 +658,183 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
         return recordOrUpdates;
     }
 }
+
+// ==========================================
+// ---- SYNC QUEUE SYSTEM (Fase 3) ----
+// ==========================================
+
+function getSyncQueue() {
+    try {
+        const queueStr = localStorage.getItem('certive_sync_queue');
+        return queueStr ? JSON.parse(queueStr) : [];
+    } catch (e) {
+        console.error("Erro ao ler fila de sincronização:", e);
+        return [];
+    }
+}
+
+function saveSyncQueue(queue) {
+    try {
+        localStorage.setItem('certive_sync_queue', JSON.stringify(queue));
+        if (typeof updateSyncIndicatorUI === 'function') {
+            updateSyncIndicatorUI();
+        }
+    } catch (e) {
+        console.error("Erro ao salvar fila de sincronização:", e);
+    }
+}
+
+function enqueueSyncItem(table, action, recordOrUpdates, id = null) {
+    const queue = getSyncQueue();
+    const queueId = 'sync_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    queue.push({
+        id: queueId,
+        table,
+        action,
+        recordOrUpdates,
+        recordId: id,
+        timestamp: new Date().toISOString()
+    });
+    saveSyncQueue(queue);
+    console.log(`📥 Item enfileirado para sincronização offline: ${table} (${action})`);
+}
+
+let isProcessingSyncQueue = false;
+
+async function processSyncQueue() {
+    if (isProcessingSyncQueue) return;
+    const queue = getSyncQueue();
+    if (queue.length === 0) {
+        if (typeof updateSyncIndicatorUI === 'function') {
+            updateSyncIndicatorUI();
+        }
+        return;
+    }
+    
+    isProcessingSyncQueue = true;
+    if (typeof updateSyncIndicatorUI === 'function') {
+        updateSyncIndicatorUI(true);
+    }
+    console.log(`⏳ Iniciando processamento de ${queue.length} pendências offline...`);
+    
+    const failedItems = [];
+    
+    for (const item of queue) {
+        try {
+            if (item.action === 'insert' || item.action === 'insert_unshift') {
+                const inserted = await sbInsert(item.table, item.recordOrUpdates);
+                if (item.recordOrUpdates.id && inserted.id !== item.recordOrUpdates.id) {
+                    updateLocalReferences(item.table, item.recordOrUpdates.id, inserted.id);
+                }
+            } else if (item.action === 'update') {
+                await sbUpdate(item.table, item.recordId, item.recordOrUpdates);
+            } else if (item.action === 'delete') {
+                await sbDelete(item.table, item.recordId);
+            } else if (item.action === 'upsert_portaria') {
+                await sbUpsertPortaria(item.recordOrUpdates.uf, item.recordOrUpdates.portaria);
+            } else if (item.action === 'delete_portaria') {
+                await sbDeletePortaria(item.recordId);
+            } else if (item.action === 'upsert_metas') {
+                await sbUpsertMetas(item.recordOrUpdates.unidadeId, item.recordOrUpdates.metas);
+            }
+        } catch (err) {
+            console.error(`❌ Falha ao sincronizar item ${item.id} (${item.table}):`, err);
+            failedItems.push(item);
+        }
+    }
+    
+    saveSyncQueue(failedItems);
+    isProcessingSyncQueue = false;
+    
+    if (failedItems.length === 0) {
+        showToast("Todas as pendências offline foram sincronizadas com sucesso!", "success");
+    } else {
+        showToast(`Conexão instável: ${failedItems.length} pendências salvas para posterior sincronização.`, "warning");
+    }
+    if (typeof updateSyncIndicatorUI === 'function') {
+        updateSyncIndicatorUI();
+    }
+}
+
+function updateLocalReferences(table, tempId, realId) {
+    console.log(`🔄 Atualizando referências locais de ID temporário: ${table} (ID antigo: ${tempId} -> ID novo: ${realId})`);
+    
+    const record = (db[table] || []).find(r => r.id === tempId);
+    if (record) {
+        record.id = realId;
+    }
+    
+    if (table === 'ordens_servico') {
+        (db.caixa_movimentos || []).forEach(m => {
+            if (m.osId === tempId) m.osId = realId;
+        });
+        (db.cautelares || []).forEach(c => {
+            if (c.osId === tempId) c.osId = realId;
+        });
+    }
+    if (table === 'cautelares') {
+        (db.cautelares_secoes || []).forEach(s => {
+            if (s.cautelarId === tempId) s.cautelarId = realId;
+        });
+    }
+    
+    if (typeof saveDatabase === 'function') saveDatabase();
+}
+
+function applyPendingQueueToLocalCache() {
+    const queue = getSyncQueue();
+    if (queue.length === 0) return;
+    
+    console.log(`⚙️ Aplicando ${queue.length} pendências locais da fila sobre o cache do banco...`);
+    
+    queue.forEach(item => {
+        const table = item.table;
+        if (!db[table]) db[table] = [];
+        
+        if (item.action === 'insert' || item.action === 'insert_unshift') {
+            const exists = db[table].some(r => r.id === item.recordOrUpdates.id);
+            if (!exists) {
+                if (item.action === 'insert_unshift') {
+                    db[table].unshift(item.recordOrUpdates);
+                } else {
+                    db[table].push(item.recordOrUpdates);
+                }
+            }
+        } else if (item.action === 'update') {
+            const record = db[table].find(r => r.id === item.recordId);
+            if (record) {
+                Object.assign(record, item.recordOrUpdates);
+                normalizeRecord(table, record);
+            }
+        } else if (item.action === 'delete') {
+            db[table] = db[table].filter(r => r.id !== item.recordId);
+        }
+    });
+}
+
+function updateSyncIndicatorUI(syncing = false) {
+    const el = document.getElementById('topbar-sync-indicator');
+    if (!el) return;
+    
+    const queue = getSyncQueue();
+    const isOnline = navigator.onLine;
+    
+    if (!isOnline) {
+        el.innerHTML = `<span class="badge" style="background: var(--danger); color: #fff; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 11px; display: inline-flex; align-items: center; gap: 6px; font-weight:700;"><i class="ri-wifi-off-line"></i> Offline (${queue.length} pendentes)</span>`;
+    } else if (syncing) {
+        el.innerHTML = `<span class="badge" style="background: var(--warning); color: #000; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 11px; display: inline-flex; align-items: center; gap: 6px; font-weight:700;"><i class="ri-loader-4-line spinning"></i> Sincronizando...</span>`;
+    } else if (queue.length > 0) {
+        el.innerHTML = `<button onclick="processSyncQueue()" class="btn btn-warning btn-sm" style="padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; font-weight:700; cursor: pointer; animation: pulse 2s infinite;"><i class="ri-alert-line"></i> Sincronizar (${queue.length} pendentes)</button>`;
+    } else {
+        el.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 11px; display: inline-flex; align-items: center; gap: 6px; font-weight:700;"><i class="ri-checkbox-circle-line"></i> Nuvem Conectada</span>`;
+    }
+}
+
+// Sincronização automática ao detectar rede online
+window.addEventListener('online', () => {
+    processSyncQueue();
+});
+window.addEventListener('offline', () => {
+    updateSyncIndicatorUI();
+});
+

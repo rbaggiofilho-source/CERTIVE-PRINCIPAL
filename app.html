@@ -172,6 +172,7 @@
                         <!-- Carregado via JS -->
                     </select>
                 </div>
+                <div id="topbar-sync-indicator" style="margin-left: 16px; display: inline-flex; align-items: center;"></div>
             </div>
             <div class="topbar-right">
                 <div class="user-profile">
@@ -1558,6 +1559,7 @@
                     <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
                     <button class="tab-btn" onclick="switchConfigTab('auditoria', this)" id="btn-cfg-auditoria"><i class="ri-shield-check-line"></i> Auditoria Contábil</button>
                     <button class="tab-btn" onclick="switchConfigTab('chatgpt', this)"><i class="ri-brain-line"></i> Integração IA (ChatGPT)</button>
+                    <button class="tab-btn" onclick="switchConfigTab('backup', this)"><i class="ri-database-2-line"></i> Backup & Contingência</button>
                 </div>
 
                 <!-- Config Tab: Preços e Taxas -->
@@ -2016,6 +2018,24 @@
                                     </small>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: Backup & Contingência (Fase 3) -->
+                <div id="tab-cfg-backup" style="display: none;">
+                    <div class="panel-card" style="max-width: 600px; margin-bottom: 24px;">
+                        <div class="panel-card-header">
+                            <h3><i class="ri-database-2-line" style="color: var(--accent);"></i> Cópia de Segurança Local (Contingência)</h3>
+                        </div>
+                        <div class="panel-card-body" style="padding: 20px;">
+                            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px;">
+                                Use esta ferramenta para baixar um backup JSON completo de todos os dados do sistema mantidos no navegador. Em caso de falha prolongada de rede ou do servidor online, você poderá salvar o estado atualizado dos atendimentos locais de forma preventiva.
+                            </p>
+                            
+                            <button class="btn btn-primary" onclick="exportEmergencyBackup()" style="width: 100%; height: 44px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                                <i class="ri-download-cloud-line" style="font-size: 18px;"></i> Fazer Backup de Emergência (JSON)
+                            </button>
                         </div>
                     </div>
                 </div>
