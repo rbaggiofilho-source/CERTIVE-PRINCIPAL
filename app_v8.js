@@ -413,6 +413,24 @@ function initDatabase() {
 }
 
 function saveDatabase() {
+    // Limpeza preventiva de Base64 de alta resolução para evitar QuotaExceededError
+    if (db && db.cautelares_fotos && db.cautelares_fotos.length > 0) {
+        db.cautelares_fotos.forEach(f => {
+            if (f.urlOriginal && f.urlOriginal.startsWith('data:image') && f.urlOriginal.length > 50000) {
+                f.urlOriginal = '';
+            }
+            if (f.url_original && f.url_original.startsWith('data:image') && f.url_original.length > 50000) {
+                f.url_original = '';
+            }
+            if (f.urlThumb && f.urlThumb.startsWith('data:image') && f.urlThumb.length > 50000) {
+                f.urlThumb = '';
+            }
+            if (f.url_thumb && f.url_thumb.startsWith('data:image') && f.url_thumb.length > 50000) {
+                f.url_thumb = '';
+            }
+        });
+    }
+
     try {
         localStorage.setItem('certive_db', JSON.stringify(db));
     } catch (e) {
@@ -12161,71 +12179,88 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
         }
 
         showToast("Enviando dados do laudo para análise técnica do ChatGPT...", "info");
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${config.chaveOpenAi}`
-            },
-            body: JSON.stringify({
-                model: config.modeloOpenAi || "gpt-4o-mini",
-                response_format: { type: "json_object" },
-                messages: [
-                    {
-                        role: "system",
-                        content: config.promptInstrucoes || getDefaultOpenAIPrompt()
-                    },
-                    {
-                        role: "user",
-                        content: contentPayload
-                    }
-                ]
-            })
-        });
-
-        if (response.ok) {
-            const resData = await response.json();
-            const rawJson = resData.choices[0]?.message?.content;
-            if (rawJson) {
-                const aiResult = JSON.parse(rawJson);
-                if (aiResult.status === "sucesso" && aiResult.fields) {
-                    cautelar.dadosIaConfeccionado = {
-                        fields: aiResult.fields,
-                        photo_assignments: aiResult.photo_assignments || {},
-                        fotosMapTemp: fotosMapTemp
-                    };
-
-                    if (aiResult.fields['final.opinion_text']) {
-                        const obsTextarea = document.getElementById('caut-final-obs');
-                        if (obsTextarea) {
-                            obsTextarea.value = aiResult.fields['final.opinion_text'];
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
+        
+        try {
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                signal: controller.signal,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${config.chaveOpenAi}`
+                },
+                body: JSON.stringify({
+                    model: config.modeloOpenAi || "gpt-4o-mini",
+                    response_format: { type: "json_object" },
+                    messages: [
+                        {
+                            role: "system",
+                            content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                        },
+                        {
+                            role: "user",
+                            content: contentPayload
                         }
-                    }
-                    if (aiResult.fields['final.status']) {
-                        const parecerSelect = document.getElementById('caut-final-parecer');
-                        if (parecerSelect) {
-                            const val = aiResult.fields['final.status'].toUpperCase();
-                            if (val.includes("RESSALVA")) {
-                                parecerSelect.value = "com_ressalvas";
-                            } else if (val.includes("NÃO CONFORME") || val.includes("REPROVAD")) {
-                                parecerSelect.value = "nao_conforme";
-                            } else {
-                                parecerSelect.value = "conforme";
+                    ]
+                })
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+                const resData = await response.json();
+                const rawJson = resData.choices[0]?.message?.content;
+                if (rawJson) {
+                    const aiResult = JSON.parse(rawJson);
+                    if (aiResult.status === "sucesso" && aiResult.fields) {
+                        cautelar.dadosIaConfeccionado = {
+                            fields: aiResult.fields,
+                            photo_assignments: aiResult.photo_assignments || {},
+                            fotosMapTemp: fotosMapTemp
+                        };
+
+                        if (aiResult.fields['final.opinion_text']) {
+                            const obsTextarea = document.getElementById('caut-final-obs');
+                            if (obsTextarea) {
+                                obsTextarea.value = aiResult.fields['final.opinion_text'];
                             }
                         }
-                    }
+                        if (aiResult.fields['final.status']) {
+                            const parecerSelect = document.getElementById('caut-final-parecer');
+                            if (parecerSelect) {
+                                const val = aiResult.fields['final.status'].toUpperCase();
+                                if (val.includes("RESSALVA")) {
+                                    parecerSelect.value = "com_ressalvas";
+                                } else if (val.includes("NÃO CONFORME") || val.includes("REPROVAD")) {
+                                    parecerSelect.value = "nao_conforme";
+                                } else {
+                                    parecerSelect.value = "conforme";
+                                }
+                            }
+                        }
 
-                    saveDatabase();
-                    showToast("Laudo confeccionado com sucesso pelo ChatGPT!", "success");
-                } else {
-                    console.warn("Resposta da IA com status de falha ou campos vazios:", aiResult);
-                    showToast("ChatGPT retornou dados incompletos. Usando fallback técnico.", "warning");
+                        saveDatabase();
+                        showToast("Laudo confeccionado com sucesso pelo ChatGPT!", "success");
+                    } else {
+                        console.warn("Resposta da IA com status de falha ou campos vazios:", aiResult);
+                        showToast("ChatGPT retornou dados incompletos. Usando fallback técnico.", "warning");
+                    }
                 }
+            } else {
+                const errText = await response.text();
+                console.error(`Erro da API da OpenAI (${response.status}):`, errText);
+                showToast(`IA Indisponível (Erro ${response.status}). O laudo será gerado por fallback local.`, "warning");
             }
-        } else {
-            const errText = await response.text();
-            console.error(`Erro da API da OpenAI (${response.status}):`, errText);
-            showToast(`IA Indisponível (Erro ${response.status}). O laudo será gerado por fallback local.`, "warning");
+        } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            if (fetchErr.name === 'AbortError') {
+                console.warn("Timeout de 45s excedido na chamada da OpenAI.");
+                showToast("Tempo limite de resposta da IA excedido (conexão lenta). O laudo continuará de forma manual.", "warning");
+            } else {
+                throw fetchErr;
+            }
         }
     } catch (err) {
         console.error("Erro na análise por IA (background):", err);
@@ -13521,39 +13556,60 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
         const maxFotos = 12;
         const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
         
-        fotosParaEnviar.forEach((foto) => {
-            contentPayload.push({
-                type: "image_url",
-                image_url: {
-                    url: foto.url_original
-                }
-            });
-        });
-
-        // 1. Etapa de Validação
-        if (loadingText) loadingText.textContent = `Etapa 1/4: Enviando checklist e ${fotosParaEnviar.length} imagens...`;
-
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${config.chaveOpenAi}`
-            },
-            body: JSON.stringify({
-                model: config.modeloOpenAi || "gpt-4o-mini",
-                response_format: { type: "json_object" },
-                messages: [
-                    {
-                        role: "system",
-                        content: config.promptInstrucoes || getDefaultOpenAIPrompt()
-                    },
-                    {
-                        role: "user",
-                        content: contentPayload
+        // 1. Etapa de Validação: Compactando fotos
+        if (loadingText) loadingText.textContent = `Etapa 1/4: Compactando e carregando ${fotosParaEnviar.length} imagens...`;
+        
+        for (let index = 0; index < fotosParaEnviar.length; index++) {
+            const foto = fotosParaEnviar[index];
+            const base64Data = await imageToAiBase64(foto.url_original);
+            if (base64Data) {
+                contentPayload.push({
+                    type: "image_url",
+                    image_url: {
+                        url: base64Data
                     }
-                ]
-            })
-        });
+                });
+            }
+        }
+
+        if (loadingText) loadingText.textContent = `Etapa 2/4: Enviando dados ao ChatGPT...`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
+
+        let response;
+        try {
+            response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                signal: controller.signal,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${config.chaveOpenAi}`
+                },
+                body: JSON.stringify({
+                    model: config.modeloOpenAi || "gpt-4o-mini",
+                    response_format: { type: "json_object" },
+                    messages: [
+                        {
+                            role: "system",
+                            content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                        },
+                        {
+                            role: "user",
+                            content: contentPayload
+                        }
+                    ]
+                })
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            if (fetchErr.name === 'AbortError') {
+                throw new Error("Tempo limite de resposta excedido (conexão lenta).");
+            } else {
+                throw fetchErr;
+            }
+        }
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
