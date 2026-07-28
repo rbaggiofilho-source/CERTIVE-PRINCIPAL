@@ -11952,10 +11952,185 @@ function atualizarPreviewLaudo_old() {
     }, 100);
 }
 
+async function analisarLaudoComIAInvisivel() {
+    const cautelarId = window.activeFinalizacaoCautelarId;
+    if (!cautelarId) return;
+
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
+    if (!config || !config.chaveOpenAi) {
+        console.log("Integração ChatGPT não configurada. Prosseguindo com redação manual.");
+        return;
+    }
+
+    try {
+        const cautelar = db.cautelares.find(c => c.id === cautelarId);
+        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+        const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
+
+        const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
+        const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
+        const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
+        const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
+        const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
+        const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
+        const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
+        const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
+
+        // Coletar as fotos
+        const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
+        const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
+
+        let checklistText = `DADOS DO VEÍCULO:
+- Placa: ${os.placa || 'N/A'}
+- Marca/Modelo: ${os.clienteNome || 'N/A'}
+- Ano Fabricação/Modelo: ${os.fabricacaoAno || 'N/A'}/${os.modeloAno || 'N/A'}
+- Cor: ${os.cor || 'N/A'}
+- Chassi OS: ${os.renavam || 'N/A'}
+- Motor OS: ${os.chassi || 'N/A'}
+
+SEÇÃO I: IDENTIFICAÇÃO DO VEÍCULO
+- Quilometragem lida: ${dataSec1.quilometragem || 'N/A'} km
+- Placa confere com CRLV: ${dataSec1.placaConfere || 'sim'}
+- Estado geral de conservação: ${dataSec1.estadoConservacao || 'N/A'}
+- Observações da identificação: ${dataSec1.observacao || 'Nenhum'}
+
+SEÇÃO II: CHASSI E MOTOR
+- Chassi Lido no veículo: ${dataSec2.chassiLido || 'N/A'}
+- Motor Lido no veículo: ${dataSec2.motorLido || 'N/A'}
+- Gravação de Chassi Original: ${dataSec2.chassiOriginal !== false ? 'SIM' : 'NÃO'}
+- Gravação de Motor Original: ${dataSec2.motorOriginal !== false ? 'SIM' : 'NÃO'}
+- Etiquetas ETA Preservadas: ${dataSec2.etiquetasEtaOriginais !== false ? 'SIM' : 'NÃO'}
+- Observações de Chassi/Motor: ${dataSec2.observacao || 'Nenhum'}
+
+SEÇÃO III: ESTRUTURA GERAL
+- Indícios de Enchente: ${dataSec3.indicioEnchente || 'nao'} (Detalhes: ${dataSec3.obsEnchente || 'N/A'})
+- Indícios de Batida / Deformação: ${dataSec3.indicioBatida || 'nao'} (Detalhes: ${dataSec3.obsBatida || 'N/A'})
+- Parecer Estrutural: ${dataSec3.parecerEstrutural || 'conforme'}
+- Observações estruturais: ${dataSec3.observacao || 'Nenhum'}
+
+SEÇÃO IV: ESPESSURA DA PINTURA
+- Dados de espessura de pintura lidos nos painéis (medidas em micras):
+`;
+
+        const paineisNomes = [
+            "Capô", "Teto", "Tampa traseira",
+            "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
+            "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
+            "Coluna A esquerda", "Coluna A direita",
+            "Coluna B esquerda", "Coluna B direita",
+            "Coluna C esquerda", "Coluna C direita"
+        ];
+        paineisNomes.forEach((nome, idx) => {
+            const val = dataSec4[`painel_${idx}`] || '';
+            const status = dataSec4[`painel_${idx}_status`] || 'normal';
+            if (val) {
+                checklistText += `  * ${nome}: ${val} micras (${status.toUpperCase()})\n`;
+            }
+        });
+
+        checklistText += `
+SEÇÃO V: ITENS DE SEGURANÇA E VIDROS
+- Pneus confere: ${dataSec5.pneusConfere !== false ? 'SIM' : 'NÃO'}
+- Rodas confere: ${dataSec5.rodasConfere !== false ? 'SIM' : 'NÃO'}
+- Estepe confere: ${dataSec5.estepeConfere !== false ? 'SIM' : 'NÃO'}
+- Parabrisa original: ${dataSec5.parabrisaOriginal !== false ? 'SIM' : 'NÃO'}
+- Vidros laterais originais: ${dataSec5.vidrosLateraisOriginais !== false ? 'SIM' : 'NÃO'}
+- Vigia original: ${dataSec5.vigiaOriginal !== false ? 'SIM' : 'NÃO'}
+- Observações de segurança/vidros: ${dataSec5.observacao || 'Nenhum'}
+
+SEÇÃO VI: DIAGNÓSTICO DE SUSPENSÃO, FREIOS E ESCAPAMENTO
+- Estado Suspensao: ${dataSec6.estadoSuspensao || 'N/A'}
+- Estado Freios: ${dataSec6.estadoFreios || 'N/A'}
+- Estado Escapamento: ${dataSec6.estadoEscapamento || 'N/A'}
+- Vazamento de fluidos: ${dataSec6.vazamentoFluidos || 'nao'}
+- Observações: ${dataSec6.observacao || 'Nenhum'}
+
+SEÇÃO VII: DIAGNÓSTICO DO SISTEMA ELÉTRICO E ELETRÔNICO
+- Painel de Instrumentos: ${dataSec7.painelInstrumentos || 'N/A'}
+- Iluminação Externa: ${dataSec7.iluminaçãoExterna || 'N/A'}
+- Funcionamento Vidros Elétricos: ${dataSec7.funcionamentoVidrosElétricos || 'N/A'}
+- Ar Condicionado: ${dataSec7.arCondicionado || 'N/A'}
+- Scanner de erros OBD: ${dataSec7.scannerErros || 'N/A'}
+- Observações: ${dataSec7.observacao || 'Nenhum'}
+
+SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
+- Histórico de Leilão: ${dataSec8.historicoLeilao || 'nao'}
+- Histórico de Sinistro: ${dataSec8.historicoSinistro || 'nao'}
+- Histórico de Roubo/Furto: ${dataSec8.historicoRouboFurto || 'nao'}
+- Débitos/Multas pendentes: ${dataSec8.debitoMultas || 'nao'}
+- Restrição Judicial/Administrativa: ${dataSec8.restricaoJudicial || 'nao'}
+- Observações de histórico/documentos: ${dataSec8.observacaoFinal || 'Nenhum'}
+`;
+
+        const contentPayload = [
+            {
+                type: "text",
+                text: `Analise a seguinte vistoria cautelar e as imagens do veículo. Com base nos dados e fotos fornecidos, recomende um parecer final técnico e gere um parágrafo detalhado descrevendo o laudo técnico do veículo.\n\nCHECKLIST DA VISTORIA:\n${checklistText}`
+            }
+        ];
+
+        const maxFotos = 12;
+        const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
+        
+        fotosParaEnviar.forEach((foto) => {
+            contentPayload.push({
+                type: "image_url",
+                image_url: {
+                    url: foto.url_original
+                }
+            });
+        });
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${config.chaveOpenAi}`
+            },
+            body: JSON.stringify({
+                model: config.modeloOpenAi || "gpt-4o-mini",
+                response_format: { type: "json_object" },
+                messages: [
+                    {
+                        role: "system",
+                        content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                    },
+                    {
+                        role: "user",
+                        content: contentPayload
+                    }
+                ]
+            })
+        });
+
+        if (response.ok) {
+            const resData = await response.json();
+            const rawJson = resData.choices[0]?.message?.content;
+            if (rawJson) {
+                const aiResult = JSON.parse(rawJson);
+                if (aiResult.observacao) {
+                    const obsTextarea = document.getElementById('caut-final-obs');
+                    if (obsTextarea) {
+                        obsTextarea.value = aiResult.observacao;
+                    }
+                }
+                if (aiResult.parecer_final) {
+                    const parecerSelect = document.getElementById('caut-final-parecer');
+                    if (parecerSelect) {
+                        parecerSelect.value = aiResult.parecer_final;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Erro na análise por IA (background):", err);
+    }
+}
+
 /**
  * Emite o laudo finalizando o status da vistoria, gera o Hash SHA-256 e exporta para PDF.
  */
-function gerarLaudoFinalPdf() {
+async function gerarLaudoFinalPdf() {
     const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
     if (!cautelar) return;
 
@@ -11968,15 +12143,26 @@ function gerarLaudoFinalPdf() {
         return;
     }
 
-    const parecerFinal = document.getElementById('caut-final-parecer').value;
-    const obsFinal = document.getElementById('caut-final-obs').value;
-
     const confirmMsg = "Deseja realmente gerar a versão final e selada deste laudo PDF? Esta ação registrará as assinaturas e o hash na blockchain interna.";
     if (!confirm(confirmMsg)) return;
 
-    // 1. Gera Hash Único do laudo (SHA-256 simulado)
+    // Desabilitar o botão de emissão e mostrar loader
+    const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
+    const originalText = emitirBtn ? emitirBtn.innerHTML : "";
+    if (emitirBtn) {
+        emitirBtn.disabled = true;
+        emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> PROCESSANDO LAUDO POR IA...`;
+    }
+
+    // 1. Chamar a IA de forma invisível para preencher a redação pericial antes da geração do PDF
+    showToast("Processando parecer técnico do laudo com IA...", "info");
+    await analisarLaudoComIAInvisivel();
+
+    const parecerFinal = document.getElementById('caut-final-parecer').value;
+    const obsFinal = document.getElementById('caut-final-obs').value;
+
+    // 2. Gera Hash Único do laudo (SHA-256 simulado)
     const seed = `${os.placa}_${cautelar.dossieNumero}_${new Date().toISOString()}`;
-    // Simple hash function for client-side
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
         hash = (hash << 5) - hash + seed.charCodeAt(i);
@@ -12000,7 +12186,6 @@ function gerarLaudoFinalPdf() {
             os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
             os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
             
-            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
             if (os.pago && os.formaPagamento !== 'faturamento') {
                 const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
                 if (mov) {
@@ -12033,9 +12218,9 @@ function gerarLaudoFinalPdf() {
 
     saveDatabase();
 
-    // 2. Sincroniza com o Supabase online
+    // Sincroniza com o Supabase online
     if (window.useSupabase) {
-        Promise.all([
+        await Promise.all([
             sbUpdate('cautelares', cautelar.id, {
                 status: cautelar.status,
                 parecer_final: cautelar.parecerFinal,
@@ -12059,7 +12244,7 @@ function gerarLaudoFinalPdf() {
 
     logAudit("Finalizar Cautelar", `Finalizou laudo cautelar da placa ${os.placa} com parecer ${parecerFinal.toUpperCase()} e gerou PDF.`);
 
-    // 3. Renderiza a visualização final e exporta para PDF usando pdf-lib AcroForm
+    // Renderiza a visualização final e exporta para PDF usando pdf-lib AcroForm
     atualizarPreviewLaudo();
     showToast("Gerando PDF com template oficial...", "info");
 
@@ -12111,6 +12296,12 @@ function gerarLaudoFinalPdf() {
                     showToast("Erro ao exportar PDF.", "error");
                     fecharFinalizacaoDesktop();
                 });
+        })
+        .finally(() => {
+            if (emitirBtn) {
+                emitirBtn.disabled = false;
+                emitirBtn.innerHTML = originalText;
+            }
         });
 }
 

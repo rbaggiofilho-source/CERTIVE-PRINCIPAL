@@ -597,31 +597,6 @@
                             <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">Revise as conformidades e emita o laudo em PDF para o cliente.</p>
                         </div>
 
-                        <!-- Análise Inteligente via IA -->
-                        <div class="panel-card" id="cautelar-ia-card" style="background: linear-gradient(135deg, rgba(201, 169, 97, 0.05) 0%, rgba(201, 169, 97, 0.12) 100%); border: 1px dashed var(--accent); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(201, 169, 97, 0.08);">
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="ri-sparkling-2-line" style="color: var(--accent); font-size: 20px;"></i>
-                                    <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--accent); letter-spacing: 0.5px;">Análise por IA (ChatGPT)</span>
-                                </div>
-                                <span id="ia-status-badge" style="font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text-secondary);">Não Iniciada</span>
-                            </div>
-                            <p style="font-size: 11px; margin: 0; color: var(--text-secondary); line-height: 1.4;">
-                                A IA analisará todas as fotos anexadas às seções e as conformidades do checklist para propor o parecer e a descrição técnica.
-                            </p>
-                            <button type="button" class="btn btn-primary btn-sm" id="btn-cautelar-ia-analisar" onclick="analisarLaudoComIA()" style="width: 100%; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent); border-color: var(--accent); color: var(--bg-sidebar); box-shadow: 0 4px 10px rgba(201, 169, 97, 0.2);">
-                                <i class="ri-sparkling-line"></i> Iniciar Análise Inteligente
-                            </button>
-                            <!-- Spinner de carregamento da IA -->
-                            <div id="cautelar-ia-loading" style="display: none; align-items: center; justify-content: center; gap: 10px; padding: 6px 0;">
-                                <div class="spinner-ia" style="width: 16px; height: 16px; border: 2px solid rgba(201, 169, 97, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                                <span style="font-size: 11px; font-weight: 600; color: var(--accent);" id="cautelar-ia-loading-text">Processando imagens e dados...</span>
-                            </div>
-                            <!-- Feed de alertas e inconsistências encontrados -->
-                            <div id="ia-alertas-container" style="display: none; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: var(--radius-sm); border: 1px solid rgba(201, 169, 97, 0.15);">
-                                <!-- Injetado via JS -->
-                            </div>
-                        </div>
 
                         <!-- Formulário de Parecer -->
                         <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
