@@ -740,20 +740,24 @@ function atualizarPreviewLaudo() {
         html += `</div>`;
         previewContainer.innerHTML = html;
 
-        // Gerar o QR Code dinâmico no local apropriado
+        // Gerar o QR Code dinâmico no local apropriado de forma resiliente offline
         setTimeout(() => {
             const qrDiv = document.getElementById('laudo-preview-qrcode');
             if (qrDiv) {
                 qrDiv.innerHTML = '';
-                const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
-                new QRCode(qrDiv, {
-                    text: validationUrl,
-                    width: 52,
-                    height: 52,
-                    colorDark: '#0A1F3D',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H
-                });
+                if (typeof QRCode !== 'undefined') {
+                    const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
+                    new QRCode(qrDiv, {
+                        text: validationUrl,
+                        width: 52,
+                        height: 52,
+                        colorDark: '#0A1F3D',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                } else {
+                    qrDiv.innerHTML = `<span style="font-size:7px;color:#999;text-align:center;display:block;margin-top:14px;font-family:sans-serif;font-weight:700;line-height:1.2;">QR CODE<br>OFFLINE</span>`;
+                }
             }
         }, 200);
 
@@ -915,6 +919,9 @@ async function generateInspectionReport(cautelarId) {
         return res.json();
     });
 
+    if (typeof PDFLib === 'undefined') {
+        throw new Error("A biblioteca de geração de PDF (PDFLib) não pôde ser carregada. Verifique sua conexão com a rede.");
+    }
     const { PDFDocument } = PDFLib;
     const pdfDoc = await PDFDocument.load(templateBytes);
     const form = pdfDoc.getForm();
@@ -1061,15 +1068,16 @@ async function generateInspectionReport(cautelarId) {
 
         const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${context.hashLaudo}`;
         const qrImgDataUrl = await getQrCodeDataUrl(validationUrl);
-        const qrBytes = await fetch(qrImgDataUrl).then(res => res.arrayBuffer());
-        const qrImg = await pdfDoc.embedPng(qrBytes);
-
-        page10.drawImage(qrImg, {
-            x: qrX,
-            y: qrY,
-            width: qrW,
-            height: qrH
-        });
+        if (qrImgDataUrl) {
+            const qrBytes = await fetch(qrImgDataUrl).then(res => res.arrayBuffer());
+            const qrImg = await pdfDoc.embedPng(qrBytes);
+            page10.drawImage(qrImg, {
+                x: qrX,
+                y: qrY,
+                width: qrW,
+                height: qrH
+            });
+        }
 
         // Desenhar Hash textual ao lado do QR Code
         const fontRegular = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -1321,4 +1329,55 @@ async function drawPhotoPlaceholder(pdfDoc, pdfPage, x, y, w, h, scale) {
     } catch (err) {
         console.error("Erro ao desenhar placeholder do PDF:", err);
     }
+}
+
+async function getQrCodeDataUrl(text) {
+    return new Promise((resolve) => {
+        if (typeof QRCode === 'undefined') {
+            console.warn("Biblioteca QRCode nao carregada. Retornando fallback vazio para o PDF.");
+            resolve("");
+            return;
+        }
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+        
+        try {
+            const qr = new QRCode(tempDiv, {
+                text: text,
+                width: 150,
+                height: 150,
+                colorDark: '#0A1F3D',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            
+            // Aguarda um pequeno delay para a renderizacao do QRCode no canvas
+            setTimeout(() => {
+                const canvas = tempDiv.querySelector('canvas');
+                if (canvas) {
+                    const dataUrl = canvas.toDataURL('image/png');
+                    document.body.removeChild(tempDiv);
+                    resolve(dataUrl);
+                } else {
+                    const img = tempDiv.querySelector('img');
+                    if (img && img.src) {
+                        document.body.removeChild(tempDiv);
+                        resolve(img.src);
+                    } else {
+                        console.warn("Canvas ou imagem do QR Code nao gerados no tempo limite.");
+                        document.body.removeChild(tempDiv);
+                        resolve("");
+                    }
+                }
+            }, 100);
+        } catch (e) {
+            console.error("Erro ao instanciar QRCode no PDF:", e);
+            if (tempDiv.parentNode) {
+                document.body.removeChild(tempDiv);
+            }
+            resolve("");
+        }
+    });
 }

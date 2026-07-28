@@ -2636,67 +2636,83 @@ async function submitEditOSForm(event) {
     // Sincronizar o Caixa Diário na Edição da OS
     const activeCaixa = getTodayOpenCaixa();
 
-    try {
-        // Deletar todas as movimentações de entrada do caixa associadas a esta OS e recriar
-        const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
-        for (const m of existingMovs) {
-            if (window.useSupabase) {
-                await sbDeleteWhere('caixa_movimentos', 'id', m.id);
-            }
-            db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
-        }
+    // Verificar se algum movimento desta OS está em um caixa fechado
+    const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
+    const temCaixaFechado = existingMovs.some(m => {
+        const caixa = db.caixa_diario.find(c => c.id === m.caixaId);
+        return caixa && caixa.status === 'fechado';
+    });
 
-        if (os.reapresentacaoOrigemID) {
-            // Se for reteste, não deve ter entrada no caixa diário.
-        } else if (activeCaixa && os.pago) {
-            if (os.formaPagamento === 'dividido') {
-                const splitData = parseDividedPayment(os.observacoes);
-                if (splitData) {
-                    for (let i = 0; i < splitData.length; i++) {
-                        const part = splitData[i];
-                        const newMov = {
-                            caixaId: activeCaixa.id,
-                            tipo: "entrada",
-                            valor: part.valor,
-                            descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
-                            formaPagamento: part.forma,
-                            data: new Date().toISOString(),
-                            operador: currentSession.nome,
-                            osId: os.id,
-                            faturaId: null
-                        };
-                        if (window.useSupabase) {
-                            const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                            db.caixa_movimentos.unshift(insertedMov);
-                        } else {
-                            newMov.id = db.caixa_movimentos.length + 1;
-                            db.caixa_movimentos.push(newMov);
+    if (temCaixaFechado) {
+        // Se tem caixa fechado, checar se houve mudança financeira
+        const originalOS = db.ordens_servico.find(o => o.id === os.id);
+        if (originalOS && (originalOS.valor !== os.valor || originalOS.formaPagamento !== os.formaPagamento || originalOS.servicoId !== os.servicoId)) {
+            showToast("Erro: Esta OS possui movimentações vinculadas a um Caixa Diário FECHADO. Não é permitido alterar valores ou formas de pagamento.", "error");
+            return;
+        }
+        console.log("OS vinculada a caixa fechado editada (apenas campos cadastrais). Ignorando sincronização de caixa.");
+    } else {
+        try {
+            // Deletar todas as movimentações de entrada do caixa associadas a esta OS e recriar
+            for (const m of existingMovs) {
+                if (window.useSupabase) {
+                    await sbDeleteWhere('caixa_movimentos', 'id', m.id);
+                }
+                db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
+            }
+
+            if (os.reapresentacaoOrigemID) {
+                // Se for reteste, não deve ter entrada no caixa diário.
+            } else if (activeCaixa && os.pago) {
+                if (os.formaPagamento === 'dividido') {
+                    const splitData = parseDividedPayment(os.observacoes);
+                    if (splitData) {
+                        for (let i = 0; i < splitData.length; i++) {
+                            const part = splitData[i];
+                            const newMov = {
+                                caixaId: activeCaixa.id,
+                                tipo: "entrada",
+                                valor: part.valor,
+                                descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                                formaPagamento: part.forma,
+                                data: new Date().toISOString(),
+                                operador: currentSession.nome,
+                                osId: os.id,
+                                faturaId: null
+                            };
+                            if (window.useSupabase) {
+                                const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                                db.caixa_movimentos.unshift(insertedMov);
+                            } else {
+                                newMov.id = db.caixa_movimentos.length + 1;
+                                db.caixa_movimentos.push(newMov);
+                            }
                         }
                     }
-                }
-            } else {
-                const newMov = {
-                    caixaId: activeCaixa.id,
-                    tipo: "entrada",
-                    valor: os.valor,
-                    descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                    formaPagamento: os.formaPagamento,
-                    data: new Date().toISOString(),
-                    operador: currentSession.nome,
-                    osId: os.id,
-                    faturaId: null
-                };
-                if (window.useSupabase) {
-                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                    db.caixa_movimentos.unshift(insertedMov);
                 } else {
-                    newMov.id = db.caixa_movimentos.length + 1;
-                    db.caixa_movimentos.push(newMov);
+                    const newMov = {
+                        caixaId: activeCaixa.id,
+                        tipo: "entrada",
+                        valor: os.valor,
+                        descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
+                        formaPagamento: os.formaPagamento,
+                        data: new Date().toISOString(),
+                        operador: currentSession.nome,
+                        osId: os.id,
+                        faturaId: null
+                    };
+                    if (window.useSupabase) {
+                        const insertedMov = await sbInsert('caixa_movimentos', newMov);
+                        db.caixa_movimentos.unshift(insertedMov);
+                    } else {
+                        newMov.id = db.caixa_movimentos.length + 1;
+                        db.caixa_movimentos.push(newMov);
+                    }
                 }
             }
+        } catch (err) {
+            console.error("Erro ao sincronizar movimentação de caixa da OS editada:", err);
         }
-    } catch (err) {
-        console.error("Erro ao sincronizar movimentação de caixa da OS editada:", err);
     }
 
     await dbSave('ordens_servico', {
@@ -2856,6 +2872,18 @@ async function deleteOS(osId) {
     const os = db.ordens_servico.find(o => o.id === osId);
     if (!os) {
         showToast("Ordem de Servico nao localizada.", "error");
+        return;
+    }
+
+    // Verificar se algum movimento desta OS está em um caixa fechado
+    const movsRelacionados = db.caixa_movimentos.filter(m => m.osId === os.id);
+    const temCaixaFechado = movsRelacionados.some(m => {
+        const caixa = db.caixa_diario.find(c => c.id === m.caixaId);
+        return caixa && caixa.status === 'fechado';
+    });
+
+    if (temCaixaFechado) {
+        showToast("Erro: Esta OS possui movimentações financeiras vinculadas a um Caixa Diário FECHADO. Reabra o caixa antes de prosseguir.", "error");
         return;
     }
 
@@ -5102,12 +5130,21 @@ async function submitGirarFatura(event) {
             codigo: code
         });
         
-        // 3. Vincular as OSs faturadas a essa faturaId no Supabase
-        for (const os of selectedOSs) {
+        // 3. Vincular as OSs faturadas a essa faturaId no Supabase em lote
+        selectedOSs.forEach(os => {
             os.faturaId = inserted.id;
-            await sbUpdate('ordens_servico', os.id, {
-                faturaId: inserted.id
-            });
+        });
+
+        if (window.useSupabase) {
+            const { error: batchError } = await supabaseClient
+                .from('ordens_servico')
+                .update({ faturaId: inserted.id })
+                .in('id', selectedIds);
+
+            if (batchError) {
+                console.error("Erro na vinculação de faturamento em lote no Supabase:", batchError.message);
+                throw batchError;
+            }
         }
 
         // 4. Registrar baixa nos créditos consumidos e gerar sobras se aplicável
@@ -12456,6 +12493,12 @@ async function reabrirLaudo(placa) {
         const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase() === placa.toUpperCase());
         if (!os) {
             showToast(`Ordem de serviço não encontrada para a placa ${placa}`, "error");
+            return;
+        }
+
+        // Bloquear reabertura de OS faturada
+        if (os.faturaId) {
+            showToast(`Erro: Não é possível reabrir o laudo da placa ${placa.toUpperCase()} pois a OS correspondente já está vinculada à Fatura ID ${os.faturaId}.`, "error");
             return;
         }
 
