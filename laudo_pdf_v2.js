@@ -944,6 +944,8 @@ async function generateInspectionReport(cautelarId) {
         return f ? (f.url_thumb || f.url_original || '') : '';
     };
 
+    const dadosIa = cautelar.dadosIaConfeccionado;
+
     // 3. Iterar pelos campos do Field Map
     for (const field of fieldMap.fields) {
         const page = pdfDoc.getPages()[field.page - 1];
@@ -959,9 +961,17 @@ async function generateInspectionReport(cautelarId) {
         const yReal = pdfHeight - ((field.y + field.h) * scaleY);
 
         if (field.type === "image") {
-            const slotCodigo = slotMap[field.name];
-            if (!slotCodigo) continue;
-            const photoUrl = getFotoUrl(slotCodigo);
+            let photoUrl = null;
+            // Tenta obter a foto classificada pela IA
+            if (dadosIa && dadosIa.photo_assignments && dadosIa.photo_assignments[field.name]) {
+                const tempId = dadosIa.photo_assignments[field.name];
+                photoUrl = dadosIa.fotosMapTemp[tempId] || null;
+            }
+            // Fallback para o mapeamento local de slots se a IA não classificou
+            if (!photoUrl) {
+                const slotCodigo = slotMap[field.name];
+                if (slotCodigo) photoUrl = getFotoUrl(slotCodigo);
+            }
 
             if (photoUrl) {
                 try {
@@ -979,19 +989,26 @@ async function generateInspectionReport(cautelarId) {
                         height: hReal
                     });
                 } catch (err) {
-                    console.error(`Erro ao desenhar foto no slot ${slotCodigo}:`, err);
+                    console.error(`Erro ao desenhar foto no slot da IA/fallback para ${field.name}:`, err);
                     await drawPhotoPlaceholder(pdfDoc, page, xReal, yReal, wReal, hReal, scaleX);
                 }
             } else {
                 await drawPhotoPlaceholder(pdfDoc, page, xReal, yReal, wReal, hReal, scaleX);
             }
         } else {
-            // Preenchimento de texto via AcroForm nativo
-            const value = resolveFieldValue(field.name, context, dataSec1, dataSec2, dataSec3, dataSec4, dataSec5, dataSec6, dataSec7, dataSec8);
+            // Preenchimento de texto via IA com fallback para resolvedor local
+            let value = null;
+            if (dadosIa && dadosIa.fields && dadosIa.fields[field.name] !== undefined) {
+                value = dadosIa.fields[field.name];
+            }
+            if (value === null || value === undefined) {
+                value = resolveFieldValue(field.name, context, dataSec1, dataSec2, dataSec3, dataSec4, dataSec5, dataSec6, dataSec7, dataSec8);
+            }
+
             try {
                 const pdfField = form.getTextField(field.name);
                 if (pdfField) {
-                    pdfField.setText(value);
+                    pdfField.setText(String(value));
                 }
             } catch (err) {
                 console.warn(`Erro ao preencher campo de texto "${field.name}":`, err);
