@@ -12767,19 +12767,48 @@ window.syncDetranFloatingPayable = async function() {
 // ==========================================================
 
 function getDefaultOpenAIPrompt() {
-    return `Você é um perito em vistoria veicular e emissão de laudo cautelar.
-Sua tarefa é analisar os dados do checklist e as fotos da vistoria de um veículo e gerar um parecer descritivo detalhado, além de propor a conformidade final.
+    return `Você é o Perito Digital e Revisor Técnico da Certive Vistorias.
+Sua função é atuar como um auditor técnico inteligente de vistorias cautelares de aquisição veicular.
+Você deve analisar com rigor pericial os dados do checklist e as imagens reais fornecidas, organizando o laudo em 4 etapas bem delimitadas e devolvendo estritamente um formato JSON estruturado.
 
-Regras do Parecer:
-1. Analise se há não conformidades ou ressalvas nos itens de identificação, pintura, vidros, óticos, rodas/pneus, interior e estrutura.
-2. Identifique avarias estéticas leves (ex: riscos, amassados pequenos) e marque o laudo como "COM RESSALVAS" ("com_ressalvas").
-3. Identifique avarias graves na estrutura, histórico de leilão/sinistro ou indícios de adulteração de chassi/motor e marque o laudo como "NÃO CONFORME" ("nao_conforme").
-4. Se todos os itens estiverem conformes, marque o laudo como "CONFORME" ("conforme").
-5. Escreva um parágrafo técnico formal descrevendo resumidamente o estado geral do veículo com base no checklist e nas imagens, focando em justificar a sua decisão. Seja claro e profissional. Não invente detalhes não informados.
-6. A resposta DEVE ser um objeto JSON exatamente no seguinte formato:
+DIRETRIZES DO AGENTE (4 ETAPAS):
+
+ETAPA 1 — Validação Física e Legibilidade:
+- Verifique se as fotos enviadas são legíveis e condizentes com os slots obrigatórios da vistoria.
+- Identifique se há ausência de fotos críticas como chassi lido, motor lido, gravação de vidros ou fotos estruturais.
+- Se houver fotos corrompidas, ilegíveis ou faltando evidências fotográficas essenciais que impeçam a validação técnica, classifique o status como "vistoria_incompleta".
+
+ETAPA 2 — Conferência de Coerência (Checklist × Imagens):
+- Cruze as marcações de conformidade do checklist informadas pelo vistoriador com as evidências visuais das imagens.
+- IMPORTANTE: Identifique inconsistências. Exemplo: Se o checklist indicar "Estrutura Conforme", mas na imagem da longarina traseira for visível amassado acentuado, trincas ou pontos de solda/reparação, sinalize como inconsistência.
+- O parecer final DEVE seguir o checklist preenchido pelo vistoriador em campo, pois ele é o responsável técnico legal. A sua função é alertar a incoerência em forma de aviso técnico informativo ("inconsistencias"), incentivando a revisão manual, sem forçar alteração do parecer final na contabilidade.
+
+ETAPA 3 — Consolidação das Seções:
+- Organize de maneira lógica a síntese de conformidade do laudo nas seções chassi, motor, estrutura, pintura, vidros e segurança.
+
+ETAPA 4 — Redação Técnico Pericial:
+- Escreva um parecer descritivo de fechamento formal e extremamente profissional em português técnico de vistoria automotiva.
+- Justifique tecnicamente as eventuais ressalvas localizadas no checklist (como repinturas detectadas pela espessura micrométrica acima do padrão nas colunas ou painéis).
+- Não invente danos ou avarias que não estejam expressos no checklist ou nas fotos.
+
+O RETORNO DEVE SER ESTRITAMENTE UM OBJETO JSON COM A SEGUINTE ESTRUTURA:
 {
-  "parecer": "conforme" | "com_ressalvas" | "nao_conforme",
-  "observacao": "Parágrafo descritivo do laudo..."
+  "status": "sucesso" | "vistoria_incompleta",
+  "erros": [
+     "Mensagem do erro 1 (ex: Foto do motor ilegível ou ausente)"
+  ],
+  "inconsistencias": [
+     "Mensagem de inconsistência 1 (ex: Checklist aponta Chassi original mas foto apresenta avaria/rasura)"
+  ],
+  "analises": {
+    "identificacao": "Conforme | Ressalvas",
+    "chassi_motor": "Conforme | Ressalvas | Não Conforme",
+    "estrutura": "Conforme | Ressalvas | Não Conforme",
+    "pintura": "Conforme | Ressalvas",
+    "vidros_seguranca": "Conforme | Ressalvas"
+  },
+  "parecer_final": "conforme" | "com_ressalvas" | "nao_conforme",
+  "observacao": "Texto descritivo e formal do parecer final redigido por você para o encerramento do dossiê."
 }`;
 }
 
@@ -12873,10 +12902,15 @@ async function analisarLaudoComIA() {
     const loadingDiv = document.getElementById('cautelar-ia-loading');
     const loadingText = document.getElementById('cautelar-ia-loading-text');
     const badge = document.getElementById('ia-status-badge');
+    const alertsContainer = document.getElementById('ia-alertas-container');
 
     // Desabilitar botão e mostrar loader
     if (btn) btn.disabled = true;
     if (loadingDiv) loadingDiv.style.display = 'flex';
+    if (alertsContainer) {
+        alertsContainer.innerHTML = '';
+        alertsContainer.style.display = 'none';
+    }
     if (badge) {
         badge.textContent = "Analisando...";
         badge.style.background = "rgba(212, 160, 23, 0.15)";
@@ -13006,7 +13040,8 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
             });
         });
 
-        if (loadingText) loadingText.textContent = `Enviando checklist e ${fotosParaEnviar.length} imagens para a IA...`;
+        // 1. Etapa de Validação
+        if (loadingText) loadingText.textContent = `Etapa 1/4: Enviando checklist e ${fotosParaEnviar.length} imagens...`;
 
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -13041,18 +13076,78 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
 
         const aiResult = JSON.parse(rawJson);
 
-        // Preencher os campos no formulário de finalização
+        // Processar os resultados com base nas etapas do Revisor Técnico
+        if (alertsContainer) {
+            alertsContainer.innerHTML = '';
+            alertsContainer.style.display = 'none';
+        }
+
+        const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
+
+        if (aiResult.status === 'vistoria_incompleta') {
+            if (badge) {
+                badge.textContent = "Bloqueado";
+                badge.style.background = "rgba(239, 68, 68, 0.15)";
+                badge.style.color = "var(--danger)";
+            }
+            if (alertsContainer) {
+                alertsContainer.style.display = 'flex';
+                alertsContainer.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                
+                let html = `<div style="font-weight: 700; font-size: 11px; color: var(--danger); display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                    <i class="ri-error-warning-line"></i> VISTORIA INCOMPLETA (BLOQUEADO)
+                </div>`;
+                
+                (aiResult.erros || []).forEach(err => {
+                    html += `<div style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; margin-bottom: 4px;">
+                        <i class="ri-close-circle-fill" style="color: var(--danger); margin-top: 1px; flex-shrink:0;"></i>
+                        <span>${err}</span>
+                    </div>`;
+                });
+                alertsContainer.innerHTML = html;
+            }
+            
+            showToast("Vistoria incompleta detectada pela IA. Emissão bloqueada.", "error");
+            if (emitirBtn) emitirBtn.disabled = true;
+            return;
+        }
+
+        // Se for sucesso, reabilitar botão de emissão
+        if (emitirBtn) emitirBtn.disabled = false;
+
+        // Processar Etapa 2: Inconsistências
+        if (aiResult.inconsistencias && aiResult.inconsistencias.length > 0) {
+            if (alertsContainer) {
+                alertsContainer.style.display = 'flex';
+                alertsContainer.style.borderColor = 'rgba(212, 160, 23, 0.3)';
+                
+                let html = `<div style="font-weight: 700; font-size: 11px; color: var(--accent); display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                    <i class="ri-alert-line"></i> INCONSISTÊNCIAS PARA REVISÃO
+                </div>`;
+                
+                aiResult.inconsistencias.forEach(inc => {
+                    html += `<div style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; margin-bottom: 4px;">
+                        <i class="ri-alert-fill" style="color: var(--accent); margin-top: 1px; flex-shrink:0;"></i>
+                        <span>${inc}</span>
+                    </div>`;
+                });
+                alertsContainer.innerHTML = html;
+            }
+            showToast("Inconsistências encontradas entre fotos e checklist.", "warning");
+        }
+
+        // Preencher os campos no formulário de finalização com a consolidação da IA
         const parecerSelect = document.getElementById('caut-final-parecer');
         const obsTextarea = document.getElementById('caut-final-obs');
 
-        if (parecerSelect && aiResult.parecer) {
-            parecerSelect.value = aiResult.parecer;
+        if (parecerSelect && aiResult.parecer_final) {
+            parecerSelect.value = aiResult.parecer_final;
         }
         if (obsTextarea && aiResult.observacao) {
             obsTextarea.value = aiResult.observacao;
         }
 
-        showToast("Laudo analisado com sucesso pela IA!", "success");
+        showToast("Laudo validado e parecer gerado com sucesso!", "success");
         if (badge) {
             badge.textContent = "Concluída";
             badge.style.background = "rgba(16, 185, 129, 0.15)";
