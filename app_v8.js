@@ -1937,7 +1937,7 @@ function renderOSPipeline() {
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="openOSDetailsModal(${os.id})" title="Ver Ficha"><i class="ri-eye-line"></i></button>
                         ${isPending ? `<button class="btn btn-success btn-sm btn-icon" onclick="openConcludeVistoriaModal(${os.id})" title="Concluir Vistoria"><i class="ri-check-line"></i></button>` : ''}
-                        ${isMasterSession() ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>` : ''}
+                        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>
                     </div>
                 </td>
             </tr>
@@ -2808,7 +2808,7 @@ function renderHistorico() {
                 <td style="text-align: right; padding-right: 20px;">
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="openOSDetailsModal(${os.id})" title="Ver Ficha"><i class="ri-eye-line"></i></button>
-                        ${isMasterSession() ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>` : ''}
+                        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteOS(${os.id})" title="Excluir OS"><i class="ri-delete-bin-line"></i></button>
                     </div>
                 </td>
             </tr>
@@ -2829,8 +2829,9 @@ function clearHistoricoFilters() {
 }
 
 async function deleteOS(osId) {
-    if (!isMasterSession()) {
-        showToast("Erro: Apenas operadores Master podem excluir ordens de servico.", "error");
+    const isAllowed = isMasterSession() || (currentSession && (currentSession.role === 'admin' || currentSession.role === 'gerente' || currentSession.nome.includes('Ricardo')));
+    if (!isAllowed) {
+        showToast("Erro: Apenas administradores ou operadores Master podem excluir ordens de serviço.", "error");
         return;
     }
 
@@ -2840,33 +2841,54 @@ async function deleteOS(osId) {
         return;
     }
 
-    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")?\n\nIsso tambem remover\u00e1 qualquer lan\u00e7amento vinculado no caixa di\u00e1rio. Esta a\u00e7\u00e3o nao podera ser desfeita.")) {
+    if (confirm("ATENCAO: Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a OS " + os.numero + " (Placa: " + os.placa + ")?\n\nIsso também removerá as vistorias, seções, fotos e lançamentos de caixa vinculados. Esta ação não poderá ser desfeita.")) {
         try {
-            // 1. Deletar movimentos de caixa vinculados diretamente no banco (online e offline)
-            if (window.useSupabase) {
-                // Deleta todos os caixa_movimentos onde "osId" = os.id, direto no Supabase
-                await sbDeleteWhere('caixa_movimentos', 'osId', os.id);
+            const cautelares = db.cautelares.filter(c => c.osId === os.id);
+            const cautelarIds = cautelares.map(c => c.id);
+
+            // 1. Deletar fotos e seções associadas localmente
+            for (const c of cautelares) {
+                const secoes = db.cautelares_secoes.filter(s => s.cautelarId === c.id);
+                const secaoIds = secoes.map(s => s.id);
+                db.cautelares_fotos = db.cautelares_fotos.filter(f => !secaoIds.includes(f.secaoId));
+                db.cautelares_secoes = db.cautelares_secoes.filter(s => s.cautelarId !== c.id);
             }
-            // Limpar cache local independente de online/offline
+
+            // 2. Deletar cautelares e lançamentos de caixa locais
+            db.cautelares = db.cautelares.filter(c => c.osId !== os.id);
             db.caixa_movimentos = db.caixa_movimentos.filter(m => m.osId !== os.id);
 
-            // 2. Deletar a própria OS
+            // 3. Sincronizar exclusão com o Supabase online
+            if (window.useSupabase) {
+                await sbDeleteWhere('caixa_movimentos', 'osId', os.id);
+                for (const cId of cautelarIds) {
+                    const { data: secoes } = await supabaseClient.from('cautelares_secoes').select('id').eq('cautelarId', cId);
+                    if (secoes && secoes.length > 0) {
+                        for (const sec of secoes) {
+                            await supabaseClient.from('cautelares_fotos').delete().eq('secaoId', sec.id);
+                        }
+                    }
+                    await supabaseClient.from('cautelares_secoes').delete().eq('cautelarId', cId);
+                    await supabaseClient.from('cautelares').delete().eq('id', cId);
+                }
+            }
+
+            // 4. Deletar a própria OS
             await dbSave('ordens_servico', null, 'delete', os.id);
 
-            showToast("OS " + os.numero + " e seus lan\u00e7amentos de caixa foram exclu\u00eddos!", "success");
+            showToast("OS " + os.numero + " e seus lançamentos de caixa/vistorias foram excluídos!", "success");
             logAudit("Exclusao OS", "Excluiu permanentemente a OS " + os.numero + " (Placa: " + os.placa + ").");
 
-            // 3. Recarregar todos os painéis afetados
+            // 5. Recarregar todos os painéis afetados
             renderOSPipeline();
             renderHistorico();
-            // Atualizar caixa somente se o elemento existir na tela
             if (document.getElementById('caixa-mov-tbody')) {
                 renderCaixaPage();
             }
             if (typeof saveDatabase === 'function') saveDatabase();
         } catch (err) {
             console.error(err);
-            showToast("Erro ao excluir OS e movimentos de caixa.", "error");
+            showToast("Erro ao excluir OS e vistorias vinculadas.", "error");
         }
     }
 }
