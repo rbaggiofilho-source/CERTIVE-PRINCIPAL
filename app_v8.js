@@ -11952,6 +11952,48 @@ function atualizarPreviewLaudo_old() {
     }, 100);
 }
 
+// Função auxiliar para converter imagens de vistoria em Base64 compactado para o GPT-4o Vision
+async function imageToAiBase64(url) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            try {
+                const canvas = document.createElement("canvas");
+                const maxDim = 800;
+                let w = img.width;
+                let h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) {
+                        h = Math.round((h * maxDim) / w);
+                        w = maxDim;
+                    } else {
+                        w = Math.round((w * maxDim) / h);
+                        h = maxDim;
+                    }
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        resolve(null);
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                }, "image/jpeg", 0.75);
+            } catch (e) {
+                resolve(null);
+            }
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+}
+
 async function analisarLaudoComIAInvisivel() {
     const cautelarId = window.activeFinalizacaoCautelarId;
     if (!cautelarId) return;
@@ -11985,8 +12027,9 @@ async function analisarLaudoComIAInvisivel() {
 - Marca/Modelo: ${os.clienteNome || 'N/A'}
 - Ano Fabricação/Modelo: ${os.fabricacaoAno || 'N/A'}/${os.modeloAno || 'N/A'}
 - Cor: ${os.cor || 'N/A'}
-- Chassi OS: ${os.renavam || 'N/A'}
-- Motor OS: ${os.chassi || 'N/A'}
+- Renavam OS: ${os.renavam || 'N/A'}
+- Chassi OS: ${os.chassi || 'N/A'}
+- Motor OS: ${os.motor || 'N/A'}
 
 SEÇÃO I: IDENTIFICAÇÃO DO VEÍCULO
 - Quilometragem lida: ${dataSec1.quilometragem || 'N/A'} km
@@ -12065,22 +12108,37 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
         const contentPayload = [
             {
                 type: "text",
-                text: `Analise a seguinte vistoria cautelar e as imagens do veículo. Com base nos dados e fotos fornecidos, recomende um parecer final técnico e gere um parágrafo detalhado descrevendo o laudo técnico do veículo.\n\nCHECKLIST DA VISTORIA:\n${checklistText}`
+                text: `Confeccione o laudo cautelar veicular gerando o JSON de resposta contendo todos os campos do PDF preenchidos e a classificação correta de cada foto conforme as instruções.\n\nDADOS DA VISTORIA:\n${checklistText}`
             }
         ];
 
-        const maxFotos = 12;
+        const fotosMapTemp = {};
+        const maxFotos = 15;
         const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
         
-        fotosParaEnviar.forEach((foto) => {
-            contentPayload.push({
-                type: "image_url",
-                image_url: {
-                    url: foto.url_original
-                }
-            });
-        });
+        // Conversão em lote para Base64 compactado
+        showToast("Compactando e carregando fotos para a IA...", "info");
+        for (let index = 0; index < fotosParaEnviar.length; index++) {
+            const foto = fotosParaEnviar[index];
+            const tempId = `foto_${index + 1}`;
+            const base64Data = await imageToAiBase64(foto.url_original);
+            
+            if (base64Data) {
+                fotosMapTemp[tempId] = base64Data;
+                contentPayload.push({
+                    type: "text",
+                    text: `FOTO SEGUINTE ID: ${tempId}`
+                });
+                contentPayload.push({
+                    type: "image_url",
+                    image_url: {
+                        url: base64Data
+                    }
+                });
+            }
+        }
 
+        showToast("Enviando dados do laudo para análise técnica do ChatGPT...", "info");
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -12108,22 +12166,48 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
             const rawJson = resData.choices[0]?.message?.content;
             if (rawJson) {
                 const aiResult = JSON.parse(rawJson);
-                if (aiResult.observacao) {
-                    const obsTextarea = document.getElementById('caut-final-obs');
-                    if (obsTextarea) {
-                        obsTextarea.value = aiResult.observacao;
+                if (aiResult.status === "sucesso" && aiResult.fields) {
+                    cautelar.dadosIaConfeccionado = {
+                        fields: aiResult.fields,
+                        photo_assignments: aiResult.photo_assignments || {},
+                        fotosMapTemp: fotosMapTemp
+                    };
+
+                    if (aiResult.fields['final.opinion_text']) {
+                        const obsTextarea = document.getElementById('caut-final-obs');
+                        if (obsTextarea) {
+                            obsTextarea.value = aiResult.fields['final.opinion_text'];
+                        }
                     }
-                }
-                if (aiResult.parecer_final) {
-                    const parecerSelect = document.getElementById('caut-final-parecer');
-                    if (parecerSelect) {
-                        parecerSelect.value = aiResult.parecer_final;
+                    if (aiResult.fields['final.status']) {
+                        const parecerSelect = document.getElementById('caut-final-parecer');
+                        if (parecerSelect) {
+                            const val = aiResult.fields['final.status'].toUpperCase();
+                            if (val.includes("RESSALVA")) {
+                                parecerSelect.value = "com_ressalvas";
+                            } else if (val.includes("NÃO CONFORME") || val.includes("REPROVAD")) {
+                                parecerSelect.value = "nao_conforme";
+                            } else {
+                                parecerSelect.value = "conforme";
+                            }
+                        }
                     }
+
+                    saveDatabase();
+                    showToast("Laudo confeccionado com sucesso pelo ChatGPT!", "success");
+                } else {
+                    console.warn("Resposta da IA com status de falha ou campos vazios:", aiResult);
+                    showToast("ChatGPT retornou dados incompletos. Usando fallback técnico.", "warning");
                 }
             }
+        } else {
+            const errText = await response.text();
+            console.error(`Erro da API da OpenAI (${response.status}):`, errText);
+            showToast(`IA Indisponível (Erro ${response.status}). O laudo será gerado por fallback local.`, "warning");
         }
     } catch (err) {
         console.error("Erro na análise por IA (background):", err);
+        showToast("Erro na comunicação com a IA. Usando fallback técnico.", "warning");
     }
 }
 
