@@ -211,6 +211,18 @@ ALTER TABLE faturas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parceiros_creditos ENABLE ROW LEVEL SECURITY;
 
+-- 13. Configurações Gerais (Credenciais e Parâmetros de Integração)
+CREATE TABLE configuracoes_gerais (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "chaveOpenAi" TEXT,
+  "modeloOpenAi" TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+  "promptInstrucoes" TEXT,
+  "atualizadoEm" TIMESTAMPTZ DEFAULT NOW(),
+  "atualizadoPor" TEXT
+);
+
+ALTER TABLE configuracoes_gerais ENABLE ROW LEVEL SECURITY;
+
 -- Políticas permissivas para todas as tabelas
 CREATE POLICY "allow_all_unidades" ON unidades FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_servicos" ON servicos FOR ALL USING (true) WITH CHECK (true);
@@ -224,3 +236,5 @@ CREATE POLICY "allow_all_contas" ON contas_pagar FOR ALL USING (true) WITH CHECK
 CREATE POLICY "allow_all_faturas" ON faturas FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_auditoria" ON auditoria FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_creditos" ON parceiros_creditos FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_configuracoes" ON configuracoes_gerais FOR ALL USING (true) WITH CHECK (true);
+

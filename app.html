@@ -597,6 +597,28 @@
                             <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">Revise as conformidades e emita o laudo em PDF para o cliente.</p>
                         </div>
 
+                        <!-- Análise Inteligente via IA -->
+                        <div class="panel-card" id="cautelar-ia-card" style="background: linear-gradient(135deg, rgba(201, 169, 97, 0.05) 0%, rgba(201, 169, 97, 0.12) 100%); border: 1px dashed var(--accent); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(201, 169, 97, 0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="ri-sparkling-2-line" style="color: var(--accent); font-size: 20px;"></i>
+                                    <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--accent); letter-spacing: 0.5px;">Análise por IA (ChatGPT)</span>
+                                </div>
+                                <span id="ia-status-badge" style="font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text-secondary);">Não Iniciada</span>
+                            </div>
+                            <p style="font-size: 11px; margin: 0; color: var(--text-secondary); line-height: 1.4;">
+                                A IA analisará todas as fotos anexadas às seções e as conformidades do checklist para propor o parecer e a descrição técnica.
+                            </p>
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-cautelar-ia-analisar" onclick="analisarLaudoComIA()" style="width: 100%; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent); border-color: var(--accent); color: var(--bg-sidebar); box-shadow: 0 4px 10px rgba(201, 169, 97, 0.2);">
+                                <i class="ri-sparkling-line"></i> Iniciar Análise Inteligente
+                            </button>
+                            <!-- Spinner de carregamento da IA -->
+                            <div id="cautelar-ia-loading" style="display: none; align-items: center; justify-content: center; gap: 10px; padding: 6px 0;">
+                                <div class="spinner-ia" style="width: 16px; height: 16px; border: 2px solid rgba(201, 169, 97, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                <span style="font-size: 11px; font-weight: 600; color: var(--accent);" id="cautelar-ia-loading-text">Processando imagens e dados...</span>
+                            </div>
+                        </div>
+
                         <!-- Formulário de Parecer -->
                         <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                             <div class="form-group">
@@ -1556,6 +1578,7 @@
                     <button class="tab-btn" onclick="switchConfigTab('portarias', this)">Portarias por UF</button>
                     <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
                     <button class="tab-btn" onclick="switchConfigTab('auditoria', this)" id="btn-cfg-auditoria"><i class="ri-shield-check-line"></i> Auditoria Contábil</button>
+                    <button class="tab-btn" onclick="switchConfigTab('chatgpt', this)"><i class="ri-brain-line"></i> Integração IA (ChatGPT)</button>
                 </div>
 
                 <!-- Config Tab: Preços e Taxas -->
@@ -1963,6 +1986,56 @@
                                 <button class="btn btn-primary" id="btn-resolver-auditoria" onclick="resolveAuditoriaInconsistencies()" style="box-shadow: 0 4px 12px rgba(212, 160, 23, 0.25);">
                                     <i class="ri-magic-line"></i> Corrigir Inconsistências Localizadas
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab: ChatGPT -->
+                <div id="tab-cfg-chatgpt" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
+                        
+                        <!-- Painel de Configurações da API -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-cpu-line"></i> Configurações da API da OpenAI</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <form id="config-chatgpt-form" onsubmit="submitConfigChatGPT(event)">
+                                    <div class="form-group">
+                                        <label for="cfg-openai-key">Chave de API da OpenAI (API Key)</label>
+                                        <input type="password" id="cfg-openai-key" placeholder="sk-proj-..." required style="font-family: monospace;">
+                                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">
+                                            Sua chave fica gravada com segurança no banco de dados e só é enviada diretamente nas requisições.
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-openai-model">Modelo de Inteligência Artificial</label>
+                                        <select id="cfg-openai-model" required style="height: 38px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm); width: 100%; padding: 0 10px;">
+                                            <option value="gpt-4o-mini" selected>GPT-4o Mini (Recomendado - Mais rápido e econômico)</option>
+                                            <option value="gpt-4o">GPT-4o (Completo - Análise ultra profunda e precisa)</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
+                                        <i class="ri-save-line"></i> Salvar Integração OpenAI
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Painel de Prompt e Instruções Técnicas -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-article-line"></i> Prompt de Orientação Técnica da IA</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="cfg-openai-prompt">Instruções para o Parecer do Laudo</label>
+                                    <textarea id="cfg-openai-prompt" rows="8" placeholder="Instrua a IA sobre como ela deve escrever e analisar os laudos..." style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; background: var(--bg-primary); color: var(--text-primary); font-family: inherit; font-size: 12px; resize: vertical; box-sizing: border-box;"></textarea>
+                                    <small style="color: var(--text-secondary); display: block; margin-top: 6px;">
+                                        Dica: Instrua a IA a ser formal, analítica e a descrever com precisão as avarias de funilaria/pintura ou estrutura, diferenciando itens leves (riscos, pequenos amassados) de danos sérios (corte de longarina, soldas estruturais).
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>

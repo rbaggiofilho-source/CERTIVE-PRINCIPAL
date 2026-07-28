@@ -7265,12 +7265,16 @@ function switchConfigTab(tab, btn) {
     const tabAuditoria = document.getElementById('tab-cfg-auditoria');
     if (tabAuditoria) tabAuditoria.style.display = tab === 'auditoria' ? 'block' : 'none';
 
+    const tabChatGPT = document.getElementById('tab-cfg-chatgpt');
+    if (tabChatGPT) tabChatGPT.style.display = tab === 'chatgpt' ? 'block' : 'none';
+
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
     if (tab === 'portarias') renderConfigPortarias();
     if (tab === 'whatsapp') renderConfigWhatsApp();
     if (tab === 'auditoria') runIntegrityAudit();
+    if (tab === 'chatgpt') renderConfigChatGPT();
 }
 
 function renderConfigPage() {
@@ -7280,6 +7284,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'portarias') renderConfigPortarias();
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
     else if (currentConfigTab === 'auditoria') runIntegrityAudit();
+    else if (currentConfigTab === 'chatgpt') renderConfigChatGPT();
 }
 
 // Config: Tabela de Preços e Taxas
@@ -12756,6 +12761,320 @@ window.syncDetranFloatingPayable = async function() {
         console.error("[DETRAN Sincronizador] Falha crítica na execução:", e);
     }
 };
+
+// ==========================================================
+// MÓDULO DE INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (CHATGPT)
+// ==========================================================
+
+function getDefaultOpenAIPrompt() {
+    return `Você é um perito em vistoria veicular e emissão de laudo cautelar.
+Sua tarefa é analisar os dados do checklist e as fotos da vistoria de um veículo e gerar um parecer descritivo detalhado, além de propor a conformidade final.
+
+Regras do Parecer:
+1. Analise se há não conformidades ou ressalvas nos itens de identificação, pintura, vidros, óticos, rodas/pneus, interior e estrutura.
+2. Identifique avarias estéticas leves (ex: riscos, amassados pequenos) e marque o laudo como "COM RESSALVAS" ("com_ressalvas").
+3. Identifique avarias graves na estrutura, histórico de leilão/sinistro ou indícios de adulteração de chassi/motor e marque o laudo como "NÃO CONFORME" ("nao_conforme").
+4. Se todos os itens estiverem conformes, marque o laudo como "CONFORME" ("conforme").
+5. Escreva um parágrafo técnico formal descrevendo resumidamente o estado geral do veículo com base no checklist e nas imagens, focando em justificar a sua decisão. Seja claro e profissional. Não invente detalhes não informados.
+6. A resposta DEVE ser um objeto JSON exatamente no seguinte formato:
+{
+  "parecer": "conforme" | "com_ressalvas" | "nao_conforme",
+  "observacao": "Parágrafo descritivo do laudo..."
+}`;
+}
+
+function renderConfigChatGPT() {
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
+    const keyInput = document.getElementById('cfg-openai-key');
+    const modelSelect = document.getElementById('cfg-openai-model');
+    const promptTextarea = document.getElementById('cfg-openai-prompt');
+
+    if (config) {
+        if (keyInput) keyInput.value = config.chaveOpenAi || '';
+        if (modelSelect) modelSelect.value = config.modeloOpenAi || 'gpt-4o-mini';
+        if (promptTextarea) promptTextarea.value = config.promptInstrucoes || '';
+    } else {
+        if (keyInput) keyInput.value = '';
+        if (modelSelect) modelSelect.value = 'gpt-4o-mini';
+        if (promptTextarea) promptTextarea.value = getDefaultOpenAIPrompt();
+    }
+}
+
+async function submitConfigChatGPT(event) {
+    event.preventDefault();
+    if (!currentSession) return;
+
+    const key = document.getElementById('cfg-openai-key').value.trim();
+    const model = document.getElementById('cfg-openai-model').value;
+    const prompt = document.getElementById('cfg-openai-prompt').value.trim();
+
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const oldId = config.id || null;
+
+    const payload = {
+        chaveOpenAi: key,
+        modeloOpenAi: model,
+        promptInstrucoes: prompt,
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: currentSession.nome || 'Admin'
+    };
+
+    try {
+        showToast("Salvando configurações da OpenAI...", "info");
+
+        if (window.useSupabase) {
+            if (oldId) {
+                const { error } = await supabaseClient.from('configuracoes_gerais')
+                    .update(payload)
+                    .eq('id', oldId);
+                if (error) throw error;
+                payload.id = oldId;
+            } else {
+                const { data, error } = await supabaseClient.from('configuracoes_gerais')
+                    .insert(payload)
+                    .select()
+                    .single();
+                if (error) throw error;
+                payload.id = data.id;
+            }
+        } else {
+            if (oldId) {
+                payload.id = oldId;
+            } else {
+                payload.id = db.configuracoes_gerais && db.configuracoes_gerais.length > 0 ? Math.max(...db.configuracoes_gerais.map(r => r.id || 0)) + 1 : 1;
+            }
+        }
+
+        db.configuracoes_gerais = [payload];
+        if (!window.useSupabase && typeof saveDatabase === 'function') saveDatabase();
+
+        showToast("Configurações da OpenAI salvas com sucesso!", "success");
+        renderConfigChatGPT();
+    } catch (err) {
+        console.error("Erro ao salvar integração ChatGPT:", err);
+        showToast("Erro ao salvar configurações da OpenAI.", "error");
+    }
+}
+
+async function analisarLaudoComIA() {
+    const cautelarId = window.activeFinalizacaoCautelarId;
+    if (!cautelarId) {
+        showToast("Nenhum laudo ativo para finalização.", "error");
+        return;
+    }
+
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
+    if (!config || !config.chaveOpenAi) {
+        showToast("Chave da API da OpenAI não configurada. Vá em Configurações > Integração IA.", "warning");
+        return;
+    }
+
+    const btn = document.getElementById('btn-cautelar-ia-analisar');
+    const loadingDiv = document.getElementById('cautelar-ia-loading');
+    const loadingText = document.getElementById('cautelar-ia-loading-text');
+    const badge = document.getElementById('ia-status-badge');
+
+    // Desabilitar botão e mostrar loader
+    if (btn) btn.disabled = true;
+    if (loadingDiv) loadingDiv.style.display = 'flex';
+    if (badge) {
+        badge.textContent = "Analisando...";
+        badge.style.background = "rgba(212, 160, 23, 0.15)";
+        badge.style.color = "var(--accent)";
+    }
+
+    try {
+        const cautelar = db.cautelares.find(c => c.id === cautelarId);
+        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
+        const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
+
+        const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
+        const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
+        const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
+        const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
+        const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
+        const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
+        const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
+        const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
+
+        // Coletar as fotos
+        const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
+        const fotosValidas = fotos.filter(f => f.url_original && f.url_original.startsWith('http'));
+
+        // Formatar o texto de resumo da vistoria
+        let checklistText = `DADOS DO VEÍCULO:
+- Placa: ${os.placa || 'N/A'}
+- Marca/Modelo: ${os.clienteNome || 'N/A'}
+- Ano Fabricação/Modelo: ${os.fabricacaoAno || 'N/A'}/${os.modeloAno || 'N/A'}
+- Cor: ${os.cor || 'N/A'}
+- Chassi OS: ${os.renavam || 'N/A'}
+- Motor OS: ${os.chassi || 'N/A'}
+
+SEÇÃO I: IDENTIFICAÇÃO DO VEÍCULO
+- Quilometragem lida: ${dataSec1.quilometragem || 'N/A'} km
+- Placa confere com CRLV: ${dataSec1.placaConfere || 'sim'}
+- Estado geral de conservação: ${dataSec1.estadoConservacao || 'N/A'}
+- Observações da identificação: ${dataSec1.observacao || 'Nenhum'}
+
+SEÇÃO II: CHASSI E MOTOR
+- Chassi Lido no veículo: ${dataSec2.chassiLido || 'N/A'}
+- Motor Lido no veículo: ${dataSec2.motorLido || 'N/A'}
+- Gravação de Chassi Original: ${dataSec2.chassiOriginal !== false ? 'SIM' : 'NÃO'}
+- Gravação de Motor Original: ${dataSec2.motorOriginal !== false ? 'SIM' : 'NÃO'}
+- Etiquetas ETA Preservadas: ${dataSec2.etiquetasEtaOriginais !== false ? 'SIM' : 'NÃO'}
+- Observações de Chassi/Motor: ${dataSec2.observacao || 'Nenhum'}
+
+SEÇÃO III: ESTRUTURA GERAL
+- Indícios de Enchente: ${dataSec3.indicioEnchente || 'nao'} (Detalhes: ${dataSec3.obsEnchente || 'N/A'})
+- Indícios de Batida / Deformação: ${dataSec3.indicioBatida || 'nao'} (Detalhes: ${dataSec3.obsBatida || 'N/A'})
+- Parecer Estrutural: ${dataSec3.parecerEstrutural || 'conforme'}
+- Observações estruturais: ${dataSec3.observacao || 'Nenhum'}
+
+SEÇÃO IV: ESPESSURA DA PINTURA
+- Dados de espessura de pintura lidos nos painéis (medidas em micras):
+`;
+
+        // Medidas micrométricas
+        const paineisNomes = [
+            "Capô", "Teto", "Tampa traseira",
+            "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
+            "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
+            "Coluna A esquerda", "Coluna A direita",
+            "Coluna B esquerda", "Coluna B direita",
+            "Coluna C esquerda", "Coluna C direita"
+        ];
+        paineisNomes.forEach((nome, idx) => {
+            const val = dataSec4[`painel_${idx}`] || '';
+            const status = dataSec4[`painel_${idx}_status`] || 'normal';
+            if (val) {
+                checklistText += `  * ${nome}: ${val} micras (${status.toUpperCase()})\n`;
+            }
+        });
+
+        checklistText += `
+SEÇÃO V: ITENS DE SEGURANÇA E VIDROS
+- Pneus confere: ${dataSec5.pneusConfere !== false ? 'SIM' : 'NÃO'}
+- Rodas confere: ${dataSec5.rodasConfere !== false ? 'SIM' : 'NÃO'}
+- Estepe confere: ${dataSec5.estepeConfere !== false ? 'SIM' : 'NÃO'}
+- Parabrisa original: ${dataSec5.parabrisaOriginal !== false ? 'SIM' : 'NÃO'}
+- Vidros laterais originais: ${dataSec5.vidrosLateraisOriginais !== false ? 'SIM' : 'NÃO'}
+- Vigia original: ${dataSec5.vigiaOriginal !== false ? 'SIM' : 'NÃO'}
+- Observações de segurança/vidros: ${dataSec5.observacao || 'Nenhum'}
+
+SEÇÃO VI: DIAGNÓSTICO DE SUSPENSÃO, FREIOS E ESCAPAMENTO
+- Estado Suspensao: ${dataSec6.estadoSuspensao || 'N/A'}
+- Estado Freios: ${dataSec6.estadoFreios || 'N/A'}
+- Estado Escapamento: ${dataSec6.estadoEscapamento || 'N/A'}
+- Vazamento de fluidos: ${dataSec6.vazamentoFluidos || 'nao'}
+- Observações: ${dataSec6.observacao || 'Nenhum'}
+
+SEÇÃO VII: DIAGNÓSTICO DO SISTEMA ELÉTRICO E ELETRÔNICO
+- Painel de Instrumentos: ${dataSec7.painelInstrumentos || 'N/A'}
+- Iluminação Externa: ${dataSec7.iluminaçãoExterna || 'N/A'}
+- Funcionamento Vidros Elétricos: ${dataSec7.funcionamentoVidrosElétricos || 'N/A'}
+- Ar Condicionado: ${dataSec7.arCondicionado || 'N/A'}
+- Scanner de erros OBD: ${dataSec7.scannerErros || 'N/A'}
+- Observações: ${dataSec7.observacao || 'Nenhum'}
+
+SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
+- Histórico de Leilão: ${dataSec8.historicoLeilao || 'nao'}
+- Histórico de Sinistro: ${dataSec8.historicoSinistro || 'nao'}
+- Histórico de Roubo/Furto: ${dataSec8.historicoRouboFurto || 'nao'}
+- Débitos/Multas pendentes: ${dataSec8.debitoMultas || 'nao'}
+- Restrição Judicial/Administrativa: ${dataSec8.restricaoJudicial || 'nao'}
+- Observações de histórico/documentos: ${dataSec8.observacaoFinal || 'Nenhum'}
+`;
+
+        // Preparar payload de mensagens para a OpenAI
+        const contentPayload = [
+            {
+                type: "text",
+                text: `Analise a seguinte vistoria cautelar e as imagens do veículo. Com base nos dados e fotos fornecidos, recomende um parecer final técnico e gere um parágrafo detalhado descrevendo o laudo técnico do veículo.\n\nCHECKLIST DA VISTORIA:\n${checklistText}`
+            }
+        ];
+
+        // Anexar fotos do laudo para a análise visual
+        const maxFotos = 12;
+        const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
+        
+        fotosParaEnviar.forEach((foto) => {
+            contentPayload.push({
+                type: "image_url",
+                image_url: {
+                    url: foto.url_original
+                }
+            });
+        });
+
+        if (loadingText) loadingText.textContent = `Enviando checklist e ${fotosParaEnviar.length} imagens para a IA...`;
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${config.chaveOpenAi}`
+            },
+            body: JSON.stringify({
+                model: config.modeloOpenAi || "gpt-4o-mini",
+                response_format: { type: "json_object" },
+                messages: [
+                    {
+                        role: "system",
+                        content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                    },
+                    {
+                        role: "user",
+                        content: contentPayload
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `HTTP ${response.status}`);
+        }
+
+        const resData = await response.json();
+        const rawJson = resData.choices[0]?.message?.content;
+        if (!rawJson) throw new Error("A API retornou uma resposta vazia.");
+
+        const aiResult = JSON.parse(rawJson);
+
+        // Preencher os campos no formulário de finalização
+        const parecerSelect = document.getElementById('caut-final-parecer');
+        const obsTextarea = document.getElementById('caut-final-obs');
+
+        if (parecerSelect && aiResult.parecer) {
+            parecerSelect.value = aiResult.parecer;
+        }
+        if (obsTextarea && aiResult.observacao) {
+            obsTextarea.value = aiResult.observacao;
+        }
+
+        showToast("Laudo analisado com sucesso pela IA!", "success");
+        if (badge) {
+            badge.textContent = "Concluída";
+            badge.style.background = "rgba(16, 185, 129, 0.15)";
+            badge.style.color = "var(--success)";
+        }
+
+        // Atualizar o laudo na tela
+        atualizarPreviewLaudo();
+
+    } catch (err) {
+        console.error("Erro na análise por IA:", err);
+        showToast(`Erro na análise por IA: ${err.message}`, "error");
+        if (badge) {
+            badge.textContent = "Erro";
+            badge.style.background = "rgba(239, 68, 68, 0.15)";
+            badge.style.color = "var(--danger)";
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+        if (loadingDiv) loadingDiv.style.display = 'none';
+    }
+}
 
 
 

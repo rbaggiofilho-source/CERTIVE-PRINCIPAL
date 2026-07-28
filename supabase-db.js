@@ -377,6 +377,16 @@ async function loadAllFromSupabase() {
         }
         db.parceiros_creditos = parceiros_creditos || [];
 
+        // Tabela de Configurações Gerais (OpenAI, etc) - carregamento defensivo
+        let configuracoes_gerais = [];
+        try {
+            configuracoes_gerais = await sbSelectAll('configuracoes_gerais');
+            window.onlineTables['configuracoes_gerais'] = true;
+        } catch (e) {
+            console.warn("⚠️ Tabela configuracoes_gerais indisponível no Supabase. Usando array vazio.", e.message);
+        }
+        db.configuracoes_gerais = configuracoes_gerais || [];
+
         // Process Portarias UF
         db.portarias_uf = {};
         (portarias_uf || []).forEach(p => {

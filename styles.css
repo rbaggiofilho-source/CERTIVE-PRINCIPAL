@@ -1332,6 +1332,19 @@ h1, h2, h3, .serif-title {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spinner-ia {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(212, 160, 23, 0.2);
+  border-top-color: var(--accent) !important;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
 
 /* ===== PRINT LAYOUT FOR VEHICLE CONTRACT ===== */
 #print-area {
