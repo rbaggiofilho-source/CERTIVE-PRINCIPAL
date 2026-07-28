@@ -12933,7 +12933,7 @@ async function analisarLaudoComIA() {
 
         // Coletar as fotos
         const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-        const fotosValidas = fotos.filter(f => f.url_original && f.url_original.startsWith('http'));
+        const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
 
         // Formatar o texto de resumo da vistoria
         let checklistText = `DADOS DO VEÍCULO:
