@@ -12465,6 +12465,70 @@ async function reabrirLaudo(placa) {
 }
 window.reabrirLaudo = reabrirLaudo;
 
+async function excluirVistoria(placa) {
+    if (!placa) {
+        showToast("Por favor, informe a placa ou parte dela.", "warning");
+        return;
+    }
+
+    try {
+        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase().includes(placa.toUpperCase()));
+        if (!os) {
+            showToast(`Ordem de serviço não encontrada para placa contendo: ${placa}`, "error");
+            return;
+        }
+
+        const confirmMsg = `ATENÇÃO: Deseja realmente EXCLUIR DEFINITIVAMENTE a OS Placa: ${os.placa} e todas as suas vistorias, seções, fotos e lançamentos financeiros? Esta ação não pode ser desfeita.`;
+        if (!confirm(confirmMsg)) return;
+
+        console.log(`Excluindo laudo da placa ${os.placa} (OS ID: ${os.id})...`);
+
+        const cautelares = db.cautelares.filter(c => c.osId === os.id);
+        const cautelarIds = cautelares.map(c => c.id);
+
+        // Deletar fotos associadas localmente
+        for (const c of cautelares) {
+            const secoes = db.cautelares_secoes.filter(s => s.cautelarId === c.id);
+            const secaoIds = secoes.map(s => s.id);
+            db.cautelares_fotos = db.cautelares_fotos.filter(f => !secaoIds.includes(f.secaoId));
+            db.cautelares_secoes = db.cautelares_secoes.filter(s => s.cautelarId !== c.id);
+        }
+
+        // Deletar cautelares e lançamentos locais
+        db.cautelares = db.cautelares.filter(c => c.osId !== os.id);
+        db.caixa_movimentos = db.caixa_movimentos.filter(m => m.osId !== os.id);
+        db.ordens_servico = db.ordens_servico.filter(o => o.id !== os.id);
+
+        saveDatabase();
+
+        // Atualizar no Supabase online
+        if (window.useSupabase) {
+            for (const cId of cautelarIds) {
+                // Remove fotos por secao
+                const { data: secoes } = await supabaseClient.from('cautelares_secoes').select('id').eq('cautelarId', cId);
+                if (secoes && secoes.length > 0) {
+                    for (const sec of secoes) {
+                        await supabaseClient.from('cautelares_fotos').delete().eq('secaoId', sec.id);
+                    }
+                }
+                await supabaseClient.from('cautelares_secoes').delete().eq('cautelarId', cId);
+                await supabaseClient.from('cautelares').delete().eq('id', cId);
+            }
+            await supabaseClient.from('caixa_movimentos').delete().eq('osId', os.id);
+            await supabaseClient.from('ordens_servico').delete().eq('id', os.id);
+        }
+
+        showToast(`OS e laudo da placa ${os.placa} excluídos com sucesso!`, "success");
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    } catch (err) {
+        console.error("Erro ao excluir vistoria:", err);
+        showToast("Erro crítico ao excluir vistoria.", "error");
+    }
+}
+window.excluirVistoria = excluirVistoria;
+
 /**
  * Abre a visualização resumida (modo leitura) da Cautelar.
  */
