@@ -13127,10 +13127,14 @@ window.syncDetranFloatingPayable = async function() {
                     existingPayable.valor = totalTaxas;
                     
                     if (window.useSupabase) {
-                        await supabaseClient.from('contas_pagar')
-                            .update({ valor: totalTaxas })
-                            .eq('id', existingPayable.id)
-                            .catch(err => console.error('[DETRAN Sincronizador] Erro Supabase:', err));
+                        try {
+                            const { error } = await supabaseClient.from('contas_pagar')
+                                .update({ valor: totalTaxas })
+                                .eq('id', existingPayable.id);
+                            if (error) throw error;
+                        } catch (err) {
+                            console.error('[DETRAN Sincronizador] Erro Supabase:', err);
+                        }
                     }
                     cacheUpdate('contas_pagar', existingPayable.id, { valor: totalTaxas });
                 }
