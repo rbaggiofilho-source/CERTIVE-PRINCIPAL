@@ -5,7 +5,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const asaasUrl = Deno.env.get('ASAAS_API_URL') || 'https://sandbox.asaas.com/api/v3';
+const asaasUrl = Deno.env.get('ASAAS_API_URL') || 'https://api.asaas.com/v3'; // Produção
 const asaasKey = Deno.env.get('ASAAS_API_KEY')!;
 
 const zapToken = Deno.env.get('ZAP_API_TOKEN')!;
