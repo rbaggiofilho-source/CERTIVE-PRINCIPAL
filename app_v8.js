@@ -5329,7 +5329,7 @@ function renderFatFaturas() {
         if (f.asaas_url) {
             asaasBtn = `<a href="${f.asaas_url}" target="_blank" class="btn btn-secondary btn-sm btn-icon" title="Abrir Boleto Asaas" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); transition: background 0.2s;"><i class="ri-bank-card-line" style="font-size:14px;"></i></a>`;
         } else {
-            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="openBoletoModal(${f.id})" title="Boleto Bancário"><i class="ri-bank-card-line"></i></button>`;
+            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="generateAsaasBillingForInvoice(${f.id}, this)" title="Gerar Cobrança Asaas"><i class="ri-bank-card-line"></i></button>`;
         }
 
         let zapBtn = '';
@@ -13188,6 +13188,69 @@ async function sendInvoiceWhatsApp(faturaId, btn) {
     } catch (err) {
         console.error("Erro no reenvio de WhatsApp:", err);
         showToast("Erro de rede ao conectar à API de WhatsApp.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        if (typeof renderFatFaturas === 'function') {
+            renderFatFaturas();
+        }
+    }
+}
+
+async function generateAsaasBillingForInvoice(faturaId, btn) {
+    if (!window.useSupabase) {
+        showToast("Erro: A integração com Asaas só está disponível no modo online (Supabase).", "error");
+        return;
+    }
+
+    const fatura = db.faturas.find(x => x.id === faturaId);
+    if (!fatura) return;
+
+    if (fatura.asaas_url) {
+        showToast("Esta fatura já possui uma cobrança Asaas gerada.", "info");
+        return;
+    }
+
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line spinning" style="font-size:14px;"></i>';
+
+    try {
+        showToast("Gerando cobrança no Asaas...", "info");
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({ faturaId: faturaId })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            fatura.asaas_payment_id = data.paymentId;
+            fatura.asaas_url = data.url;
+            fatura.notificacao_zap = (data.zapStatus === 'enviado');
+
+            await sbUpdate('faturas', fatura.id, {
+                asaas_payment_id: fatura.asaas_payment_id,
+                asaas_url: fatura.asaas_url,
+                notificacao_zap: fatura.notificacao_zap
+            });
+
+            showToast("Cobrança Asaas gerada com sucesso!", "success");
+        } else {
+            let errText = "Erro desconhecido";
+            try {
+                const data = await res.json();
+                errText = data.error || errText;
+            } catch(e) {}
+            showToast("Erro Asaas: " + errText, "error");
+        }
+    } catch (err) {
+        console.error("Erro ao gerar cobrança Asaas:", err);
+        showToast("Erro de rede ao conectar à API do Asaas.", "error");
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalHtml;
