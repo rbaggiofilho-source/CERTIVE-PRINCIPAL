@@ -1,64 +1,0 @@
-CERTIVE
-V I S T O R I A & I D E N T I F I C A Ç Ã O V E I C U L A R
-
-TERMO DE PRESTAÇÃO DE SERVIÇOS
-E CONDIÇÕES GERAIS DE CONTRATAÇÃO
-Instrumento único modular - o módulo correspondente ao serviço selecionado na Ordem de Serviço é impresso em conjunto com as condições gerais
-IDENTIFICAÇÃO DA CONTRATAÇÃO
-
-Nº da Ordem de Serviço{{os_numero}}Data / hora{{os_data_hora}}Serviço(s) contratado(s) Vistoria de Transferência ({{porte_veiculo}})	 Vistoria Cautelar    	 Pesquisa VeicularO sistema marca automatica Veicular (cláusula M2.2).mente o(s) item(ns) da OS. A Vistoria Cautelar inclui obrigatoriamente a PesquisaValor totalR$ {{os_valor}}Pagamento{{os_forma_pagamento}}CONTRATADA: {{ecv_razao_social}} (nome fantasia Certive Vistorias), CNPJ {{ecv_cnpj}}, com sede em {{ecv_endereco}}, Empresa Credenciada de Vistoria (ECV) habilitada junto ao DETRAN/SC sob o credenciamento nº {{ecv_credenciamento_numero}}. 
-CONTRATANTE: {{cliente_nome}}, CPF/CNPJ {{cliente_documento}}, {{cliente_endereco}}, telefone 
-{{cliente_telefone}}, na qualidade de 	 proprietário   	 adquirente/interessado   	 terceiro autorizado. VEÍCULO: placa {{veiculo_placa}}, RENAVAM {{veiculo_renavam}}, chassi {{veiculo_chassi}}, marca/modelo {{veiculo_marca_modelo}}, ano {{veiculo_ano}}. 
-PARTE I - CONDIÇÕES GERAIS (APLICÁVEIS A TODOS OS SERVIÇOS)
-
-1. Objeto e adesão. Este Termo rege a prestação, pela CONTRATADA, do(s) serviço(s) assinalado(s) na identificação acima, conforme regras gerais desta Parte I e as regras específicas do(s) módulo(s) correspondente(s) na Parte II. A assinatura do CONTRATANTE manifesta concordância integral com estas condições, e é requisito para a execução do serviço.
-CLÁUSULA ESSENCIAL - NATUREZA TEMPORAL DO LAUDO
-2.1. Todo laudo, parecer ou resultado emitido pela CONTRATADA constitui atestado da condição do veículo no exato momento da sua realização, referindo-se exclusivamente ao estado verificável da inspeção para trás (fato pretérito e presente). O documento não projeta garantia para o futuro e não alcança fatos, danos, eventos ou alterações supervenientes à data e hora de sua emissão.
-2.2. A partir do momento em que o veículo deixa as instalações da CONTRATADA, esta não se responsabiliza por quaisquer eventos posteriores - tais como colisões, enchentes, incêndios, reparos, repinturas, substituição de peças, adulterações ou demais intervenções - ainda que tais eventos venham a ser dissimulados por proprietário, vendedor ou terceiro, e ainda que invocados para questionar a correspondência entre o laudo e o estado atual do veículo.
-2.3. Em razão da natureza temporal acima, reclamações fundadas na divergência entre o laudo e o estado do veículo verificado em data posterior à inspeção não caracterizam falha do serviço, salvo prova de erro técnico imputável à CONTRATADA já existente e perceptível no momento da inspeção.
-3. Responsabilidade da CONTRATADA. A CONTRATADA responde, na forma da lei, pelos serviços que presta e pelas informações e interpretações que insere em seus laudos, observados o escopo de cada módulo e a delimitação temporal da cláusula 2. Sua responsabilidade não alcança: (a) dados oriundos de bancos e bases oficiais (BIN/RENAVAM/RENAMO e congêneres), dos quais é mera consulente e não a fonte; (b) vícios ocultos ou condições não perceptíveis ao método de exame contratado; (c) fato exclusivo de terceiro ou do próprio CONTRATANTE; (d) decisão de órgão público no exercício de sua competência.
-4. Obrigações do CONTRATANTE. Apresentar o veículo em condições de acesso e limpeza que permitam a inspeção; fornecer documentação e informações verdadeiras quanto à finalidade, titularidade e posse; e, quando não for o proprietário, declarar atuar com ciência e autorização deste. A prestação de informação falsa ou a ocultação dolosa de defeito exime a CONTRATADA de responsabilidade correlata.
-5. Preço e pagamento. O valor refere-se exclusivamente ao(s) serviço(s) contratado(s), não incluindo taxas de DETRAN, emolumentos ou serviços de terceiros. É emitida Nota Fiscal de Serviço eletrônica (NFS-e). As condições de pagamento (cartão, PIX, dinheiro ou faturamento a parceiro) seguem o assinalado na OS.
-6. Direitos do consumidor (CDC). Esta é relação de consumo. Nenhuma cláusula deste Termo exclui ou atenua a responsabilidade da CONTRATADA por falha do serviço dentro do escopo e do momento contratados (art. 25 e art. 51, I, do CDC); as delimitações de escopo e de natureza temporal destinam-se a informar com clareza o que o serviço compreende. São direitos do CONTRATANTE: informação clara sobre escopo e limites; cópia do laudo e acesso às imagens da sua inspeção; atendimento via ouvidoria/SAC ({{ecv_canal_ouvidoria}}); e reparação, na forma da lei, por dano comprovadamente decorrente de falha imputável à CONTRATADA.
-7. Proteção de dados (LGPD). Os dados são tratados para execução do serviço e cumprimento de obrigações legais e regulatórias, na forma da Lei nº 13.709/2018. É vedado à CONTRATADA repassar a terceiros, a qualquer título, informações sobre o veículo e o proprietário, ressalvado o fornecimento às autoridades competentes.
-8. Suspeita de irregularidade. Identificada suspeita de fraude ou irregularidade insanável na identificação do veículo, a CONTRATADA adotará as providências legais cabíveis, inclusive comunicação à autoridade competente (art. 311 do Código Penal), o que não configura inadimplemento contratual.
-9. Foro. Elege-se o foro do domicílio do CONTRATANTE (art. 101, I, do CDC). A nulidade de qualquer cláusula não prejudica as demais.
-PARTE II - MÓDULOS POR SERVIÇO
-
-O ERP imprime, nesta Parte II, apenas o(s) módulo(s) correspondente(s) ao(s) serviço(s) da Ordem de Serviço.
-Módulo 1 - Vistoria de Identificação Veicular (Transferência) [imprimir se selecionado]
-M1.1. Escopo. Serviço regulado, destinado a instruir procedimento de trânsito (transferência de propriedade, mudança de município/UF, alteração de característica, inclusão de gravame, entre outros). Nos termos do art. 2º, §2º, da Resolução CONTRAN nº 941/2022, verifica-se: a autenticidade da identificação do veículo e da documentação; a legitimidade da propriedade; a presença e funcionalidade dos equipamentos obrigatórios; e a eventual modificação das características originais e sua regularização. O laudo é eletrônico e só tem validade quando registrado no SISCSV.
-M1.2. Fora do escopo. Não integram este serviço a avaliação mecânica/estrutural ampla, vícios ocultos, histórico não constante do prontuário, procedência comercial, valor de mercado, débitos ou quilometragem - objeto, no que couber, da Vistoria Cautelar (Módulo 2).
-M1.3. Reprovação - reapresentação em 30 dias. Em caso de reprovação, o CONTRATANTE poderá sanar as pendências apontadas e reapresentar o veículo, sem nova cobrança, no prazo de 30 (trinta) dias contados da primeira vistoria. Decorrido o prazo, novo serviço será cobrado integralmente.
-Módulo 2 - Vistoria Cautelar [imprimir se selecionado]
-M2.1. Natureza. Serviço privado e facultativo, não regulado por norma de trânsito obrigatória, de avaliação técnica da originalidade e da condição estrutural do veículo, destinado a subsidiar decisão de compra e venda. Abrange os mesmos pontos da vistoria de transferência e, adicionalmente, a análise estrutural ampla descrita a seguir.
-M2.2. Pesquisa Veicular inclusa. A contratação da Vistoria Cautelar inclui automaticamente a Pesquisa Veicular (Módulo 3), que a integra e a acompanha. A recíproca não se aplica: a Pesquisa Veicular pode ser contratada isoladamente.
-M2.3. Objeto da análise. A avaliação compreende: (a) identificação e autenticidade - chassi/monobloco, motor, câmbio, vidros, etiquetas, plaquetas e selos, confrontados com os padrões de fábrica; (b) análise estrutural por elemento - exame individualizado das peças da carroceria (capô, para-lamas, portas, colunas, teto, tampa traseira, longarinas, painéis dianteiro e traseiro, entre outras), registrando-se, para cada uma, a constatação aplicável (condição original; indícios de repintura; indícios de repintura com massa; amassados aparentes; arranhões aparentes; reparo); (c) condição geral de segurança associada à estrutura; e (d) indícios de eventos que afetem o valor de mercado (p. ex. sinistro, enchente), na medida do verificável pelo método.
-M2.4. Método e limites. A inspeção é visual, estática e sem desmontagem, restrita a itens acessíveis no momento do exame. Não constituem objeto deste serviço, por dependerem de procedimento diverso (desmontagem, perícia laboratorial, ensaio mecânico ou avaliação elétrica/eletrônica): defeitos não perceptíveis ao exame visual, vícios ocultos, e a aferição do funcionamento de sistemas mecânicos e eletrônicos. Os parâmetros técnicos de referência observam, no que aplicável, as normas ABNT pertinentes (p. ex. NBR 6066 e NBR 15180 para identificação; NBR 15048 para soldagem) e os conceitos de monta da Resolução CONTRAN nº 810/2020.
-M2.5. Resultado. O laudo reúne as informações de identificação e validação, a análise estrutural por elemento, e um resultado de conformidade (Conforme / Conforme com Apontamento / Não Conforme), além de campo de restrições e observações. O resultado expressa a opinião técnica da CONTRATADA sobre o estado e o histórico do veículo no momento da inspeção, e não substitui avaliação mecânica ou elétrica especializada.
-M2.6. Reprovação. Diante de resultado Não Conforme, o serviço se encerra com a entrega do laudo. Não há reapresentação gratuita (regra distinta da transferência): a Vistoria Cautelar é avaliação de constatação, e o apontamento desfavorável é resultado regular e válido do serviço, não ensejando nova execução sem custo nem devolução de valores.
-M2.7. Reforço da cláusula temporal. Reitera-se, neste serviço, a cláusula 2 da Parte I: o laudo cautelar atesta a condição do veículo da inspeção para trás, sendo recomendável a realização de novo laudo imediatamente antes da efetivação de qualquer negócio, dado que eventos posteriores podem alterar o estado do bem.
-Módulo 3 - Pesquisa Veicular [imprimir se selecionado]
-M3.1. Escopo. Serviço de consulta e compilação de informações e histórico do veículo a partir de bases de dados oficiais e privadas disponíveis (p. ex. dados cadastrais, débitos, restrições, gravames, registros de leilão, sinistro, roubo/furto), entregues em formato de relatório.
-M3.2. Responsabilidade e limites. A CONTRATADA responde pela fidelidade da compilação em relação às fontes consultadas, não respondendo pela veracidade, completude ou atualização dos dados de origem, que são de responsabilidade das respectivas fontes. Pode haver divergência ou ausência de registros entre diferentes bases; recomendase a realização de novas consultas próximo à conclusão do negócio.
-M3.3. Encerramento. A entrega do relatório encerra o serviço. Por se tratar de resultado informativo, não há reapresentação nem reembolso em razão do conteúdo apurado.
-ACEITE E ASSINATURAS
-   Declaro que li e compreendi as Condições Gerais (Parte I), em especial a cláusula 2 (natureza temporal do laudo), e o(s) módulo(s) do(s) serviço(s) que contratei.
-[OPCIONAL - só transferência] Estou ciente da regra de reapresentação em 30 dias (M1.3).
-[OPCIONAL - só cautelar/pesquisa]	 Estou ciente de que, em caso de resultado Não Conforme ou de apontamento na pesquisa, o serviço se encerra sem reapresentação gratuita nem reembolso (M2.6 / M3.3).
-
-
-{{cliente_nome}} CONTRATANTE - CPF/CNPJ {{cliente_documento}} {{ecv_razao_social}}
-Notas de implementação para o ERP (não imprimir na via do cliente)
-• Montagem condicional: a Parte I (cláusulas 1-9) é sempre impressa. Na Parte II, imprimir apenas o(s) módulo(s) marcado(s) na OS. Se a OS for Cautelar, marcar e imprimir também o Módulo 3 (regra M2.2). Os checkboxes de aceite seguem a mesma lógica condicional.
-• Qualidade do CONTRATANTE: o campo proprietário/adquirente/terceiro é relevante na cautelar, em que muitas vezes quem contrata é o comprador. Quando não for o proprietário, registrar a ciência/autorização (cláusula 4).
-• Natureza temporal (cláusula 2): é o núcleo de proteção da empresa. O laudo emitido deve carregar data e hora travadas e, idealmente, a mesma frase-síntese, para coerência entre contrato e laudo.
-• Reprovação difere por serviço: transferência = 30 dias grátis (M1.3); cautelar = encerra (M2.6); pesquisa = encerra (M3.3). Não unificar essa regra no código.
-• Multi-UF: a referência regulatória estadual está fixada em DETRAN/SC. Para expansão, parametrizar por UF (tabela de-para de portarias).
-• Revisão jurídica: modelo-base fundamentado na legislação vigente. Validar com advogado antes de produção.CONTRATADA - Certive Vistorias {{ecv_cidade_uf}}, {{os_data}}.
-Termo de Prestação de Serviços - Certive Vistorias	Página 1 de 4
-
-Termo de Prestação de Serviços - Certive Vistorias	Página 1 de 3
-
-Termo de Prestação de Serviços - Certive Vistorias	Página 1 de 4
-
