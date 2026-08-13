@@ -9,6 +9,12 @@ alter table public.operadores
   add column if not exists user_id uuid unique
   references auth.users(id) on delete set null;
 
+-- A senha deixa de ser obrigatória na tabela (ela passa a viver, criptografada,
+-- só no Supabase Auth). Isto NÃO afeta o sistema atual, que continua preenchendo
+-- a senha normalmente até a virada. Na virada, a coluna senha será removida.
+alter table public.operadores
+  alter column senha drop not null;
+
 -- Garante que novos operadores recebam um id automaticamente
 -- (hoje o id é preenchido manualmente pelo código).
 create sequence if not exists public.operadores_id_seq

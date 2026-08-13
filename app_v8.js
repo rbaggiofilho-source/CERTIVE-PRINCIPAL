@@ -1136,39 +1136,82 @@ function checkSession() {
     }
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     const loginInput = document.getElementById('login-username').value.trim();
     const passwordInput = document.getElementById('login-password').value.trim();
     const errorDiv = document.getElementById('login-error');
 
-    if (!db || !db.operadores) {
-        showToast("Conectando ao banco de dados... Aguarde um instante e tente novamente.", "info");
+    const mostrarErro = (msg) => {
+        errorDiv.style.display = 'flex';
+        document.getElementById('login-error-text').textContent =
+            msg || "Usuário ou senha inválidos, ou operador inativo.";
+    };
+
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+        showToast("Conectando ao sistema... Aguarde um instante e tente novamente.", "info");
         return;
     }
 
-    // Find operator (case-insensitive login check)
-    const user = db.operadores.find(o => o.login.toLowerCase() === loginInput.toLowerCase() && o.senha === passwordInput && o.ativo);
+    // E-mail interno do sistema — o funcionário nunca vê isto; digita só o usuário.
+    const email = `${loginInput.toLowerCase()}@sistema.certive.com.br`;
 
-    if (user) {
-        sessionStorage.setItem('certive_session', JSON.stringify(user));
+    try {
+        // 1) Valida usuário + senha no servidor (Supabase Auth). A senha nunca
+        //    é comparada aqui no navegador; quem confere é o servidor.
+        const { data: authData, error: authError } =
+            await supabaseClient.auth.signInWithPassword({ email, password: passwordInput });
+
+        if (authError || !authData || !authData.user) {
+            mostrarErro();
+            return;
+        }
+
+        // Deixa o token do usuário disponível de imediato para os acessos diretos.
+        if (authData.session) { sbAccessToken = authData.session.access_token; }
+
+        // 2) Carrega o perfil (função, permissões, unidade) do operador logado.
+        const { data: perfil, error: perfilError } = await supabaseClient
+            .from('operadores')
+            .select('id, nome, login, funcao, unidadeId, permissoes, ativo')
+            .eq('user_id', authData.user.id)
+            .single();
+
+        if (perfilError || !perfil || perfil.ativo !== true) {
+            await supabaseClient.auth.signOut();
+            mostrarErro("Operador inativo ou sem perfil configurado. Procure o administrador.");
+            return;
+        }
+
+        sessionStorage.setItem('certive_session', JSON.stringify(perfil));
         errorDiv.style.display = 'none';
-        
-        // Reset login form fields
+
         document.getElementById('login-username').value = '';
         document.getElementById('login-password').value = '';
-        
-        showToast(`Bem-vindo, ${user.nome}!`, 'success');
+
+        // Recarrega os dados já autenticado — com o RLS, os dados só vêm após o login.
+        if (typeof loadAllFromSupabase === 'function') {
+            try { await loadAllFromSupabase(); } catch (e) { console.warn('Falha ao recarregar dados após login:', e); }
+        }
+
+        showToast(`Bem-vindo, ${perfil.nome}!`, 'success');
         logAudit("Login", `Efetuou login no terminal.`);
         checkSession();
-    } else {
-        errorDiv.style.display = 'flex';
-        document.getElementById('login-error-text').textContent = "Usuário ou senha inválidos, ou operador inativo.";
+    } catch (e) {
+        console.error("Erro no login:", e);
+        mostrarErro("Não foi possível conectar. Verifique a internet e tente novamente.");
     }
 }
 
-function handleLogout() {
+async function handleLogout() {
     logAudit("Logout", `Efetuou logout do sistema.`);
+    try {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            await supabaseClient.auth.signOut();
+        }
+    } catch (e) {
+        console.warn("Erro ao encerrar sessão no servidor:", e);
+    }
     sessionStorage.removeItem('certive_session');
     currentSession = null;
     checkSession();
@@ -3770,7 +3813,7 @@ async function openTodayCaixaDrawer() {
             const checkResponse = await fetch(checkUrl, {
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    'Authorization': `Bearer ${sbAuthToken()}`
                 }
             });
             const existingDrawer = await checkResponse.json();
@@ -5197,7 +5240,7 @@ async function submitGirarFatura(event) {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        'Authorization': `Bearer ${sbAuthToken()}`
                     },
                     body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
                 });
@@ -7834,31 +7877,42 @@ async function submitConfigOperator(event) {
     // Read selected permissions
     const checkedPerms = Array.from(document.querySelectorAll('#tab-cfg-operadores input[type="checkbox"]:checked')).map(el => el.value);
 
-    const checkDuplicate = db.operadores.find(o => o.login === login);
+    if (!login || !senha) {
+        showToast("Informe o usuário e a senha do operador.", "error");
+        return;
+    }
+    const checkDuplicate = db.operadores.find(o => o.login && o.login.toLowerCase() === login.toLowerCase());
     if (checkDuplicate) {
         showToast("Erro: Este login de acesso já está em uso.", "error");
         return;
     }
 
-    const newOp = {
-        nome: nome,
-        login: login,
-        senha: senha,
-        funcao: checkedPerms.includes("bi") ? "Gerente" : "Operador",
-        unidadeId: unitId,
-        permissoes: checkedPerms,
-        ativo: true
-    };
-
     try {
-        await dbSave('operadores', newOp, 'insert');
+        // Cria o operador pelo programa seguro no servidor. A senha vai direto
+        // para o Supabase Auth (criptografada) — nunca é gravada aqui nem no banco.
+        const { data, error } = await supabaseClient.functions.invoke('gerenciar-operador', {
+            body: {
+                acao: 'criar',
+                nome: nome,
+                login: login,
+                senha: senha,
+                funcao: checkedPerms.includes("bi") ? "Gerente" : "Operador",
+                unidadeId: unitId,
+                permissoes: checkedPerms
+            }
+        });
+        if (error || (data && data.erro)) {
+            throw new Error((data && data.erro) || (error && error.message) || "Falha ao criar operador.");
+        }
         showToast("Novo operador cadastrado com sucesso!", "success");
         logAudit("Cadastro Operador", `Adicionou operador ${login}.`);
         document.getElementById('config-op-form').reset();
+        // Recarrega a lista de operadores a partir do servidor
+        try { const ops = await sbSelectAll('operadores'); if (ops) { db.operadores = ops; saveDatabase(); } } catch (_) {}
         renderConfigOperadores();
     } catch (err) {
         console.error(err);
-        showToast("Erro ao cadastrar operador.", "error");
+        showToast("Erro ao cadastrar operador: " + err.message, "error");
     }
 }
 
@@ -7899,7 +7953,11 @@ function abrirEdicaoOperador(opId) {
     document.getElementById('edit-op-id').value = op.id;
     document.getElementById('edit-op-nome').value = op.nome;
     document.getElementById('edit-op-login').value = op.login;
-    document.getElementById('edit-op-senha').value = op.senha;
+    // Senha começa em branco: preencher só para DEFINIR uma nova senha.
+    const campoSenha = document.getElementById('edit-op-senha');
+    campoSenha.value = '';
+    campoSenha.placeholder = 'Deixe em branco para manter a senha atual';
+    campoSenha.required = false;
     document.getElementById('edit-op-ativo').value = op.ativo ? "true" : "false";
 
     // Preenche select de unidades designadas
@@ -7933,32 +7991,45 @@ async function salvarEdicaoOperador(event) {
     const op = db.operadores.find(o => o.id === opId);
     if (!op) return;
 
-    op.nome = nome;
-    op.senha = senha;
-    op.unidadeId = unitId;
-    op.ativo = ativo;
-    op.permissoes = checkedPerms;
-    op.funcao = checkedPerms.includes("bi") ? "Gerente" : "Operador";
+    const novaFuncao = checkedPerms.includes("bi") ? "Gerente" : "Operador";
 
-    saveDatabase();
-
-    // Sincroniza com o Supabase online
-    if (window.useSupabase) {
-        try {
-            await sbUpdate('operadores', opId, {
-                nome: op.nome,
-                senha: op.senha,
-                unidadeId: op.unidadeId,
-                ativo: op.ativo,
-                permissoes: op.permissoes,
-                funcao: op.funcao
-            });
-        } catch (e) {
-            console.warn("Supabase update warning for operator:", e);
+    try {
+        // Atualiza o perfil (sem senha) pelo programa seguro no servidor.
+        const { data, error } = await supabaseClient.functions.invoke('gerenciar-operador', {
+            body: {
+                acao: 'atualizar',
+                user_id: op.user_id,
+                nome: nome,
+                funcao: novaFuncao,
+                unidadeId: unitId,
+                permissoes: checkedPerms,
+                ativo: ativo
+            }
+        });
+        if (error || (data && data.erro)) {
+            throw new Error((data && data.erro) || (error && error.message) || "Falha ao atualizar operador.");
         }
+
+        // Se digitou uma nova senha, redefine com segurança (criptografada no servidor).
+        if (senha) {
+            const r = await supabaseClient.functions.invoke('gerenciar-operador', {
+                body: { acao: 'resetar_senha', user_id: op.user_id, senha: senha }
+            });
+            if (r.error || (r.data && r.data.erro)) {
+                throw new Error((r.data && r.data.erro) || "Perfil salvo, mas houve erro ao trocar a senha.");
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Erro ao atualizar operador: " + e.message, "error");
+        return;
     }
 
-    logAudit("Edição Operador", `Editou configurações do operador: ${op.login}`);
+    // Recarrega o cache local a partir do servidor
+    try { const ops = await sbSelectAll('operadores'); if (ops) { db.operadores = ops; saveDatabase(); } } catch (_) {}
+    const opAtual = db.operadores.find(o => o.id === opId) || { login, nome, funcao: novaFuncao, permissoes: checkedPerms };
+
+    logAudit("Edição Operador", `Editou configurações do operador: ${opAtual.login}`);
     showToast("Operador atualizado com sucesso!", "success");
 
     // Fecha modal e recarrega
@@ -7967,9 +8038,9 @@ async function salvarEdicaoOperador(event) {
 
     // Se editou a si mesmo, força atualização da sessão ativa
     if (currentSession && currentSession.id === opId) {
-        currentSession.nome = op.nome;
-        currentSession.funcao = op.funcao;
-        currentSession.permissoes = op.permissoes;
+        currentSession.nome = opAtual.nome;
+        currentSession.funcao = opAtual.funcao;
+        currentSession.permissoes = opAtual.permissoes;
         sessionStorage.setItem('certive_session', JSON.stringify(currentSession));
         checkSession(); // Re-avalia menus
     }
@@ -8206,8 +8277,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Hook especial para laudo teste de demonstração
+    // ⚠️ DESATIVADO POR SEGURANÇA: este bloco fazia auto-login como administrador
+    // (acesso total) apenas com ?test_laudo=true na URL, sem senha. Mantido inerte.
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('test_laudo') === 'true') {
+    if (false && urlParams.get('test_laudo') === 'true') {
         // Auto-login como Ricardo Administrador se não logado
         sessionStorage.setItem('certive_session', JSON.stringify({
             id: 1,
@@ -8958,7 +9031,7 @@ async function submitChangePayment(event) {
                     const checkResponse = await fetch(checkUrl, {
                         headers: {
                             'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                            'Authorization': `Bearer ${sbAuthToken()}`
                         }
                     });
                     const existingDrawer = await checkResponse.json();
@@ -13099,7 +13172,7 @@ async function resolveAuditoriaInconsistencies() {
                         method: 'DELETE',
                         headers: {
                             'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                            'Authorization': `Bearer ${sbAuthToken()}`
                         }
                     });
                 }
@@ -13111,7 +13184,7 @@ async function resolveAuditoriaInconsistencies() {
                         method: 'DELETE',
                         headers: {
                             'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                            'Authorization': `Bearer ${sbAuthToken()}`
                         }
                     });
                 }
@@ -13161,7 +13234,7 @@ async function sendInvoiceWhatsApp(faturaId, btn) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                'Authorization': `Bearer ${sbAuthToken()}`
             },
             body: JSON.stringify({ faturaId: faturaId })
         });
@@ -13222,7 +13295,7 @@ async function generateAsaasBillingForInvoice(faturaId, btn) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                'Authorization': `Bearer ${sbAuthToken()}`
             },
             body: JSON.stringify({ faturaId: faturaId })
         });

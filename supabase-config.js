@@ -5,6 +5,14 @@
 const SUPABASE_URL = 'https://xktsvimtkwjegzaljfpm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_xuMeTcHg4M5S7qRi-H8nvQ_xN2F5wDa';
 
+// Token do usuário autenticado (preenchido após o login).
+// Os acessos diretos à API do Supabase usam este token para que o
+// RLS (segurança por login) funcione. Sem login, cai na chave pública.
+let sbAccessToken = null;
+function sbAuthToken() {
+    return sbAccessToken || SUPABASE_ANON_KEY;
+}
+
 // Initialize Supabase Client with safety check
 let supabaseClient;
 
@@ -28,4 +36,12 @@ if (typeof supabase === 'undefined') {
 } else {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log('✅ Supabase client inicializado:', SUPABASE_URL);
+
+    // Mantém o token do usuário logado disponível para os acessos diretos à API.
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+        sbAccessToken = (session && session.access_token) ? session.access_token : null;
+    });
+    supabaseClient.auth.getSession().then(({ data }) => {
+        sbAccessToken = (data && data.session) ? data.session.access_token : null;
+    }).catch(() => {});
 }
