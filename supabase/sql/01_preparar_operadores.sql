@@ -1,0 +1,23 @@
+-- ============================================================
+-- 01 — PREPARAR a tabela operadores  (ADITIVO / SEGURO)
+-- Pode rodar AGORA. Não muda nada no funcionamento atual do
+-- sistema; apenas prepara a estrutura para o login novo.
+-- ============================================================
+
+-- Liga cada operador à sua conta de login do Supabase Auth.
+alter table public.operadores
+  add column if not exists user_id uuid unique
+  references auth.users(id) on delete set null;
+
+-- Garante que novos operadores recebam um id automaticamente
+-- (hoje o id é preenchido manualmente pelo código).
+create sequence if not exists public.operadores_id_seq
+  owned by public.operadores.id;
+
+select setval(
+  'public.operadores_id_seq',
+  coalesce((select max(id) from public.operadores), 0)
+);
+
+alter table public.operadores
+  alter column id set default nextval('public.operadores_id_seq');
