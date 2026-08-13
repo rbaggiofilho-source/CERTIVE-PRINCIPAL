@@ -198,15 +198,17 @@ function initDatabase() {
             { servicoId: 6, taxa: 0.00, tax: 0.00 }   // Exótico
         ];
 
-        // 4. Seed Operators (Operadores e Permissões)
+        // 4. Seed Operators (estrutura mínima para modo offline).
+        // ⚠️ As senhas NÃO ficam mais no código — o login é pelo Supabase Auth,
+        // que guarda as senhas criptografadas no servidor.
         db.operadores = [
-            { id: 1, nome: "Ricardo Administrador", login: "admin", senha: "admin123", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 2, nome: "Ana Atendente", login: "atendente", senha: "atendente123", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa", "registrar_cautelar", "finalizar_cautelar"], ativo: true },
-            { id: 3, nome: "Carlos Financeiro", login: "financeiro", senha: "financeiro123", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
-            { id: 4, nome: "Jonas Kroll", login: "Jkroll", senha: "070142", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", senha: "135586", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 6, nome: "Pedro Vistoriador Júnior", login: "vistoriador", senha: "vistoriador123", funcao: "Vistoriador de Campo", unidadeId: 1, permissoes: ["registrar_cautelar"], ativo: true },
-            { id: 7, nome: "Silvio Vistoriador Sênior", login: "senior", senha: "senior123", funcao: "Vistoriador Sênior", unidadeId: 1, permissoes: ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true }
+            { id: 1, nome: "Ricardo Administrador", login: "admin", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 2, nome: "Ana Atendente", login: "atendente", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa", "registrar_cautelar", "finalizar_cautelar"], ativo: true },
+            { id: 3, nome: "Carlos Financeiro", login: "financeiro", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
+            { id: 4, nome: "Jonas Kroll", login: "Jkroll", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
+            { id: 6, nome: "Pedro Vistoriador Júnior", login: "vistoriador", funcao: "Vistoriador de Campo", unidadeId: 1, permissoes: ["registrar_cautelar"], ativo: true },
+            { id: 7, nome: "Silvio Vistoriador Sênior", login: "senior", funcao: "Vistoriador Sênior", unidadeId: 1, permissoes: ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true }
         ];
 
         // 5. Seed Partners (Parceiros Conveniados)
