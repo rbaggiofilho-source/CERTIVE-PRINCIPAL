@@ -15,15 +15,5 @@ alter table public.operadores
 alter table public.operadores
   alter column senha drop not null;
 
--- Garante que novos operadores recebam um id automaticamente
--- (hoje o id é preenchido manualmente pelo código).
-create sequence if not exists public.operadores_id_seq
-  owned by public.operadores.id;
-
-select setval(
-  'public.operadores_id_seq',
-  coalesce((select max(id) from public.operadores), 0)
-);
-
-alter table public.operadores
-  alter column id set default nextval('public.operadores_id_seq');
+-- Obs.: a coluna id já é "identity" (gera automaticamente), então não é
+-- necessário criar sequência/default — novos operadores já recebem id sozinhos.
