@@ -13698,8 +13698,30 @@ const chatgptState = {
     conversaAtual: null,   // objeto conversa ou null (nova/não salva)
     conversas: [],         // lista de conversas do operador
     mensagens: [],         // mensagens da conversa atual [{papel, conteudo}]
-    enviando: false
+    enviando: false,
+    modoImagem: false      // quando true, a próxima mensagem gera uma imagem
 };
+
+// Alterna o modo de geração de imagem
+function chatgptToggleImagem() {
+    chatgptState.modoImagem = !chatgptState.modoImagem;
+    const btn = document.getElementById('chatgpt-img-btn');
+    const input = document.getElementById('chatgpt-input');
+    if (btn) btn.classList.toggle('active', chatgptState.modoImagem);
+    if (input) {
+        input.placeholder = chatgptState.modoImagem
+            ? 'Descreva a imagem que deseja gerar...'
+            : 'Envie uma mensagem para o ChatGPT...';
+        input.focus();
+    }
+}
+
+// Detecta intenção de gerar imagem pelo texto (para funcionar mesmo sem ativar o botão)
+function chatgptDetectaImagem(texto) {
+    const t = (texto || '').toLowerCase().trim();
+    return /^(crie|cria|criar|gere|gera|gerar|desenhe|desenha|desenhar|faça|faca|fazer|monte|montar|ilustre|ilustrar|imagine)\b[^.?!]*\b(imagem|imagens|figura|desenho|ilustração|ilustracao|logo|logotipo|arte|foto|banner|cartaz|poster|ícone|icone)\b/.test(t)
+        || /^\/imagem\b/.test(t);
+}
 
 // Verifica se é possível persistir no Supabase
 function chatgptPodePersistir() {
@@ -13981,6 +14003,93 @@ async function chatgptSalvarMensagem(conversaId, papel, conteudo) {
     }
 }
 
+// Gera uma imagem via API da OpenAI, exibe no chat e salva no histórico
+async function chatgptGerarImagem(prompt, respostaId, config) {
+    const respEl = document.getElementById(respostaId);
+    const contentEl = respEl ? respEl.querySelector('.chatgpt-msg-content') : null;
+    if (contentEl) {
+        contentEl.innerHTML = `<div style="color: var(--text-secondary); font-size:13px; margin-bottom:8px;">🎨 Gerando imagem, aguarde...</div>
+            <span class="chatgpt-typing"><span></span><span></span><span></span></span>`;
+    }
+    chatgptScrollBottom();
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.chaveOpenAi}`
+            },
+            body: JSON.stringify({
+                model: 'dall-e-3',
+                prompt: prompt,
+                n: 1,
+                size: '1024x1024',
+                quality: 'standard',
+                response_format: 'b64_json'
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`API de imagens (${response.status}): ${errText}`);
+        }
+
+        const data = await response.json();
+        const b64 = (data && data.data && data.data[0]) ? data.data[0].b64_json : null;
+        if (!b64) throw new Error('Nenhuma imagem foi retornada pela API.');
+
+        // Converte base64 -> Blob
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        const blob = new Blob([arr], { type: 'image/png' });
+
+        // Tenta salvar no Storage do Supabase; se falhar, usa data URL como fallback
+        let urlImagem = '';
+        try {
+            if (window.useSupabase) {
+                const fileName = `img_${(currentSession ? currentSession.id : 'op')}_${Date.now()}.png`;
+                const { error: upErr } = await supabaseClient.storage.from('chatgpt-imagens').upload(fileName, blob, {
+                    contentType: 'image/png',
+                    upsert: true
+                });
+                if (!upErr) {
+                    const { data: urlData } = supabaseClient.storage.from('chatgpt-imagens').getPublicUrl(fileName);
+                    urlImagem = urlData.publicUrl;
+                }
+            }
+        } catch (e) {
+            console.warn('Falha ao subir a imagem ao Storage, usando data URL:', e.message);
+        }
+        if (!urlImagem) {
+            urlImagem = 'data:image/png;base64,' + b64;
+        }
+
+        // Conteúdo persistido (markdown de imagem, re-renderizável ao reabrir a conversa)
+        const conteudo = `![Imagem gerada](${urlImagem})`;
+
+        if (contentEl) {
+            contentEl.innerHTML = chatgptRenderMarkdown(conteudo) +
+                `<div class="chatgpt-img-actions">
+                    <a href="${urlImagem}" target="_blank" rel="noopener"><i class="ri-external-link-line"></i> Abrir</a>
+                    <a href="${urlImagem}" download="imagem-certive.png"><i class="ri-download-line"></i> Baixar</a>
+                </div>`;
+        }
+
+        chatgptState.mensagens.push({ papel: 'assistant', conteudo: conteudo });
+        if (chatgptState.conversaAtual) {
+            chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'assistant', conteudo);
+        }
+    } catch (err) {
+        console.error('Erro ao gerar imagem:', err);
+        if (contentEl) {
+            contentEl.innerHTML = `<span style="color: var(--danger, #ef4444);">⚠️ Não foi possível gerar a imagem: ${chatgptEscapeHtml(err.message)}</span>`;
+        }
+        showToast('Erro ao gerar a imagem. Verifique a chave e o saldo da conta OpenAI.', 'error');
+    }
+}
+
 // Envia a mensagem e recebe a resposta com streaming
 async function chatgptEnviarMensagem(event) {
     if (event) event.preventDefault();
@@ -14050,10 +14159,26 @@ async function chatgptEnviarMensagem(event) {
         chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'user', texto);
     }
 
-    // Monta o histórico para a API
+    // MODO IMAGEM: gera uma imagem em vez de uma resposta de texto
+    const ehImagem = chatgptState.modoImagem || chatgptDetectaImagem(texto);
+    if (ehImagem) {
+        try {
+            await chatgptGerarImagem(texto, respostaId, config);
+        } finally {
+            chatgptState.enviando = false;
+            if (sendBtn) sendBtn.disabled = false;
+            chatgptScrollBottom();
+            if (input) input.focus();
+        }
+        return;
+    }
+
+    // Monta o histórico para a API (substitui imagens por um marcador curto)
     const mensagensApi = [{ role: 'system', content: chatgptSystemPrompt() }];
     chatgptState.mensagens.forEach(m => {
-        mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: m.conteudo });
+        let content = m.conteudo;
+        if (m.papel === 'assistant' && /^!\[/.test(content)) content = '[imagem gerada anteriormente]';
+        mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: content });
     });
 
     let respostaTexto = '';
