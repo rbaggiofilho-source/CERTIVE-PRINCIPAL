@@ -13836,15 +13836,15 @@ function chatgptRenderWelcome() {
     if (!box) return;
     const sugestoes = [
         'Escreva um e-mail formal para um cliente',
-        'Resuma este texto em tópicos',
-        'Explique um procedimento passo a passo',
-        'Crie uma mensagem de WhatsApp cordial'
+        'Qual a cotação do dólar hoje?',
+        'Crie uma imagem de um carro sedan prata',
+        'Resuma este texto em tópicos'
     ];
     box.innerHTML = `
         <div class="chatgpt-welcome">
             <i class="ri-robot-2-line"></i>
             <h3>Como posso ajudar hoje?</h3>
-            <p>Converse com o ChatGPT diretamente aqui dentro do sistema Certive. Faça perguntas, peça textos, resumos, cálculos e muito mais.</p>
+            <p>Converse normalmente. É só pedir: eu respondo dúvidas, escrevo textos, <strong>busco informações atuais na internet</strong> e <strong>crio imagens</strong> — tudo automaticamente, sem precisar ativar nada.</p>
             <div class="chatgpt-suggestions">
                 ${sugestoes.map(s => `<button class="chatgpt-suggestion" onclick="chatgptUsarSugestao(this)">${s}</button>`).join('')}
             </div>
@@ -14005,6 +14005,42 @@ async function chatgptSalvarMensagem(conversaId, papel, conteudo) {
             .eq('id', conversaId);
     } catch (e) {
         console.warn('Erro ao salvar mensagem do ChatGPT:', e.message);
+    }
+}
+
+// Decide automaticamente a ação da mensagem: 'conversa', 'imagem' ou 'web'.
+// Usa um modelo rápido/barato como roteador; se falhar, cai numa heurística simples.
+async function chatgptDecidirAcao(texto) {
+    const config = chatgptGetConfig();
+    try {
+        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.chaveOpenAi}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                temperature: 0,
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: 'Você é um roteador de intenções de um assistente. Analise APENAS a mensagem do usuário e responda somente com um JSON no formato {"acao":"conversa"|"imagem"|"web"}. Regras: use "imagem" quando o usuário pede para criar/gerar/desenhar/ilustrar uma imagem, foto, logotipo, arte, ícone, banner ou figura. Use "web" quando responder corretamente exige informação atual ou da internet: cotações, preços, câmbio, notícias, clima/tempo, resultados, eventos recentes, ou qualquer dado que muda com o tempo ou seja posterior a 2023. Nos demais casos use "conversa".' },
+                    { role: 'user', content: texto }
+                ]
+            })
+        });
+        if (!resp.ok) throw new Error('roteador indisponível');
+        const data = await resp.json();
+        const txt = (data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : '{}';
+        const obj = JSON.parse(txt);
+        const acao = (obj.acao || '').toLowerCase();
+        if (acao === 'imagem' || acao === 'web' || acao === 'conversa') return acao;
+        return 'conversa';
+    } catch (e) {
+        console.warn('Roteador falhou, usando heurística:', e.message);
+        if (chatgptDetectaImagem(texto)) return 'imagem';
+        if (chatgptDetectaWeb(texto)) return 'web';
+        return 'conversa';
     }
 }
 
@@ -14190,9 +14226,14 @@ async function chatgptEnviarMensagem(event) {
         chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'user', texto);
     }
 
-    // MODO IMAGEM: gera uma imagem em vez de uma resposta de texto
-    const ehImagem = forcaImagem || chatgptState.modoImagem || chatgptDetectaImagem(texto);
-    if (ehImagem) {
+    // DECISÃO AUTOMÁTICA: a própria IA decide se conversa, gera imagem ou busca na web.
+    // O operador não precisa ativar nada — funciona igual ao ChatGPT.
+    let acao;
+    if (forcaImagem) acao = 'imagem';
+    else if (forcaWeb) acao = 'web';
+    else acao = await chatgptDecidirAcao(texto);
+
+    if (acao === 'imagem') {
         try {
             await chatgptGerarImagem(texto, respostaId, config);
         } finally {
@@ -14212,8 +14253,8 @@ async function chatgptEnviarMensagem(event) {
         mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: content });
     });
 
-    // MODO WEB: usa um modelo de busca da OpenAI quando ativado ou detectado
-    const usarWeb = forcaWeb || chatgptState.modoWeb || chatgptDetectaWeb(texto);
+    // Busca na web quando a decisão automática (ou o atalho) indicou "web"
+    const usarWeb = (acao === 'web');
     let modeloFinal = modelo;
     if (usarWeb) {
         modeloFinal = (modelo && modelo.indexOf('mini') !== -1) ? 'gpt-4o-mini-search-preview' : 'gpt-4o-search-preview';
