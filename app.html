@@ -1111,7 +1111,11 @@
                     </div>
                 </div>
 
-                <!-- DASHBOARD DE CONTAS A PAGAR (NOVO) -->
+                <!-- Seletor de competência (mês) + aviso de vencidas de meses anteriores -->
+                <div id="contas-mes-nav"></div>
+                <div id="contas-banner-atrasadas"></div>
+
+                <!-- DASHBOARD DE CONTAS A PAGAR (por competência) -->
                 <div class="kpi-grid" id="contas-kpis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; width: 100%; box-sizing: border-box;">
                     <!-- Preenchido dinamicamente via JS -->
                 </div>
@@ -1139,12 +1143,17 @@
                                     <div class="form-row">
                                         <div class="form-group">
                                             <label for="desp-vencimento">Vencimento</label>
-                                            <input type="date" id="desp-vencimento" required>
+                                            <input type="date" id="desp-vencimento" onchange="prefillCompetencia('desp')" required>
                                         </div>
                                         <div class="form-group">
                                             <label for="desp-valor">Valor (R$)</label>
                                             <input type="number" step="0.01" id="desp-valor" placeholder="0,00" required>
                                         </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="desp-competencia">Competência (mês de referência)</label>
+                                        <input type="month" id="desp-competencia" required>
+                                        <small style="color:var(--text-muted); font-size:11px; display:block; margin-top:4px;">Mês a que a despesa se refere (ex.: energia de julho que vence em agosto → competência <strong>julho</strong>). Sugerida pelo vencimento; edite se necessário.</small>
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group">
@@ -1188,6 +1197,7 @@
                                     <table>
                                         <thead>
                                             <tr>
+                                                <th>Competência</th>
                                                 <th>Vencimento</th>
                                                 <th>Descrição / Detalhes</th>
                                                 <th>Tipo</th>
@@ -2378,12 +2388,16 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="edit-conta-vencimento">VENCIMENTO</label>
-                        <input type="date" id="edit-conta-vencimento" required>
+                        <input type="date" id="edit-conta-vencimento" onchange="prefillCompetencia('edit-conta')" required>
                     </div>
                     <div class="form-group">
                         <label for="edit-conta-valor">VALOR (R$)</label>
                         <input type="number" step="0.01" id="edit-conta-valor" placeholder="0,00" required>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-conta-competencia">COMPETÊNCIA (MÊS DE REFERÊNCIA)</label>
+                    <input type="month" id="edit-conta-competencia" required>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -2700,7 +2714,7 @@
     </div>
 
 <script src="supabase-db.js?v=8.3.0-seguro"></script>
-<script src="app_v8.js?v=20260814-chatgpt-auto-contasrev"></script>
+<script src="app_v8.js?v=20260815-contas-comp"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 <script>

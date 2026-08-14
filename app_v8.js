@@ -5606,126 +5606,193 @@ function renderContasGears() {
     }
 }
 
-function renderContasKPIs() {
+// ============================================================
+// CONTAS A PAGAR — separação por COMPETÊNCIA (mês de referência)
+// Invariante: cards e lista saem SEMPRE do mesmo array filtrado.
+// ============================================================
+let contasCompetenciaSel = null;   // "YYYY-MM" da competência selecionada
+let contasStatusFiltro = null;     // null | 'paga' | 'vencida' | 'a_pagar'
+
+const MESES_PT = {
+    '01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho',
+    '07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'
+};
+
+function mesLabelPt(ym) {
+    if (!ym || ym.length < 7) return ym || '';
+    return `${MESES_PT[ym.substring(5,7)]}/${ym.substring(0,4)}`;
+}
+
+// Mês (YYYY-MM) da COMPETÊNCIA da conta. Usa o campo competencia; se ausente
+// (registros antigos, antes do backfill), cai no mês do vencimento.
+function competenciaMes(c) {
+    if (c.competencia) return String(c.competencia).substring(0, 7);
+    if (c.vencimento) return String(c.vencimento).substring(0, 7);
+    return null;
+}
+
+// Hoje "YYYY-MM-DD" no fuso LOCAL (evita o bug de UTC do new Date('YYYY-MM-DD')).
+function hojeLocalStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Status derivado em runtime (mutuamente exclusivo). Comparação por string YYYY-MM-DD.
+function statusConta(c) {
+    if (c.pago) return 'paga';
+    const venc = c.vencimento ? String(c.vencimento).substring(0, 10) : null;
+    if (venc && venc < hojeLocalStr()) return 'vencida';
+    return 'a_pagar';
+}
+
+function mudarCompetencia(delta) {
+    if (!contasCompetenciaSel) contasCompetenciaSel = hojeLocalStr().substring(0, 7);
+    let [y, m] = contasCompetenciaSel.split('-').map(Number);
+    m += delta;
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    contasCompetenciaSel = `${y}-${String(m).padStart(2,'0')}`;
+    contasStatusFiltro = null;
+    renderContasGerais();
+}
+function irParaCompetencia(ym) {
+    if (!ym) return;
+    contasCompetenciaSel = ym;
+    contasStatusFiltro = null;
+    renderContasGerais();
+}
+function filtrarContasPorStatus(status) {
+    contasStatusFiltro = (contasStatusFiltro === status) ? null : status;
+    renderContasGerais();
+}
+function limparFiltroContas() {
+    contasStatusFiltro = null;
+    renderContasGerais();
+}
+
+// Sugere a competência (YYYY-MM) a partir do vencimento, se ainda estiver vazia.
+function prefillCompetencia(prefixo) {
+    const venc = document.getElementById(prefixo + '-vencimento');
+    const comp = document.getElementById(prefixo + '-competencia');
+    if (!venc || !comp) return;
+    if (venc.value && !comp.value) comp.value = venc.value.substring(0, 7);
+}
+
+// Seletor de mês ( ‹  Mês/Ano  › )
+function renderContasSeletorMes() {
+    const nav = document.getElementById('contas-mes-nav');
+    if (!nav) return;
+    nav.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:16px;">
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(-1)" title="Competência anterior" style="padding:6px 10px;"><i class="ri-arrow-left-s-line"></i></button>
+            <div style="min-width:170px; text-align:center; font-family:Outfit,sans-serif; font-weight:800; font-size:16px; color:var(--text-primary);">
+                <i class="ri-calendar-line" style="color:var(--accent); margin-right:6px;"></i>${mesLabelPt(contasCompetenciaSel)}
+            </div>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(1)" title="Próxima competência" style="padding:6px 10px;"><i class="ri-arrow-right-s-line"></i></button>
+        </div>`;
+}
+
+// Banner de contas vencidas em competências ANTERIORES (informativo, fora dos totais)
+function renderContasBannerAtrasadas() {
+    const box = document.getElementById('contas-banner-atrasadas');
+    if (!box) return;
+    const hoje = hojeLocalStr();
+    const antigas = db.contas_pagar.filter(c =>
+        c.unidadeId === activeUnitId &&
+        !c.pago &&
+        c.vencimento && String(c.vencimento).substring(0,10) < hoje &&
+        competenciaMes(c) && competenciaMes(c) < contasCompetenciaSel
+    );
+    if (antigas.length === 0) { box.innerHTML = ''; return; }
+    const total = antigas.reduce((s, c) => s + (Number(c.valor)||0), 0);
+    const maisAntiga = antigas.slice().sort((a,b) => competenciaMes(a).localeCompare(competenciaMes(b)))[0];
+    const mesAlvo = competenciaMes(maisAntiga);
+    box.innerHTML = `
+        <div onclick="irParaCompetencia('${mesAlvo}')" title="Ir para a competência mais antiga em aberto" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:16px; border:1px solid var(--danger); background:rgba(239,68,68,0.06); border-radius:var(--radius-sm);">
+            <i class="ri-alarm-warning-line" style="color:var(--danger); font-size:18px;"></i>
+            <span style="font-size:13px; color:var(--text-primary); font-weight:600;">
+                ${antigas.length} ${antigas.length === 1 ? 'conta vencida' : 'contas vencidas'} em competências anteriores — <strong style="color:var(--danger);">${formatCurrency(total)}</strong>
+            </span>
+            <span style="margin-left:auto; font-size:12px; font-weight:700; color:var(--accent);">ver ›</span>
+        </div>`;
+}
+
+// Cards — recebem o MESMO array que alimenta a lista
+function renderContasKPIs(contasDoMes) {
     const kpiGrid = document.getElementById('contas-kpis-grid');
     if (!kpiGrid) return;
+    const val = c => Number(c.valor) || 0;
+    const soma = arr => arr.reduce((s, c) => s + val(c), 0);
 
-    if (!db.contas_pagar) return;
+    const pagas    = contasDoMes.filter(c => statusConta(c) === 'paga');
+    const vencidas = contasDoMes.filter(c => statusConta(c) === 'vencida');
+    const aPagar   = contasDoMes.filter(c => statusConta(c) === 'a_pagar');
+    const pagasAtraso = pagas.filter(c => c.pagoEm && c.vencimento && String(c.vencimento).substring(0,10) < String(c.pagoEm).substring(0,10)).length;
 
-    const list = db.contas_pagar.filter(c => c.unidadeId === activeUnitId);
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    const currentMonthStr = todayStr.substring(0, 7); // Ex: "2026-07"
-
-    // Provisão específica do faturamento do mês atual (independente de vencer no mês seguinte)
-    const meses = {
-        '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
-        '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
-        '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
-    };
-    const currentMonthLabel = meses[currentMonthStr.substring(5, 7)];
-    const currentYearLabel = currentMonthStr.substring(0, 4);
-    const currentProvisionDesc = `Taxas DETRAN-SC — Provisão ${currentMonthLabel}/${currentYearLabel}`;
-
-    // 1. Contas do mês atual (vencimento no mês atual OU provisão flutuante faturada no mês atual)
-    const contasDoMes = list.filter(c => {
-        if (!c.vencimento) return false;
-        if (c.vencimento.startsWith(currentMonthStr)) return true;
-        if (c.descricao === currentProvisionDesc) return true;
-        return false;
-    });
-    
-    const totalMes = contasDoMes.reduce((sum, c) => sum + c.valor, 0);
-    const pagoMes = contasDoMes.filter(c => c.pago).reduce((sum, c) => sum + c.valor, 0);
-    const pendenteMes = contasDoMes.filter(c => !c.pago).reduce((sum, c) => sum + c.valor, 0);
-
-    const pctPago = totalMes > 0 ? (pagoMes / totalMes) * 100 : 0;
-    const pctPendente = totalMes > 0 ? (pendenteMes / totalMes) * 100 : 0;
-
-    // 2. Contas em atraso (vencimento < hoje e não pagas)
-    const contasAtrasadas = list.filter(c => !c.pago && c.vencimento < todayStr);
-    const totalAtrasado = contasAtrasadas.reduce((sum, c) => sum + c.valor, 0);
-    const qtdAtrasado = contasAtrasadas.length;
-
-    // 3. Renderizar o HTML dos cards
-    let atrasadoCardHtml = '';
-    if (qtdAtrasado > 0) {
-        atrasadoCardHtml = `
-            <div class="kpi-card" style="border: 1.5px solid var(--danger); background: rgba(239, 68, 68, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
-                <div class="kpi-icon" style="color: var(--danger); background: var(--danger-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ri-error-warning-line"></i></div>
-                <div class="kpi-info" style="display: flex; flex-direction: column;">
-                    <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--danger); letter-spacing: 0.5px; text-transform: uppercase;">Contas em Atraso</span>
-                    <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--danger); margin: 2px 0 0 0;">${formatCurrency(totalAtrasado)}</h3>
-                    <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">${qtdAtrasado} contas atrasadas</span>
-                </div>
+    const card = (label, valor, qtd, cor, corBg, icon, onclick, ativo, sub) => `
+        <div class="kpi-card" onclick="${onclick}" style="cursor:pointer; border:1.5px solid ${ativo ? cor : 'var(--border)'}; background:${ativo ? corBg : 'var(--bg-secondary)'}; display:flex; align-items:center; padding:16px; border-radius:var(--radius); box-shadow:var(--shadow); width:100%; box-sizing:border-box; transition:var(--transition);">
+            <div class="kpi-icon" style="color:${cor}; background:${corBg}; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-sm); font-size:22px; margin-right:14px; flex-shrink:0; border:1px solid ${cor}55;"><i class="${icon}"></i></div>
+            <div class="kpi-info" style="display:flex; flex-direction:column;">
+                <span class="kpi-label" style="font-size:9px; font-weight:700; color:var(--text-secondary); letter-spacing:0.5px; text-transform:uppercase;">${label}</span>
+                <h3 class="kpi-value" style="font-size:18px; font-weight:800; color:${cor}; margin:2px 0 0 0;">${formatCurrency(valor)}</h3>
+                <span class="kpi-subtext" style="font-size:10px; color:var(--text-muted); margin-top:1px;">${qtd} ${qtd === 1 ? 'conta' : 'contas'}${sub || ''}</span>
             </div>
-        `;
-    } else {
-        atrasadoCardHtml = `
-            <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); opacity: 0.85; width: 100%; box-sizing: border-box;">
-                <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.15);"><i class="ri-checkbox-circle-line"></i></div>
-                <div class="kpi-info" style="display: flex; flex-direction: column;">
-                    <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--success); letter-spacing: 0.5px; text-transform: uppercase;">Contas em Atraso</span>
-                    <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">R$ 0,00</h3>
-                    <span class="kpi-subtext" style="font-size: 10px; color: var(--success); margin-top: 1px; font-weight: 600;">Nenhuma atrasada</span>
-                </div>
-            </div>
-        `;
-    }
+        </div>`;
 
-    kpiGrid.innerHTML = `
-        <!-- Total no Mês -->
-        <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
-            <div class="kpi-icon" style="color: var(--text-primary); background: var(--navy-light); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid var(--border);"><i class="ri-wallet-3-line"></i></div>
-            <div class="kpi-info" style="display: flex; flex-direction: column;">
-                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Total do Mês</span>
-                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">${formatCurrency(totalMes)}</h3>
-                <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">Despesas para este mês</span>
-            </div>
-        </div>
-        <!-- Pago no Mês -->
-        <div class="kpi-card" style="border: 1.5px solid var(--success); background: rgba(16, 185, 129, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
-            <div class="kpi-icon" style="color: var(--success); background: var(--success-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(16, 185, 129, 0.2);"><i class="ri-checkbox-circle-line"></i></div>
-            <div class="kpi-info" style="display: flex; flex-direction: column;">
-                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--success); letter-spacing: 0.5px; text-transform: uppercase;">Valor Pago (Mês)</span>
-                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--success); margin: 2px 0 0 0;">${formatCurrency(pagoMes)}</h3>
-                <span class="kpi-subtext" style="font-size: 10px; color: var(--success); margin-top: 1px; font-weight: 600;">${pctPago.toFixed(1)}% liquidado</span>
-            </div>
-        </div>
-        <!-- Pendente no Mês -->
-        <div class="kpi-card" style="border: 1.5px solid var(--warning); background: rgba(245, 158, 11, 0.04); display: flex; align-items: center; padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; box-sizing: border-box;">
-            <div class="kpi-icon" style="color: var(--warning); background: var(--warning-bg); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 22px; margin-right: 14px; flex-shrink: 0; border: 1px solid rgba(245, 158, 11, 0.2);"><i class="ri-time-line"></i></div>
-            <div class="kpi-info" style="display: flex; flex-direction: column;">
-                <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--warning); letter-spacing: 0.5px; text-transform: uppercase;">Valor Pendente (Mês)</span>
-                <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--warning); margin: 2px 0 0 0;">${formatCurrency(pendenteMes)}</h3>
-                <span class="kpi-subtext" style="font-size: 10px; color: var(--warning); margin-top: 1px; font-weight: 600;">${pctPendente.toFixed(1)}% a vencer</span>
-            </div>
-        </div>
-        <!-- Atrasados -->
-        ${atrasadoCardHtml}
-    `;
+    kpiGrid.innerHTML =
+        card('Total do Mês', soma(contasDoMes), contasDoMes.length, 'var(--text-primary)', 'var(--navy-light)', 'ri-wallet-3-line', 'limparFiltroContas()', !contasStatusFiltro, '') +
+        card('A Pagar', soma(aPagar), aPagar.length, 'var(--warning)', 'rgba(245,158,11,0.08)', 'ri-time-line', "filtrarContasPorStatus('a_pagar')", contasStatusFiltro === 'a_pagar', '') +
+        card('Vencidas', soma(vencidas), vencidas.length, 'var(--danger)', 'rgba(239,68,68,0.08)', 'ri-error-warning-line', "filtrarContasPorStatus('vencida')", contasStatusFiltro === 'vencida', '') +
+        card('Pagas', soma(pagas), pagas.length, 'var(--success)', 'rgba(16,185,129,0.08)', 'ri-checkbox-circle-line', "filtrarContasPorStatus('paga')", contasStatusFiltro === 'paga', pagasAtraso > 0 ? ` · ${pagasAtraso} em atraso` : '');
 }
 
 function renderContasGerais() {
-    renderContasKPIs();
-    const tbody = document.getElementById('contas-tbody');
-    const list = db.contas_pagar
+    if (!db.contas_pagar) return;
+    if (!contasCompetenciaSel) contasCompetenciaSel = hojeLocalStr().substring(0, 7);
+
+    // >>> ÚNICA fonte de dados: unidade ativa + COMPETÊNCIA selecionada <<<
+    const contasDoMes = db.contas_pagar
         .filter(c => c.unidadeId === activeUnitId)
-        .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento));
+        .filter(c => competenciaMes(c) === contasCompetenciaSel);
+
+    renderContasSeletorMes();
+    renderContasBannerAtrasadas();
+    renderContasKPIs(contasDoMes);   // cards do MESMO array
+
+    const tbody = document.getElementById('contas-tbody');
+
+    // Lista = mesmo array; filtro opcional por status (clique no card)
+    let list = contasStatusFiltro
+        ? contasDoMes.filter(c => statusConta(c) === contasStatusFiltro)
+        : contasDoMes;
+
+    // Ordenação: vencidas no topo, depois por vencimento crescente
+    list = list.slice().sort((a, b) => {
+        const va = statusConta(a) === 'vencida' ? 0 : 1;
+        const vb = statusConta(b) === 'vencida' ? 0 : 1;
+        if (va !== vb) return va - vb;
+        return String(a.vencimento || '').localeCompare(String(b.vencimento || ''));
+    });
 
     if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhuma conta a pagar registrada.</td></tr>';
+        const msg = contasStatusFiltro
+            ? `Nenhuma conta com esse status em ${mesLabelPt(contasCompetenciaSel)}.`
+            : `Nenhuma conta lançada em ${mesLabelPt(contasCompetenciaSel)}.`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">${msg}</td></tr>`;
         return;
     }
 
     const isGerenteGeral = currentSession && currentSession.funcao && currentSession.funcao.toLowerCase().includes("gerente");
+    const badgeStatus = {
+        paga: '<span class="badge badge-done">Paga</span>',
+        vencida: '<span class="badge" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger);">Vencida</span>',
+        a_pagar: '<span class="badge badge-waiting">A pagar</span>'
+    };
 
     tbody.innerHTML = list.map(c => {
-        const statusBadge = c.pago 
-            ? `<span class="badge badge-done">Paga</span>` 
-            : `<span class="badge badge-waiting">Pendente</span>`;
+        const statusBadge = badgeStatus[statusConta(c)] || '';
 
-        const obsHtml = c.observacoes 
+        const obsHtml = c.observacoes
             ? `<br><small style="color: var(--text-secondary); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px;">
                 <i class="ri-barcode-line" style="font-size: 12px;"></i> ${c.observacoes}
                 <button onclick="copyToClipboard('${c.observacoes}')" title="Copiar código de barras" style="background: none; border: none; padding: 2px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; font-size: 11px;">
@@ -5749,12 +5816,14 @@ function renderContasGerais() {
 
         return `
             <tr>
+                <td><span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap;">${mesLabelPt(competenciaMes(c))}</span></td>
                 <td><strong>${formatDateBr(c.vencimento)}</strong></td>
                 <td>
                     <strong>${c.descricao}</strong>
                     ${obsHtml}
+                    ${(c.fornecedor || c.categoria) ? `<br><small style="color:var(--text-muted); font-size:11px;">${c.fornecedor || ''}${(c.fornecedor && c.categoria) ? ' · ' : ''}${c.categoria || ''}</small>` : ''}
                 </td>
-                <td><span class="badge badge-progress">${c.tipo.toUpperCase()}</span></td>
+                <td><span class="badge badge-progress">${(c.tipo || '').toUpperCase()}</span></td>
                 <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${c.criadoPor || 'Sistema'}</span></td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${formatCurrency(c.valor)}</td>
                 <td>${statusBadge}</td>
@@ -5785,6 +5854,10 @@ function submitDespesaForm(event) {
     const obs = document.getElementById('desp-obs').value.trim();
     const file = fileInput.files[0];
 
+    // Competência (mês de referência). Padrão = mês do vencimento; gravada no dia 1.
+    const compMes = (document.getElementById('desp-competencia').value) || (venc ? venc.substring(0, 7) : '');
+    const competencia = compMes ? `${compMes}-01` : null;
+
     if (val <= 0) {
         showToast("Valor de despesa inválido.", "error");
         return;
@@ -5796,6 +5869,7 @@ function submitDespesaForm(event) {
             descricao: desc,
             tipo: "fixo",
             vencimento: venc,
+            competencia: competencia,
             valor: val,
             categoria: cat,
             fornecedor: fornecedor,
@@ -5861,6 +5935,7 @@ function openEditContaModal(id) {
     document.getElementById('edit-conta-id').value = conta.id;
     document.getElementById('edit-conta-desc').value = conta.descricao.toUpperCase();
     document.getElementById('edit-conta-vencimento').value = getLocalDateString(conta.vencimento);
+    document.getElementById('edit-conta-competencia').value = competenciaMes(conta) || '';
     document.getElementById('edit-conta-valor').value = conta.valor;
     document.getElementById('edit-conta-categoria').value = conta.categoria;
     document.getElementById('edit-conta-fornecedor').value = conta.fornecedor.toUpperCase();
@@ -5892,6 +5967,8 @@ async function submitEditContaForm(event) {
 
     const desc = document.getElementById('edit-conta-desc').value.trim().toUpperCase();
     const venc = document.getElementById('edit-conta-vencimento').value;
+    const compMes = (document.getElementById('edit-conta-competencia').value) || (venc ? venc.substring(0, 7) : '');
+    const competencia = compMes ? `${compMes}-01` : null;
     const val = parseFloat(document.getElementById('edit-conta-valor').value);
     const cat = document.getElementById('edit-conta-categoria').value;
     const fornecedor = document.getElementById('edit-conta-fornecedor').value.trim().toUpperCase();
@@ -5906,6 +5983,7 @@ async function submitEditContaForm(event) {
         await dbSave('contas_pagar', {
             descricao: desc,
             vencimento: venc,
+            competencia: competencia,
             valor: val,
             categoria: cat,
             fornecedor: fornecedor,
@@ -6572,6 +6650,7 @@ async function lancarFaturaDetran() {
         descricao: `Taxas DETRAN-SC — Consolidação ${monthLabel}/${year}`,
         tipo: "variavel",
         vencimento: `${year}-${document.getElementById('detran-calculo-mes').value}-28`, // arbitrary due date
+        competencia: `${year}-${document.getElementById('detran-calculo-mes').value}-01`, // mês de referência das OS
         valor: val,
         pago: false,
         pagoEm: null,
@@ -13451,6 +13530,7 @@ window.syncDetranFloatingPayable = async function() {
                     descricao: targetDesc,
                     tipo: "variavel",
                     vencimento: dueDate,
+                    competencia: `${year}-${monthNum}-01`, // competência = mês das OS que geraram as taxas
                     valor: totalTaxas,
                     pago: false,
                     pagoEm: null,
