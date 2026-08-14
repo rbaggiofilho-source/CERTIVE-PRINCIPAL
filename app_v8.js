@@ -1300,7 +1300,8 @@ function navigateTo(pageId) {
         'config': 'cadastros'
     };
 
-    if (currentSession && !currentSession.permissoes.includes(navPermissions[pageId])) {
+    // ChatGPT é liberado para todos os operadores logados (não exige permissão específica)
+    if (navPermissions[pageId] && currentSession && !currentSession.permissoes.includes(navPermissions[pageId])) {
         showToast("Acesso Negado: Você não tem permissão para acessar este módulo.", "error");
         return;
     }
@@ -1370,6 +1371,8 @@ function navigateTo(pageId) {
         renderBIPage();
     } else if (pageId === 'config') {
         renderConfigPage();
+    } else if (pageId === 'chatgpt') {
+        renderChatGPTPage();
     }
 }
 
@@ -13638,6 +13641,447 @@ async function submitConfigChatGPT(event) {
     } catch (err) {
         console.error("Erro ao salvar integração ChatGPT:", err);
         showToast("Erro ao salvar configurações da OpenAI.", "error");
+    }
+}
+
+// ==========================================================
+// ASSISTENTE CHATGPT — Chat conversacional para operadores
+// ==========================================================
+
+const chatgptState = {
+    conversaAtual: null,   // objeto conversa ou null (nova/não salva)
+    conversas: [],         // lista de conversas do operador
+    mensagens: [],         // mensagens da conversa atual [{papel, conteudo}]
+    enviando: false
+};
+
+// Verifica se é possível persistir no Supabase
+function chatgptPodePersistir() {
+    return !!(window.useSupabase && window.onlineTables && window.onlineTables['chatgpt_conversas']);
+}
+
+// Recupera a chave/config da OpenAI (reaproveita a integração já existente)
+function chatgptGetConfig() {
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
+    return config || {};
+}
+
+// Sistema base do assistente (comportamento tipo ChatGPT, em português)
+function chatgptSystemPrompt() {
+    const nome = (currentSession && currentSession.nome) ? currentSession.nome : 'operador';
+    return `Você é o assistente de inteligência artificial da Certive Vistorias, integrado ao sistema interno. ` +
+        `Você conversa com ${nome}, um operador da empresa. Responda de forma clara, útil e objetiva, ` +
+        `em português do Brasil, com a mesma qualidade e naturalidade do ChatGPT. Use formatação Markdown quando ajudar ` +
+        `(listas, tabelas, negrito, blocos de código). Ajude com dúvidas gerais, redação de textos, cálculos, ` +
+        `organização de ideias e questões do dia a dia operacional.`;
+}
+
+// Escapa HTML (para mensagens do usuário)
+function chatgptEscapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+// Sanitização leve do HTML gerado a partir do Markdown do assistente
+function chatgptSanitize(html) {
+    if (!html) return '';
+    let out = html
+        .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+        .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
+        .replace(/<\s*style[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, '')
+        .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+        .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+        .replace(/javascript:/gi, '');
+    return out;
+}
+
+// Renderiza Markdown do assistente com segurança
+function chatgptRenderMarkdown(text) {
+    try {
+        if (typeof marked !== 'undefined') {
+            const raw = marked.parse(text || '', { breaks: true });
+            return chatgptSanitize(raw);
+        }
+    } catch (e) { console.warn('Falha ao renderizar markdown:', e); }
+    return chatgptEscapeHtml(text).replace(/\n/g, '<br>');
+}
+
+// Ponto de entrada ao navegar para o painel ChatGPT
+async function renderChatGPTPage() {
+    await chatgptCarregarConversas();
+    if (chatgptState.conversaAtual) {
+        chatgptRenderMensagens();
+    } else {
+        chatgptRenderWelcome();
+    }
+}
+
+// Carrega as conversas do operador atual
+async function chatgptCarregarConversas() {
+    if (!chatgptPodePersistir() || !currentSession) {
+        chatgptRenderConversasList();
+        return;
+    }
+    try {
+        const { data, error } = await supabaseClient
+            .from('chatgpt_conversas')
+            .select('*')
+            .eq('operadorId', currentSession.id)
+            .order('atualizadoEm', { ascending: false });
+        if (error) throw error;
+        chatgptState.conversas = data || [];
+    } catch (e) {
+        console.warn('Erro ao carregar conversas do ChatGPT:', e.message);
+        chatgptState.conversas = [];
+    }
+    chatgptRenderConversasList();
+}
+
+function chatgptRenderConversasList() {
+    const list = document.getElementById('chatgpt-conversas-list');
+    if (!list) return;
+    if (!chatgptState.conversas || chatgptState.conversas.length === 0) {
+        list.innerHTML = `<div class="chatgpt-conversas-empty">Nenhuma conversa ainda.<br>Clique em "Nova conversa" para começar.</div>`;
+        return;
+    }
+    list.innerHTML = chatgptState.conversas.map(c => {
+        const ativo = chatgptState.conversaAtual && chatgptState.conversaAtual.id === c.id ? 'active' : '';
+        return `<div class="chatgpt-conversa-item ${ativo}" onclick="chatgptAbrirConversa(${c.id})">
+            <i class="ri-chat-3-line"></i>
+            <span class="conversa-titulo">${chatgptEscapeHtml(c.titulo || 'Conversa')}</span>
+            <button class="conversa-del" title="Excluir" onclick="chatgptExcluirConversa(${c.id}, event)"><i class="ri-delete-bin-line"></i></button>
+        </div>`;
+    }).join('');
+}
+
+// Estado de boas-vindas (conversa vazia)
+function chatgptRenderWelcome() {
+    const box = document.getElementById('chatgpt-messages');
+    const titulo = document.getElementById('chatgpt-titulo-atual');
+    if (titulo) titulo.textContent = 'Assistente ChatGPT';
+    if (!box) return;
+    const sugestoes = [
+        'Escreva um e-mail formal para um cliente',
+        'Resuma este texto em tópicos',
+        'Explique um procedimento passo a passo',
+        'Crie uma mensagem de WhatsApp cordial'
+    ];
+    box.innerHTML = `
+        <div class="chatgpt-welcome">
+            <i class="ri-robot-2-line"></i>
+            <h3>Como posso ajudar hoje?</h3>
+            <p>Converse com o ChatGPT diretamente aqui dentro do sistema Certive. Faça perguntas, peça textos, resumos, cálculos e muito mais.</p>
+            <div class="chatgpt-suggestions">
+                ${sugestoes.map(s => `<button class="chatgpt-suggestion" onclick="chatgptUsarSugestao(this)">${s}</button>`).join('')}
+            </div>
+        </div>`;
+}
+
+function chatgptUsarSugestao(el) {
+    const input = document.getElementById('chatgpt-input');
+    if (input) {
+        input.value = el.textContent.trim();
+        input.focus();
+        chatgptAutoGrow(input);
+    }
+}
+
+function chatgptNovaConversa() {
+    chatgptState.conversaAtual = null;
+    chatgptState.mensagens = [];
+    chatgptRenderConversasList();
+    chatgptRenderWelcome();
+    const input = document.getElementById('chatgpt-input');
+    if (input) { input.value = ''; chatgptAutoGrow(input); input.focus(); }
+    // Fecha a barra no mobile
+    const sb = document.getElementById('chatgpt-sidebar');
+    if (sb) sb.classList.remove('open');
+}
+
+async function chatgptAbrirConversa(id) {
+    const conversa = chatgptState.conversas.find(c => c.id === id);
+    if (!conversa) return;
+    chatgptState.conversaAtual = conversa;
+
+    // Ajusta o seletor de modelo conforme a conversa
+    const modeloSelect = document.getElementById('chatgpt-modelo');
+    if (modeloSelect && conversa.modelo) modeloSelect.value = conversa.modelo;
+
+    // Carrega as mensagens
+    chatgptState.mensagens = [];
+    if (chatgptPodePersistir()) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('chatgpt_mensagens')
+                .select('*')
+                .eq('conversaId', id)
+                .order('id', { ascending: true });
+            if (error) throw error;
+            chatgptState.mensagens = (data || []).map(m => ({ papel: m.papel, conteudo: m.conteudo }));
+        } catch (e) {
+            console.warn('Erro ao carregar mensagens:', e.message);
+        }
+    }
+    chatgptRenderConversasList();
+    chatgptRenderMensagens();
+    const sb = document.getElementById('chatgpt-sidebar');
+    if (sb) sb.classList.remove('open');
+}
+
+async function chatgptExcluirConversa(id, event) {
+    if (event) event.stopPropagation();
+    if (!confirm('Excluir esta conversa? Esta ação não pode ser desfeita.')) return;
+    if (chatgptPodePersistir()) {
+        try {
+            const { error } = await supabaseClient.from('chatgpt_conversas').delete().eq('id', id);
+            if (error) throw error;
+        } catch (e) {
+            console.error('Erro ao excluir conversa:', e.message);
+            showToast('Erro ao excluir conversa.', 'error');
+            return;
+        }
+    }
+    chatgptState.conversas = chatgptState.conversas.filter(c => c.id !== id);
+    if (chatgptState.conversaAtual && chatgptState.conversaAtual.id === id) {
+        chatgptNovaConversa();
+    } else {
+        chatgptRenderConversasList();
+    }
+    showToast('Conversa excluída.', 'success');
+}
+
+function chatgptRenderMensagens() {
+    const box = document.getElementById('chatgpt-messages');
+    const titulo = document.getElementById('chatgpt-titulo-atual');
+    if (titulo && chatgptState.conversaAtual) titulo.textContent = chatgptState.conversaAtual.titulo || 'Conversa';
+    if (!box) return;
+    box.innerHTML = chatgptState.mensagens.map(m => chatgptMensagemHtml(m)).join('');
+    chatgptScrollBottom();
+}
+
+function chatgptMensagemHtml(m) {
+    const isUser = m.papel === 'user';
+    const avatar = isUser ? '<i class="ri-user-3-line"></i>' : '<i class="ri-robot-2-line"></i>';
+    const nome = isUser ? ((currentSession && currentSession.nome) ? currentSession.nome : 'Você') : 'ChatGPT';
+    const conteudo = isUser
+        ? chatgptEscapeHtml(m.conteudo).replace(/\n/g, '<br>')
+        : chatgptRenderMarkdown(m.conteudo);
+    return `<div class="chatgpt-msg ${isUser ? 'user' : 'assistant'}">
+        <div class="chatgpt-msg-avatar">${avatar}</div>
+        <div class="chatgpt-msg-body">
+            <div class="chatgpt-msg-role">${chatgptEscapeHtml(nome)}</div>
+            <div class="chatgpt-msg-content">${conteudo}</div>
+        </div>
+    </div>`;
+}
+
+function chatgptScrollBottom() {
+    const box = document.getElementById('chatgpt-messages');
+    if (box) box.scrollTop = box.scrollHeight;
+}
+
+function chatgptAutoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+function chatgptInputKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        chatgptEnviarMensagem(event);
+    }
+}
+
+function chatgptToggleSidebar() {
+    const sb = document.getElementById('chatgpt-sidebar');
+    if (sb) sb.classList.toggle('open');
+}
+
+// Cria a conversa no banco (na primeira mensagem)
+async function chatgptCriarConversa(primeiraMensagem, modelo) {
+    const titulo = (primeiraMensagem || 'Nova conversa').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const registro = {
+        operadorId: currentSession ? currentSession.id : null,
+        operadorNome: currentSession ? currentSession.nome : null,
+        unidadeId: (typeof activeUnitId !== 'undefined') ? activeUnitId : (currentSession ? currentSession.unidadeId : null),
+        titulo: titulo,
+        modelo: modelo,
+        atualizadoEm: new Date().toISOString()
+    };
+    if (chatgptPodePersistir()) {
+        const { data, error } = await supabaseClient.from('chatgpt_conversas').insert(registro).select().single();
+        if (error) throw error;
+        return data;
+    }
+    // Fallback em memória (sessão)
+    registro.id = Date.now();
+    return registro;
+}
+
+async function chatgptSalvarMensagem(conversaId, papel, conteudo) {
+    if (!chatgptPodePersistir()) return;
+    try {
+        await supabaseClient.from('chatgpt_mensagens').insert({
+            conversaId: conversaId,
+            papel: papel,
+            conteudo: conteudo
+        });
+        await supabaseClient.from('chatgpt_conversas')
+            .update({ atualizadoEm: new Date().toISOString() })
+            .eq('id', conversaId);
+    } catch (e) {
+        console.warn('Erro ao salvar mensagem do ChatGPT:', e.message);
+    }
+}
+
+// Envia a mensagem e recebe a resposta com streaming
+async function chatgptEnviarMensagem(event) {
+    if (event) event.preventDefault();
+    if (chatgptState.enviando) return;
+
+    const input = document.getElementById('chatgpt-input');
+    const texto = input ? input.value.trim() : '';
+    if (!texto) return;
+
+    const config = chatgptGetConfig();
+    if (!config.chaveOpenAi) {
+        showToast('Chave da OpenAI não configurada. Vá em Configurações → Integração IA (ChatGPT) e cadastre a chave.', 'error');
+        return;
+    }
+
+    const modeloSelect = document.getElementById('chatgpt-modelo');
+    const modelo = (modeloSelect && modeloSelect.value) ? modeloSelect.value : 'gpt-4o';
+
+    // Limpa o input
+    if (input) { input.value = ''; chatgptAutoGrow(input); }
+
+    // Se ainda não há mensagens (estava no welcome), limpa a tela
+    if (chatgptState.mensagens.length === 0) {
+        const box = document.getElementById('chatgpt-messages');
+        if (box) box.innerHTML = '';
+    }
+
+    // Adiciona a mensagem do usuário
+    chatgptState.mensagens.push({ papel: 'user', conteudo: texto });
+    const box = document.getElementById('chatgpt-messages');
+    if (box) box.insertAdjacentHTML('beforeend', chatgptMensagemHtml({ papel: 'user', conteudo: texto }));
+
+    // Cria placeholder da resposta do assistente
+    const respostaId = 'chatgpt-resp-' + Date.now();
+    if (box) {
+        box.insertAdjacentHTML('beforeend', `<div class="chatgpt-msg assistant" id="${respostaId}">
+            <div class="chatgpt-msg-avatar"><i class="ri-robot-2-line"></i></div>
+            <div class="chatgpt-msg-body">
+                <div class="chatgpt-msg-role">ChatGPT</div>
+                <div class="chatgpt-msg-content"><span class="chatgpt-typing"><span></span><span></span><span></span></span></div>
+            </div>
+        </div>`);
+    }
+    chatgptScrollBottom();
+
+    chatgptState.enviando = true;
+    const sendBtn = document.getElementById('chatgpt-send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Garante a existência da conversa (primeira mensagem)
+    let novaConversaCriada = false;
+    try {
+        if (!chatgptState.conversaAtual) {
+            chatgptState.conversaAtual = await chatgptCriarConversa(texto, modelo);
+            chatgptState.conversas.unshift(chatgptState.conversaAtual);
+            novaConversaCriada = true;
+            chatgptRenderConversasList();
+            const titulo = document.getElementById('chatgpt-titulo-atual');
+            if (titulo) titulo.textContent = chatgptState.conversaAtual.titulo;
+        }
+    } catch (e) {
+        console.error('Erro ao criar conversa:', e.message);
+    }
+
+    // Persiste a mensagem do usuário
+    if (chatgptState.conversaAtual) {
+        chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'user', texto);
+    }
+
+    // Monta o histórico para a API
+    const mensagensApi = [{ role: 'system', content: chatgptSystemPrompt() }];
+    chatgptState.mensagens.forEach(m => {
+        mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: m.conteudo });
+    });
+
+    let respostaTexto = '';
+    const respEl = document.getElementById(respostaId);
+    const contentEl = respEl ? respEl.querySelector('.chatgpt-msg-content') : null;
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.chaveOpenAi}`
+            },
+            body: JSON.stringify({
+                model: modelo,
+                messages: mensagensApi,
+                temperature: 0.7,
+                stream: true
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`API OpenAI (${response.status}): ${errText}`);
+        }
+
+        // Leitura do streaming (SSE)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const linhas = buffer.split('\n');
+            buffer = linhas.pop();
+            for (const linha of linhas) {
+                const trimmed = linha.trim();
+                if (!trimmed || !trimmed.startsWith('data:')) continue;
+                const payload = trimmed.replace(/^data:\s*/, '');
+                if (payload === '[DONE]') continue;
+                try {
+                    const json = JSON.parse(payload);
+                    const delta = json.choices && json.choices[0] && json.choices[0].delta ? json.choices[0].delta.content : '';
+                    if (delta) {
+                        respostaTexto += delta;
+                        if (contentEl) contentEl.innerHTML = chatgptRenderMarkdown(respostaTexto);
+                        chatgptScrollBottom();
+                    }
+                } catch (e) { /* fragmento incompleto, ignora */ }
+            }
+        }
+
+        if (!respostaTexto) respostaTexto = '(Sem resposta do modelo.)';
+        if (contentEl) contentEl.innerHTML = chatgptRenderMarkdown(respostaTexto);
+
+        // Salva no estado e no banco
+        chatgptState.mensagens.push({ papel: 'assistant', conteudo: respostaTexto });
+        if (chatgptState.conversaAtual) {
+            chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'assistant', respostaTexto);
+        }
+
+    } catch (err) {
+        console.error('Erro no ChatGPT:', err);
+        if (contentEl) {
+            contentEl.innerHTML = `<span style="color: var(--danger, #ef4444);">⚠️ Erro ao obter resposta: ${chatgptEscapeHtml(err.message)}</span>`;
+        }
+        showToast('Erro ao comunicar com a OpenAI. Verifique a chave e o saldo da conta.', 'error');
+    } finally {
+        chatgptState.enviando = false;
+        if (sendBtn) sendBtn.disabled = false;
+        chatgptScrollBottom();
+        if (input) input.focus();
     }
 }
 
