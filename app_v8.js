@@ -13686,8 +13686,26 @@ const chatgptState = {
     conversas: [],         // lista de conversas do operador
     mensagens: [],         // mensagens da conversa atual [{papel, conteudo}]
     enviando: false,
-    modoImagem: false      // quando true, a próxima mensagem gera uma imagem
+    modoImagem: false,     // quando true, a próxima mensagem gera uma imagem
+    modoWeb: false         // quando true, usa busca na web na resposta
 };
+
+// Alterna o modo de busca na web
+function chatgptToggleWeb() {
+    chatgptState.modoWeb = !chatgptState.modoWeb;
+    const btn = document.getElementById('chatgpt-web-btn');
+    if (btn) btn.classList.toggle('active', chatgptState.modoWeb);
+    const input = document.getElementById('chatgpt-input');
+    if (input) input.focus();
+    showToast(chatgptState.modoWeb ? 'Busca na web ATIVADA — o assistente vai pesquisar informações atuais.' : 'Busca na web desativada.', 'info');
+}
+
+// Detecta intenção de informação atual/em tempo real (aciona a busca automaticamente)
+function chatgptDetectaWeb(texto) {
+    const t = (texto || '').toLowerCase();
+    return /\b(cota[çc][ãa]o|d[óo]lar|euro|bitcoin|pre[çc]o de|quanto (custa|est[áa]|vale)|hoje|agora|atual|atualizad[ao]|neste momento|not[íi]cia|not[íi]cias|[úu]ltim[ao]s?|clima|tempo (em|hoje)|previs[ãa]o do tempo|resultado d[oa]|placar|quem ganhou|ta(xa|xas) de juros|selic|ibovespa|d[óo]lar hoje|2024|2025|2026)\b/.test(t)
+        || /^\/web\b/.test(t);
+}
 
 // Alterna o modo de geração de imagem
 function chatgptToggleImagem() {
@@ -14103,7 +14121,13 @@ async function chatgptEnviarMensagem(event) {
     if (chatgptState.enviando) return;
 
     const input = document.getElementById('chatgpt-input');
-    const texto = input ? input.value.trim() : '';
+    let texto = input ? input.value.trim() : '';
+    if (!texto) return;
+
+    // Atalhos de comando: /imagem e /web (removidos do texto exibido/enviado)
+    let forcaImagem = false, forcaWeb = false;
+    if (/^\/imagem\b/i.test(texto)) { forcaImagem = true; texto = texto.replace(/^\/imagem\b\s*/i, '').trim(); }
+    else if (/^\/web\b/i.test(texto)) { forcaWeb = true; texto = texto.replace(/^\/web\b\s*/i, '').trim(); }
     if (!texto) return;
 
     const config = chatgptGetConfig();
@@ -14167,7 +14191,7 @@ async function chatgptEnviarMensagem(event) {
     }
 
     // MODO IMAGEM: gera uma imagem em vez de uma resposta de texto
-    const ehImagem = chatgptState.modoImagem || chatgptDetectaImagem(texto);
+    const ehImagem = forcaImagem || chatgptState.modoImagem || chatgptDetectaImagem(texto);
     if (ehImagem) {
         try {
             await chatgptGerarImagem(texto, respostaId, config);
@@ -14188,23 +14212,47 @@ async function chatgptEnviarMensagem(event) {
         mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: content });
     });
 
+    // MODO WEB: usa um modelo de busca da OpenAI quando ativado ou detectado
+    const usarWeb = forcaWeb || chatgptState.modoWeb || chatgptDetectaWeb(texto);
+    let modeloFinal = modelo;
+    if (usarWeb) {
+        modeloFinal = (modelo && modelo.indexOf('mini') !== -1) ? 'gpt-4o-mini-search-preview' : 'gpt-4o-search-preview';
+    }
+    const ehModeloBusca = modeloFinal.indexOf('search') !== -1;
+
+    if (ehModeloBusca && mensagensApi[0] && mensagensApi[0].role === 'system') {
+        mensagensApi[0].content += ' Você tem acesso à internet para buscar informações atuais; use a busca para responder com dados recentes e cite as fontes quando relevante.';
+    }
+
+    if (usarWeb) {
+        const respElBusca = document.getElementById(respostaId);
+        const contentBusca = respElBusca ? respElBusca.querySelector('.chatgpt-msg-content') : null;
+        if (contentBusca) {
+            contentBusca.innerHTML = `<div style="color: var(--text-secondary); font-size:13px; margin-bottom:8px;">🌐 Pesquisando na web...</div>
+                <span class="chatgpt-typing"><span></span><span></span><span></span></span>`;
+        }
+    }
+
     let respostaTexto = '';
     const respEl = document.getElementById(respostaId);
     const contentEl = respEl ? respEl.querySelector('.chatgpt-msg-content') : null;
 
     try {
+        const corpoReq = {
+            model: modeloFinal,
+            messages: mensagensApi,
+            stream: true
+        };
+        // Modelos de busca não aceitam temperature
+        if (!ehModeloBusca) corpoReq.temperature = 0.7;
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${config.chaveOpenAi}`
             },
-            body: JSON.stringify({
-                model: modelo,
-                messages: mensagensApi,
-                temperature: 0.7,
-                stream: true
-            })
+            body: JSON.stringify(corpoReq)
         });
 
         if (!response.ok) {

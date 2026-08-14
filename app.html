@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
-    <link rel="stylesheet" href="styles.css?v=20260814_chatgpt2">
+    <link rel="stylesheet" href="styles.css?v=20260814_chatgpt-web">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
@@ -512,6 +512,9 @@
                                     placeholder="Envie uma mensagem para o ChatGPT..."
                                     onkeydown="chatgptInputKeydown(event)"
                                     oninput="chatgptAutoGrow(this)"></textarea>
+                                <button type="button" class="chatgpt-web-btn" id="chatgpt-web-btn" onclick="chatgptToggleWeb()" title="Buscar na web (informações atuais)">
+                                    <i class="ri-global-line"></i>
+                                </button>
                                 <button type="button" class="chatgpt-img-btn" id="chatgpt-img-btn" onclick="chatgptToggleImagem()" title="Gerar imagem (modo imagem)">
                                     <i class="ri-image-add-line"></i>
                                 </button>
@@ -2707,7 +2710,7 @@
     </div>
 
 <script src="supabase-db.js?v=8.3.0-seguro"></script>
-<script src="app_v8.js?v=20260814-contas-mes-chatgpt-img"></script>
+<script src="app_v8.js?v=20260814-chatgpt-web"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 <script>
