@@ -5606,6 +5606,38 @@ function renderContasGears() {
     }
 }
 
+// ===== Filtro por mês do Contas a Pagar =====
+let contasMesSelecionado = null;
+
+function mesLabelContas(ym) {
+    const meses = {'01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho','07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'};
+    if (!ym || ym.length < 7) return ym || '';
+    return `${meses[ym.substring(5,7)]}/${ym.substring(0,4)}`;
+}
+
+function onContasMesChange(value) {
+    contasMesSelecionado = value;
+    renderContasGerais();
+}
+
+function popularSeletorMesContas() {
+    const sel = document.getElementById('contas-mes-select');
+    const mesAtual = new Date().toISOString().substring(0, 7);
+    const setMeses = new Set();
+    (db.contas_pagar || [])
+        .filter(c => c.unidadeId === activeUnitId && c.vencimento)
+        .forEach(c => setMeses.add(c.vencimento.substring(0, 7)));
+    setMeses.add(mesAtual); // sempre inclui o mês atual na lista
+    const meses = Array.from(setMeses).sort().reverse(); // mais recente primeiro
+    if (!contasMesSelecionado || !setMeses.has(contasMesSelecionado)) {
+        contasMesSelecionado = mesAtual; // padrão: mês atual
+    }
+    if (sel) {
+        sel.innerHTML = meses.map(m => `<option value="${m}">${mesLabelContas(m)}</option>`).join('');
+        sel.value = contasMesSelecionado;
+    }
+}
+
 function renderContasKPIs() {
     const kpiGrid = document.getElementById('contas-kpis-grid');
     if (!kpiGrid) return;
@@ -5613,9 +5645,9 @@ function renderContasKPIs() {
     if (!db.contas_pagar) return;
 
     const list = db.contas_pagar.filter(c => c.unidadeId === activeUnitId);
-    
+
     const todayStr = new Date().toISOString().split('T')[0];
-    const currentMonthStr = todayStr.substring(0, 7); // Ex: "2026-07"
+    const currentMonthStr = contasMesSelecionado || todayStr.substring(0, 7); // mês selecionado (padrão: atual)
 
     // Provisão específica do faturamento do mês atual (independente de vencer no mês seguinte)
     const meses = {
@@ -5680,7 +5712,7 @@ function renderContasKPIs() {
             <div class="kpi-info" style="display: flex; flex-direction: column;">
                 <span class="kpi-label" style="font-size: 9px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase;">Total do Mês</span>
                 <h3 class="kpi-value" style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 2px 0 0 0;">${formatCurrency(totalMes)}</h3>
-                <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">Despesas para este mês</span>
+                <span class="kpi-subtext" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">Despesas de ${mesLabelContas(currentMonthStr)}</span>
             </div>
         </div>
         <!-- Pago no Mês -->
@@ -5707,14 +5739,16 @@ function renderContasKPIs() {
 }
 
 function renderContasGerais() {
+    popularSeletorMesContas();   // define o mês selecionado e popula o seletor
     renderContasKPIs();
     const tbody = document.getElementById('contas-tbody');
     const list = db.contas_pagar
         .filter(c => c.unidadeId === activeUnitId)
+        .filter(c => c.vencimento && c.vencimento.startsWith(contasMesSelecionado))
         .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento));
 
     if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhuma conta a pagar registrada.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">Nenhuma conta a pagar em ${mesLabelContas(contasMesSelecionado)}.</td></tr>`;
         return;
     }
 
