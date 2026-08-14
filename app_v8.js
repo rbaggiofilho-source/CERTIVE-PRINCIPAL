@@ -8228,6 +8228,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (isSupabaseConfigured) {
         window.useSupabase = true;
+        // Garante que a sessão de login (se já existir) esteja restaurada ANTES de
+        // carregar os dados. Sem isso, a leitura sairia como anônima e — com o banco
+        // protegido — viria vazia. Isto evita o "sumiço" de dados na tela.
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session && session.access_token) {
+                sbAccessToken = session.access_token;
+            } else {
+                // Sem sessão válida: não exibir dados sem login (evita tela vazia).
+                sessionStorage.removeItem('certive_session');
+            }
+        } catch (e) { console.warn('getSession no boot falhou:', e); }
         dbLoaded = await loadAllFromSupabase();
     }
     
