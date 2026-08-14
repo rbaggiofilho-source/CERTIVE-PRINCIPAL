@@ -5649,34 +5649,21 @@ function renderContasKPIs() {
     const todayStr = new Date().toISOString().split('T')[0];
     const currentMonthStr = contasMesSelecionado || todayStr.substring(0, 7); // mês selecionado (padrão: atual)
 
-    // Provisão específica do faturamento do mês atual (independente de vencer no mês seguinte)
-    const meses = {
-        '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
-        '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
-        '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
-    };
-    const currentMonthLabel = meses[currentMonthStr.substring(5, 7)];
-    const currentYearLabel = currentMonthStr.substring(0, 4);
-    const currentProvisionDesc = `Taxas DETRAN-SC — Provisão ${currentMonthLabel}/${currentYearLabel}`;
-
-    // 1. Contas do mês atual (vencimento no mês atual OU provisão flutuante faturada no mês atual)
-    const contasDoMes = list.filter(c => {
-        if (!c.vencimento) return false;
-        if (c.vencimento.startsWith(currentMonthStr)) return true;
-        if (c.descricao === currentProvisionDesc) return true;
-        return false;
-    });
+    // Contas do mês selecionado — estritamente pelo vencimento, para os totais
+    // baterem EXATAMENTE com as linhas mostradas na tabela.
+    const contasDoMes = list.filter(c => c.vencimento && c.vencimento.startsWith(currentMonthStr));
     
-    const totalMes = contasDoMes.reduce((sum, c) => sum + c.valor, 0);
-    const pagoMes = contasDoMes.filter(c => c.pago).reduce((sum, c) => sum + c.valor, 0);
-    const pendenteMes = contasDoMes.filter(c => !c.pago).reduce((sum, c) => sum + c.valor, 0);
+    const val = c => Number(c.valor) || 0;   // garante número (evita concatenação de texto)
+    const totalMes = contasDoMes.reduce((sum, c) => sum + val(c), 0);
+    const pagoMes = contasDoMes.filter(c => c.pago).reduce((sum, c) => sum + val(c), 0);
+    const pendenteMes = contasDoMes.filter(c => !c.pago).reduce((sum, c) => sum + val(c), 0);
 
     const pctPago = totalMes > 0 ? (pagoMes / totalMes) * 100 : 0;
     const pctPendente = totalMes > 0 ? (pendenteMes / totalMes) * 100 : 0;
 
     // 2. Contas em atraso (vencimento < hoje e não pagas)
     const contasAtrasadas = list.filter(c => !c.pago && c.vencimento < todayStr);
-    const totalAtrasado = contasAtrasadas.reduce((sum, c) => sum + c.valor, 0);
+    const totalAtrasado = contasAtrasadas.reduce((sum, c) => sum + val(c), 0);
     const qtdAtrasado = contasAtrasadas.length;
 
     // 3. Renderizar o HTML dos cards
