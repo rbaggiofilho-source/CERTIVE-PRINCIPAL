@@ -14013,57 +14013,77 @@ async function chatgptGerarImagem(prompt, respostaId, config) {
     }
     chatgptScrollBottom();
 
-    try {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
+    // Faz uma tentativa de geração com um corpo específico
+    async function tentarGerar(corpo) {
+        const resp = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${config.chaveOpenAi}`
             },
-            body: JSON.stringify({
-                model: 'dall-e-3',
-                prompt: prompt,
-                n: 1,
-                size: '1024x1024',
-                quality: 'standard',
-                response_format: 'b64_json'
-            })
+            body: JSON.stringify(corpo)
         });
+        if (!resp.ok) {
+            const t = await resp.text();
+            const err = new Error(`(${resp.status}) ${t}`);
+            err.status = resp.status;
+            throw err;
+        }
+        return resp.json();
+    }
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`API de imagens (${response.status}): ${errText}`);
+    try {
+        // A API de imagens da OpenAI variou ao longo do tempo: tentamos o modelo
+        // novo (gpt-image-1, retorna base64) e caímos para o dall-e-3 (retorna URL).
+        const tentativas = [
+            { model: 'gpt-image-1', prompt: prompt, n: 1, size: '1024x1024' },
+            { model: 'dall-e-3', prompt: prompt, n: 1, size: '1024x1024' }
+        ];
+        let data = null, ultimoErro = null;
+        for (const corpo of tentativas) {
+            try { data = await tentarGerar(corpo); break; }
+            catch (e) { ultimoErro = e; console.warn('Tentativa de imagem falhou (' + corpo.model + '):', e.message); }
+        }
+        if (!data) throw ultimoErro || new Error('Falha ao gerar a imagem.');
+
+        const item = (data.data && data.data[0]) ? data.data[0] : {};
+        const b64 = item.b64_json || null;
+        const urlDireta = item.url || null;
+        if (!b64 && !urlDireta) throw new Error('Nenhuma imagem foi retornada pela API.');
+
+        // Obtém um Blob para salvar (de base64, ou baixando a URL temporária)
+        let blob = null;
+        if (b64) {
+            const bytes = atob(b64);
+            const arr = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+            blob = new Blob([arr], { type: 'image/png' });
+        } else if (urlDireta) {
+            try { blob = await (await fetch(urlDireta)).blob(); }
+            catch (e) { console.warn('Não foi possível baixar a imagem para salvar:', e.message); }
         }
 
-        const data = await response.json();
-        const b64 = (data && data.data && data.data[0]) ? data.data[0].b64_json : null;
-        if (!b64) throw new Error('Nenhuma imagem foi retornada pela API.');
-
-        // Converte base64 -> Blob
-        const bytes = atob(b64);
-        const arr = new Uint8Array(bytes.length);
-        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-        const blob = new Blob([arr], { type: 'image/png' });
-
-        // Tenta salvar no Storage do Supabase; se falhar, usa data URL como fallback
+        // Salva no Storage do Supabase quando temos o arquivo; senão usa a URL/base64 direta
         let urlImagem = '';
-        try {
-            if (window.useSupabase) {
-                const fileName = `img_${(currentSession ? currentSession.id : 'op')}_${Date.now()}.png`;
-                const { error: upErr } = await supabaseClient.storage.from('chatgpt-imagens').upload(fileName, blob, {
-                    contentType: 'image/png',
-                    upsert: true
-                });
-                if (!upErr) {
-                    const { data: urlData } = supabaseClient.storage.from('chatgpt-imagens').getPublicUrl(fileName);
-                    urlImagem = urlData.publicUrl;
+        if (blob) {
+            try {
+                if (window.useSupabase) {
+                    const fileName = `img_${(currentSession ? currentSession.id : 'op')}_${Date.now()}.png`;
+                    const { error: upErr } = await supabaseClient.storage.from('chatgpt-imagens').upload(fileName, blob, {
+                        contentType: 'image/png',
+                        upsert: true
+                    });
+                    if (!upErr) {
+                        const { data: urlData } = supabaseClient.storage.from('chatgpt-imagens').getPublicUrl(fileName);
+                        urlImagem = urlData.publicUrl;
+                    }
                 }
+            } catch (e) {
+                console.warn('Falha ao subir a imagem ao Storage:', e.message);
             }
-        } catch (e) {
-            console.warn('Falha ao subir a imagem ao Storage, usando data URL:', e.message);
         }
         if (!urlImagem) {
-            urlImagem = 'data:image/png;base64,' + b64;
+            urlImagem = b64 ? ('data:image/png;base64,' + b64) : urlDireta;
         }
 
         // Conteúdo persistido (markdown de imagem, re-renderizável ao reabrir a conversa)
