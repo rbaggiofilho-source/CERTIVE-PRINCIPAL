@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
-    <link rel="stylesheet" href="styles.css?v=20260707_1230">
+    <link rel="stylesheet" href="styles.css?v=20260814_chatgpt">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
@@ -125,6 +125,9 @@
         <nav class="sidebar-nav">
             <div class="nav-item active" onclick="navigateTo('atendimento')" id="nav-atendimento">
                 <i class="ri-customer-service-2-line"></i> Atendimento
+            </div>
+            <div class="nav-item" onclick="navigateTo('chatgpt')" id="nav-chatgpt">
+                <i class="ri-robot-2-line"></i> ChatGPT
             </div>
             <div class="nav-item" onclick="navigateTo('registrar-cautelar')" id="nav-registrar-cautelar" style="display: flex; align-items: center; gap: 8px;">
                 <i class="ri-survey-line"></i> Registro de Cautelar
@@ -463,6 +466,57 @@
                                     </table>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= PÁGINA: CHATGPT ================= -->
+            <section class="section-panel" id="panel-chatgpt">
+                <div class="chatgpt-layout">
+                    <!-- Lista de conversas -->
+                    <aside class="chatgpt-sidebar" id="chatgpt-sidebar">
+                        <button class="chatgpt-new-btn" onclick="chatgptNovaConversa()">
+                            <i class="ri-add-line"></i> Nova conversa
+                        </button>
+                        <div class="chatgpt-conversas-list" id="chatgpt-conversas-list">
+                            <!-- Conversas do operador (via JS) -->
+                        </div>
+                    </aside>
+
+                    <!-- Área do chat -->
+                    <div class="chatgpt-main">
+                        <div class="chatgpt-header">
+                            <div class="chatgpt-header-title">
+                                <i class="ri-robot-2-line"></i>
+                                <span id="chatgpt-titulo-atual">Assistente ChatGPT</span>
+                            </div>
+                            <div class="chatgpt-header-actions">
+                                <select id="chatgpt-modelo" class="chatgpt-modelo-select" title="Modelo de IA">
+                                    <option value="gpt-4o" selected>GPT-4o</option>
+                                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                </select>
+                                <button class="chatgpt-mobile-toggle" onclick="chatgptToggleSidebar()" title="Conversas">
+                                    <i class="ri-chat-history-line"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="chatgpt-messages" id="chatgpt-messages">
+                            <!-- Mensagens (via JS) -->
+                        </div>
+
+                        <div class="chatgpt-input-area">
+                            <form id="chatgpt-form" class="chatgpt-input-wrap" onsubmit="chatgptEnviarMensagem(event)">
+                                <textarea id="chatgpt-input" class="chatgpt-input" rows="1"
+                                    placeholder="Envie uma mensagem para o ChatGPT..."
+                                    onkeydown="chatgptInputKeydown(event)"
+                                    oninput="chatgptAutoGrow(this)"></textarea>
+                                <button type="submit" class="chatgpt-send-btn" id="chatgpt-send-btn" title="Enviar">
+                                    <i class="ri-send-plane-2-fill"></i>
+                                </button>
+                            </form>
+                            <div class="chatgpt-hint">O ChatGPT pode cometer erros. Considere verificar informações importantes.</div>
                         </div>
                     </div>
                 </div>
@@ -2646,7 +2700,7 @@
     </div>
 
 <script src="supabase-db.js?v=8.2.14"></script>
-<script src="app_v8.js?v=20260806_0000"></script>
+<script src="app_v8.js?v=20260814_chatgpt"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 <script>

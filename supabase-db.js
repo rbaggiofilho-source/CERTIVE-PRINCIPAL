@@ -387,6 +387,19 @@ async function loadAllFromSupabase() {
         }
         db.configuracoes_gerais = configuracoes_gerais || [];
 
+        // Tabelas do Assistente ChatGPT - registro defensivo (as conversas são carregadas sob demanda)
+        try {
+            const { error: cgErr } = await supabaseClient.from('chatgpt_conversas').select('id').limit(1);
+            if (!cgErr) {
+                window.onlineTables['chatgpt_conversas'] = true;
+                window.onlineTables['chatgpt_mensagens'] = true;
+            } else {
+                console.warn("⚠️ Tabelas do ChatGPT indisponíveis no Supabase. Rode supabase-chatgpt.sql.", cgErr.message);
+            }
+        } catch (e) {
+            console.warn("⚠️ Tabelas do ChatGPT indisponíveis no Supabase.", e.message);
+        }
+
         // Process Portarias UF
         db.portarias_uf = {};
         (portarias_uf || []).forEach(p => {
