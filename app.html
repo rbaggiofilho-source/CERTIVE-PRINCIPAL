@@ -779,9 +779,12 @@
 
                 <!-- Tabela de O.S.s Filtradas -->
                 <div class="panel-card">
-                    <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <h3><i class="ri-file-list-line"></i> Registros Encontrados</h3>
-                        <span id="hist-total-count" style="font-size: 12px; font-weight: 600; color: var(--accent);">0 Ordens de Serviço</span>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span id="hist-total-count" style="font-size: 12px; font-weight: 600; color: var(--accent);">0 Ordens de Serviço</span>
+                            <button class="btn btn-primary btn-sm" onclick="gerarRelatorioHistorico()" title="Gerar PDF do resultado filtrado"><i class="ri-file-download-line"></i> Criar Relatório</button>
+                        </div>
                     </div>
                     <div class="panel-card-body" style="padding: 0;">
                         <div class="table-container" style="border: none; border-radius: 0; margin-bottom: 0;">
@@ -2714,7 +2717,7 @@
     </div>
 
 <script src="supabase-db.js?v=8.3.0-seguro"></script>
-<script src="app_v8.js?v=20260815-contas-comp"></script>
+<script src="app_v8.js?v=20260815-relatorios"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 <script>

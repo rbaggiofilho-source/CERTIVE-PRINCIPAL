@@ -2814,41 +2814,39 @@ function renderHistoricoPage() {
     renderHistorico();
 }
 
-function renderHistorico() {
-    const placaFilter = document.getElementById('hist-filter-placa') ? document.getElementById('hist-filter-placa').value.trim().toUpperCase() : '';
-    const clienteFilter = document.getElementById('hist-filter-cliente') ? document.getElementById('hist-filter-cliente').value.trim().toUpperCase() : '';
-    const servicoFilter = document.getElementById('hist-filter-servico') ? document.getElementById('hist-filter-servico').value : '';
-    const valorFilter = document.getElementById('hist-filter-valor') ? document.getElementById('hist-filter-valor').value : '';
-    const dataIniFilter = document.getElementById('hist-filter-data-ini') ? document.getElementById('hist-filter-data-ini').value : '';
-    const dataFimFilter = document.getElementById('hist-filter-data-fim') ? document.getElementById('hist-filter-data-fim').value : '';
-    const pagamentoFilter = document.getElementById('hist-filter-pagamento') ? document.getElementById('hist-filter-pagamento').value : '';
-    const statusFilter = document.getElementById('hist-filter-status') ? document.getElementById('hist-filter-status').value : '';
+// Lista filtrada do Histórico Geral (mesma fonte da tela e do relatório).
+function getHistoricoFilteredList() {
+    const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const placaFilter = (g('hist-filter-placa') || '').trim().toUpperCase();
+    const clienteFilter = (g('hist-filter-cliente') || '').trim().toUpperCase();
+    const servicoFilter = g('hist-filter-servico');
+    const valorFilter = g('hist-filter-valor');
+    const dataIniFilter = g('hist-filter-data-ini');
+    const dataFimFilter = g('hist-filter-data-fim');
+    const pagamentoFilter = g('hist-filter-pagamento');
+    const statusFilter = g('hist-filter-status');
 
-    let list = db.ordens_servico.filter(o => {
+    return db.ordens_servico.filter(o => {
         if (o.unidadeId !== activeUnitId) return false;
-        
         if (placaFilter && !o.placa.toUpperCase().includes(placaFilter)) return false;
-        
         if (clienteFilter) {
             const nameMatch = o.clienteNome.toUpperCase().includes(clienteFilter);
             const docMatch = o.clienteCpfCnpj.includes(clienteFilter);
             if (!nameMatch && !docMatch) return false;
         }
-        
         if (servicoFilter && o.servicoId !== parseInt(servicoFilter)) return false;
-        
         if (valorFilter && Math.abs(o.valor - parseFloat(valorFilter)) > 0.01) return false;
-        
         const osDate = o.criadoEm.split('T')[0];
         if (dataIniFilter && osDate < dataIniFilter) return false;
         if (dataFimFilter && osDate > dataFimFilter) return false;
-        
         if (pagamentoFilter && o.formaPagamento !== pagamentoFilter) return false;
-        
         if (statusFilter && o.status !== statusFilter) return false;
-        
         return true;
     });
+}
+
+function renderHistorico() {
+    const list = getHistoricoFilteredList();
 
     const totalLabel = document.getElementById('hist-total-count');
     if (totalLabel) {
@@ -2908,6 +2906,163 @@ function clearHistoricoFilters() {
     document.getElementById('hist-filter-pagamento').value = '';
     document.getElementById('hist-filter-status').value = '';
     renderHistorico();
+}
+
+// ============================================================
+// RELATÓRIOS (PDF) — mesmo modelo de layout do Caixa Diário
+// ============================================================
+function truncarTexto(txt, n) {
+    txt = String(txt || '');
+    return txt.length > n ? txt.slice(0, n - 1) + '.' : txt;
+}
+
+function relatorioNovoPdf(subtitulo, metaLinhas) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const unit = db.unidades.find(u => u.id === activeUnitId);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("CERTIVE VISTORIAS", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("Helvetica", "normal");
+    doc.text(subtitulo, 14, 26);
+    doc.line(14, 28, 196, 28);
+
+    doc.setFontSize(9);
+    doc.setFont("Helvetica", "bold"); doc.text("Unidade:", 14, 35);
+    doc.setFont("Helvetica", "normal"); doc.text(unit ? unit.nome : "—", 32, 35);
+    doc.setFont("Helvetica", "bold"); doc.text("Emitido em:", 130, 35);
+    doc.setFont("Helvetica", "normal"); doc.text(new Date().toLocaleString('pt-BR'), 155, 35);
+
+    let y = 42;
+    doc.setFontSize(9);
+    (metaLinhas || []).forEach(linha => { doc.text(linha, 14, y); y += 5; });
+    doc.line(14, y, 196, y);
+    return { doc, y: y + 6 };
+}
+
+function gerarRelatorioHistorico() {
+    if (!window.jspdf) { showToast("Biblioteca de PDF não carregada. Recarregue a página.", "error"); return; }
+    const list = getHistoricoFilteredList().slice().sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
+    if (list.length === 0) { showToast("Nenhum registro no filtro atual para gerar o relatório.", "info"); return; }
+
+    const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const filtros = [];
+    if (g('hist-filter-data-ini') || g('hist-filter-data-fim'))
+        filtros.push(`Periodo: ${g('hist-filter-data-ini') ? formatDateBr(g('hist-filter-data-ini')) : 'inicio'} a ${g('hist-filter-data-fim') ? formatDateBr(g('hist-filter-data-fim')) : 'hoje'}`);
+    if (g('hist-filter-placa')) filtros.push(`Placa: ${g('hist-filter-placa').toUpperCase()}`);
+    if (g('hist-filter-cliente')) filtros.push(`Cliente: ${g('hist-filter-cliente')}`);
+    if (g('hist-filter-servico')) { const s = db.servicos.find(x => x.id === parseInt(g('hist-filter-servico'))); if (s) filtros.push(`Servico: ${s.nome.split(' — ')[0]}`); }
+    if (g('hist-filter-pagamento')) filtros.push(`Pagamento: ${g('hist-filter-pagamento')}`);
+    if (g('hist-filter-status')) filtros.push(`Status: ${g('hist-filter-status')}`);
+
+    const totalValor = list.reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const meta = [`Registros: ${list.length}    Valor total: ${formatCurrency(totalValor)}`];
+    if (filtros.length) meta.push('Filtros: ' + filtros.join('   |   '));
+
+    const { doc, y: startY } = relatorioNovoPdf("Relatorio de Ordens de Servico", meta);
+    let y = startY;
+    const header = () => {
+        doc.setFont("Helvetica", "bold"); doc.setFontSize(8);
+        doc.text("N.", 14, y);
+        doc.text("Data", 30, y);
+        doc.text("Cliente / Placa", 52, y);
+        doc.text("Servico", 104, y);
+        doc.text("Forma", 134, y);
+        doc.text("Status", 154, y);
+        doc.text("Valor", 196, y, { align: 'right' });
+        doc.line(14, y + 1.5, 196, y + 1.5);
+        y += 6;
+        doc.setFont("Helvetica", "normal");
+    };
+    header();
+
+    const statusTxt = { aberta: 'Aberta', paga: 'Paga', em_execucao: 'Em vistoria', concluida_aprovada: 'Aprovada', concluida_reprovada: 'Reprovada', cancelada: 'Cancelada' };
+    doc.setFontSize(8);
+    list.forEach(os => {
+        if (y > 282) { doc.addPage(); y = 20; header(); }
+        doc.text(truncarTexto(os.numero, 10), 14, y);
+        doc.text(formatDateBr(os.criadoEm), 30, y);
+        doc.text(truncarTexto(`${os.clienteNome} (${os.placa})`, 28), 52, y);
+        doc.text(truncarTexto((os.servicoNome || '').split(' — ')[0], 15), 104, y);
+        doc.text(truncarTexto(os.formaPagamento, 11), 134, y);
+        doc.text(truncarTexto(statusTxt[os.status] || os.status || '', 12), 154, y);
+        doc.text(formatCurrency(os.valor), 196, y, { align: 'right' });
+        y += 5.5;
+    });
+
+    doc.line(14, y, 196, y); y += 6;
+    doc.setFont("Helvetica", "bold"); doc.setFontSize(9);
+    doc.text(`TOTAL (${list.length} registros)`, 14, y);
+    doc.text(formatCurrency(totalValor), 196, y, { align: 'right' });
+
+    doc.save(`relatorio_historico_${hojeLocalStr()}.pdf`);
+    showToast("Relatório gerado com sucesso!", "success");
+    logAudit("Relatório Histórico", `Gerou relatório do histórico (${list.length} registros).`);
+}
+
+function gerarRelatorioContas() {
+    if (!window.jspdf) { showToast("Biblioteca de PDF não carregada. Recarregue a página.", "error"); return; }
+    if (!contasCompetenciaSel) contasCompetenciaSel = hojeLocalStr().substring(0, 7);
+
+    const contasDoMes = db.contas_pagar
+        .filter(c => c.unidadeId === activeUnitId)
+        .filter(c => competenciaMes(c) === contasCompetenciaSel)
+        .slice()
+        .sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')));
+
+    if (contasDoMes.length === 0) { showToast(`Nenhuma conta em ${mesLabelPt(contasCompetenciaSel)}.`, "info"); return; }
+
+    const val = c => Number(c.valor) || 0;
+    const soma = arr => arr.reduce((s, c) => s + val(c), 0);
+    const pagas = contasDoMes.filter(c => statusConta(c) === 'paga');
+    const vencidas = contasDoMes.filter(c => statusConta(c) === 'vencida');
+    const aPagar = contasDoMes.filter(c => statusConta(c) === 'a_pagar');
+
+    const meta = [
+        `Competencia: ${mesLabelPt(contasCompetenciaSel)}    Contas: ${contasDoMes.length}`,
+        `Total: ${formatCurrency(soma(contasDoMes))}   |   Pagas: ${formatCurrency(soma(pagas))}   |   A pagar: ${formatCurrency(soma(aPagar))}   |   Vencidas: ${formatCurrency(soma(vencidas))}`
+    ];
+
+    const { doc, y: startY } = relatorioNovoPdf("Relatorio de Contas a Pagar", meta);
+    let y = startY;
+    const header = () => {
+        doc.setFont("Helvetica", "bold"); doc.setFontSize(8);
+        doc.text("Vencimento", 14, y);
+        doc.text("Descricao", 40, y);
+        doc.text("Categoria", 96, y);
+        doc.text("Fornecedor", 128, y);
+        doc.text("Status", 158, y);
+        doc.text("Valor", 196, y, { align: 'right' });
+        doc.line(14, y + 1.5, 196, y + 1.5);
+        y += 6;
+        doc.setFont("Helvetica", "normal");
+    };
+    header();
+
+    const stTxt = { paga: 'Paga', vencida: 'Vencida', a_pagar: 'A pagar' };
+    doc.setFontSize(8);
+    contasDoMes.forEach(c => {
+        if (y > 282) { doc.addPage(); y = 20; header(); }
+        doc.text(c.vencimento ? formatDateBr(c.vencimento) : '—', 14, y);
+        doc.text(truncarTexto(c.descricao, 30), 40, y);
+        doc.text(truncarTexto(c.categoria, 16), 96, y);
+        doc.text(truncarTexto(c.fornecedor, 16), 128, y);
+        doc.text(stTxt[statusConta(c)] || '', 158, y);
+        doc.text(formatCurrency(c.valor), 196, y, { align: 'right' });
+        y += 5.5;
+    });
+
+    doc.line(14, y, 196, y); y += 6;
+    doc.setFont("Helvetica", "bold"); doc.setFontSize(9);
+    doc.text(`TOTAL ${mesLabelPt(contasCompetenciaSel).toUpperCase()} (${contasDoMes.length} contas)`, 14, y);
+    doc.text(formatCurrency(soma(contasDoMes)), 196, y, { align: 'right' });
+
+    doc.save(`relatorio_contas_${contasCompetenciaSel}.pdf`);
+    showToast("Relatório gerado com sucesso!", "success");
+    logAudit("Relatório Contas", `Gerou relatório de contas — ${mesLabelPt(contasCompetenciaSel)} (${contasDoMes.length} contas).`);
 }
 
 async function deleteOS(osId) {
@@ -5683,12 +5838,18 @@ function renderContasSeletorMes() {
     const nav = document.getElementById('contas-mes-nav');
     if (!nav) return;
     nav.innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:16px;">
-            <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(-1)" title="Competência anterior" style="padding:6px 10px;"><i class="ri-arrow-left-s-line"></i></button>
-            <div style="min-width:170px; text-align:center; font-family:Outfit,sans-serif; font-weight:800; font-size:16px; color:var(--text-primary);">
-                <i class="ri-calendar-line" style="color:var(--accent); margin-right:6px;"></i>${mesLabelPt(contasCompetenciaSel)}
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:110px;"></div>
+            <div style="display:flex; align-items:center; gap:14px;">
+                <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(-1)" title="Competência anterior" style="padding:6px 10px;"><i class="ri-arrow-left-s-line"></i></button>
+                <div style="min-width:170px; text-align:center; font-family:Outfit,sans-serif; font-weight:800; font-size:16px; color:var(--text-primary);">
+                    <i class="ri-calendar-line" style="color:var(--accent); margin-right:6px;"></i>${mesLabelPt(contasCompetenciaSel)}
+                </div>
+                <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(1)" title="Próxima competência" style="padding:6px 10px;"><i class="ri-arrow-right-s-line"></i></button>
             </div>
-            <button class="btn btn-secondary btn-sm btn-icon" onclick="mudarCompetencia(1)" title="Próxima competência" style="padding:6px 10px;"><i class="ri-arrow-right-s-line"></i></button>
+            <div style="flex:1; min-width:110px; display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary btn-sm" onclick="gerarRelatorioContas()" title="Gerar PDF das contas desta competência"><i class="ri-file-download-line"></i> Gerar Relatório</button>
+            </div>
         </div>`;
 }
 
