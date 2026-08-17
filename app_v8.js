@@ -6490,24 +6490,21 @@ function renderAiInsights() {
 // Calculate Detran variable tax due
 function calcularCustosDetran() {
     const month = document.getElementById('detran-calculo-mes').value;
-    const year = "2026"; // Lock to mock database year
+    const year = String(new Date().getFullYear());
     const tbody = document.getElementById('detran-calculo-tbody');
     const launchBtn = document.getElementById('btn-lancar-detran');
 
-    // Fetch all completed OSs for that month & unit
-    const monthlyOSs = db.ordens_servico.filter(o => 
-        o.unidadeId === activeUnitId && 
-        o.status.startsWith('concluida') && 
-        o.criadoEm.startsWith(`${year}-${month}`)
-    );
+    // Laudos cobrados pelo DETRAN no mês (mesma base do sincronizador da provisão)
+    const monthlyOSs = laudosDetranDoMes(year, month, activeUnitId);
 
     // Group count by Service type
     let totals = [];
     let grandTotal = 0;
 
     db.servicos.forEach(s => {
-        const count = monthlyOSs.filter(o => o.servicoId === s.id && o.valor > 0).length; // ignore rechecks which are free
-        const taxRate = db.taxas_referencia.find(t => t.servicoId === s.id)?.tax || 0;
+        if (!servicoGeraLaudoDetran(s.id)) return; // cautelar/pesquisa não entram na guia
+        const count = monthlyOSs.filter(o => o.servicoId === s.id).length;
+        const taxRate = taxaDetranDoServico(s.id);
         const subtotal = count * taxRate;
         grandTotal += subtotal;
 
@@ -6535,7 +6532,12 @@ function calcularCustosDetran() {
     `;
 
     // Disable launch button if bill is already generated
-    const monthLabel = month === '05' ? 'Maio' : (month === '06' ? 'Junho' : 'Julho');
+    const MESES_PT = {
+        '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+        '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+        '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+    };
+    const monthLabel = MESES_PT[String(month).padStart(2, '0')] || String(month);
     const checkDuplicate = db.contas_pagar.find(c => 
         c.unidadeId === activeUnitId && 
         c.descricao.includes(`Taxas DETRAN-SC — Consolidação ${monthLabel}/${year}`)
@@ -13351,6 +13353,74 @@ async function generateAsaasBillingForInvoice(faturaId, btn) {
 }
 
 // Sincronizador Automático de Taxas Flutuantes do DETRAN
+// ==========================================================
+// BASE DE CÁLCULO DA GUIA DETRAN (fonte única de verdade)
+// ----------------------------------------------------------
+// O DETRAN-SC cobra R$ 27,00 por LAUDO EMITIDO, independentemente
+// do porte do veículo e independentemente do resultado: laudo
+// aprovado, reprovado, bloqueado, cancelado ou "não enviado" são
+// todos cobrados. O ÚNICO laudo gratuito é o RETORNO (reapresentação
+// de uma vistoria anterior).
+//
+// Por isso NÃO se pode filtrar por status "concluída" nem por
+// valor > 0: OS em aberto, pagas ou de valor zero também geram
+// laudo cobrado. O retorno é identificado por reapresentacaoOrigemID.
+// ==========================================================
+
+// Converte um timestamp (UTC do banco) para 'YYYY-MM' no fuso local.
+// Comparar a string ISO direto (criadoEm.startsWith('2026-07')) joga
+// as OS lançadas após as 21h do último dia do mês para o mês seguinte.
+function competenciaLocalDeOS(criadoEm) {
+    if (!criadoEm) return null;
+    const d = new Date(criadoEm);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// true quando o serviço da OS gera laudo cobrado pelo DETRAN.
+function servicoGeraLaudoDetran(servicoId) {
+    const s = (db.servicos || []).find(x => x.id === servicoId);
+    if (!s) return false;
+    // Fallback para bases antigas sem a coluna geraLaudoDetran
+    if (typeof s.geraLaudoDetran === 'boolean') return s.geraLaudoDetran;
+    return /TRANSFER|COMBO/i.test(s.nome || '');
+}
+
+// true quando a OS é um RETORNO (reapresentação) — laudo gratuito.
+function osEhRetornoDetran(o) {
+    return o.reapresentacaoOrigemID !== null && o.reapresentacaoOrigemID !== undefined;
+}
+
+// Retorna as OS que compõem a guia DETRAN de um mês/unidade.
+function laudosDetranDoMes(year, monthNum, unidadeId) {
+    const alvo = `${year}-${String(monthNum).padStart(2, '0')}`;
+    return (db.ordens_servico || []).filter(o =>
+        o.unidadeId === unidadeId &&
+        competenciaLocalDeOS(o.criadoEm) === alvo &&
+        servicoGeraLaudoDetran(o.servicoId) &&
+        o.status !== 'cancelada' &&
+        !osEhRetornoDetran(o)
+    );
+}
+
+// Taxa DETRAN por laudo do serviço (default R$27,00 se não cadastrada).
+function taxaDetranDoServico(servicoId) {
+    const ref = (db.taxas_referencia || []).find(t => t.servicoId === servicoId);
+    if (!ref) return 27.00;
+    const v = parseFloat(ref.taxa);
+    return isNaN(v) ? 27.00 : v;
+}
+
+// Valor total da guia DETRAN do mês.
+function totalGuiaDetran(year, monthNum, unidadeId) {
+    return laudosDetranDoMes(year, monthNum, unidadeId)
+        .reduce((acc, o) => acc + taxaDetranDoServico(o.servicoId), 0);
+}
+
+window.competenciaLocalDeOS = competenciaLocalDeOS;
+window.laudosDetranDoMes = laudosDetranDoMes;
+window.totalGuiaDetran = totalGuiaDetran;
+
 window.syncDetranFloatingPayable = async function() {
     if (typeof activeUnitId === 'undefined' || !activeUnitId) return;
     if (!db || !db.ordens_servico || !db.contas_pagar) return;
@@ -13392,20 +13462,10 @@ window.syncDetranFloatingPayable = async function() {
         const monthLabel = meses[monthNum];
         const targetDesc = `Taxas DETRAN-SC — Provisão ${monthLabel}/${year}`;
 
-        // 2. Calcular valor flutuante total baseado no número de vistorias com detranRegistrado === true no mês corrente
-        let totalTaxas = 0;
-        const monthlyOSs = db.ordens_servico.filter(o => 
-            o.unidadeId === activeUnitId && 
-            o.detranRegistrado === true &&
-            o.status && o.status.startsWith('concluida') && 
-            o.criadoEm && o.criadoEm.startsWith(`${year}-${monthNum}`)
-        );
-
-        monthlyOSs.forEach(o => {
-            const ref = db.taxas_referencia.find(t => t.servicoId === o.servicoId);
-            const rate = ref ? (parseFloat(ref.taxa) || 0) : 27.00;
-            totalTaxas += rate;
-        });
+        // 2. Calcular a guia: 1 laudo cobrado por OS de serviço ECV no mês,
+        //    excluindo apenas canceladas e retornos (ver bloco de regras acima).
+        const monthlyOSs = laudosDetranDoMes(year, monthNum, activeUnitId);
+        const totalTaxas = monthlyOSs.reduce((acc, o) => acc + taxaDetranDoServico(o.servicoId), 0);
 
         // 3. Buscar se já existe uma provisão para este mês/ano e unidade
         const existingPayable = db.contas_pagar.find(c => 
