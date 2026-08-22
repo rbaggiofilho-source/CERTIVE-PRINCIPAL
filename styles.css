@@ -2282,14 +2282,81 @@ select option {
 /* Tudo dentro de max-width:768px — não afeta desktop */
 /* ================================================= */
 @media (max-width: 768px) {
-  /* Trava a largura: nenhum conteúdo largo pode dar zoom-out na página */
+  /* Trava a largura da página (nada pode ultrapassar a tela) */
   html, body {
     overflow-x: hidden;
     max-width: 100%;
+    width: 100%;
+  }
+  .main-content,
+  .page-container {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
-  /* Barras de abas (BI, Configurações, Caixa, Faturamento, Contas):
-     rolam na horizontal DENTRO da tela em vez de esticar a página */
+  /* ---- BARRA DE TOPO: cabe na tela, sem vazar ---- */
+  .topbar {
+    padding: 0 12px !important;
+    gap: 8px;
+  }
+  .topbar-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .topbar-right {
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+  .btn-menu-mobile { flex: 0 0 auto; }
+  .unit-selector-wrapper {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 6px 10px;
+    overflow: hidden;
+  }
+  .unit-selector-wrapper label { display: none; } /* rótulo "Unidade Ativa:" some p/ economizar espaço */
+  .unit-select {
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+  }
+  #topbar-sync-indicator { display: none !important; } /* badge "Nuvem Conectada" some no celular */
+  .user-profile { display: none !important; }         /* nome/função somem no celular (há o botão sair) */
+
+  /* ---- CABEÇALHO DA PÁGINA: título menor e empilhado ---- */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+  .page-header h2 {
+    font-size: 19px;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  .page-header p { font-size: 13px; }
+
+  /* ---- ATENDIMENTO e cards: impedir "blowout" do grid (coluna crescer além da tela) ---- */
+  .atendimento-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .panel-card,
+  .panel-card-body,
+  .form-row,
+  .form-group,
+  .category-switcher,
+  .service-selector {
+    min-width: 0;
+  }
+
+  /* ---- ABAS (BI, Configurações, Caixa, etc.): rolam na horizontal ---- */
   .tabs-bar {
     width: 100% !important;
     max-width: 100%;
@@ -2299,22 +2366,12 @@ select option {
     scrollbar-width: none;
   }
   .tabs-bar::-webkit-scrollbar { display: none; }
-  .tab-btn {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
+  .tab-btn { flex: 0 0 auto; white-space: nowrap; }
 
-  /* Estruturas principais nunca ultrapassam a largura da tela */
-  .main-content,
-  .page-container {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  /* Qualquer imagem se ajusta à tela */
+  /* ---- Imagens sempre dentro da tela ---- */
   img { max-width: 100%; height: auto; }
 
-  /* Toasts não estouram telas pequenas */
+  /* ---- Toasts não estouram telas pequenas ---- */
   .toast {
     min-width: 0 !important;
     max-width: calc(100vw - 32px);
