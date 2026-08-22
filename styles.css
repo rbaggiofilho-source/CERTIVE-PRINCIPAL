@@ -2276,3 +2276,52 @@ select option {
   .chatgpt-mobile-toggle { display: flex; align-items: center; justify-content: center; }
   .chatgpt-suggestions { grid-template-columns: 1fr; }
 }
+
+/* ================================================= */
+/* ===== CORREÇÕES DE RESPONSIVIDADE MOBILE ======== */
+/* Tudo dentro de max-width:768px — não afeta desktop */
+/* ================================================= */
+@media (max-width: 768px) {
+  /* Trava a largura: nenhum conteúdo largo pode dar zoom-out na página */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* Barras de abas (BI, Configurações, Caixa, Faturamento, Contas):
+     rolam na horizontal DENTRO da tela em vez de esticar a página */
+  .tabs-bar {
+    width: 100% !important;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .tabs-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* Estruturas principais nunca ultrapassam a largura da tela */
+  .main-content,
+  .page-container {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Qualquer imagem se ajusta à tela */
+  img { max-width: 100%; height: auto; }
+
+  /* Toasts não estouram telas pequenas */
+  .toast {
+    min-width: 0 !important;
+    max-width: calc(100vw - 32px);
+  }
+  .toast-container {
+    left: 16px;
+    right: 16px;
+    top: calc(16px + env(safe-area-inset-top));
+  }
+}

@@ -6876,6 +6876,10 @@ function loadBIPeriodFilter() {
         dates.add("2026-07");
     }
 
+    // Garante que o mês atual sempre exista como opção (mesmo sem dados ainda)
+    const mesAtual = new Date().toISOString().substring(0, 7);
+    dates.add(mesAtual);
+
     const sortedMonths = Array.from(dates).sort((a, b) => b.localeCompare(a));
     
     let html = '';
@@ -6894,10 +6898,9 @@ function loadBIPeriodFilter() {
     if (oldVal && select.querySelector(`option[value="${oldVal}"]`)) {
         select.value = oldVal;
     } else {
-        if (dates.has("2026-07")) {
-            select.value = "2026-07";
-        } else if (dates.has("2026-06")) {
-            select.value = "2026-06";
+        // Padrão ao abrir o BI: mês atual (com reserva para o mês mais recente com dados)
+        if (dates.has(mesAtual)) {
+            select.value = mesAtual;
         } else if (sortedMonths.length > 0) {
             select.value = sortedMonths[0];
         }
