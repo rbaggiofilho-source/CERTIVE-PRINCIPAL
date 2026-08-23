@@ -4030,6 +4030,9 @@ async function openTodayCaixaDrawer() {
     
     showToast("Caixa diário aberto com sucesso!", "success");
     logAudit("Abertura Caixa", "Abriu o caixa diário da filial.");
+    const unidadeNomeAbre = (db.unidades.find(u => u.id === activeUnitId) || {}).nome || 'Unidade';
+    const horaAbre = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    notificarAdmins('🟢 Caixa aberto', `${unidadeNomeAbre} — aberto por ${currentSession.nome} às ${horaAbre}.`);
     renderCaixaPage();
 }
 
@@ -4579,6 +4582,11 @@ async function submitFecharCaixa(event) {
                 document.getElementById('caixa-fechar-form').reset();
                 renderCaixaPage();
             }
+
+            // Notifica os administradores (push no celular)
+            const unidadeNomeFecha = (db.unidades.find(u => u.id === activeCaixa.unidadeId) || {}).nome || 'Unidade';
+            const horaFecha = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.`);
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");
@@ -7649,6 +7657,7 @@ function switchConfigTab(tab, btn) {
 }
 
 function renderConfigPage() {
+    if (typeof atualizarStatusNotificacoesUI === 'function') atualizarStatusNotificacoesUI();
     if (currentConfigTab === 'precos') renderConfigPrecos();
     else if (currentConfigTab === 'parceiros') renderConfigParceiros();
     else if (currentConfigTab === 'operadores') renderConfigOperadores();
@@ -13897,6 +13906,125 @@ async function submitConfigChatGPT(event) {
     } catch (err) {
         console.error("Erro ao salvar integração ChatGPT:", err);
         showToast("Erro ao salvar configurações da OpenAI.", "error");
+    }
+}
+
+// ==========================================================
+// NOTIFICAÇÕES PUSH (Web Push) — avisos no celular do admin
+// ==========================================================
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+}
+
+function pushSuportado() {
+    return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+}
+
+async function ativarNotificacoesPush() {
+    if (!pushSuportado()) {
+        showToast('Este aparelho/navegador não suporta notificações. No iPhone: adicione o app à Tela de Início e abra por lá.', 'warning');
+        return;
+    }
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            showToast('Permissão de notificações negada. Ative nas configurações do navegador/app.', 'warning');
+            atualizarStatusNotificacoesUI();
+            return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(window.VAPID_PUBLIC_KEY)
+            });
+        }
+        await salvarInscricaoPush(sub);
+        showToast('Notificações ativadas neste dispositivo! ✅', 'success');
+        atualizarStatusNotificacoesUI();
+    } catch (e) {
+        console.error('Erro ao ativar notificações:', e);
+        showToast('Não foi possível ativar as notificações: ' + (e.message || e), 'error');
+    }
+}
+
+async function salvarInscricaoPush(sub) {
+    const raw = sub.toJSON();
+    const isAdmin = !!(currentSession && currentSession.permissoes &&
+        (currentSession.permissoes.includes('cadastros') || currentSession.permissoes.includes('bi')));
+    const registro = {
+        endpoint: raw.endpoint,
+        p256dh: raw.keys.p256dh,
+        auth: raw.keys.auth,
+        operadorId: currentSession ? currentSession.id : null,
+        operadorNome: currentSession ? currentSession.nome : null,
+        isAdmin: isAdmin,
+        userAgent: (navigator.userAgent || '').substring(0, 250)
+    };
+    const { error } = await supabaseClient
+        .from('push_subscriptions')
+        .upsert(registro, { onConflict: 'endpoint' });
+    if (error) throw error;
+}
+
+async function desativarNotificacoesPush() {
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+            const endpoint = sub.endpoint;
+            await sub.unsubscribe();
+            try { await supabaseClient.from('push_subscriptions').delete().eq('endpoint', endpoint); } catch (e) {}
+        }
+        showToast('Notificações desativadas neste dispositivo.', 'info');
+        atualizarStatusNotificacoesUI();
+    } catch (e) {
+        console.error('Erro ao desativar notificações:', e);
+    }
+}
+
+async function atualizarStatusNotificacoesUI() {
+    const el = document.getElementById('push-status');
+    const btnOn = document.getElementById('btn-push-ativar');
+    const btnOff = document.getElementById('btn-push-desativar');
+    if (!el) return;
+    if (!pushSuportado()) {
+        el.innerHTML = '<span style="color: var(--warning);">Não suportado neste navegador. No iPhone, adicione à Tela de Início e abra por lá.</span>';
+        if (btnOn) btnOn.style.display = 'none';
+        if (btnOff) btnOff.style.display = 'none';
+        return;
+    }
+    let ativo = false;
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        ativo = !!sub && Notification.permission === 'granted';
+    } catch (e) {}
+    if (ativo) {
+        el.innerHTML = '<span style="color: var(--success);">✅ Ativadas neste dispositivo</span>';
+        if (btnOn) btnOn.style.display = 'none';
+        if (btnOff) btnOff.style.display = 'inline-flex';
+    } else {
+        el.innerHTML = '<span style="color: var(--text-secondary);">Desativadas neste dispositivo</span>';
+        if (btnOn) btnOn.style.display = 'inline-flex';
+        if (btnOff) btnOff.style.display = 'none';
+    }
+}
+
+// Dispara notificação push para os administradores (best-effort, não bloqueia o fluxo)
+async function notificarAdmins(titulo, corpo) {
+    try {
+        if (!window.useSupabase) return;
+        await supabaseClient.functions.invoke('send-push', { body: { titulo, corpo, url: '/app.html' } });
+    } catch (e) {
+        console.warn('Falha ao notificar admins (push):', e.message || e);
     }
 }
 

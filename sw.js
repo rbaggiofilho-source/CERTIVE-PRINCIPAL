@@ -1,4 +1,4 @@
-const CACHE_NAME = 'certive-cache-v20260722_1235';
+const CACHE_NAME = 'certive-cache-v20260823_push';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -45,6 +45,46 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => self.clients.claim())
+  );
+});
+
+// ==========================================================
+// NOTIFICAÇÕES PUSH (Web Push)
+// ==========================================================
+self.addEventListener('push', (event) => {
+  let dados = { title: 'Certive Vistorias', body: '', url: '/app.html' };
+  try {
+    if (event.data) {
+      const p = event.data.json();
+      dados = { title: p.title || dados.title, body: p.body || '', url: p.url || '/app.html' };
+    }
+  } catch (e) {
+    if (event.data) dados.body = event.data.text();
+  }
+
+  const options = {
+    body: dados.body,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    vibrate: [120, 60, 120],
+    tag: 'certive-caixa',
+    renotify: true,
+    data: { url: dados.url }
+  };
+
+  event.waitUntil(self.registration.showNotification(dados.title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const alvo = (event.notification.data && event.notification.data.url) || '/app.html';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+      for (const c of lista) {
+        if ('focus' in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(alvo);
+    })
   );
 });
 

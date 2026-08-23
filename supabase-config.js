@@ -5,6 +5,10 @@
 const SUPABASE_URL = 'https://xktsvimtkwjegzaljfpm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_xuMeTcHg4M5S7qRi-H8nvQ_xN2F5wDa';
 
+// Chave pública VAPID para notificações push (Web Push). A privada fica na edge function send-push.
+const VAPID_PUBLIC_KEY = 'BJwcPrBYbxtqLjAiiz3ukOGa-fg9MdpXQDwATjJCCvnb7yRo9DINEYRXvJlmuKaTEHksvTn6mjpuAA2z-LSCsGM';
+window.VAPID_PUBLIC_KEY = VAPID_PUBLIC_KEY;
+
 // Token do usuário autenticado (preenchido após o login).
 // Os acessos diretos à API do Supabase usam este token para que o
 // RLS (segurança por login) funcione. Sem login, cai na chave pública.

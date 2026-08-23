@@ -1618,6 +1618,31 @@
                     </div>
                 </div>
 
+                <!-- Card: Notificações Push -->
+                <div class="panel-card" style="margin-bottom: 24px;">
+                    <div class="panel-card-header">
+                        <h3><i class="ri-notification-3-line"></i> Notificações no Celular (Caixa)</h3>
+                    </div>
+                    <div class="panel-card-body">
+                        <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 14px;">
+                            Receba um aviso no seu celular sempre que um caixa for <strong>aberto</strong> ou <strong>fechado</strong> — mesmo com o sistema fechado. Ative neste aparelho.
+                        </p>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <span id="push-status" style="font-size: 13px; font-weight: 600;">Verificando...</span>
+                            <button class="btn btn-primary" id="btn-push-ativar" onclick="ativarNotificacoesPush()" style="display:none;">
+                                <i class="ri-notification-3-line"></i> Ativar notificações
+                            </button>
+                            <button class="btn btn-secondary" id="btn-push-desativar" onclick="desativarNotificacoesPush()" style="display:none;">
+                                <i class="ri-notification-off-line"></i> Desativar
+                            </button>
+                        </div>
+                        <p style="color: var(--text-muted); font-size: 12px; margin-top: 14px; line-height: 1.5;">
+                            <i class="ri-information-line" style="color: var(--accent);"></i>
+                            <strong>iPhone:</strong> toque em Compartilhar <i class="ri-share-box-line"></i> → "Adicionar à Tela de Início" e abra o app por esse ícone. Só assim o iOS permite notificações. Depois volte aqui e toque em "Ativar notificações".
+                        </p>
+                    </div>
+                </div>
+
                 <div class="tabs-bar">
                     <button class="tab-btn active" onclick="switchConfigTab('precos', this)">Preços e Taxas</button>
                     <button class="tab-btn" onclick="switchConfigTab('parceiros', this)">Parceiros</button>
@@ -2629,7 +2654,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="supabase-config.js?v=8.3.0-seguro"></script>
+<script src="supabase-config.js?v=20260823-push"></script>
     <!-- MODAL: EDITAR OPERADOR -->
     <div id="modal-editar-operador" class="modal-overlay">
         <div class="modal-content" style="max-width: 500px;">
@@ -2717,7 +2742,7 @@
     </div>
 
 <script src="supabase-db.js?v=8.3.0-seguro"></script>
-<script src="app_v8.js?v=20260822-mobile-mes"></script>
+<script src="app_v8.js?v=20260823-push"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.4.0"></script>
 <script>
