@@ -4588,7 +4588,9 @@ async function submitFecharCaixa(event) {
             const horaFecha = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const movsFecha = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
             const entradasTotaisFecha = movsFecha.filter(m => m.tipo === 'entrada').reduce((s, m) => s + (Number(m.valor) || 0), 0);
-            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}`);
+            const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => s + (Number(m.valor) || 0), 0);
+            const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
+            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}`);
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");
