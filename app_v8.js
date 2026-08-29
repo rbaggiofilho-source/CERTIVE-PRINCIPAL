@@ -4147,10 +4147,13 @@ function renderCaixaMovimentos(activeCaixa) {
 function adjustMovForm(type) {
     const pGroup = document.getElementById('group-mov-parceiro');
     const fGroup = document.getElementById('group-mov-pag');
+    const nGroup = document.getElementById('group-mov-natureza');
     if (type === 'entrada') {
         pGroup.style.display = 'block';
+        if (nGroup) nGroup.style.display = 'none';
     } else {
         pGroup.style.display = 'none';
+        if (nGroup) nGroup.style.display = 'block';
     }
 }
 
@@ -4164,6 +4167,9 @@ function submitCaixaMov(event) {
     const desc = document.getElementById('mov-desc').value.trim();
     const forma = document.getElementById('mov-forma-pag').value;
     const partnerId = parseInt(document.getElementById('mov-parceiro-select').value);
+    // Só saída tem natureza. Entrada fica null.
+    const natEl = document.getElementById('mov-natureza');
+    const natureza = tipo === 'saida' ? ((natEl && natEl.value) || 'despesa') : null;
 
     if (valor <= 0) {
         showToast("Valor do movimento inválido.", "error");
@@ -4185,12 +4191,18 @@ function submitCaixaMov(event) {
         data: new Date().toISOString(),
         operador: currentSession.nome,
         osId: null,
-        faturaId: null
+        faturaId: null,
+        natureza: natureza
     };
 
     dbSave('caixa_movimentos', newMov, 'insert');
-    
-    showToast("Movimentação manual lançada com sucesso!", "success");
+
+    const aviso = natureza === 'transferencia'
+        ? "Depósito registrado. O dinheiro saiu da gaveta, mas não conta como despesa."
+        : (natureza === 'pagamento_conta'
+            ? "Pagamento registrado. A despesa já estava lançada em Contas a Pagar."
+            : "Movimentação manual lançada com sucesso!");
+    showToast(aviso, "success");
     logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
 
     document.getElementById('caixa-mov-form').reset();
@@ -6984,26 +6996,6 @@ function renderBI() {
 
     const nonCancelledOSs = OSs.filter(o => o.status !== 'cancelada');
     const osCount = nonCancelledOSs.length;
-
-    // Custos e Despesas (exclui lançamentos manuais do DETRAN para não duplicar com o cálculo de taxas das OSs)
-    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
-    
-    // Taxas operacionais do DETRAN — mesma regra da guia (ver laudosDetranDoMes).
-    // A versão anterior somava a taxa de toda OS com valor > 0, sem olhar o tipo
-    // de serviço: só acertava porque cautelar e pesquisa estão com taxa zerada na
-    // tabela, e só excluía os retornos porque eles têm valor zero. Qualquer
-    // mudança na tabela de taxas fazia o número derivar em silêncio.
-    const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
-        if (!servicoGeraLaudoDetran(o.servicoId)) return sum;
-        if (osEhRetornoDetran(o)) return sum;
-        return sum + taxaDetranDoServico(o.servicoId);
-    }, 0);
-
-    const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
-    const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal;
-    const netProfit = totalRevenue - totalExpenses;
-
     // === CÁLCULO DO REGIME DE CAIXA (ENTRADAS REAIS DE DINHEIRO) ===
     let periodMovs = [];
     if (period === '30') {
@@ -7023,6 +7015,34 @@ function renderBI() {
             return cx && cx.unidadeId === uId;
         });
     }
+
+    // Saídas de caixa que são despesa de verdade. Depósito no banco é troca de
+    // caixa físico por bancário, e pagamento de conta já foi contabilizado na
+    // competência dela — nenhum dos dois é custo novo. Movimento antigo sem
+    // natureza gravada conta como despesa, que era o comportamento assumido.
+    const caixaDespesasVal = periodMovs
+        .filter(m => m.tipo === 'saida' && (!m.natureza || m.natureza === 'despesa'))
+        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+
+
+    // Custos e Despesas (exclui lançamentos manuais do DETRAN para não duplicar com o cálculo de taxas das OSs)
+    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
+    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
+    
+    // Taxas operacionais do DETRAN — mesma regra da guia (ver laudosDetranDoMes).
+    // A versão anterior somava a taxa de toda OS com valor > 0, sem olhar o tipo
+    // de serviço: só acertava porque cautelar e pesquisa estão com taxa zerada na
+    // tabela, e só excluía os retornos porque eles têm valor zero. Qualquer
+    // mudança na tabela de taxas fazia o número derivar em silêncio.
+    const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
+        if (!servicoGeraLaudoDetran(o.servicoId)) return sum;
+        if (osEhRetornoDetran(o)) return sum;
+        return sum + taxaDetranDoServico(o.servicoId);
+    }, 0);
+
+    const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal + caixaDespesasVal;
+    const netProfit = totalRevenue - totalExpenses;
 
     const cashInflows = periodMovs.filter(m => m.tipo === 'entrada');
     const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => sum + m.valor, 0);
@@ -7071,8 +7091,8 @@ function renderBI() {
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: var(--danger); background: var(--danger-bg);"><i class="ri-wallet-3-line"></i></div>
                     <div class="kpi-value" style="color: var(--text-primary); font-size: 20px; font-weight: 800;">${formatCurrency(totalExpenses)}</div>
-                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custos Totais (Fixo + Variável + Taxas)</div>
-                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Despesas operacionais e taxas do período.</div>
+                    <div class="kpi-label" style="color: var(--text-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase;">Custos Totais (Contas + Taxas + Caixa)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Contas a pagar da competência, taxas do DETRAN e despesas pagas direto do caixa. Depósitos em banco não entram.</div>
                 </div>
                 <div class="kpi-card" style="border: 1px solid var(--border); background: var(--bg-secondary);">
                     <div class="kpi-icon" style="color: ${netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}; background: ${netProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};"><i class="ri-funds-line"></i></div>
