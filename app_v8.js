@@ -5798,6 +5798,13 @@ function competenciaMes(c) {
     return null;
 }
 
+// Primeiro dia do mês de competência da conta, como Date. Usado pelos filtros
+// por janela (ex.: últimos 30 dias) do Painel BI.
+function competenciaDataConta(c) {
+    const m = competenciaMes(c);
+    return m ? new Date(`${m}-01T00:00:00`) : null;
+}
+
 // Hoje "YYYY-MM-DD" no fuso LOCAL (evita o bug de UTC do new Date('YYYY-MM-DD')).
 function hojeLocalStr() {
     const d = new Date();
@@ -6881,7 +6888,8 @@ function loadBIPeriodFilter() {
         if (o.criadoEm) dates.add(o.criadoEm.substring(0, 7));
     });
     db.contas_pagar.forEach(c => {
-        if (c.vencimento) dates.add(c.vencimento.substring(0, 7));
+        const m = competenciaMes(c);
+        if (m) dates.add(m);
     });
 
     if (dates.size === 0) {
@@ -6948,17 +6956,24 @@ function renderBI() {
     let Expenses = [];
     const today = new Date();
 
+    // As despesas entram no período pela COMPETÊNCIA (mês de referência), não
+    // pelo vencimento. A guia do DETRAN de julho vence em 10/08: ela é custo de
+    // julho, não de agosto. Usar vencimento aqui jogava o custo de um mês no
+    // resultado do mês seguinte — e os KPIs deste painel são de competência.
     if (period === '30') {
         const startDate = new Date();
         startDate.setDate(today.getDate() - 30);
         OSs = db.ordens_servico.filter(o => new Date(o.criadoEm) >= startDate);
-        Expenses = db.contas_pagar.filter(c => new Date(c.vencimento) >= startDate);
+        Expenses = db.contas_pagar.filter(c => {
+            const d = competenciaDataConta(c);
+            return d && d >= startDate;
+        });
     } else if (period === 'todos') {
         OSs = [...db.ordens_servico];
         Expenses = [...db.contas_pagar];
     } else {
         OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
-        Expenses = db.contas_pagar.filter(c => c.vencimento && c.vencimento.startsWith(period));
+        Expenses = db.contas_pagar.filter(c => competenciaMes(c) === period);
     }
 
     if (unitFilter !== 'todas') {
