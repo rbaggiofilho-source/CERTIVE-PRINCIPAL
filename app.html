@@ -856,7 +856,7 @@
                                     
                                     <div class="form-group" id="group-mov-natureza">
                                         <label for="mov-natureza">Natureza da Saída</label>
-                                        <select id="mov-natureza">
+                                        <select id="mov-natureza" onchange="adjustMovNatureza(this.value)">
                                             <option value="despesa">Despesa da empresa (café, insumos, Uber, ressarcimento)</option>
                                             <option value="transferencia">Depósito no banco (dinheiro do cofre para a conta)</option>
                                             <option value="pagamento_conta">Pagamento de conta já lançada em Contas a Pagar</option>
@@ -864,6 +864,18 @@
                                         <small style="display:block; margin-top:6px; font-size:11px; color:var(--text-muted); line-height:1.5;">
                                             Depósito não é despesa — o dinheiro continua sendo da empresa, só troca de lugar.
                                             Pagamento de conta também não entra de novo no resultado: já foi contabilizado na competência dela.
+                                        </small>
+                                    </div>
+
+                                    <div class="form-group" id="group-mov-conta" style="display: none;">
+                                        <label for="mov-conta-pagar">Qual conta está sendo paga?</label>
+                                        <select id="mov-conta-pagar">
+                                            <option value="">Selecione a conta...</option>
+                                            <!-- JS -->
+                                        </select>
+                                        <small style="display:block; margin-top:6px; font-size:11px; color:var(--text-muted); line-height:1.5;">
+                                            Pode pagar em partes ao longo do mês. Quando a soma dos pagamentos atingir
+                                            o valor da conta, ela recebe baixa automática.
                                         </small>
                                     </div>
 

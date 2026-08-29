@@ -4151,13 +4151,55 @@ function adjustMovForm(type) {
     if (type === 'entrada') {
         pGroup.style.display = 'block';
         if (nGroup) nGroup.style.display = 'none';
+        adjustMovNatureza(null);
     } else {
         pGroup.style.display = 'none';
         if (nGroup) nGroup.style.display = 'block';
+        const nat = document.getElementById('mov-natureza');
+        adjustMovNatureza(nat ? nat.value : 'despesa');
     }
 }
 
-function submitCaixaMov(event) {
+// Quanto de uma conta a pagar já foi quitado por saídas do caixa.
+function totalPagoPorCaixa(contaId) {
+    if (!contaId) return 0; // sem conta não há o que somar: movimento sem
+                            // vínculo também tem contaPagarId nulo
+    return (db.caixa_movimentos || [])
+        .filter(m => m.tipo === 'saida' && m.contaPagarId === contaId)
+        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+}
+
+// Mostra e preenche o seletor de conta quando a saída é pagamento de conta.
+function adjustMovNatureza(natureza) {
+    const cGroup = document.getElementById('group-mov-conta');
+    const select = document.getElementById('mov-conta-pagar');
+    if (!cGroup || !select) return;
+
+    if (natureza !== 'pagamento_conta') {
+        cGroup.style.display = 'none';
+        select.value = '';
+        return;
+    }
+
+    cGroup.style.display = 'block';
+    const abertas = (db.contas_pagar || [])
+        .filter(c => c.unidadeId === activeUnitId && !c.pago)
+        .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)));
+
+    select.innerHTML = '<option value="">Selecione a conta...</option>' + abertas.map(c => {
+        const jaPago = totalPagoPorCaixa(c.id);
+        const falta = Number(c.valor) - jaPago;
+        const venc = c.vencimento ? String(c.vencimento).substring(8, 10) + '/' + String(c.vencimento).substring(5, 7) : '';
+        const parcial = jaPago > 0 ? ` — já pago ${formatCurrency(jaPago)}, falta ${formatCurrency(falta)}` : '';
+        return `<option value="${c.id}">${c.descricao} (venc. ${venc}) — ${formatCurrency(c.valor)}${parcial}</option>`;
+    }).join('');
+
+    if (abertas.length === 0) {
+        select.innerHTML = '<option value="">Nenhuma conta em aberto nesta unidade</option>';
+    }
+}
+
+async function submitCaixaMov(event) {
     event.preventDefault();
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
@@ -4170,6 +4212,14 @@ function submitCaixaMov(event) {
     // Só saída tem natureza. Entrada fica null.
     const natEl = document.getElementById('mov-natureza');
     const natureza = tipo === 'saida' ? ((natEl && natEl.value) || 'despesa') : null;
+    const contaEl = document.getElementById('mov-conta-pagar');
+    const contaPagarId = (natureza === 'pagamento_conta' && contaEl && contaEl.value)
+        ? parseInt(contaEl.value) : null;
+
+    if (natureza === 'pagamento_conta' && !contaPagarId) {
+        showToast("Selecione qual conta está sendo paga.", "error");
+        return;
+    }
 
     if (valor <= 0) {
         showToast("Valor do movimento inválido.", "error");
@@ -4192,17 +4242,36 @@ function submitCaixaMov(event) {
         operador: currentSession.nome,
         osId: null,
         faturaId: null,
-        natureza: natureza
+        natureza: natureza,
+        contaPagarId: contaPagarId
     };
 
-    dbSave('caixa_movimentos', newMov, 'insert');
+    // Aguarda a gravação: só depois dela o movimento entra no cache local, e é
+    // do cache que totalPagoPorCaixa soma. Sem o await, o total sairia errado.
+    await dbSave('caixa_movimentos', newMov, 'insert');
 
-    const aviso = natureza === 'transferencia'
-        ? "Depósito registrado. O dinheiro saiu da gaveta, mas não conta como despesa."
-        : (natureza === 'pagamento_conta'
-            ? "Pagamento registrado. A despesa já estava lançada em Contas a Pagar."
-            : "Movimentação manual lançada com sucesso!");
-    showToast(aviso, "success");
+    // Baixa automática: quando a soma dos pagamentos pelo caixa cobre a conta.
+    if (contaPagarId) {
+        const conta = db.contas_pagar.find(c => c.id === contaPagarId);
+        if (conta && !conta.pago) {
+            const totalPago = totalPagoPorCaixa(contaPagarId);
+            if (totalPago >= Number(conta.valor) - 0.005) {
+                const hoje = new Date().toISOString().substring(0, 10);
+                dbSave('contas_pagar', { pago: true, pagoEm: hoje }, 'update', contaPagarId);
+                showToast(`Conta "${conta.descricao}" quitada e baixada automaticamente.`, "success");
+                logAudit("Baixa automática", `Conta ${conta.descricao} quitada por pagamentos do caixa (${formatCurrency(totalPago)}).`);
+            } else {
+                const falta = Number(conta.valor) - totalPago;
+                showToast(`Pagamento parcial registrado. Faltam ${formatCurrency(falta)} para quitar "${conta.descricao}".`, "info");
+            }
+        }
+    }
+
+    if (natureza === 'transferencia') {
+        showToast("Depósito registrado. O dinheiro saiu da gaveta, mas não conta como despesa.", "success");
+    } else if (natureza !== 'pagamento_conta') {
+        showToast("Movimentação manual lançada com sucesso!", "success");
+    }
     logAudit("Movimentação Caixa", `Lançou ${tipo.toUpperCase()} de ${formatCurrency(valor)}: ${finalDesc}.`);
 
     document.getElementById('caixa-mov-form').reset();
