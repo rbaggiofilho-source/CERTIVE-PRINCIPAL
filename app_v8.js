@@ -4495,6 +4495,194 @@ function generateCashierPdfData(c) {
     return doc.output('arraybuffer');
 }
 
+// ==========================================================
+// AUDITORIA DO FECHAMENTO — confere o PDF do DETRAN contra as OS
+// ----------------------------------------------------------
+// O operador já anexa o relatório do Portal ECV para fechar o caixa. Em vez
+// de só arquivar o PDF, o sistema lê e compara com o que foi registrado.
+//
+// O DETRAN cobra R$ 27,00 por LAUDO EMITIDO, qualquer que seja o resultado
+// (aprovado, reprovado, bloqueado, cancelado, não enviado). Só o RETORNO é
+// gratuito. Então cada laudo do relatório precisa ter uma OS correspondente,
+// e cada OS de serviço ECV precisa ter saído no relatório.
+// ==========================================================
+
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Linha do relatório: PLACA MARCA/MODELO DD/MM/AAAA HH:MM NOTA R$ VALOR [OBS] STATUS
+const RE_LAUDO = /([A-Z]{3}\d[A-Z0-9]\d{2})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+(\d+)\s+R\$\s*([\d.,]+)\s+(.*)$/;
+const RE_PERIODO = /Per[íi]odo\s+de\s*:\s*(\d{2}\/\d{2}\/\d{4})\s+a\s+(\d{2}\/\d{2}\/\d{4})/i;
+
+// Reconstrói as linhas do PDF agrupando os fragmentos de texto pela posição
+// vertical. O getTextContent devolve pedaços soltos; sem reagrupar por Y, a
+// linha da placa se mistura com a de cima e a regex não casa.
+async function extrairLinhasPdf(arrayBuffer) {
+    if (typeof pdfjsLib === 'undefined') throw new Error('pdfjsLib indisponível');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const linhas = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        const content = await page.getTextContent();
+        const porY = new Map();
+        content.items.forEach(item => {
+            if (!item.str || !item.str.trim()) return;
+            const y = Math.round(item.transform[5]);   // posição vertical
+            const x = item.transform[4];               // posição horizontal
+            if (!porY.has(y)) porY.set(y, []);
+            porY.get(y).push({ x, str: item.str });
+        });
+        // Y decrescente = de cima para baixo na página
+        [...porY.entries()]
+            .sort((a, b) => b[0] - a[0])
+            .forEach(([, pedacos]) => {
+                pedacos.sort((a, b) => a.x - b.x);
+                linhas.push(pedacos.map(p => p.str).join(' ').replace(/\s+/g, ' ').trim());
+            });
+    }
+    return linhas;
+}
+
+// Extrai os laudos e o período coberto pelo relatório.
+async function lerRelatorioDetran(arrayBuffer) {
+    const linhas = await extrairLinhasPdf(arrayBuffer);
+    const laudos = [];
+    let periodo = null;
+    linhas.forEach(bruta => {
+        // Normaliza aqui também: o parser precisa funcionar com linha vinda de
+        // qualquer origem, não só do extrairLinhasPdf. Um \r no fim quebra o
+        // ancoramento da regex, porque "." não casa carriage return em JS.
+        const linha = String(bruta || '').replace(/\s+/g, ' ').trim();
+        if (!linha) return;
+        if (!periodo) {
+            const mp = linha.match(RE_PERIODO);
+            if (mp) periodo = { de: mp[1], ate: mp[2] };
+        }
+        const m = linha.match(RE_LAUDO);
+        if (m) {
+            const resto = (m[7] || '').trim();
+            const retorno = /^Retorno/i.test(resto);
+            laudos.push({
+                placa: m[1],
+                modelo: m[2].trim(),
+                data: m[3],
+                hora: m[4],
+                nota: m[5],
+                valor: parseFloat(m[6].replace(/\./g, '').replace(',', '.')),
+                retorno: retorno,
+                status: retorno ? resto.replace(/^Retorno/i, '').trim() : resto
+            });
+        }
+    });
+    return { laudos, periodo, totalLinhas: linhas.length };
+}
+
+// dd/mm/aaaa -> aaaa-mm-dd
+function dataBrParaISO(d) {
+    const p = String(d || '').split('/');
+    return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : null;
+}
+
+// Distância de 1 caractere: identifica placa digitada errada.
+function difereEmUmCaractere(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    let d = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i] && ++d > 1) return false;
+    return d === 1;
+}
+
+// Compara o relatório com as OS do mesmo período e devolve as divergências.
+function auditarRelatorioDetran(laudos, periodo, unidadeId) {
+    const cobrados = laudos.filter(l => !l.retorno);
+    const iniISO = periodo ? dataBrParaISO(periodo.de) : null;
+    const fimISO = periodo ? dataBrParaISO(periodo.ate) : null;
+
+    const osPeriodo = (db.ordens_servico || []).filter(o => {
+        if (o.unidadeId !== unidadeId) return false;
+        if (!servicoGeraLaudoDetran(o.servicoId)) return false;
+        if (o.status === 'cancelada' || osEhRetornoDetran(o)) return false;
+        if (!iniISO || !fimISO) return true; // sem período legível, compara tudo
+        const d = o.criadoEm ? new Date(o.criadoEm) : null;
+        if (!d) return false;
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return iso >= iniISO && iso <= fimISO;
+    });
+
+    const norm = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    // Comparação por QUANTIDADE, não por presença. Um mesmo veículo pode ter
+    // dois laudos cobrados no mesmo dia — foi o caso da MCM1003 em 11/08/2026,
+    // cancelada às 09:08 e reprovada às 09:21, as duas cobradas. Comparar só
+    // "a placa existe nos dois lados" deixaria passar a segunda.
+    const porPlacaDetran = new Map();
+    cobrados.forEach(l => {
+        const k = norm(l.placa);
+        if (!porPlacaDetran.has(k)) porPlacaDetran.set(k, []);
+        porPlacaDetran.get(k).push(l);
+    });
+    const porPlacaOS = new Map();
+    osPeriodo.forEach(o => {
+        const k = norm(o.placa);
+        if (!porPlacaOS.has(k)) porPlacaOS.set(k, []);
+        porPlacaOS.get(k).push(o);
+    });
+
+    const semOS = [];      // laudos cobrados sem OS correspondente
+    const semLaudo = [];   // OS que não saíram no relatório
+    porPlacaDetran.forEach((lista, placa) => {
+        const sobra = lista.length - (porPlacaOS.get(placa) || []).length;
+        if (sobra > 0) semOS.push(...lista.slice(-sobra));
+    });
+    porPlacaOS.forEach((lista, placa) => {
+        const sobra = lista.length - (porPlacaDetran.get(placa) || []).length;
+        if (sobra > 0) semLaudo.push(...lista.slice(-sobra));
+    });
+
+    // Cruza as sobras: placa que só difere por 1 caractere é erro de digitação,
+    // não vistoria faltando.
+    const typos = [];
+    const laudosUsados = new Set();
+    semOS.forEach(l => {
+        const cand = semLaudo.find(o =>
+            !typos.some(t => t.os === o) && difereEmUmCaractere(norm(o.placa), norm(l.placa)));
+        if (cand) { typos.push({ os: cand, laudo: l }); laudosUsados.add(l); }
+    });
+    const osTypo = new Set(typos.map(t => t.os));
+
+    return {
+        totalLaudos: laudos.length,
+        retornos: laudos.length - cobrados.length,
+        cobrados: cobrados.length,
+        osRegistradas: osPeriodo.length,
+        taxaPrevista: cobrados.length * 27.00,
+        faltamNoSistema: semOS.filter(l => !laudosUsados.has(l)),
+        naoEnviadasAoDetran: semLaudo.filter(o => !osTypo.has(o)),
+        placasErradas: typos
+    };
+}
+
+// Monta o texto da auditoria para o operador ler antes de fechar.
+function textoAuditoriaDetran(a) {
+    const p = [];
+    p.push(`Relatório do DETRAN: ${a.totalLaudos} laudos (${a.retornos} retorno gratuito), ${a.cobrados} cobrados.`);
+    p.push(`Taxa prevista: ${formatCurrency(a.taxaPrevista)} (${a.cobrados} x R$ 27,00)`);
+    p.push(`OS registradas no sistema: ${a.osRegistradas}`);
+    if (a.placasErradas.length) {
+        p.push('', `PLACA DIGITADA ERRADA (${a.placasErradas.length}):`);
+        a.placasErradas.forEach(t => p.push(`  ${t.os.numero}: ${t.os.placa} -> o correto é ${t.laudo.placa}`));
+    }
+    if (a.faltamNoSistema.length) {
+        p.push('', `COBRADO PELO DETRAN, SEM OS NO SISTEMA (${a.faltamNoSistema.length}) — ${formatCurrency(a.faltamNoSistema.length * 27)} de taxa:`);
+        a.faltamNoSistema.forEach(l => p.push(`  ${l.placa} — ${l.data} ${l.hora} — ${l.status}`));
+    }
+    if (a.naoEnviadasAoDetran.length) {
+        p.push('', `OS NO SISTEMA SEM LAUDO CORRESPONDENTE (${a.naoEnviadasAoDetran.length}):`);
+        p.push('  Ou o laudo nao foi enviado ao DETRAN, ou ha OS duplicada para o mesmo veiculo.');
+        a.naoEnviadasAoDetran.forEach(o => p.push(`  ${o.numero} — ${o.placa} — ${formatCurrency(o.valor)}`));
+    }
+    return p.join('\n');
+}
+
 // OS que ficaram sem finalizar. Uma OS parada em "aberta" some dos relatórios
 // e da base de cálculo da guia, mas o laudo já foi emitido e o DETRAN já cobrou.
 // Foi o caso da OS-0357 (MGV-0J98) e da OS-0484 (QHU-8I50) em agosto/2026.
@@ -4557,6 +4745,52 @@ async function submitFecharCaixa(event) {
     const estimatedCash = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
 
     const diff = saldoFisico - estimatedCash;
+
+    // AUDITORIA: lê o PDF do DETRAN que o operador acabou de anexar e compara
+    // com as OS registradas. Falha na leitura não impede o fechamento — o PDF
+    // pode vir assinado digitalmente ou em layout diferente.
+    try {
+        const bytesAuditoria = await file.arrayBuffer();
+        const { laudos, periodo } = await lerRelatorioDetran(bytesAuditoria);
+
+        if (laudos.length === 0) {
+            const segue = confirm(
+                'Não foi possível ler nenhum laudo no PDF anexado.\n\n' +
+                'Confira se é mesmo o relatório "Laudos realizados no período" do Portal ECV.\n\n' +
+                'Fechar o caixa sem a conferência automática?'
+            );
+            if (!segue) return;
+        } else {
+            const auditoria = auditarRelatorioDetran(laudos, periodo, activeCaixa.unidadeId);
+            const problemas = auditoria.faltamNoSistema.length
+                            + auditoria.naoEnviadasAoDetran.length
+                            + auditoria.placasErradas.length;
+
+            if (problemas === 0) {
+                showToast(`Conferência OK: ${auditoria.cobrados} laudos batem com o sistema. Taxa prevista ${formatCurrency(auditoria.taxaPrevista)}.`, "success");
+            } else {
+                const segue = confirm(
+                    'CONFERÊNCIA COM O DETRAN — ' + problemas + ' divergência(s)\n\n' +
+                    textoAuditoriaDetran(auditoria) +
+                    '\n\nCorrija antes de fechar. Fechar mesmo assim?'
+                );
+                if (!segue) return;
+                logAudit("Fechamento com divergência DETRAN",
+                    `Fechou com ${problemas} divergência(s). ` +
+                    `Faltam no sistema: ${auditoria.faltamNoSistema.length}. ` +
+                    `Não saíram no DETRAN: ${auditoria.naoEnviadasAoDetran.length}. ` +
+                    `Placas erradas: ${auditoria.placasErradas.length}.`);
+            }
+        }
+    } catch (err) {
+        console.error('[Auditoria DETRAN] Falha ao ler o PDF:', err);
+        const segue = confirm(
+            'Não foi possível conferir o PDF do DETRAN automaticamente.\n\n' +
+            'O arquivo pode estar assinado digitalmente ou protegido.\n\n' +
+            'Fechar o caixa sem a conferência automática?'
+        );
+        if (!segue) return;
+    }
 
     // Confirm close
     const confirmMsg = `
