@@ -1805,6 +1805,14 @@ function submitOSForm() {
         const partnerId = partnerSelect ? parseInt(partnerSelect.value) : null;
         const parcelas = (pagamento === 'credito_parcelado' && parcelasEl) ? parseInt(parcelasEl.value) : null;
 
+        // Placa fora do padrão trava aqui: uma placa errada não bate com o
+        // relatório do DETRAN e inviabiliza a conferência da guia.
+        if (placa && !placaValida(placa)) {
+            showToast(`Placa inválida: ${motivoPlacaInvalida(placa)}`, "error");
+            if (placaEl) { placaEl.focus(); placaEl.style.borderColor = 'var(--danger)'; }
+            return;
+        }
+
         // Form Validations
         const missingFields = [];
         if (!placa) missingFields.push("Placa");
@@ -2606,6 +2614,10 @@ async function submitEditOSForm(event) {
     const finalidade = document.getElementById('edit-os-finalidade').value;
     const endereco = document.getElementById('edit-os-cliente-endereco').value.trim();
     const placa = document.getElementById('edit-os-placa').value.trim().toUpperCase();
+    if (placa && !placaValida(placa)) {
+        showToast(`Placa inválida: ${motivoPlacaInvalida(placa)}`, "error");
+        return;
+    }
     const renavam = document.getElementById('edit-os-renavam').value.trim();
     const chassi = document.getElementById('edit-os-veiculo-chassi').value.trim().toUpperCase();
     const marcaModelo = document.getElementById('edit-os-veiculo-marca-modelo').value.trim().toUpperCase();
@@ -4483,6 +4495,22 @@ function generateCashierPdfData(c) {
     return doc.output('arraybuffer');
 }
 
+// OS que ficaram sem finalizar. Uma OS parada em "aberta" some dos relatórios
+// e da base de cálculo da guia, mas o laudo já foi emitido e o DETRAN já cobrou.
+// Foi o caso da OS-0357 (MGV-0J98) e da OS-0484 (QHU-8I50) em agosto/2026.
+function osEmAbertoDaUnidade(unidadeId) {
+    return (db.ordens_servico || []).filter(o =>
+        o.unidadeId === unidadeId && o.status === 'aberta'
+    ).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
+}
+
+function resumoOSEmAberto(lista) {
+    return lista.map(o => {
+        const dia = o.criadoEm ? new Date(o.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '--/--';
+        return `• ${o.numero} — ${o.placa || 'sem placa'} (${dia})`;
+    }).join('\n');
+}
+
 async function submitFecharCaixa(event) {
     event.preventDefault();
     const activeCaixa = getTodayOpenCaixa();
@@ -4503,6 +4531,21 @@ async function submitFecharCaixa(event) {
     if (file.size > 1024 * 1024) {
         showToast("Erro: O arquivo PDF do DETRAN não pode exceder 1MB.", "error");
         return;
+    }
+
+    // Não deixa fechar o dia com OS pendente sem o operador ver.
+    const pendentes = osEmAbertoDaUnidade(activeCaixa.unidadeId);
+    if (pendentes.length > 0) {
+        const segue = confirm(
+            `Existem ${pendentes.length} Ordem(ns) de Serviço em aberto nesta unidade:\n\n` +
+            resumoOSEmAberto(pendentes) +
+            `\n\nSe o laudo já foi emitido, o DETRAN vai cobrar a taxa mesmo assim — ` +
+            `e a OS em aberto não entra na conferência da guia.\n\n` +
+            `Finalize ou cancele antes de fechar o caixa.\n\n` +
+            `Fechar mesmo assim?`
+        );
+        if (!segue) return;
+        logAudit("Fechamento com pendência", `Fechou o caixa com ${pendentes.length} OS em aberto: ${pendentes.map(o => o.numero).join(', ')}.`);
     }
 
     const saldoFisico = parseFloat(document.getElementById('fechar-saldo-fisico').value);
@@ -4671,7 +4714,11 @@ async function submitFecharCaixa(event) {
             const entradasTotaisFecha = movsFecha.filter(m => m.tipo === 'entrada').reduce((s, m) => s + (Number(m.valor) || 0), 0);
             const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => s + (Number(m.valor) || 0), 0);
             const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
-            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}`);
+            const pendentesFecha = osEmAbertoDaUnidade(activeCaixa.unidadeId);
+            const alertaPendentes = pendentesFecha.length > 0
+                ? `\n\n⚠️ ${pendentesFecha.length} OS em aberto: ${pendentesFecha.map(o => o.numero + ' (' + (o.placa || 's/ placa') + ')').join(', ')}`
+                : '';
+            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}${alertaPendentes}`);
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");
@@ -8476,6 +8523,91 @@ async function salvarEdicaoUnidade(event) {
 function maskPlaca(v) {
     v = v.replace(/[^A-Za-z0-9]/g, '').slice(0, 7);
     return v.length > 3 ? v.slice(0, 3) + '-' + v.slice(3) : v;
+}
+
+// ==========================================================
+// PLACA — máscara e validação
+// ----------------------------------------------------------
+// Os dois padrões brasileiros válidos:
+//   antigo   ABC1234  -> 3 letras + 4 números
+//   Mercosul ABC1D23  -> 3 letras, 1 número, 1 LETRA, 2 números
+//
+// A 5ª posição é onde quase todo erro acontece: no Mercosul ela é letra,
+// e o operador digita o número parecido. Nas conferências de julho e agosto
+// de 2026 foram 21 placas erradas, quase todas ali — 0 no lugar de O ou D,
+// 7 no lugar de H, 9 no lugar de J, 4 no lugar de E, 3 no lugar de D.
+// ==========================================================
+
+const RE_PLACA_ANTIGA   = /^[A-Z]{3}[0-9]{4}$/;
+const RE_PLACA_MERCOSUL = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+
+// Só letras e números, maiúsculas, no máximo 7 caracteres.
+function normalizarPlaca(v) {
+    return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+}
+
+// Exibição com hífen: ABC-1234 / ABC-1D23
+function formatarPlaca(v) {
+    const p = normalizarPlaca(v);
+    return p.length > 3 ? p.slice(0, 3) + '-' + p.slice(3) : p;
+}
+
+function placaValida(v) {
+    const p = normalizarPlaca(v);
+    return RE_PLACA_ANTIGA.test(p) || RE_PLACA_MERCOSUL.test(p);
+}
+
+// Explica o que está errado, em vez de só recusar.
+function motivoPlacaInvalida(v) {
+    const p = normalizarPlaca(v);
+    if (p.length === 0) return 'Informe a placa.';
+    if (p.length < 7) return `Faltam ${7 - p.length} caractere(s). A placa tem 7.`;
+    if (!/^[A-Z]{3}/.test(p)) return 'As 3 primeiras posições têm que ser letras.';
+    if (!/^[A-Z]{3}[0-9]/.test(p)) return 'A 4ª posição tem que ser número.';
+    if (!/[0-9]{2}$/.test(p)) return 'As 2 últimas posições têm que ser números.';
+    if (/^[A-Z]{3}[0-9][0-9]/.test(p) && !RE_PLACA_ANTIGA.test(p)) {
+        return 'A 5ª posição está como número. No padrão Mercosul ela é LETRA — confira se não é O, D, H, J, E ou B.';
+    }
+    return 'Placa fora dos padrões ABC1234 e ABC1D23.';
+}
+
+// Aplica a máscara preservando a posição do cursor.
+function aplicarMascaraPlaca(input) {
+    if (!input) return;
+    const antes = input.value.slice(0, input.selectionStart || 0);
+    const alfanumAntes = antes.replace(/[^a-zA-Z0-9]/g, '').length;
+    input.value = formatarPlaca(input.value);
+    // Recoloca o cursor após a mesma quantidade de caracteres alfanuméricos
+    let pos = 0, contados = 0;
+    while (pos < input.value.length && contados < alfanumAntes) {
+        if (/[A-Z0-9]/.test(input.value[pos])) contados++;
+        pos++;
+    }
+    try { input.setSelectionRange(pos, pos); } catch (e) { /* input pode não suportar */ }
+}
+
+// Pinta a borda e mostra o motivo enquanto o operador digita.
+function validarPlacaVisual(input, msgElId) {
+    if (!input) return;
+    const msgEl = msgElId ? document.getElementById(msgElId) : null;
+    const p = normalizarPlaca(input.value);
+    if (p.length === 0) {
+        input.style.borderColor = '';
+        if (msgEl) msgEl.textContent = '';
+        return;
+    }
+    const ok = placaValida(p);
+    input.style.borderColor = ok ? 'var(--success)' : 'var(--danger)';
+    if (msgEl) {
+        msgEl.textContent = ok ? '' : motivoPlacaInvalida(p);
+        msgEl.style.color = 'var(--danger)';
+    }
+}
+
+function onPlacaInput(input, msgElId) {
+    aplicarMascaraPlaca(input);
+    validarPlacaVisual(input, msgElId);
+    if (typeof checkPlacaLength === 'function') checkPlacaLength();
 }
 
 function checkPlacaLength() {
