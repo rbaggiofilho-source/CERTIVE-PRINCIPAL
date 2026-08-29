@@ -6989,10 +6989,15 @@ function renderBI() {
     const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
     const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
     
-    // Taxas operacionais do DETRAN
+    // Taxas operacionais do DETRAN — mesma regra da guia (ver laudosDetranDoMes).
+    // A versão anterior somava a taxa de toda OS com valor > 0, sem olhar o tipo
+    // de serviço: só acertava porque cautelar e pesquisa estão com taxa zerada na
+    // tabela, e só excluía os retornos porque eles têm valor zero. Qualquer
+    // mudança na tabela de taxas fazia o número derivar em silêncio.
     const variableTaxesVal = nonCancelledOSs.reduce((sum, o) => {
-        const tax = db.taxas_referencia.find(t => t.servicoId === o.servicoId)?.tax || 0;
-        return sum + (o.valor > 0 ? tax : 0);
+        if (!servicoGeraLaudoDetran(o.servicoId)) return sum;
+        if (osEhRetornoDetran(o)) return sum;
+        return sum + taxaDetranDoServico(o.servicoId);
     }, 0);
 
     const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
