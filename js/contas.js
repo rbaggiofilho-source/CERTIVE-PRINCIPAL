@@ -363,26 +363,27 @@ function previewExpenseAttachment(id) {
 }
 
 // Calculate Detran variable tax due
+// Regras da guia DETRAN-SC: R$27,00 por LAUDO EMITIDO, qualquer que seja o
+// porte ou o resultado (aprovado, reprovado, bloqueado, cancelado, não
+// enviado). O único laudo gratuito é o RETORNO (reapresentação).
+// As funções laudosDetranDoMes/taxaDetranDoServico vivem em app_v8.js.
 function calcularCustosDetran() {
     const month = document.getElementById('detran-calculo-mes').value;
-    const year = "2026"; // Lock to mock database year
+    const year = String(new Date().getFullYear());
     const tbody = document.getElementById('detran-calculo-tbody');
     const launchBtn = document.getElementById('btn-lancar-detran');
 
-    // Fetch all completed OSs for that month & unit
-    const monthlyOSs = db.ordens_servico.filter(o => 
-        o.unidadeId === activeUnitId && 
-        o.status.startsWith('concluida') && 
-        o.criadoEm.startsWith(`${year}-${month}`)
-    );
+    // Laudos cobrados pelo DETRAN no mês (mesma base do sincronizador da provisão)
+    const monthlyOSs = laudosDetranDoMes(year, month, activeUnitId);
 
     // Group count by Service type
     let totals = [];
     let grandTotal = 0;
 
     db.servicos.forEach(s => {
-        const count = monthlyOSs.filter(o => o.servicoId === s.id && o.valor > 0).length; // ignore rechecks which are free
-        const taxRate = db.taxas_referencia.find(t => t.servicoId === s.id)?.taxa || 0;
+        if (!servicoGeraLaudoDetran(s.id)) return; // cautelar/pesquisa não entram na guia
+        const count = monthlyOSs.filter(o => o.servicoId === s.id).length;
+        const taxRate = taxaDetranDoServico(s.id);
         const subtotal = count * taxRate;
         grandTotal += subtotal;
 
@@ -410,7 +411,12 @@ function calcularCustosDetran() {
     `;
 
     // Disable launch button if bill is already generated
-    const monthLabel = month === '05' ? 'Maio' : (month === '06' ? 'Junho' : 'Julho');
+    const MESES_PT = {
+        '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+        '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+        '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+    };
+    const monthLabel = MESES_PT[String(month).padStart(2, '0')] || String(month);
     const checkDuplicate = db.contas_pagar.find(c => 
         c.unidadeId === activeUnitId && 
         c.descricao.includes(`Taxas DETRAN-SC — Consolidação ${monthLabel}/${year}`)
