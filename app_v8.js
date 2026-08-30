@@ -1098,7 +1098,8 @@ function checkSession() {
         }
 
         loginOverlay.classList.add('hidden');
-        
+        atualizarBadgeVersao();
+
         // Locked to operator's designated branch if not Admin
         const unitSelector = document.getElementById('topbar-unit-select');
         if (!currentSession.permissoes.includes("bi") && !currentSession.permissoes.includes("cadastros")) {
@@ -1197,6 +1198,7 @@ async function handleLogin(event) {
         }
 
         showToast(`Bem-vindo, ${perfil.nome}!`, 'success');
+        atualizarBadgeVersao();
         logAudit("Login", `Efetuou login no terminal.`);
         checkSession();
     } catch (e) {
@@ -1287,6 +1289,134 @@ function showToast(message, type = 'info') {
 }
 
 // Navigation Handler
+// ==========================================================
+// ATUALIZAÇÕES DO SISTEMA
+// ----------------------------------------------------------
+// Registro das versões. Cada entrada é escrita PARA O OPERADOR: o que mudou
+// na tela dele e o que ele precisa fazer diferente — não o que mudou no código.
+//
+// Ao publicar uma versão nova: incremente APP_VERSION e adicione a entrada no
+// TOPO do array. A data é a de publicação.
+// ==========================================================
+
+const APP_VERSION = '9.0.0';
+
+const ATUALIZACOES = [
+    {
+        versao: '9.0.0',
+        data: '2026-08-30',
+        titulo: 'Conferência automática com o DETRAN',
+        resumo: 'O sistema passa a conferir sozinho, no fechamento do caixa, se tudo que o DETRAN cobrou está registrado aqui. Também mudou a forma de lançar saídas de caixa e de digitar placas.',
+        mudancas: [
+            {
+                area: 'Caixa Diário',
+                titulo: 'O fechamento confere o relatório do DETRAN',
+                oQueMudou: 'O PDF do Portal ECV que você já anexa para fechar o caixa agora é lido pelo sistema e comparado com as Ordens de Serviço do período.',
+                comoUsar: 'Anexe o relatório normalmente. Se estiver tudo certo, aparece um aviso verde com a taxa prevista. Se houver diferença, o sistema mostra a lista antes de deixar fechar. Você ainda pode fechar mesmo assim, mas a divergência fica registrada.'
+            },
+            {
+                area: 'Caixa Diário',
+                titulo: 'Pendências não somem mais',
+                oQueMudou: 'Toda divergência encontrada no fechamento vira uma pendência gravada, com quem detectou e quando. Ela reaparece a cada fechamento, contando há quantos dias está sem correção, até alguém resolver.',
+                comoUsar: 'O painel "Pendências de conferência com o DETRAN" aparece no topo da página do Caixa quando há algo em aberto. Para baixar uma pendência, clique em "Marcar resolvida" e descreva o que foi feito. Quando você corrige de verdade (lança a OS que faltava, por exemplo), o próprio sistema baixa no fechamento seguinte.'
+            },
+            {
+                area: 'Atendimento',
+                titulo: 'A placa é validada na hora de digitar',
+                oQueMudou: 'O campo de placa formata sozinho e recusa formato inválido. A 5ª posição é onde quase todo erro acontece: no padrão Mercosul ela é LETRA, e é comum digitar o número parecido.',
+                comoUsar: 'Digite normalmente, sem hífen — ele é colocado sozinho. Se a borda ficar vermelha, leia a mensagem embaixo do campo. Atenção redobrada na 5ª posição: 0 e O, 7 e H, 9 e J, 4 e E, 3 e D se confundem fácil.'
+            },
+            {
+                area: 'Caixa Diário',
+                titulo: 'Toda saída agora tem uma natureza',
+                oQueMudou: 'Antes, depósito no banco, pagamento de conta e despesa da empresa eram lançados igual. Só que depósito não é despesa — o dinheiro continua sendo da empresa, só sai da gaveta para a conta.',
+                comoUsar: 'Ao lançar uma saída, escolha: "Despesa da empresa" (café, insumos, Uber), "Depósito no banco" ou "Pagamento de conta já lançada". Só a primeira entra como custo no Painel BI.'
+            },
+            {
+                area: 'Caixa Diário',
+                titulo: 'Pagamento parcial de conta',
+                oQueMudou: 'Quando a saída é pagamento de uma conta do Contas a Pagar, dá para dizer qual conta está sendo paga. O sistema soma os pagamentos e dá baixa sozinho quando fecha.',
+                comoUsar: 'Escolha "Pagamento de conta já lançada" e selecione a conta na lista — ela mostra quanto já foi pago e quanto falta. Pode pagar em várias parcelas ao longo do mês. Quando a soma atingir o valor, a conta é baixada automaticamente.'
+            },
+            {
+                area: 'Caixa Diário',
+                titulo: 'Aviso de OS em aberto no fechamento',
+                oQueMudou: 'Ao fechar o caixa, o sistema lista as Ordens de Serviço que ficaram sem finalizar.',
+                comoUsar: 'Finalize ou cancele antes de fechar. Uma OS em aberto some dos relatórios, mas se o laudo já saiu o DETRAN cobra a taxa do mesmo jeito.'
+            },
+            {
+                area: 'Contas a Pagar',
+                titulo: 'A guia do DETRAN é calculada corretamente',
+                oQueMudou: 'O DETRAN cobra R$ 27,00 por laudo emitido, qualquer que seja o resultado — aprovado, reprovado, bloqueado, cancelado ou não enviado. O único laudo gratuito é o retorno. O cálculo antigo deixava vários de fora.',
+                comoUsar: 'Nada muda na sua rotina, mas a provisão do mês passa a bater com a guia que chega. Lembre: vistoria cancelada ou reprovada também precisa de OS lançada.'
+            },
+            {
+                area: 'Painel BI',
+                titulo: 'Competência separada do vencimento',
+                oQueMudou: 'As despesas entram no resultado pelo mês de competência, não pela data de vencimento. A guia do DETRAN de julho, que vence em agosto, é custo de julho.',
+                comoUsar: 'Ao cadastrar uma despesa, preencha a competência corretamente — é ela que define em qual mês o custo aparece. O Painel BI também passou a somar as despesas pagas direto pelo caixa.'
+            }
+        ]
+    }
+];
+
+function versaoVistaKey() {
+    const quem = currentSession ? (currentSession.id || currentSession.nome) : 'anon';
+    return `certive_versao_vista_${quem}`;
+}
+
+function marcarAtualizacaoVista() {
+    try { localStorage.setItem(versaoVistaKey(), APP_VERSION); } catch (e) { /* modo privado */ }
+    const badge = document.getElementById('nav-atualizacoes-badge');
+    if (badge) badge.style.display = 'none';
+}
+
+function atualizarBadgeVersao() {
+    const rodape = document.getElementById('sidebar-versao');
+    if (rodape) rodape.textContent = `Versão ${APP_VERSION}`;
+    const badge = document.getElementById('nav-atualizacoes-badge');
+    if (!badge) return;
+    let vista = null;
+    try { vista = localStorage.getItem(versaoVistaKey()); } catch (e) { /* modo privado */ }
+    badge.style.display = (vista === APP_VERSION) ? 'none' : 'inline-block';
+}
+
+function renderAtualizacoes() {
+    const alvo = document.getElementById('atualizacoes-lista');
+    const atual = document.getElementById('atualizacoes-versao-atual');
+    if (atual) atual.textContent = APP_VERSION;
+    if (!alvo) return;
+
+    alvo.innerHTML = ATUALIZACOES.map((rel, idx) => {
+        const d = rel.data ? rel.data.split('-').reverse().join('/') : '';
+        const ehAtual = idx === 0;
+        return `
+        <div class="panel-card" style="margin-bottom: 20px; ${ehAtual ? 'border: 1.5px solid var(--accent);' : ''}">
+            <div class="panel-card-header" style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+                <h3 style="margin: 0;">Versão ${rel.versao}</h3>
+                ${ehAtual ? '<span style="font-size:10px; font-weight:800; letter-spacing:.08em; background:var(--accent); color:#111; padding:3px 8px; border-radius:3px;">ATUAL</span>' : ''}
+                <span style="margin-left: auto; font-size: 12px; color: var(--text-muted);">
+                    <i class="ri-calendar-line"></i> ${d}
+                </span>
+            </div>
+            <div class="panel-card-body">
+                <h4 style="margin: 0 0 6px 0; font-size: 16px;">${rel.titulo}</h4>
+                <p style="margin: 0 0 18px 0; color: var(--text-secondary); max-width: 70ch;">${rel.resumo}</p>
+
+                ${rel.mudancas.map(m => `
+                <div style="border-left: 3px solid var(--border); padding: 0 0 0 14px; margin-bottom: 18px;">
+                    <div style="font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px;">${m.area}</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">${m.titulo}</div>
+                    <div style="color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; max-width: 74ch;">
+                        <div style="margin-bottom: 6px;"><strong style="color: var(--text-primary);">O que mudou:</strong> ${m.oQueMudou}</div>
+                        <div><strong style="color: var(--text-primary);">Como usar:</strong> ${m.comoUsar}</div>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }).join('');
+}
+
 function navigateTo(pageId) {
     // Check permission for navigation
     const navPermissions = {
@@ -1315,6 +1445,12 @@ function navigateTo(pageId) {
     document.querySelectorAll('.section-panel').forEach(el => el.classList.remove('active'));
     const targetPanel = document.getElementById(`panel-${pageId}`);
     if (targetPanel) targetPanel.classList.add('active');
+
+    // Atualizações não exige permissão: todo operador precisa saber o que mudou
+    if (pageId === 'atualizacoes') {
+        renderAtualizacoes();
+        marcarAtualizacaoVista();
+    }
 
     // Fechar menu mobile se estiver aberto
     const sidebar = document.querySelector('.sidebar');
