@@ -176,6 +176,51 @@
         }
         .cta-note i { color: var(--accent); }
 
+        /* Faixa de números de mercado */
+        .stats-band {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 18px;
+            max-width: 1000px;
+            margin: 8px auto 0;
+        }
+        .stat-tile {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 28px 22px;
+            text-align: center;
+            transition: var(--transition);
+        }
+        .stat-tile:hover { border-color: var(--border); transform: translateY(-4px); box-shadow: var(--shadow); }
+        .stat-tile .num {
+            font-family: 'Outfit', sans-serif;
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--accent);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-tile .num.sm { font-size: 30px; }
+        .stat-tile .lbl { font-size: 13px; color: var(--text-secondary); margin-top: 12px; line-height: 1.45; display: block; }
+        .stat-source { font-size: 11px; color: var(--text-muted); margin-top: 22px; }
+
+        /* Destaque do "gap" demanda x oferta de profissionais */
+        .gap-callout {
+            max-width: 780px;
+            margin: 34px auto 0;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(8,13,26,0.4) 100%);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+            padding: 30px 34px;
+            box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.10);
+        }
+        .gap-callout p { margin: 0; font-size: 17px; color: var(--text-secondary); line-height: 1.7; }
+        .gap-callout strong { color: var(--accent); }
+
         /* Comparativo transferência x cautelar */
         .compare-grid {
             display: grid;
@@ -459,12 +504,34 @@
         </div>
     </section>
 
+    <!-- ===== O MERCADO EM NÚMEROS ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">O mercado agora</span>
+            <h2>A demanda cresce mais rápido do que <span>gente preparada para atender</span>.</h2>
+            <p>Não é achismo — são os números do maior mercado de usados da história do Brasil:</p>
+            <div class="stats-band">
+                <div class="stat-tile"><span class="num">18,5 mi</span><span class="lbl">veículos usados negociados no Brasil em 2025 — recorde histórico</span></div>
+                <div class="stat-tile"><span class="num">~15%</span><span class="lbl">da frota nacional troca de dono todo ano</span></div>
+                <div class="stat-tile"><span class="num">+17,3%</span><span class="lbl">de crescimento do mercado de usados em 2025</span></div>
+                <div class="stat-tile"><span class="num sm">R$ 300+</span><span class="lbl">valor de partida de uma vistoria cautelar</span></div>
+            </div>
+            <div class="gap-callout">
+                <p>A procura por vistoria cresceu <strong>+17,3%</strong> em 2025. Mas o número de vistoriadores no país aumenta apenas <strong>+4,4%</strong> ao ano. Ou seja: <strong>a demanda cresce quase 4x mais rápido que a mão de obra qualificada</strong> para atendê-la — e essa lacuna é exatamente a sua oportunidade.</p>
+            </div>
+            <p class="stat-source">Fontes: Fenauto (2025), Senatran/AutoData e salario.com.br.</p>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero aproveitar essa lacuna</a>
+            </div>
+        </div>
+    </section>
+
     <!-- ===== ARGUMENTO 1: A PROFISSÃO EXISTE E TEM DEMANDA ===== -->
     <section class="arg-block">
         <div class="container arg-inner">
             <span class="arg-tag">A oportunidade</span>
             <h2>Todo dia milhares de carros usados trocam de dono — e <span>quase ninguém sabe olhar de verdade</span>.</h2>
-            <p class="lead">O Brasil tem uma das maiores frotas de veículos usados do mundo. Cada negociação é uma decisão de dezenas de milhares de reais tomada, na maioria das vezes, no escuro.</p>
+            <p class="lead">Foram 18,5 milhões de usados negociados só em 2025. Cada um é uma decisão de dezenas de milhares de reais tomada, na maioria das vezes, no escuro.</p>
             <p>O vistoriador cautelar é quem acende a luz: é o profissional que diz, com fundamento técnico, se aquele carro é o que aparenta ser. É uma profissão de demanda real, que dá pra exercer de forma autônoma, em loja, ou prestando serviço para quem compra e vende.</p>
             <div class="cta-wrap">
                 <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero entrar nessa profissão</a>
@@ -645,9 +712,9 @@
                 <span class="offer-badge">Turma com vagas abertas</span>
                 <h3 style="font-family:'Outfit',sans-serif; font-size:24px; color:var(--text-primary);">Formação Vistoriador Cautelar</h3>
                 <div class="offer-price">
-                    <span class="from">De R$ 1.997</span>
-                    <span class="now">por <strong><span>R$ 997</span></strong></span>
-                    <span class="installment">ou 12x de R$ 99,70 no cartão</span>
+                    <span class="from">De R$ 997</span>
+                    <span class="now">por <strong><span>R$ 599</span></strong></span>
+                    <span class="installment">à vista, ou 12x de R$ 49,92 no cartão</span>
                 </div>
                 <ul class="offer-includes">
                     <li><i class="ri-check-double-line"></i> 8 módulos completos, com casos reais filmados</li>
