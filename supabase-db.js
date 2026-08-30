@@ -15,7 +15,8 @@ const DECIMAL_FIELDS = {
     contas_pagar: ['valor'],
     faturas: ['valorTotal'],
     parceiros: ['precoCombo', 'precoComboTransferencia'],
-    parceiros_creditos: ['valor']
+    parceiros_creditos: ['valor'],
+    pendencias_fechamento: ['valorTaxa']
 };
 
 /**
@@ -250,7 +251,8 @@ async function loadAllFromSupabase() {
             solicitantes_parceiros: true,
             portarias_uf: true,
             metas_despesas: true,
-            parceiros_creditos: true
+            parceiros_creditos: true,
+            pendencias_fechamento: true
         };
         
         const [
@@ -267,7 +269,8 @@ async function loadAllFromSupabase() {
             auditoria,
             portarias_uf,
             metas_despesas,
-            solicitantes_parceiros
+            solicitantes_parceiros,
+            pendencias_fechamento
         ] = await Promise.all([
             sbSelectAll('unidades'),
             sbSelectAll('servicos'),
@@ -282,7 +285,8 @@ async function loadAllFromSupabase() {
             sbSelectAll('auditoria', 'id', false), // Most recent first
             sbSelectAll('portarias_uf', 'uf'),
             sbSelectAll('metas_despesas'),
-            sbSelectAll('solicitantes_parceiros')
+            sbSelectAll('solicitantes_parceiros'),
+            sbSelectAll('pendencias_fechamento', 'id', false)
         ]);
 
         db.unidades = unidades;
@@ -330,6 +334,7 @@ async function loadAllFromSupabase() {
         db.faturas = faturas;
         db.auditoria = auditoria;
         db.solicitantes_parceiros = solicitantes_parceiros || [];
+        db.pendencias_fechamento = pendencias_fechamento || [];
 
         // Tabelas novas do Módulo Cautelar - carregamento defensivo
         let cautelares = [];
@@ -423,6 +428,7 @@ async function loadAllFromSupabase() {
         db.caixa_diario.forEach(c => normalizeRecord('caixa_diario', c));
         db.caixa_movimentos.forEach(m => normalizeRecord('caixa_movimentos', m));
         db.contas_pagar.forEach(c => normalizeRecord('contas_pagar', c));
+        (db.pendencias_fechamento || []).forEach(p => normalizeRecord('pendencias_fechamento', p));
         db.faturas.forEach(f => normalizeRecord('faturas', f));
         db.parceiros.forEach(p => normalizeRecord('parceiros', p));
         (db.solicitantes_parceiros || []).forEach(s => normalizeRecord('solicitantes_parceiros', s));
