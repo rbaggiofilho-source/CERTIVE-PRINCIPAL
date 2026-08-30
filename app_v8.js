@@ -4720,6 +4720,33 @@ function dataBrParaISO(d) {
     return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : null;
 }
 
+// Conversão entre o padrão antigo e o Mercosul.
+//
+// A regra oficial: em ABC1234, o SEGUNDO dígito (5ª posição) vira letra pela
+// ordem do alfabeto — 0=A, 1=B, 2=C, 3=D, 4=E, 5=F, 6=G, 7=H, 8=I, 9=J.
+// Então ABC1234 e ABC1D34 são O MESMO VEÍCULO, não placas diferentes.
+//
+// Isso importa porque o sistema e o Portal ECV nem sempre gravam a placa no
+// mesmo padrão. Sem esta conversão, o mesmo carro aparece dos dois lados da
+// conferência como divergência: 15 das 20 "placas erradas" apuradas em julho
+// e agosto de 2026 eram exatamente isto — carro certo, formato diferente.
+const MERCOSUL_DIGITO_LETRA = ['A','B','C','D','E','F','G','H','I','J'];
+
+// Forma canônica da placa: tudo vira Mercosul, para comparação.
+function placaCanonica(v) {
+    const p = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Padrão antigo (3 letras + 4 dígitos) converte; Mercosul fica como está
+    if (/^[A-Z]{3}[0-9]{4}$/.test(p)) {
+        return p.slice(0, 4) + MERCOSUL_DIGITO_LETRA[Number(p[4])] + p.slice(5);
+    }
+    return p;
+}
+
+// Mesmo veículo, ainda que escrito em padrões diferentes.
+function mesmoVeiculo(a, b) {
+    return placaCanonica(a) === placaCanonica(b);
+}
+
 // Distância de 1 caractere: identifica placa digitada errada.
 function difereEmUmCaractere(a, b) {
     if (!a || !b || a.length !== b.length) return false;
@@ -4745,7 +4772,9 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
         return iso >= iniISO && iso <= fimISO;
     });
 
-    const norm = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Compara pela forma canônica: o mesmo carro pode estar gravado no padrão
+    // antigo de um lado e no Mercosul do outro. Ver placaCanonica.
+    const norm = v => placaCanonica(v);
 
     // Comparação por QUANTIDADE, não por presença. Um mesmo veículo pode ter
     // dois laudos cobrados no mesmo dia — foi o caso da MCM1003 em 11/08/2026,
