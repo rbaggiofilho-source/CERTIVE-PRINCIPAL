@@ -283,6 +283,62 @@
         .offer-includes li { font-size: 14px; color: var(--text-secondary); display: flex; gap: 10px; align-items: flex-start; }
         .offer-includes li i { color: var(--accent); margin-top: 2px; }
 
+        /* Por que a Certive — diferenciais */
+        .why-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            margin: 8px auto 0;
+            text-align: left;
+        }
+        .why-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 26px;
+            display: flex; flex-direction: column; gap: 12px;
+            transition: var(--transition);
+        }
+        .why-card:hover { border-color: var(--border); transform: translateY(-4px); box-shadow: var(--shadow); }
+        .why-card .wicon {
+            width: 46px; height: 46px; border-radius: var(--radius-sm);
+            background: rgba(var(--accent-rgb), 0.10); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--accent); font-size: 22px;
+        }
+        .why-card h4 { font-size: 17px; color: var(--text-primary); }
+        .why-card p { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; }
+
+        /* Aviso honesto sobre certificado */
+        .honest-note {
+            max-width: 780px; margin: 32px auto 0;
+            background: rgba(var(--accent-rgb), 0.06);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px 28px; text-align: left;
+        }
+        .honest-note h4 { font-size: 16px; color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .honest-note p { font-size: 14.5px; color: var(--text-secondary); margin: 0; line-height: 1.7; }
+
+        /* Tabela comparativa Certive x mercado */
+        .vs-wrap { max-width: 860px; margin: 8px auto 0; overflow-x: auto; }
+        .vs-table {
+            width: 100%; border-collapse: collapse; text-align: left;
+            background: var(--bg-card); border-radius: var(--radius); overflow: hidden;
+            border: 1px solid var(--border-light);
+        }
+        .vs-table th, .vs-table td { padding: 16px 18px; border-bottom: 1px solid var(--border-light); font-size: 14px; vertical-align: middle; }
+        .vs-table thead th { font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--text-primary); background: var(--bg-secondary); }
+        .vs-table thead th.col-certive { color: var(--accent); }
+        .vs-table td.feat { color: var(--text-secondary); }
+        .vs-table td.mark { text-align: center; font-size: 18px; width: 130px; }
+        .vs-table td.yes { color: var(--accent); }
+        .vs-table td.no { color: var(--text-muted); }
+        .vs-table td.partial { color: var(--text-secondary); font-size: 13px; text-align: center; }
+        .vs-table tbody tr:hover { background: var(--bg-secondary); }
+        .vs-table .col-certive { background: rgba(var(--accent-rgb), 0.05); }
+
         /* FAQ */
         .faq-list { max-width: 760px; margin: 8px auto 0; text-align: left; }
         .faq-item {
@@ -511,6 +567,75 @@
         </div>
     </section>
 
+    <!-- ===== POR QUE A CERTIVE ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">Por que a Certive</span>
+            <h2>Existem outros cursos. <span>Nenhum te entrega o que a Certive entrega.</span></h2>
+            <p>A maioria dos cursos ensina a teoria e te deixa na mão na hora de trabalhar. Aqui você aprende a técnica, recebe a ferramenta pra emitir laudo e entra numa rede que te conecta a trabalho.</p>
+            <div class="why-grid">
+                <div class="why-card">
+                    <div class="wicon"><i class="ri-computer-line"></i></div>
+                    <h4>Ferramenta de trabalho inclusa</h4>
+                    <p>Você aprende e opera no sistema Certive — a plataforma que emite laudos com padrão profissional. Sai do curso pronto pra produzir, não só pra "saber".</p>
+                </div>
+                <div class="why-card">
+                    <div class="wicon"><i class="ri-film-line"></i></div>
+                    <h4>Casos reais filmados</h4>
+                    <p>Carros de verdade com colisões distintas, chapas, solda e massa. Você treina o olho na prática, não em slide.</p>
+                </div>
+                <div class="why-card">
+                    <div class="wicon"><i class="ri-group-line"></i></div>
+                    <h4>Comunidade e vitrine de currículos</h4>
+                    <p>Troque casos com outros vistoriadores e disponibilize seu currículo para empregadores do setor.</p>
+                </div>
+                <div class="why-card">
+                    <div class="wicon"><i class="ri-money-dollar-circle-line"></i></div>
+                    <h4>Como viver da profissão</h4>
+                    <p>Módulo dedicado a captar clientes e precificar — a parte que quase nenhum curso ensina de verdade.</p>
+                </div>
+            </div>
+
+            <div class="honest-note">
+                <h4><i class="ri-information-line"></i> Sobre certificado e credenciamento — com transparência</h4>
+                <p>A vistoria <strong>cautelar</strong> é um serviço de mercado privado: aqui você desenvolve o domínio técnico para atuar com ela. Esta é uma <strong>formação livre de capacitação técnica</strong>, com certificado de conclusão — ela <strong>não</strong> é o curso profissionalizante credenciado que o DETRAN exige para atos oficiais (como a vistoria de transferência), porque esse tipo de curso depende de validação do próprio DETRAN. Preferimos deixar isso claro do que te prometer algo que não podemos cumprir.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== COMPARATIVO CERTIVE x MERCADO ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">Compare</span>
+            <h2>Certive Academy x <span>cursos tradicionais</span></h2>
+            <p>Onde a diferença aparece na hora de trabalhar de verdade.</p>
+            <div class="vs-wrap">
+                <table class="vs-table">
+                    <thead>
+                        <tr>
+                            <th>Recurso</th>
+                            <th class="col-certive">Certive Academy</th>
+                            <th>Cursos tradicionais</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="feat">Formação técnica completa (do zero ao laudo)</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="mark yes"><i class="ri-check-line"></i></td></tr>
+                        <tr><td class="feat">Sistema de emissão de laudo incluído</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="mark no"><i class="ri-close-line"></i></td></tr>
+                        <tr><td class="feat">Casos reais filmados de colisões</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="partial">Raramente</td></tr>
+                        <tr><td class="feat">Comunidade de alunos</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="mark no"><i class="ri-close-line"></i></td></tr>
+                        <tr><td class="feat">Vitrine de currículos (conexão com empregadores)</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="mark no"><i class="ri-close-line"></i></td></tr>
+                        <tr><td class="feat">Módulo de captação de clientes e precificação</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="partial">Raramente</td></tr>
+                        <tr><td class="feat">Acesso vitalício ao conteúdo</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="partial">Varia</td></tr>
+                        <tr><td class="feat">Certificado de conclusão</td><td class="mark yes col-certive"><i class="ri-check-line"></i></td><td class="mark yes"><i class="ri-check-line"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero o curso mais completo</a>
+            </div>
+        </div>
+    </section>
+
     <!-- ===== OFERTA / PREÇO ===== -->
     <section class="arg-block" id="oferta">
         <div class="container arg-inner">
@@ -545,6 +670,14 @@
                 <div class="faq-item">
                     <button class="faq-q" onclick="toggleFaq(this)">Este curso me forma como vistoriador oficial do DETRAN? <i class="ri-arrow-down-s-line"></i></button>
                     <div class="faq-a"><p>Não. Esta é uma formação livre de capacitação técnica: ela te ensina a profissão e a técnica da vistoria cautelar (serviço de mercado privado). Cursos profissionalizantes credenciados dependem de validação do DETRAN e não fazem parte desta oferta.</p></div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">Então de que serve, se não é credenciado? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>A vistoria cautelar é um serviço de mercado privado, contratado por quem compra, vende ou financia veículos — não é ato oficial do DETRAN. O que faz você ganhar dinheiro nela é <strong>domínio técnico</strong>: saber identificar colisão, adulteração e a real condição do carro, e entregar um laudo confiável. É exatamente isso que este curso desenvolve, com a ferramenta para emitir os laudos e uma rede para te conectar a trabalho.</p></div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">Como funciona o acesso ao sistema Certive? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>Alunos têm condição especial de acesso à plataforma que a própria Certive usa para emitir laudos. Você aprende a trabalhar na mesma ferramenta que vai usar no dia a dia — saindo do curso pronto para produzir.</p></div>
                 </div>
                 <div class="faq-item">
                     <button class="faq-q" onclick="toggleFaq(this)">Preciso ter experiência com carros? <i class="ri-arrow-down-s-line"></i></button>
