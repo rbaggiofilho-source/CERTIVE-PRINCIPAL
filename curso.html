@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Formação Vistoriador Cautelar — Certive Academy</title>
+    <meta name="description" content="Aprenda a profissão de vistoriador cautelar do zero: identificação veicular, análise estrutural, leitura de colisões, laudo técnico, captação e precificação. Curso livre de capacitação técnica da Certive.">
+
+    <!-- PWA e Metatags Padrão -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#080d1a">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+
+    <link rel="stylesheet" href="site.css?v=20260722_1045">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+    <style>
+        /* ===== ESTILOS ESPECÍFICOS DA PÁGINA DO CURSO (VSL) ===== */
+
+        /* Faixa de aviso legal / posicionamento */
+        .course-topbar {
+            background: rgba(var(--accent-rgb), 0.08);
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px 24px;
+            letter-spacing: 0.3px;
+        }
+        .course-topbar strong { color: var(--accent); font-weight: 700; }
+
+        /* Hero da VSL */
+        .vsl-hero {
+            padding: 150px 0 70px;
+            background: radial-gradient(circle at 50% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%),
+                        radial-gradient(circle at 15% 90%, rgba(13, 21, 39, 0.6) 0%, transparent 60%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .vsl-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(var(--accent-rgb), 0.08);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            padding: 6px 18px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+        }
+        .vsl-hero h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 52px;
+            line-height: 1.1;
+            max-width: 900px;
+            margin: 0 auto 20px;
+            color: var(--text-primary);
+        }
+        .vsl-hero h1 span {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .vsl-hero .subtitle {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 640px;
+            margin: 0 auto 40px;
+        }
+
+        /* Player de vídeo da VSL */
+        .vsl-video {
+            max-width: 860px;
+            margin: 0 auto 44px;
+            aspect-ratio: 16 / 9;
+            border-radius: var(--radius);
+            border: 1.5px solid var(--border);
+            background:
+                linear-gradient(135deg, var(--bg-secondary) 0%, rgba(8, 13, 26, 0.6) 100%);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .vsl-video:hover { border-color: var(--accent); box-shadow: 0 24px 70px rgba(var(--accent-rgb), 0.2); }
+        .vsl-video iframe { width: 100%; height: 100%; border: none; position: absolute; inset: 0; }
+        .vsl-video .play-btn {
+            width: 84px; height: 84px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--bg-primary); font-size: 38px;
+            box-shadow: 0 8px 30px rgba(var(--accent-rgb), 0.5);
+            transition: var(--transition);
+        }
+        .vsl-video:hover .play-btn { transform: scale(1.08); }
+        .vsl-video .play-hint { color: var(--text-secondary); font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+
+        /* ===== BLOCO DE ARGUMENTO + CTA (padrão que se repete) ===== */
+        .arg-block {
+            padding: 64px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .arg-block:nth-child(even) { background: var(--bg-secondary); }
+        .arg-inner {
+            max-width: 780px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .arg-tag {
+            display: inline-block;
+            font-size: 11px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+        .arg-block h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 34px;
+            line-height: 1.2;
+            color: var(--text-primary);
+            margin-bottom: 18px;
+        }
+        .arg-block h2 span { color: var(--accent); }
+        .arg-block p {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+        .arg-block p.lead { color: var(--text-primary); font-size: 18px; }
+
+        /* Botão de CTA gigante que se repete */
+        .cta-wrap { margin-top: 32px; }
+        .btn-cta {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 40px;
+            padding: 20px 48px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 800;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 8px 26px rgba(var(--accent-rgb), 0.35);
+            transition: var(--transition);
+            cursor: pointer;
+            letter-spacing: 0.3px;
+        }
+        .btn-cta:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 14px 40px rgba(var(--accent-rgb), 0.55); }
+        .btn-cta i { font-size: 22px; }
+        .cta-note {
+            display: block;
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .cta-note i { color: var(--accent); }
+
+        /* Comparativo transferência x cautelar */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            max-width: 900px;
+            margin: 8px auto 0;
+            text-align: left;
+        }
+        .compare-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 28px;
+        }
+        .compare-card.highlight { border-color: var(--accent); box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12); }
+        .compare-card h4 {
+            font-size: 18px; color: var(--text-primary); margin-bottom: 6px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .compare-card h4 i { color: var(--accent); font-size: 22px; }
+        .compare-card .role { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 16px; display: block; }
+        .compare-card ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .compare-card li { font-size: 14px; color: var(--text-secondary); display: flex; gap: 10px; align-items: flex-start; }
+        .compare-card li i { color: var(--accent); margin-top: 3px; font-size: 15px; }
+
+        /* Grid de módulos / o que você vai aprender */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            margin: 8px auto 0;
+            text-align: left;
+        }
+        .module-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 26px;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .module-card:hover { transform: translateY(-4px); border-color: var(--border); background: var(--bg-secondary); box-shadow: var(--shadow); }
+        .module-num {
+            width: 40px; height: 40px; border-radius: 10px;
+            background: rgba(var(--accent-rgb), 0.10);
+            border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--accent); font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 17px;
+        }
+        .module-card h4 { font-size: 17px; color: var(--text-primary); }
+        .module-card p { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+
+        /* Bônus / o que está incluso */
+        .bonus-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            max-width: 900px;
+            margin: 8px auto 0;
+            text-align: left;
+        }
+        .bonus-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(8,13,26,0.4) 100%);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 26px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .bonus-card .bicon { font-size: 30px; color: var(--accent); }
+        .bonus-card h4 { font-size: 17px; color: var(--text-primary); }
+        .bonus-card p { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; }
+
+        /* Card de oferta / preço */
+        .offer-card {
+            max-width: 560px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1.5px solid var(--accent);
+            border-radius: var(--radius);
+            padding: 44px 40px;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(var(--accent-rgb), 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .offer-badge {
+            display: inline-block;
+            background: rgba(var(--accent-rgb), 0.12);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+            padding: 6px 16px; border-radius: 20px; margin-bottom: 20px;
+        }
+        .offer-price { margin: 20px 0; }
+        .offer-price .from { font-size: 15px; color: var(--text-muted); text-decoration: line-through; display: block; margin-bottom: 4px; }
+        .offer-price .now { font-family: 'Outfit', sans-serif; font-size: 20px; color: var(--text-secondary); }
+        .offer-price .now strong { font-size: 46px; color: var(--text-primary); display: block; line-height: 1.1; }
+        .offer-price .now strong span { color: var(--accent); }
+        .offer-price .installment { font-size: 14px; color: var(--text-muted); margin-top: 8px; display: block; }
+        .offer-includes { list-style: none; text-align: left; margin: 26px 0; display: flex; flex-direction: column; gap: 12px; }
+        .offer-includes li { font-size: 14px; color: var(--text-secondary); display: flex; gap: 10px; align-items: flex-start; }
+        .offer-includes li i { color: var(--accent); margin-top: 2px; }
+
+        /* FAQ */
+        .faq-list { max-width: 760px; margin: 8px auto 0; text-align: left; }
+        .faq-item {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            margin-bottom: 12px;
+            overflow: hidden;
+            background: var(--bg-card);
+        }
+        .faq-q {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 20px 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .faq-q i { color: var(--accent); transition: var(--transition); flex-shrink: 0; }
+        .faq-item.open .faq-q i { transform: rotate(180deg); }
+        .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .faq-a p { padding: 0 24px 20px; font-size: 14.5px; color: var(--text-secondary); line-height: 1.7; }
+        .faq-item.open .faq-a { max-height: 400px; }
+
+        /* Barra fixa de CTA no rodapé (mobile) */
+        .sticky-cta {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 900;
+            background: rgba(8, 13, 26, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            display: none;
+            justify-content: center;
+        }
+        .sticky-cta .btn-cta { width: 100%; max-width: 440px; justify-content: center; padding: 16px 24px; font-size: 16px; }
+
+        @media (max-width: 992px) {
+            .vsl-hero h1 { font-size: 40px; }
+            .compare-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .vsl-hero { padding: 120px 0 50px; }
+            .vsl-hero h1 { font-size: 32px; }
+            .vsl-hero .subtitle { font-size: 16px; }
+            .arg-block { padding: 48px 0; }
+            .arg-block h2 { font-size: 26px; }
+            .arg-block p { font-size: 16px; }
+            .btn-cta { padding: 17px 32px; font-size: 16px; width: 100%; justify-content: center; }
+            .offer-card { padding: 36px 24px; }
+            .sticky-cta { display: flex; }
+            body { padding-bottom: 84px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== FAIXA DE POSICIONAMENTO LEGAL ===== -->
+    <div class="course-topbar">
+        <strong>Certive Academy</strong> — Curso livre de capacitação técnica. Não é curso profissionalizante credenciado pelo DETRAN.
+    </div>
+
+    <!-- ===== HEADER / NAVEGAÇÃO ===== -->
+    <header class="site-header" id="site-header">
+        <div class="container header-container">
+            <a href="index.html#home" class="logo">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/>
+                </svg>
+                <div class="logo-text">
+                    <h1>CERTIVE</h1>
+                    <span>Academy</span>
+                </div>
+            </a>
+
+            <nav>
+                <ul class="nav-menu" id="nav-menu">
+                    <li><a href="index.html#home" class="nav-link">Site</a></li>
+                    <li><a href="#o-curso" class="nav-link">O Curso</a></li>
+                    <li><a href="#modulos" class="nav-link">Módulos</a></li>
+                    <li><a href="#oferta" class="nav-link">Investimento</a></li>
+                    <li><a href="#oferta" class="btn-restricted" data-cta><i class="ri-shopping-cart-2-line"></i> Quero me matricular</a></li>
+                </ul>
+            </nav>
+
+            <button class="btn-mobile-nav" id="btn-mobile-nav" onclick="toggleMobileMenu()">
+                <i class="ri-menu-line"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ===== HERO + VÍDEO VSL ===== -->
+    <section class="vsl-hero" id="o-curso">
+        <div class="container">
+            <span class="vsl-eyebrow"><i class="ri-shield-star-line"></i> Formação Vistoriador Cautelar</span>
+            <h1>Aprenda a profissão que <span>protege quem compra um carro</span> — e viva dela.</h1>
+            <p class="subtitle">Do zero ao laudo: identificação veicular, leitura de colisões, análise de estrutura, parecer técnico, captação de clientes e precificação. Ensinado por quem faz vistoria cautelar todos os dias.</p>
+
+            <!-- Troque o src do iframe pela sua VSL (YouTube/Vimeo). Enquanto não houver vídeo, mostra o placeholder abaixo. -->
+            <div class="vsl-video" id="vsl-video" onclick="playVSL()">
+                <div class="play-btn"><i class="ri-play-fill"></i></div>
+                <span class="play-hint">Assista antes de decidir — 8 minutos que mudam sua visão sobre a profissão</span>
+            </div>
+
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-shopping-cart-2-line"></i> Quero me matricular agora</a>
+                <span class="cta-note"><i class="ri-lock-line"></i> Compra 100% segura • Acesso imediato após a confirmação</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ARGUMENTO 1: A PROFISSÃO EXISTE E TEM DEMANDA ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">A oportunidade</span>
+            <h2>Todo dia milhares de carros usados trocam de dono — e <span>quase ninguém sabe olhar de verdade</span>.</h2>
+            <p class="lead">O Brasil tem uma das maiores frotas de veículos usados do mundo. Cada negociação é uma decisão de dezenas de milhares de reais tomada, na maioria das vezes, no escuro.</p>
+            <p>O vistoriador cautelar é quem acende a luz: é o profissional que diz, com fundamento técnico, se aquele carro é o que aparenta ser. É uma profissão de demanda real, que dá pra exercer de forma autônoma, em loja, ou prestando serviço para quem compra e vende.</p>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero entrar nessa profissão</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ARGUMENTO 2: O QUE A VISTORIA FAZ / VALOR SOCIAL ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">Para que serve</span>
+            <h2>Uma vistoria bem feita <span>evita fraudes, previne acidentes e protege famílias</span>.</h2>
+            <p>Um veículo pode esconder um chassi remarcado, uma estrutura comprometida por colisão, um número de motor adulterado. Quem não é treinado passa reto. O vistoriador identifica — e com isso impede que um carro clonado, roubado ou estruturalmente inseguro volte a rodar como se estivesse tudo bem.</p>
+            <p class="lead">Você não vende só um laudo. Você entrega segurança, evita prejuízo e devolve tranquilidade para quem confiou em você.</p>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero aprender a fazer isso</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ARGUMENTO 3: TRANSFERÊNCIA x CAUTELAR (o "aha") ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">O ponto que quase ninguém entende</span>
+            <h2>Vistoria de transferência <span>não é</span> vistoria cautelar.</h2>
+            <p>Muita gente acha que, porque fez a vistoria do DETRAN, o carro "passou por perícia". São coisas diferentes — e entender isso é o primeiro passo pra enxergar o tamanho do mercado.</p>
+            <div class="compare-grid">
+                <div class="compare-card">
+                    <span class="role">Ato oficial</span>
+                    <h4><i class="ri-government-line"></i> Vistoria de Transferência</h4>
+                    <ul>
+                        <li><i class="ri-checkbox-blank-circle-line"></i> Obrigatória para transferir a propriedade ou o município do veículo.</li>
+                        <li><i class="ri-checkbox-blank-circle-line"></i> Confere identificação e itens de segurança para fins de registro.</li>
+                        <li><i class="ri-checkbox-blank-circle-line"></i> Serve ao processo administrativo — não avalia a condição real do carro.</li>
+                    </ul>
+                </div>
+                <div class="compare-card highlight">
+                    <span class="role">Serviço de mercado</span>
+                    <h4><i class="ri-search-eye-line"></i> Vistoria Cautelar</h4>
+                    <ul>
+                        <li><i class="ri-check-line"></i> Feita para proteger quem vai comprar, vender ou financiar.</li>
+                        <li><i class="ri-check-line"></i> Investiga estrutura, colisões, repinturas, numerações e histórico.</li>
+                        <li><i class="ri-check-line"></i> Diz a <strong>condição real</strong> do veículo — é aqui que mora a profissão.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero dominar a cautelar</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ARGUMENTO 4: O QUE VOCÊ VAI APRENDER (MÓDULOS) ===== -->
+    <section class="arg-block" id="modulos">
+        <div class="container arg-inner">
+            <span class="arg-tag">O método completo</span>
+            <h2>Do fundamento à captação de clientes — <span>a formação inteira, em ordem</span>.</h2>
+            <p>Nada de teoria solta. Você aprende na sequência real de quem trabalha na área, com casos filmados de carros com colisões diferentes.</p>
+            <div class="modules-grid">
+                <div class="module-card"><div class="module-num">01</div><h4>Fundamentos e propósito</h4><p>Por que as vistorias foram criadas no Brasil e suas três finalidades: identificação, segurança de trânsito e estrutura.</p></div>
+                <div class="module-card"><div class="module-num">02</div><h4>Como um veículo é construído</h4><p>Chassi x monobloco, fundamentos de construção e os padrões de cada montadora.</p></div>
+                <div class="module-card"><div class="module-num">03</div><h4>Identificação veicular</h4><p>Numerações de motor e chassi, gravações, etiquetas e como reconhecer remarcação e adulteração.</p></div>
+                <div class="module-card"><div class="module-num">04</div><h4>Estrutura e colisões</h4><p>Leitura de chapas de carroceria, solda, massa e alinhamento. Casos reais de colisões distintas.</p></div>
+                <div class="module-card"><div class="module-num">05</div><h4>Método de execução</h4><p>Princípios do trabalho, iluminação, o funil de etapas: o que vistoriar, de que forma e o que buscar identificar.</p></div>
+                <div class="module-card"><div class="module-num">06</div><h4>Diagnóstico do histórico</h4><p>Correlacionar as características encontradas com o histórico provável de reparações do veículo.</p></div>
+                <div class="module-card"><div class="module-num">07</div><h4>Laudo e parecer</h4><p>Como construir o laudo, redigir o parecer técnico e as fundamentações jurídicas por trás do serviço.</p></div>
+                <div class="module-card"><div class="module-num">08</div><h4>O negócio da vistoria</h4><p>Como captar clientes, se posicionar e precificar — e a ferramenta para emitir seus laudos com padrão profissional.</p></div>
+            </div>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero acesso a todos os módulos</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ARGUMENTO 5: BÔNUS / O QUE ESTÁ INCLUSO ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">Você não sai sozinho</span>
+            <h2>Além das aulas, você entra numa <span>rede de vistoriadores</span>.</h2>
+            <div class="bonus-grid">
+                <div class="bonus-card">
+                    <i class="ri-group-line bicon"></i>
+                    <h4>Comunidade de alunos</h4>
+                    <p>Espaço para trocar conhecimento, tirar dúvidas de casos reais e evoluir junto com outros vistoriadores.</p>
+                </div>
+                <div class="bonus-card">
+                    <i class="ri-briefcase-4-line bicon"></i>
+                    <h4>Vitrine de currículos</h4>
+                    <p>Disponibilize seu currículo para empregadores do setor e conecte-se a oportunidades de trabalho.</p>
+                </div>
+                <div class="bonus-card">
+                    <i class="ri-computer-line bicon"></i>
+                    <h4>Acesso ao sistema Certive</h4>
+                    <p>Aprenda e opere na mesma plataforma que emite laudos profissionais — condição especial para alunos.</p>
+                </div>
+            </div>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-arrow-right-line"></i> Quero fazer parte</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== OFERTA / PREÇO ===== -->
+    <section class="arg-block" id="oferta">
+        <div class="container arg-inner">
+            <span class="arg-tag">Sua matrícula</span>
+            <h2>Comece hoje a construir uma <span>nova profissão</span>.</h2>
+            <div class="offer-card">
+                <span class="offer-badge">Turma com vagas abertas</span>
+                <h3 style="font-family:'Outfit',sans-serif; font-size:24px; color:var(--text-primary);">Formação Vistoriador Cautelar</h3>
+                <div class="offer-price">
+                    <span class="from">De R$ 1.997</span>
+                    <span class="now">por <strong><span>R$ 997</span></strong></span>
+                    <span class="installment">ou 12x de R$ 99,70 no cartão</span>
+                </div>
+                <ul class="offer-includes">
+                    <li><i class="ri-check-double-line"></i> 8 módulos completos, com casos reais filmados</li>
+                    <li><i class="ri-check-double-line"></i> Comunidade de alunos e vitrine de currículos</li>
+                    <li><i class="ri-check-double-line"></i> Condição especial de acesso ao sistema Certive</li>
+                    <li><i class="ri-check-double-line"></i> Acesso imediato após a confirmação do pagamento</li>
+                </ul>
+                <a href="#" class="btn-cta" data-cta style="width:100%; justify-content:center;"><i class="ri-bank-card-line"></i> Matricular e passar o cartão</a>
+                <span class="cta-note"><i class="ri-shield-check-line"></i> Ambiente de pagamento seguro • Garantia de 7 dias</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section class="arg-block">
+        <div class="container arg-inner">
+            <span class="arg-tag">Ainda em dúvida?</span>
+            <h2>Perguntas frequentes</h2>
+            <div class="faq-list">
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">Este curso me forma como vistoriador oficial do DETRAN? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>Não. Esta é uma formação livre de capacitação técnica: ela te ensina a profissão e a técnica da vistoria cautelar (serviço de mercado privado). Cursos profissionalizantes credenciados dependem de validação do DETRAN e não fazem parte desta oferta.</p></div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">Preciso ter experiência com carros? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>Não. Começamos pelos fundamentos — como um veículo é construído — e evoluímos até a execução completa de uma vistoria e a redação do laudo. É pensado para quem está começando do zero.</p></div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">Como recebo o acesso depois de pagar? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>O acesso à área de aluno é liberado assim que o pagamento é confirmado. Você também recebe o convite para a comunidade e as instruções para acessar o sistema Certive.</p></div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-q" onclick="toggleFaq(this)">E se eu não gostar? <i class="ri-arrow-down-s-line"></i></button>
+                    <div class="faq-a"><p>Você tem 7 dias de garantia. Se sentir que não é para você, é só solicitar o reembolso dentro desse prazo.</p></div>
+                </div>
+            </div>
+            <div class="cta-wrap">
+                <a href="#oferta" class="btn-cta" data-cta><i class="ri-shopping-cart-2-line"></i> Quero me matricular</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Certive Vistorias Veiculares — Certive Academy. Todos os direitos reservados.</p>
+            <p>Curso livre de capacitação técnica. Não substitui credenciamento oficial do DETRAN.</p>
+        </div>
+    </footer>
+
+    <!-- ===== BARRA FIXA DE CTA (MOBILE) ===== -->
+    <div class="sticky-cta">
+        <a href="#oferta" class="btn-cta" data-cta><i class="ri-shopping-cart-2-line"></i> Quero me matricular</a>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script>
+        /* =========================================================
+           CONFIGURAÇÃO DO CHECKOUT
+           Troque CHECKOUT_URL pelo link da sua plataforma de pagamento
+           (Hotmart, Kiwify, Eduzz, Stripe, etc). Enquanto estiver "",
+           os botões abrem o WhatsApp comercial como fallback.
+           ========================================================= */
+        const CHECKOUT_URL = "";
+        const WHATSAPP_FALLBACK = "https://wa.me/5548933816198?text=" +
+            encodeURIComponent("Olá! Tenho interesse no curso Formação Vistoriador Cautelar. Como faço para me matricular?");
+
+        // CTAs marcados com href="#" são botões de COMPRA: vão direto ao checkout.
+        // CTAs que apontam para "#oferta" apenas rolam a página até a oferta.
+        const CHECKOUT_DEST = CHECKOUT_URL || WHATSAPP_FALLBACK;
+        document.querySelectorAll('[data-cta]').forEach(el => {
+            if (el.getAttribute('href') === '#') {
+                el.setAttribute('href', CHECKOUT_DEST);
+                if (CHECKOUT_URL) el.setAttribute('target', '_blank');
+            }
+        });
+
+        // Header muda ao rolar
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('site-header');
+            if (window.scrollY > 50) header.classList.add('header-scrolled');
+            else header.classList.remove('header-scrolled');
+        });
+
+        // Menu mobile
+        function toggleMobileMenu() {
+            const menu = document.getElementById('nav-menu');
+            const button = document.getElementById('btn-mobile-nav');
+            menu.classList.toggle('active');
+            button.innerHTML = menu.classList.contains('active')
+                ? '<i class="ri-close-line"></i>' : '<i class="ri-menu-line"></i>';
+        }
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                const menu = document.getElementById('nav-menu');
+                const button = document.getElementById('btn-mobile-nav');
+                menu.classList.remove('active');
+                button.innerHTML = '<i class="ri-menu-line"></i>';
+            });
+        });
+
+        // Player da VSL — troque VSL_EMBED_URL pelo embed do seu vídeo
+        const VSL_EMBED_URL = ""; // ex: "https://www.youtube.com/embed/SEU_ID?autoplay=1"
+        function playVSL() {
+            if (!VSL_EMBED_URL) {
+                alert("Em breve: vídeo de apresentação. Configure VSL_EMBED_URL em curso.html.");
+                return;
+            }
+            const box = document.getElementById('vsl-video');
+            box.innerHTML = '<iframe src="' + VSL_EMBED_URL + '" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+        }
+
+        // FAQ acordeão
+        function toggleFaq(btn) {
+            btn.parentElement.classList.toggle('open');
+        }
+    </script>
+</body>
+</html>
