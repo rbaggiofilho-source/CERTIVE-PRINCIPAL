@@ -4832,7 +4832,7 @@ function pendenciasDaAuditoria(auditoria, osAbertas) {
             tipo: 'os_sem_laudo',
             chave: chavePendencia('os_sem_laudo', o.numero),
             placa: o.placa,
-            descricao: `${o.numero} (${o.placa}, ${formatCurrency(o.valor)}) sem laudo no relatório — não enviado ao DETRAN ou OS duplicada`,
+            descricao: `${o.numero} (${o.placa}, ${formatCurrency(o.valor)}) sem laudo no relatório — confira nesta ordem: o serviço está certo (cautelar não gera laudo), há OS duplicada, ou o laudo não foi enviado`,
             valorTaxa: 0,
             osId: o.id,
             osNumero: o.numero
@@ -5039,7 +5039,8 @@ function textoAuditoriaDetran(a) {
     }
     if (a.naoEnviadasAoDetran.length) {
         p.push('', `OS NO SISTEMA SEM LAUDO CORRESPONDENTE (${a.naoEnviadasAoDetran.length}):`);
-        p.push('  Ou o laudo nao foi enviado ao DETRAN, ou ha OS duplicada para o mesmo veiculo.');
+        p.push('  Confira nesta ordem: 1) o servico esta certo? cautelar e pesquisa nao geram');
+        p.push('  laudo; 2) ha OS duplicada para o mesmo veiculo? 3) o laudo nao foi enviado.');
         a.naoEnviadasAoDetran.forEach(o => p.push(`  ${o.numero} — ${o.placa} — ${formatCurrency(o.valor)}`));
     }
     return p.join('\n');
