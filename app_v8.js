@@ -3927,6 +3927,7 @@ async function autoSyncMissingOSMovements() {
 }
 
 async function renderCaixaPage() {
+    if (typeof renderPendencias === 'function') renderPendencias();
     const activeCaixa = getTodayOpenCaixa();
     
     // Auto-sincronizar lançamentos de hoje
@@ -4661,6 +4662,231 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
     };
 }
 
+// ==========================================================
+// PENDÊNCIAS DE FECHAMENTO
+// ----------------------------------------------------------
+// O operador pode fechar com divergência, mas a divergência não some: fica
+// gravada e é recontada a cada fechamento, todos os dias, até ser corrigida.
+// A chave de deduplicação evita recriar a mesma pendência todo dia — o que
+// sobe é o contador de vezes que ela foi ignorada.
+// ==========================================================
+
+function chavePendencia(tipo, ident) {
+    return `${tipo}:${String(ident || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+}
+
+// Converte o resultado da auditoria em pendências normalizadas.
+function pendenciasDaAuditoria(auditoria, osAbertas) {
+    const itens = [];
+
+    (auditoria.faltamNoSistema || []).forEach(l => {
+        itens.push({
+            tipo: 'laudo_sem_os',
+            chave: chavePendencia('laudo_sem_os', `${l.placa}${l.data}${l.hora}`),
+            placa: l.placa,
+            descricao: `Laudo cobrado pelo DETRAN em ${l.data} ${l.hora} (${l.status}) sem OS no sistema`,
+            valorTaxa: 27.00,
+            osId: null,
+            osNumero: null
+        });
+    });
+
+    (auditoria.naoEnviadasAoDetran || []).forEach(o => {
+        itens.push({
+            tipo: 'os_sem_laudo',
+            chave: chavePendencia('os_sem_laudo', o.numero),
+            placa: o.placa,
+            descricao: `${o.numero} (${o.placa}, ${formatCurrency(o.valor)}) sem laudo no relatório — não enviado ao DETRAN ou OS duplicada`,
+            valorTaxa: 0,
+            osId: o.id,
+            osNumero: o.numero
+        });
+    });
+
+    (auditoria.placasErradas || []).forEach(t => {
+        itens.push({
+            tipo: 'placa_errada',
+            chave: chavePendencia('placa_errada', t.os.numero),
+            placa: t.os.placa,
+            descricao: `${t.os.numero} está com a placa ${t.os.placa}; no DETRAN é ${t.laudo.placa}`,
+            valorTaxa: 0,
+            osId: t.os.id,
+            osNumero: t.os.numero
+        });
+    });
+
+    (osAbertas || []).forEach(o => {
+        itens.push({
+            tipo: 'os_aberta',
+            chave: chavePendencia('os_aberta', o.numero),
+            placa: o.placa,
+            descricao: `${o.numero} (${o.placa}) continua em aberto — finalize ou cancele`,
+            valorTaxa: 0,
+            osId: o.id,
+            osNumero: o.numero
+        });
+    });
+
+    return itens;
+}
+
+function pendenciasAbertas(unidadeId) {
+    return (db.pendencias_fechamento || [])
+        .filter(p => p.unidadeId === unidadeId && !p.resolvida);
+}
+
+// Reavalia as pendências já gravadas: as que não aparecem mais na conferência
+// de hoje foram corrigidas e são baixadas automaticamente.
+async function resolverPendenciasCorrigidas(unidadeId, chavesAtuais, quem) {
+    const abertas = pendenciasAbertas(unidadeId);
+    const agora = new Date().toISOString();
+    let resolvidas = 0;
+    for (const p of abertas) {
+        if (chavesAtuais.has(p.chave)) continue;
+        // OS em aberto só sai da lista quando muda de status de verdade
+        if (p.tipo === 'os_aberta') {
+            const os = (db.ordens_servico || []).find(o => o.id === p.osId);
+            if (os && os.status === 'aberta') continue;
+        }
+        try {
+            await dbSave('pendencias_fechamento', {
+                resolvida: true, resolvidaEm: agora, resolvidaPor: quem,
+                resolvidaComo: 'Não apareceu mais na conferência do fechamento'
+            }, 'update', p.id);
+            resolvidas++;
+        } catch (e) { console.error('[Pendências] Falha ao resolver:', e); }
+    }
+    return resolvidas;
+}
+
+// Grava as pendências de hoje: cria as novas, incrementa as que reapareceram.
+async function registrarPendencias(unidadeId, itens, quem, dataFechamento) {
+    const abertas = pendenciasAbertas(unidadeId);
+    let novas = 0, repetidas = 0;
+    for (const item of itens) {
+        const existente = abertas.find(p => p.chave === item.chave);
+        try {
+            if (existente) {
+                await dbSave('pendencias_fechamento', {
+                    vezesIgnorada: (Number(existente.vezesIgnorada) || 1) + 1,
+                    ultimoFechamento: dataFechamento
+                }, 'update', existente.id);
+                repetidas++;
+            } else {
+                await dbSave('pendencias_fechamento', {
+                    unidadeId: unidadeId,
+                    tipo: item.tipo,
+                    chave: item.chave,
+                    placa: item.placa,
+                    descricao: item.descricao,
+                    valorTaxa: item.valorTaxa,
+                    osId: item.osId,
+                    osNumero: item.osNumero,
+                    detectadaPor: quem,
+                    primeiroFechamento: dataFechamento,
+                    ultimoFechamento: dataFechamento,
+                    vezesIgnorada: 1,
+                    resolvida: false
+                }, 'insert');
+                novas++;
+            }
+        } catch (e) { console.error('[Pendências] Falha ao gravar:', e); }
+    }
+    return { novas, repetidas };
+}
+
+const ROTULO_PENDENCIA = {
+    laudo_sem_os: 'Taxa paga sem OS',
+    os_sem_laudo: 'OS sem laudo',
+    placa_errada: 'Placa errada',
+    os_aberta:    'OS em aberto'
+};
+
+const COR_PENDENCIA = {
+    laudo_sem_os: 'var(--danger)',
+    os_sem_laudo: 'var(--danger)',
+    placa_errada: 'var(--warning, #B07206)',
+    os_aberta:    'var(--warning, #B07206)'
+};
+
+function renderPendencias() {
+    const card = document.getElementById('card-pendencias');
+    const tbody = document.getElementById('pendencias-tbody');
+    const contador = document.getElementById('pendencias-contador');
+    if (!card || !tbody) return;
+
+    const verResolvidas = (document.getElementById('pendencias-ver-resolvidas') || {}).checked;
+    const todas = (db.pendencias_fechamento || []).filter(p => p.unidadeId === activeUnitId);
+    const abertas = todas.filter(p => !p.resolvida);
+    const lista = (verResolvidas ? todas : abertas)
+        .slice()
+        .sort((a, b) => (Number(b.vezesIgnorada) || 1) - (Number(a.vezesIgnorada) || 1));
+
+    // O card some quando não há nada pendente — só aparece quando exige ação
+    if (lista.length === 0 && !verResolvidas) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    const taxaEmRisco = abertas.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+    if (contador) {
+        contador.textContent = abertas.length > 0
+            ? ` — ${abertas.length} em aberto${taxaEmRisco > 0 ? ` (${formatCurrency(taxaEmRisco)} de taxa)` : ''}`
+            : ' — tudo em dia';
+        contador.style.color = abertas.length > 0 ? 'var(--danger)' : 'var(--success)';
+    }
+
+    if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="padding:18px; text-align:center; color:var(--text-muted);">Nenhuma pendência registrada.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = lista.map(p => {
+        const vezes = Number(p.vezesIgnorada) || 1;
+        const det = p.detectadaEm ? new Date(p.detectadaEm).toLocaleDateString('pt-BR') : '—';
+        const cor = COR_PENDENCIA[p.tipo] || 'var(--text-secondary)';
+        const reincidente = vezes > 1;
+        return `
+        <tr style="border-top: 1px solid var(--border); ${p.resolvida ? 'opacity:.5;' : ''}">
+            <td style="padding: 10px 14px; white-space: nowrap;">
+                <span style="font-size: 11px; font-weight: 700; color: ${cor};">${ROTULO_PENDENCIA[p.tipo] || p.tipo}</span>
+            </td>
+            <td style="padding: 10px 14px;">${p.descricao || ''}</td>
+            <td style="padding: 10px 14px; white-space: nowrap;">${det}</td>
+            <td style="padding: 10px 14px; white-space: nowrap;">${p.detectadaPor || '—'}</td>
+            <td style="padding: 10px 14px; text-align: center; font-weight: ${reincidente ? '800' : '400'}; color: ${reincidente ? 'var(--danger)' : 'inherit'};">
+                ${vezes}${reincidente ? 'x' : ''}
+            </td>
+            <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">${Number(p.valorTaxa) > 0 ? formatCurrency(p.valorTaxa) : '—'}</td>
+            <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
+                ${p.resolvida
+                    ? `<span style="font-size:11px; color:var(--success);">Resolvida por ${p.resolvidaPor || '—'}</span>`
+                    : `<button class="btn btn-secondary btn-sm" onclick="resolverPendenciaManual(${p.id})">Marcar resolvida</button>`}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function resolverPendenciaManual(id) {
+    const p = (db.pendencias_fechamento || []).find(x => x.id === id);
+    if (!p) return;
+    const como = prompt(`Como esta pendência foi resolvida?\n\n${p.descricao}\n\nDescreva o que foi feito:`);
+    if (como === null) return;
+    if (!como.trim()) { showToast("Descreva o que foi feito para poder baixar a pendência.", "error"); return; }
+    try {
+        await dbSave('pendencias_fechamento', {
+            resolvida: true,
+            resolvidaEm: new Date().toISOString(),
+            resolvidaPor: currentSession ? currentSession.nome : 'Sistema',
+            resolvidaComo: como.trim()
+        }, 'update', id);
+        logAudit("Pendência resolvida", `${p.descricao} — ${como.trim()}`);
+        showToast("Pendência baixada.", "success");
+        renderPendencias();
+    } catch (e) {
+        console.error('[Pendências] Falha ao baixar:', e);
+        showToast("Erro ao baixar a pendência.", "error");
+    }
+}
+
 // Monta o texto da auditoria para o operador ler antes de fechar.
 function textoAuditoriaDetran(a) {
     const p = [];
@@ -4781,6 +5007,23 @@ async function submitFecharCaixa(event) {
                     `Não saíram no DETRAN: ${auditoria.naoEnviadasAoDetran.length}. ` +
                     `Placas erradas: ${auditoria.placasErradas.length}.`);
             }
+
+            // Grava as pendências e recontabiliza as que já estavam abertas.
+            // A divergência ignorada hoje volta a aparecer amanhã, com o
+            // contador de reincidência subindo, até alguém corrigir.
+            const abertasAgora = osEmAbertoDaUnidade(activeCaixa.unidadeId);
+            const itens = pendenciasDaAuditoria(auditoria, abertasAgora);
+            const chavesHoje = new Set(itens.map(i => i.chave));
+            const hojeISO = new Date().toISOString().substring(0, 10);
+            const quem = currentSession ? currentSession.nome : 'Sistema';
+
+            const resolvidas = await resolverPendenciasCorrigidas(activeCaixa.unidadeId, chavesHoje, quem);
+            const { novas, repetidas } = await registrarPendencias(activeCaixa.unidadeId, itens, quem, hojeISO);
+
+            if (resolvidas > 0) {
+                showToast(`${resolvidas} pendência(s) anterior(es) foram corrigidas e baixadas.`, "success");
+            }
+            window.__pendenciasFechamento = { novas, repetidas, resolvidas, total: itens.length };
         }
     } catch (err) {
         console.error('[Auditoria DETRAN] Falha ao ler o PDF:', err);
@@ -4948,11 +5191,26 @@ async function submitFecharCaixa(event) {
             const entradasTotaisFecha = movsFecha.filter(m => m.tipo === 'entrada').reduce((s, m) => s + (Number(m.valor) || 0), 0);
             const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => s + (Number(m.valor) || 0), 0);
             const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
-            const pendentesFecha = osEmAbertoDaUnidade(activeCaixa.unidadeId);
-            const alertaPendentes = pendentesFecha.length > 0
-                ? `\n\n⚠️ ${pendentesFecha.length} OS em aberto: ${pendentesFecha.map(o => o.numero + ' (' + (o.placa || 's/ placa') + ')').join(', ')}`
-                : '';
-            notificarAdmins('🔴 Caixa fechado', `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}${alertaPendentes}`);
+            // Aviso de inconsistência: repete TODO DIA enquanto não for corrigida,
+            // e mostra há quantos fechamentos ela vem sendo arrastada.
+            const emAberto = pendenciasAbertas(activeCaixa.unidadeId);
+            let alertaPendentes = '';
+            if (emAberto.length > 0) {
+                const taxaEmRisco = emAberto.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+                const antigas = emAberto.filter(p => (Number(p.vezesIgnorada) || 1) > 1);
+                const linhas = emAberto.slice(0, 8).map(p => {
+                    const v = Number(p.vezesIgnorada) || 1;
+                    return `• ${p.descricao}${v > 1 ? ` [${v}º fechamento seguido]` : ''}`;
+                });
+                if (emAberto.length > 8) linhas.push(`• … e mais ${emAberto.length - 8}`);
+                alertaPendentes =
+                    `\n\n⚠️ ${emAberto.length} INCONSISTÊNCIA(S) EM ABERTO nesta unidade` +
+                    (antigas.length ? ` — ${antigas.length} já vinham de fechamentos anteriores` : '') +
+                    (taxaEmRisco > 0 ? `\nTaxa DETRAN sem registro: ${formatCurrency(taxaEmRisco)}` : '') +
+                    `\n\n${linhas.join('\n')}`;
+            }
+            const tituloPush = alertaPendentes ? '⚠️ Caixa fechado COM PENDÊNCIA' : '🔴 Caixa fechado';
+            notificarAdmins(tituloPush, `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}${alertaPendentes}`);
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");

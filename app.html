@@ -828,6 +828,41 @@
                     </div>
                 </div>
 
+                <!-- Auditoria: pendências de conferência com o DETRAN -->
+                <div class="panel-card" id="card-pendencias" style="margin-bottom: 20px; display: none;">
+                    <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <h3 style="margin: 0;">
+                            <i class="ri-error-warning-line"></i>
+                            Pendências de conferência com o DETRAN
+                            <span id="pendencias-contador" style="font-weight: 800;"></span>
+                        </h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="checkbox" id="pendencias-ver-resolvidas" onchange="renderPendencias()">
+                                Mostrar resolvidas
+                            </label>
+                        </div>
+                    </div>
+                    <div class="panel-card-body" style="padding: 0;">
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px;">
+                                <thead>
+                                    <tr style="text-align: left;">
+                                        <th style="padding: 10px 14px;">Tipo</th>
+                                        <th style="padding: 10px 14px;">O que está pendente</th>
+                                        <th style="padding: 10px 14px; white-space: nowrap;">Detectada em</th>
+                                        <th style="padding: 10px 14px; white-space: nowrap;">Por quem</th>
+                                        <th style="padding: 10px 14px; text-align: center; white-space: nowrap;">Fechamentos</th>
+                                        <th style="padding: 10px 14px; text-align: right; white-space: nowrap;">Taxa</th>
+                                        <th style="padding: 10px 14px; text-align: right;">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pendencias-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="tabs-bar">
                     <button class="tab-btn active" onclick="switchCaixaTab('movimentos', this)">Fluxo de Caixa</button>
                     <button class="tab-btn" onclick="switchCaixaTab('historico', this)">Histórico de Fechamentos</button>
