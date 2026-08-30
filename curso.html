@@ -15,6 +15,36 @@
     <link rel="stylesheet" href="site.css?v=20260722_1045">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 
+    <!-- ============================================================
+         META PIXEL (Facebook/Instagram Ads)
+         >>> TROQUE 'SEU_PIXEL_ID' pelo ID do seu Pixel (Gerenciador
+             de Eventos da Meta). Enquanto for 'SEU_PIXEL_ID', o pixel
+             fica inativo e não dispara nada.
+         Eventos disparados nesta página:
+           • PageView    — automático ao carregar
+           • ViewContent — ao carregar a página do curso (topo de funil)
+           • InitiateCheckout — ao clicar em "passar o cartão" (ver <script> no fim)
+           • Purchase    — deve ser disparado na página de OBRIGADO do
+                           seu checkout (Hotmart/Kiwify), não aqui.
+         ============================================================ -->
+    <script>
+      window.META_PIXEL_ID = 'SEU_PIXEL_ID'; // <<< coloque seu ID aqui
+      (function(){
+        if (!window.META_PIXEL_ID || window.META_PIXEL_ID === 'SEU_PIXEL_ID') return;
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window,document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', window.META_PIXEL_ID);
+        fbq('track', 'PageView');
+        fbq('track', 'ViewContent', {content_name: 'Curso Vistoriador Cautelar', content_category: 'curso'});
+      })();
+    </script>
+
     <style>
         /* ===== ESTILOS ESPECÍFICOS DA PÁGINA DO CURSO (VSL) ===== */
 
@@ -795,8 +825,14 @@
         const CHECKOUT_DEST = CHECKOUT_URL || WHATSAPP_FALLBACK;
         document.querySelectorAll('[data-cta]').forEach(el => {
             if (el.getAttribute('href') === '#') {
+                // Botão de COMPRA: aponta para o checkout e dispara InitiateCheckout
                 el.setAttribute('href', CHECKOUT_DEST);
                 if (CHECKOUT_URL) el.setAttribute('target', '_blank');
+                el.addEventListener('click', () => {
+                    if (window.fbq) fbq('track', 'InitiateCheckout', {
+                        content_name: 'Curso Vistoriador Cautelar', value: 599.00, currency: 'BRL'
+                    });
+                });
             }
         });
 
