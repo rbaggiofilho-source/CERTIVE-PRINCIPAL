@@ -1147,6 +1147,44 @@
 
                 <!-- Aba: Faturas Emitidas -->
                 <div id="tab-fat-faturas" style="display: none;">
+
+                    <div class="panel-card" style="margin-bottom: 16px;">
+                        <div class="panel-card-body" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
+                            <div class="form-group" style="margin: 0;">
+                                <label for="fat-mes-sel">Mês</label>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button class="btn btn-secondary btn-sm" type="button" onclick="mudarMesFaturas(-1)" title="Mês anterior">
+                                        <i class="ri-arrow-left-s-line"></i>
+                                    </button>
+                                    <input type="month" id="fat-mes-sel" onchange="renderFatFaturas()" style="min-width: 150px;">
+                                    <button class="btn btn-secondary btn-sm" type="button" onclick="mudarMesFaturas(1)" title="Próximo mês">
+                                        <i class="ri-arrow-right-s-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin: 0; min-width: 260px;">
+                                <label for="fat-criterio">Contar o mês pela data de</label>
+                                <select id="fat-criterio" onchange="renderFatFaturas()">
+                                    <option value="competencia">Competência — quando as vistorias foram feitas</option>
+                                    <option value="emissao">Emissão — quando a fatura foi gerada</option>
+                                    <option value="pagamento">Pagamento — quando o cliente pagou</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 400;">
+                                    <input type="checkbox" id="fat-ver-todas" onchange="renderFatFaturas()">
+                                    Ver todas (ignorar o mês)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fat-resumo-mes" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 16px;">
+                        <!-- JS -->
+                    </div>
+
                     <div class="table-container">
                         <table>
                             <thead>

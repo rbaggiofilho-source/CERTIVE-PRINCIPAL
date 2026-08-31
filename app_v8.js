@@ -1299,9 +1299,29 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.0.0';
+const APP_VERSION = '9.1.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.1.0',
+        data: '2026-08-31',
+        titulo: 'Faturas separadas por mês',
+        resumo: 'O histórico de faturas passa a ter filtro de mês e mostra separadamente quanto foi gerado, quanto já entrou e quanto ainda está em aberto.',
+        mudancas: [
+            {
+                area: 'Faturamento',
+                titulo: 'Filtro de mês no histórico de faturas',
+                oQueMudou: 'Antes a aba "Faturas Emitidas" listava tudo junto, de todos os meses, e o total somava pagas e em aberto na mesma conta. Agora dá para ver um mês por vez, com três totais separados: gerado, recebido e em aberto.',
+                comoUsar: 'Use as setas para trocar de mês, ou marque "Ver todas" para o histórico completo.'
+            },
+            {
+                area: 'Faturamento',
+                titulo: 'Você escolhe o que significa "as faturas de julho"',
+                oQueMudou: 'Uma fatura tem três datas diferentes: quando as vistorias foram feitas (competência), quando a fatura foi gerada (emissão) e quando o cliente pagou. Elas quase nunca caem no mesmo mês — a maior parte das faturas de serviços de julho foi gerada e paga em agosto.',
+                comoUsar: 'No seletor "Contar o mês pela data de", escolha o que você quer saber. Competência responde "quanto de serviço foi feito no mês". Emissão responde "quanto foi faturado no mês". Pagamento responde "quanto entrou de dinheiro no mês". As três respostas são diferentes e todas estão certas — depende da pergunta.'
+            }
+        ]
+    },
     {
         versao: '9.0.0',
         data: '2026-08-30',
@@ -6293,15 +6313,105 @@ async function submitGirarFatura(event) {
     renderFaturamentoPage();
 }
 
+// ==========================================================
+// FATURAS POR MÊS
+// ----------------------------------------------------------
+// Uma fatura tem TRÊS datas, e elas caem em meses diferentes:
+//
+//   competência — o período das vistorias   (periodoInicio/periodoFim)
+//   emissão     — quando a fatura foi gerada (criadoEm)
+//   pagamento   — quando o cliente pagou     (pagoEm)
+//
+// Quase toda fatura de serviços de julho/2026 foi gerada e paga em agosto.
+// Por isso "as faturas de julho" não tem resposta única: depende de qual
+// pergunta se está fazendo. O operador escolhe o critério na tela.
+// ==========================================================
+
+function mesDaFatura(f, criterio) {
+    const mes = (v) => {
+        if (!v) return null;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return String(v).substring(0, 7);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    if (criterio === 'emissao')   return mes(f.criadoEm);
+    if (criterio === 'pagamento') return f.pago ? mes(f.pagoEm) : null;
+    // competência: o mês em que o período de cobrança fecha
+    return f.periodoFim ? String(f.periodoFim).substring(0, 7)
+                        : (f.periodoInicio ? String(f.periodoInicio).substring(0, 7) : mes(f.criadoEm));
+}
+
+function mudarMesFaturas(delta) {
+    const el = document.getElementById('fat-mes-sel');
+    if (!el || !el.value) return;
+    const [a, m] = el.value.split('-').map(Number);
+    const d = new Date(a, m - 1 + delta, 1);
+    el.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    renderFatFaturas();
+}
+
+function renderResumoFaturas(lista, criterio, verTodas, mesSel) {
+    const alvo = document.getElementById('fat-resumo-mes');
+    if (!alvo) return;
+
+    const pagas   = lista.filter(f => f.pago);
+    const abertas = lista.filter(f => !f.pago);
+    const soma = arr => arr.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+
+    // No critério "pagamento" não existe fatura em aberto: ela só entra no mês
+    // quando foi paga. Mostrar "em aberto" ali seria sempre zero e confundiria.
+    const porPagamento = criterio === 'pagamento';
+
+    const rotulo = { competencia: 'com vistorias no mês',
+                     emissao: 'geradas no mês',
+                     pagamento: 'pagas no mês' }[criterio];
+
+    const cel = (lab, val, sub, cor) => `
+        <div style="background: var(--bg-card); padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: ${cor || 'var(--text-muted)'};">${lab}</span>
+            <span style="font-size: 20px; font-weight: 800; ${cor ? `color:${cor};` : ''}">${val}</span>
+            <span style="font-size: 11.5px; color: var(--text-muted);">${sub}</span>
+        </div>`;
+
+    alvo.innerHTML =
+        cel(verTodas ? 'Total de faturas' : `Faturas — ${rotulo}`,
+            formatCurrency(soma(lista)), `${lista.length} fatura(s)`) +
+        cel('Recebido', formatCurrency(soma(pagas)), `${pagas.length} paga(s)`, 'var(--success)') +
+        (porPagamento ? '' :
+            cel('Em aberto', formatCurrency(soma(abertas)),
+                abertas.length ? `${abertas.length} aguardando pagamento` : 'nada pendente',
+                abertas.length ? 'var(--danger)' : 'var(--text-muted)'));
+}
+
 function renderFatFaturas() {
     renderFaturamentoKPIs();
     const tbody = document.getElementById('fat-faturas-tbody');
-    const faturas = db.faturas
-        .filter(f => f.unidadeId === activeUnitId)
+
+    const elMes = document.getElementById('fat-mes-sel');
+    const elCrit = document.getElementById('fat-criterio');
+    const elTodas = document.getElementById('fat-ver-todas');
+    const criterio = (elCrit && elCrit.value) || 'competencia';
+    const verTodas = !!(elTodas && elTodas.checked);
+
+    // Primeira abertura: começa no mês corrente
+    if (elMes && !elMes.value) {
+        const hoje = new Date();
+        elMes.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    }
+    const mesSel = elMes ? elMes.value : null;
+
+    const daUnidade = db.faturas.filter(f => f.unidadeId === activeUnitId);
+    const faturas = daUnidade
+        .filter(f => verTodas || !mesSel || mesDaFatura(f, criterio) === mesSel)
         .sort((a, b) => b.id - a.id);
 
+    renderResumoFaturas(faturas, criterio, verTodas, mesSel);
+
     if (faturas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">Nenhuma fatura emitida nesta unidade.</td></tr>';
+        const msg = daUnidade.length === 0
+            ? 'Nenhuma fatura emitida nesta unidade.'
+            : 'Nenhuma fatura neste mês por esse critério. Troque o mês, o critério, ou marque "Ver todas".';
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:18px; color:var(--text-muted);">${msg}</td></tr>`;
         return;
     }
 
