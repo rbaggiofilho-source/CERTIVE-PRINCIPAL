@@ -1299,11 +1299,11 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.2.0';
+const APP_VERSION = '9.3.0';
 
 const ATUALIZACOES = [
     {
-        versao: '9.2.0',
+        versao: '9.3.0',
         data: '2026-08-31',
         titulo: 'Página de faturas reformada',
         resumo: 'O histórico de faturas passa a ter filtro de mês e mostra separadamente quanto foi gerado, quanto já entrou e quanto ainda está em aberto.',
@@ -1313,6 +1313,12 @@ const ATUALIZACOES = [
                 titulo: 'Filtro de mês no histórico de faturas',
                 oQueMudou: 'Antes a aba "Faturas Emitidas" listava tudo junto, de todos os meses, e o total somava pagas e em aberto na mesma conta. Agora dá para ver um mês por vez, com três totais separados: gerado, recebido e em aberto.',
                 comoUsar: 'Use as setas para trocar de mês, ou marque "Ver todas" para o histórico completo.'
+            },
+            {
+                area: 'Faturamento',
+                titulo: 'Não dá mais para faturar a mesma OS duas vezes',
+                oQueMudou: 'O botão de gerar fatura trava enquanto a fatura está sendo criada, e o sistema recusa faturar uma OS que já está em outra fatura. Isso aconteceu em 06/08: dois cliques seguidos geraram a FAT-0031 e a FAT-0032, as duas para a mesma OS.',
+                comoUsar: 'Nada muda no seu jeito de trabalhar. Se aparecer o aviso de que já existe fatura para a OS, procure a fatura antiga em vez de gerar outra.'
             },
             {
                 area: 'Faturamento',
@@ -6093,10 +6099,39 @@ async function submitCreditoCortesiaForm(event) {
 
 async function submitGirarFatura(event) {
     event.preventDefault();
+
+    // Trava contra clique duplo. Gerar fatura é assíncrono (Asaas, PDF, banco):
+    // sem isto, dois cliques em sequência produzem duas faturas para as mesmas
+    // OS. Foi o que aconteceu com a FAT-0031 e a FAT-0032 em 06/08/2026 —
+    // geradas com 4 segundos de diferença, ambas para a OS-0163.
+    if (window.__faturandoAgora) {
+        showToast("Aguarde: a fatura já está sendo gerada.", "info");
+        return;
+    }
+    const btnSubmit = event.target && event.target.querySelector
+        ? event.target.querySelector('button[type="submit"]') : null;
+
     const partnerId = parseInt(document.getElementById('fat-modal-parceiro-id').value);
     const dateIni = document.getElementById('fat-modal-inicio').value;
     const dateFim = document.getElementById('fat-modal-fim').value;
     const selectedIds = window.selectedFatOSIds;
+
+    // Segunda barreira: nenhuma das OS pode já estar em outra fatura. Pega
+    // também o caso de duas abas abertas ou de um F5 no meio do processo.
+    const jaFaturadas = (db.faturas || []).filter(f =>
+        (f.ordensIds || []).some(id => selectedIds.includes(Number(id))));
+    if (jaFaturadas.length > 0) {
+        const osRepetidas = [...new Set(jaFaturadas.flatMap(f =>
+            (f.ordensIds || []).map(Number).filter(id => selectedIds.includes(id))))];
+        const numeros = osRepetidas
+            .map(id => (db.ordens_servico.find(o => o.id === id) || {}).numero || `#${id}`);
+        showToast(`Já existe fatura para ${numeros.join(', ')} (${jaFaturadas.map(f => f.codigo).join(', ')}).`, "error");
+        return;
+    }
+
+    window.__faturandoAgora = true;
+    if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.style.opacity = '0.6'; }
+    try {
 
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
     const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
@@ -6323,6 +6358,13 @@ async function submitGirarFatura(event) {
     
     closeFatModal();
     renderFaturamentoPage();
+
+    } finally {
+        // Libera a trava aconteça o que acontecer: se a geração falhar no meio,
+        // o operador precisa poder tentar de novo.
+        window.__faturandoAgora = false;
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.style.opacity = ''; }
+    }
 }
 
 // ==========================================================
