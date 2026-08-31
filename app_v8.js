@@ -1299,13 +1299,13 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.1.0';
+const APP_VERSION = '9.2.0';
 
 const ATUALIZACOES = [
     {
-        versao: '9.1.0',
+        versao: '9.2.0',
         data: '2026-08-31',
-        titulo: 'Faturas separadas por mês',
+        titulo: 'Página de faturas reformada',
         resumo: 'O histórico de faturas passa a ter filtro de mês e mostra separadamente quanto foi gerado, quanto já entrou e quanto ainda está em aberto.',
         mudancas: [
             {
@@ -1313,6 +1313,18 @@ const ATUALIZACOES = [
                 titulo: 'Filtro de mês no histórico de faturas',
                 oQueMudou: 'Antes a aba "Faturas Emitidas" listava tudo junto, de todos os meses, e o total somava pagas e em aberto na mesma conta. Agora dá para ver um mês por vez, com três totais separados: gerado, recebido e em aberto.',
                 comoUsar: 'Use as setas para trocar de mês, ou marque "Ver todas" para o histórico completo.'
+            },
+            {
+                area: 'Faturamento',
+                titulo: 'Filtros de situação, parceiro e busca',
+                oQueMudou: 'Além do mês, dá para filtrar só as em aberto, só as pagas, por parceiro, ou buscar pelo código da fatura ou nome do parceiro.',
+                comoUsar: 'Combine os filtros à vontade. O botão "Limpar filtros" volta tudo ao normal. Os totais no rodapé da tabela sempre somam o que está sendo exibido, não o histórico inteiro.'
+            },
+            {
+                area: 'Faturamento',
+                titulo: 'A tabela mostra quem gerou e quem deu baixa',
+                oQueMudou: 'A fatura registrava quando foi paga, mas não por quem. Agora a coluna de emissão mostra a data e quem gerou, e a de baixa mostra a data e quem baixou.',
+                comoUsar: 'O histórico antigo foi preenchido a partir do movimento de caixa gerado na baixa, então as faturas já pagas também mostram o responsável. Uma fatura antiga aparece como "não registrado" quando não houve movimento de caixa associado.'
             },
             {
                 area: 'Faturamento',
@@ -6383,6 +6395,57 @@ function renderResumoFaturas(lista, criterio, verTodas, mesSel) {
                 abertas.length ? 'var(--danger)' : 'var(--text-muted)'));
 }
 
+// Preenche o seletor de parceiro só com quem tem fatura nesta unidade.
+function popularFiltroParceirosFaturas(faturasDaUnidade) {
+    const el = document.getElementById('fat-filtro-parceiro');
+    if (!el) return;
+    const ids = [...new Set(faturasDaUnidade.map(f => f.parceiroId))];
+    const opcoes = ids
+        .map(id => {
+            const p = db.parceiros.find(x => x.id === id);
+            return { id, nome: p ? p.nome : `Parceiro #${id}` };
+        })
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    const atual = el.value;
+    const novo = '<option value="">Todos</option>' +
+        opcoes.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+    if (el.innerHTML !== novo) {
+        el.innerHTML = novo;
+        el.value = atual;   // preserva a escolha ao re-renderizar
+    }
+}
+
+// Rodapé com os totais do que está sendo exibido — não do histórico inteiro.
+function renderRodapeFaturas(lista) {
+    const tfoot = document.getElementById('fat-faturas-tfoot');
+    if (!tfoot) return;
+    if (lista.length === 0) { tfoot.innerHTML = ''; return; }
+    const total = lista.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const pago = lista.filter(f => f.pago).reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const aberto = total - pago;
+    const os = lista.reduce((s, f) => s + ((f.ordensIds || []).length), 0);
+    tfoot.innerHTML = `
+        <tr style="border-top: 2px solid var(--border); font-weight: 700; background: var(--bg-secondary);">
+            <td colspan="4" style="padding: 12px 14px;">${lista.length} fatura(s) exibida(s)</td>
+            <td style="text-align: center;">${os}</td>
+            <td style="text-align: right;">${formatCurrency(total)}</td>
+            <td colspan="4" style="padding: 12px 14px; font-weight: 400; font-size: 12px;">
+                <span style="color: var(--success);">Recebido ${formatCurrency(pago)}</span>
+                ${aberto > 0 ? ` &nbsp;•&nbsp; <span style="color: var(--danger);">Em aberto ${formatCurrency(aberto)}</span>` : ''}
+            </td>
+        </tr>`;
+}
+
+function limparFiltrosFaturas() {
+    ['fat-filtro-status', 'fat-filtro-parceiro', 'fat-busca'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const t = document.getElementById('fat-ver-todas');
+    if (t) t.checked = false;
+    renderFatFaturas();
+}
+
 function renderFatFaturas() {
     renderFaturamentoKPIs();
     const tbody = document.getElementById('fat-faturas-tbody');
@@ -6400,12 +6463,32 @@ function renderFatFaturas() {
     }
     const mesSel = elMes ? elMes.value : null;
 
+    const elStatus = document.getElementById('fat-filtro-status');
+    const elParc = document.getElementById('fat-filtro-parceiro');
+    const elBusca = document.getElementById('fat-busca');
+    const fStatus = (elStatus && elStatus.value) || '';
+    const fParceiro = elParc && elParc.value ? parseInt(elParc.value) : null;
+    const termo = ((elBusca && elBusca.value) || '').trim().toUpperCase();
+
     const daUnidade = db.faturas.filter(f => f.unidadeId === activeUnitId);
+    popularFiltroParceirosFaturas(daUnidade);
+
+    const nomeParceiro = (id) => {
+        const p = db.parceiros.find(x => x.id === id);
+        return p ? p.nome : 'Parceiro removido';
+    };
+
     const faturas = daUnidade
         .filter(f => verTodas || !mesSel || mesDaFatura(f, criterio) === mesSel)
+        .filter(f => !fStatus || (fStatus === 'pago' ? f.pago : !f.pago))
+        .filter(f => !fParceiro || f.parceiroId === fParceiro)
+        .filter(f => !termo
+            || String(f.codigo || '').toUpperCase().includes(termo)
+            || nomeParceiro(f.parceiroId).toUpperCase().includes(termo))
         .sort((a, b) => b.id - a.id);
 
     renderResumoFaturas(faturas, criterio, verTodas, mesSel);
+    renderRodapeFaturas(faturas);
 
     if (faturas.length === 0) {
         const msg = daUnidade.length === 0
@@ -6453,13 +6536,21 @@ function renderFatFaturas() {
         return `
             <tr>
                 <td><strong>${f.codigo}</strong></td>
-                <td>${formatDateBr(f.criadoEm)}</td>
-                <td>${partner ? partner.nome : '—'}</td>
-                <td>${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}</td>
+                <td>${partner ? partner.nome : '<span style="color:var(--text-muted);">Parceiro removido</span>'}</td>
+                <td style="white-space: nowrap;">
+                    ${formatDateBr(f.periodoInicio)}${f.periodoInicio !== f.periodoFim ? ' a ' + formatDateBr(f.periodoFim) : ''}
+                </td>
+                <td style="white-space: nowrap;">
+                    ${formatDateBr(f.criadoEm)}
+                    <div style="font-size: 11px; color: var(--text-muted);">${f.criadoPor || '—'}</div>
+                </td>
                 <td style="text-align: center; font-weight: 600;">${f.ordensIds.length}</td>
-                <td style="text-align: right; color: var(--success); font-weight: 700;">${formatCurrency(f.valorTotal)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${f.pago ? 'var(--success)' : 'var(--text-primary)'};">${formatCurrency(f.valorTotal)}</td>
                 <td>${statusBadge}</td>
-                <td>${formatDateBr(f.pagoEm)}</td>
+                <td style="white-space: nowrap;">
+                    ${f.pago ? formatDateBr(f.pagoEm) : '<span style="color:var(--text-muted);">—</span>'}
+                    ${f.pago ? `<div style="font-size: 11px; color: var(--text-muted);">${f.pagoPor || 'não registrado'}</div>` : ''}
+                </td>
                 <td>${boletoBadge}</td>
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
@@ -6514,7 +6605,11 @@ async function liquidateInvoice(invoiceId) {
                 const insertedMov = await sbInsert('caixa_movimentos', newMov);
                 db.caixa_movimentos.unshift(insertedMov);
 
-                await dbSave('faturas', { pago: true, pagoEm: invoice.pagoEm }, 'update', invoice.id);
+                await dbSave('faturas', {
+                    pago: true,
+                    pagoEm: invoice.pagoEm,
+                    pagoPor: currentSession ? currentSession.nome : 'Sistema'
+                }, 'update', invoice.id);
 
                 for (const osId of invoice.ordensIds) {
                     await dbSave('ordens_servico', { pago: true }, 'update', osId);
@@ -10016,7 +10111,11 @@ async function liquidateInvoiceDirect(invoiceId) {
             const insertedMov = await sbInsert('caixa_movimentos', newMov);
             db.caixa_movimentos.unshift(insertedMov);
 
-            await dbSave('faturas', { pago: true, pagoEm: invoice.pagoEm }, 'update', invoice.id);
+            await dbSave('faturas', {
+                pago: true,
+                pagoEm: invoice.pagoEm,
+                pagoPor: currentSession ? currentSession.nome : 'Sistema'
+            }, 'update', invoice.id);
 
             for (const osId of invoice.ordensIds) {
                 await dbSave('ordens_servico', { pago: true }, 'update', osId);

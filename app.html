@@ -1172,12 +1172,37 @@
                                 </select>
                             </div>
 
+                            <div class="form-group" style="margin: 0; min-width: 180px;">
+                                <label for="fat-filtro-status">Situação</label>
+                                <select id="fat-filtro-status" onchange="renderFatFaturas()">
+                                    <option value="">Todas</option>
+                                    <option value="aberto">Somente em aberto</option>
+                                    <option value="pago">Somente pagas</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin: 0; min-width: 190px;">
+                                <label for="fat-filtro-parceiro">Parceiro</label>
+                                <select id="fat-filtro-parceiro" onchange="renderFatFaturas()">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin: 0; min-width: 170px;">
+                                <label for="fat-busca">Buscar</label>
+                                <input type="text" id="fat-busca" placeholder="Código ou parceiro" oninput="renderFatFaturas()">
+                            </div>
+
                             <div class="form-group" style="margin: 0;">
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 400;">
                                     <input type="checkbox" id="fat-ver-todas" onchange="renderFatFaturas()">
                                     Ver todas (ignorar o mês)
                                 </label>
                             </div>
+
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="limparFiltrosFaturas()" style="margin-left:auto;">
+                                <i class="ri-filter-off-line"></i> Limpar filtros
+                            </button>
                         </div>
                     </div>
 
@@ -1189,14 +1214,14 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Código Fat.</th>
-                                    <th>Data Emissão</th>
+                                    <th>Código</th>
                                     <th>Parceiro</th>
-                                    <th>Período Cobrança</th>
-                                    <th style="text-align: center;">Qtd OS</th>
-                                    <th style="text-align: right;">Valor Total</th>
-                                    <th>Status</th>
-                                    <th>Data Baixa</th>
+                                    <th>Competência<br><span style="font-weight:400; font-size:10px; opacity:.7;">vistorias</span></th>
+                                    <th>Gerada em<br><span style="font-weight:400; font-size:10px; opacity:.7;">por quem</span></th>
+                                    <th style="text-align: center;">OS</th>
+                                    <th style="text-align: right;">Valor</th>
+                                    <th>Situação</th>
+                                    <th>Baixa em<br><span style="font-weight:400; font-size:10px; opacity:.7;">por quem</span></th>
                                     <th>Boleto</th>
                                     <th>Ações</th>
                                 </tr>
@@ -1204,6 +1229,7 @@
                             <tbody id="fat-faturas-tbody">
                                 <!-- JS -->
                             </tbody>
+                            <tfoot id="fat-faturas-tfoot"></tfoot>
                         </table>
                     </div>
                 </div>
