@@ -1141,6 +1141,18 @@ function checkSession() {
 
 async function handleLogin(event) {
     event.preventDefault();
+
+    // Trava contra envio duplo. O login é assíncrono (autentica e depois carrega
+    // toda a base), e dois Enter seguidos disparavam duas cargas simultâneas —
+    // por isso os dois "Bem-vindo" empilhados. Duas cargas concorrentes também
+    // dobram o volume baixado e ajudam a estourar o tempo limite do servidor.
+    if (window.__logando) return;
+    const btnLogin = event.target && event.target.querySelector
+        ? event.target.querySelector('button[type="submit"]') : null;
+    window.__logando = true;
+    if (btnLogin) { btnLogin.disabled = true; btnLogin.style.opacity = '0.6'; }
+    try {
+
     const loginInput = document.getElementById('login-username').value.trim();
     const passwordInput = document.getElementById('login-password').value.trim();
     const errorDiv = document.getElementById('login-error');
@@ -1204,6 +1216,12 @@ async function handleLogin(event) {
     } catch (e) {
         console.error("Erro no login:", e);
         mostrarErro("Não foi possível conectar. Verifique a internet e tente novamente.");
+    }
+
+    } finally {
+        // Libera sempre: se o login falhar, o operador precisa tentar de novo.
+        window.__logando = false;
+        if (btnLogin) { btnLogin.disabled = false; btnLogin.style.opacity = ''; }
     }
 }
 
@@ -1299,9 +1317,35 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.3.0';
+const APP_VERSION = '9.4.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.4.0',
+        data: '2026-09-01',
+        titulo: 'Correção do erro de conexão',
+        resumo: 'O sistema deixou de baixar 28 MB de anexos a cada login. Era isso que causava o "Erro ao conectar com o banco de dados", principalmente no celular.',
+        mudancas: [
+            {
+                area: 'Todo o sistema',
+                titulo: 'O erro de conexão foi corrigido',
+                oQueMudou: 'A cada login o sistema baixava todos os anexos, comprovantes e contratos de uma vez — cerca de 28 MB. No celular isso estourava o tempo limite do servidor e aparecia o erro de conexão. Agora esses arquivos só são baixados quando alguém clica para abrir.',
+                comoUsar: 'Nada muda no seu jeito de usar. Ao clicar para ver um anexo ou comprovante, ele aparece "Carregando..." por um instante antes de abrir — é normal, está buscando só aquele arquivo.'
+            },
+            {
+                area: 'Todo o sistema',
+                titulo: 'Falha de rede tenta de novo sozinha',
+                oQueMudou: 'Uma oscilação de internet derrubava o carregamento inteiro. Agora o sistema tenta novamente até três vezes antes de desistir.',
+                comoUsar: 'Se aparecer o erro de conexão mesmo assim, é sinal de queda real de internet, não de instabilidade momentânea.'
+            },
+            {
+                area: 'Acesso',
+                titulo: 'Login não entra duas vezes',
+                oQueMudou: 'Dois toques seguidos no botão de entrar disparavam dois carregamentos ao mesmo tempo, dobrando o volume baixado. Era por isso que às vezes apareciam duas mensagens de boas-vindas.',
+                comoUsar: 'O botão trava sozinho enquanto entra. Se o login falhar, ele destrava para você tentar de novo.'
+            }
+        ]
+    },
     {
         versao: '9.3.0',
         data: '2026-08-31',
@@ -3978,10 +4022,21 @@ function saveOSRecurringSolicitor(os) {
 }
 
 // Signed contract viewer modals
-function openContratoFirmadoModal(osId) {
+async function openContratoFirmadoModal(osId) {
     const os = db.ordens_servico.find(o => o.id === osId);
     if (!os) return;
-    
+
+    // O texto do contrato não vem no carregamento inicial. Buscar o original
+    // importa aqui: o gerado na hora pode divergir do que o cliente assinou,
+    // se o modelo mudou depois. É o texto assinado que tem valor.
+    if (!os.contratoTexto && os.temContrato && typeof carregarCampoPesado === 'function') {
+        try {
+            await carregarCampoPesado('ordens_servico', osId, 'contratoTexto');
+        } catch (e) {
+            showToast("Não foi possível carregar o contrato assinado. Exibindo o modelo atual.", "warning");
+        }
+    }
+
     window.viewingSignedOS = os;
     
     document.getElementById('contrato-firmado-hash-display').textContent = `Hash: ${os.contratoHash || 'NÃO ASSINADO'}`;
@@ -7014,11 +7069,11 @@ function renderContasGerais() {
                </small>`
             : '';
 
-        const anexoHtml = c.anexo
+        const anexoHtml = (c.temAnexo || c.anexo)
             ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="previewExpenseAttachment(${c.id})" title="Visualizar Fatura" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-eye-line" style="font-size: 14px;"></i></button>`
             : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
 
-        const comprovanteHtml = c.comprovante
+        const comprovanteHtml = (c.temComprovante || c.comprovante)
             ? `<button class="btn btn-success btn-sm btn-icon" onclick="previewExpenseComprovante(${c.id})" title="Visualizar Comprovante" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><i class="ri-checkbox-circle-line" style="font-size: 14px;"></i></button>`
             : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
 
@@ -7344,8 +7399,18 @@ function submitPayExpense(id) {
     reader.readAsDataURL(file);
 }
 
-function previewExpenseComprovante(id) {
+async function previewExpenseComprovante(id) {
     const expense = db.contas_pagar.find(c => c.id === id);
+    // O comprovante não vem no carregamento inicial (base64 pesado): busca agora.
+    if (expense && !expense.comprovante && expense.temComprovante && typeof carregarCampoPesado === 'function') {
+        showToast("Carregando comprovante...", "info");
+        try {
+            await carregarCampoPesado('contas_pagar', id, 'comprovante');
+        } catch (e) {
+            showToast("Não foi possível carregar o comprovante.", "error");
+            return;
+        }
+    }
     if (!expense || !expense.comprovante) {
         showToast("Comprovante não localizado.", "error");
         return;
@@ -7390,8 +7455,18 @@ function copyToClipboard(text) {
     });
 }
 
-function previewExpenseAttachment(id) {
+async function previewExpenseAttachment(id) {
     const expense = db.contas_pagar.find(c => c.id === id);
+    // O anexo não vem no carregamento inicial (base64 pesado): busca agora.
+    if (expense && !expense.anexo && expense.temAnexo && typeof carregarCampoPesado === 'function') {
+        showToast("Carregando anexo...", "info");
+        try {
+            await carregarCampoPesado('contas_pagar', id, 'anexo');
+        } catch (e) {
+            showToast("Não foi possível carregar o anexo.", "error");
+            return;
+        }
+    }
     if (!expense || !expense.anexo) {
         showToast("Anexo não localizado.", "error");
         return;
