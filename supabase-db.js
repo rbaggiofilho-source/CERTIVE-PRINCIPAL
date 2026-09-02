@@ -197,17 +197,83 @@ async function sbDeleteWhere(table, field, value) {
 /**
  * Select all records from a table, with optional ordering.
  */
-async function sbSelectAll(table, orderBy = 'id', ascending = true) {
+// ---- CAMPOS PESADOS ----
+// Anexos, comprovantes e contratos são gravados como base64 dentro da linha.
+// Trazê-los no carregamento inicial significa baixar ~28 MB a cada login:
+//
+//   contas_pagar.anexo         9,9 MB   (42 linhas)
+//   contas_pagar.comprovante   9,8 MB   (23 linhas)
+//   ordens_servico.contratoTexto 6,3 MB (473 linhas)
+//   caixa_diario.relatorioDetran 1,8 MB (56 linhas)
+//
+// No celular isso estourava o tempo limite do PostgREST ("Thread killed by
+// timeout manager" nos logs) e o app mostrava "Erro ao conectar com o banco
+// de dados". Estes campos passam a ser buscados só quando alguém abre o
+// anexo — ver carregarCampoPesado.
+const CAMPOS_PESADOS = {
+    contas_pagar:   ['anexo', 'comprovante'],
+    ordens_servico: ['contratoTexto'],
+    caixa_diario:   ['relatorioDetran']
+};
+
+const COLUNAS_LEVES = {
+    contas_pagar: 'id,unidadeId,descricao,tipo,vencimento,valor,observacoes,pago,pagoEm,recorrente,frequencia,recorrenciaGrupoId,codigoBarras,categoria,fornecedor,criadoPor,competencia,"temAnexo","temComprovante"',
+    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato"',
+    caixa_diario: 'id,unidadeId,data,status,abertoPor,fechadoPor,fechadoEm,saldoAbertura,"saldoEspécieInformado","temRelatorioDetran"'
+};
+
+// Busca sob demanda um campo pesado de um registro. Usado ao abrir o anexo.
+async function carregarCampoPesado(table, id, campo) {
+    if (!window.useSupabase) return null;
+    const alvo = (db[table] || []).find(r => r.id === id);
+    if (alvo && alvo[campo] !== undefined && alvo[campo] !== null) return alvo[campo];
+
     const { data, error } = await supabaseClient
-        .from(table)
-        .select('*')
-        .order(orderBy, { ascending });
-    
+        .from(table).select(campo).eq('id', id).single();
     if (error) {
-        console.error(`❌ sbSelectAll(${table}):`, error.message);
+        console.error(`❌ carregarCampoPesado(${table}.${campo}#${id}):`, error.message);
         throw error;
     }
-    return (data || []).map(r => prepareRecordFromDb(table, r));
+    const valor = data ? data[campo] : null;
+    if (alvo) alvo[campo] = valor;   // guarda no cache para não rebaixar
+    return valor;
+}
+window.carregarCampoPesado = carregarCampoPesado;
+
+// Repete a consulta em falha de rede. Uma requisição que morre por oscilação
+// no celular derrubava o carregamento inteiro, porque o Promise.all rejeita
+// tudo se um item falhar.
+async function comRetentativa(fn, descricao, tentativas = 3) {
+    let ultimoErro;
+    for (let i = 1; i <= tentativas; i++) {
+        try {
+            return await fn();
+        } catch (err) {
+            ultimoErro = err;
+            if (i < tentativas) {
+                const espera = 400 * Math.pow(2, i - 1);   // 400ms, 800ms
+                console.warn(`⚠️ ${descricao} falhou (tentativa ${i}/${tentativas}). Repetindo em ${espera}ms.`);
+                await new Promise(r => setTimeout(r, espera));
+            }
+        }
+    }
+    throw ultimoErro;
+}
+
+async function sbSelectAll(table, orderBy = 'id', ascending = true) {
+    const colunas = COLUNAS_LEVES[table] || '*';
+    return comRetentativa(async () => {
+        const { data, error } = await supabaseClient
+            .from(table)
+            .select(colunas)
+            .order(orderBy, { ascending });
+
+        if (error) {
+            console.error(`❌ sbSelectAll(${table}):`, error.message);
+            throw error;
+        }
+        return (data || []).map(r => prepareRecordFromDb(table, r));
+    }, `sbSelectAll(${table})`);
 }
 
 /**
