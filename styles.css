@@ -1759,11 +1759,28 @@ select option {
   }
 
   /* Botões e alvos de toque maiores */
-  .btn, .nav-item, .tab-item {
+  .btn, .tab-item {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  /* O item de menu também precisa do alvo de toque de 44px, mas NÃO pode
+     virar inline-flex centralizado como um botão: centralizar faz cada linha
+     ficar tão larga quanto o próprio texto, e o ícone passa a começar numa
+     posição diferente em cada item, conforme o tamanho do nome. O menu é uma
+     lista — ocupa a largura toda, com ícone e texto alinhados à esquerda. */
+  .nav-item {
+    min-height: 44px;
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
     padding-top: 6px;
     padding-bottom: 6px;
   }
