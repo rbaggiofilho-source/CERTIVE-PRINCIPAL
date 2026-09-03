@@ -1317,15 +1317,21 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.4.0';
+const APP_VERSION = '9.4.1';
 
 const ATUALIZACOES = [
     {
-        versao: '9.4.0',
+        versao: '9.4.1',
         data: '2026-09-01',
-        titulo: 'Correção do erro de conexão',
-        resumo: 'O sistema deixou de baixar 28 MB de anexos a cada login. Era isso que causava o "Erro ao conectar com o banco de dados", principalmente no celular.',
+        titulo: 'Correção do erro de conexão e do menu no celular',
+        resumo: 'O sistema deixou de baixar 28 MB de anexos a cada login. Era isso que causava o "Erro ao conectar com o banco de dados", principalmente no celular. O menu lateral também voltou a ficar alinhado.',
         mudancas: [
+            {
+                area: 'Menu',
+                titulo: 'Menu lateral alinhado no celular',
+                oQueMudou: 'No celular, cada item do menu aparecia numa posição diferente, como se estivesse torto. Uma regra feita para deixar os botões maiores no toque estava sendo aplicada também ao menu, e centralizava cada linha conforme o tamanho do nome.',
+                comoUsar: 'Nada muda no uso. Se o menu ainda aparecer torto depois desta atualização, feche e abra o navegador para ele buscar a versão nova do visual.'
+            },
             {
                 area: 'Todo o sistema',
                 titulo: 'O erro de conexão foi corrigido',
