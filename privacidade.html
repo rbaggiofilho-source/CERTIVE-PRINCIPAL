@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Política de Privacidade — Certive Vistorias</title>
+    <meta name="description" content="Política de Privacidade da Certive Vistorias Veiculares. Saiba como coletamos, usamos, armazenamos e protegemos os seus dados pessoais, em conformidade com a LGPD.">
+    <meta name="robots" content="index, follow">
+
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#080d1a">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+
+    <link rel="stylesheet" href="site.css?v=20260722_1045">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+    <style>
+        .legal-hero {
+            padding: 140px 0 40px;
+            background: radial-gradient(circle at 80% 20%, rgba(var(--accent-rgb), 0.08) 0%, transparent 50%);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .legal-hero .container { max-width: 900px; }
+        .legal-hero .eyebrow {
+            display: inline-block;
+            font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+            color: var(--accent); margin-bottom: 14px;
+        }
+        .legal-hero h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(30px, 5vw, 46px); font-weight: 800; line-height: 1.1;
+            color: var(--text-primary); margin-bottom: 16px;
+        }
+        .legal-hero .meta { font-size: 14px; color: var(--text-muted); }
+
+        .legal-body { padding: 50px 0 90px; }
+        .legal-body .container { max-width: 900px; }
+
+        .legal-toc {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 24px 28px;
+            margin-bottom: 48px;
+        }
+        .legal-toc h2 { font-family: 'Outfit', sans-serif; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 16px; }
+        .legal-toc ol { list-style: none; counter-reset: toc; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 24px; }
+        .legal-toc li { counter-increment: toc; }
+        .legal-toc a { color: var(--text-secondary); text-decoration: none; font-size: 14px; display: flex; gap: 8px; padding: 4px 0; transition: var(--transition); }
+        .legal-toc a::before { content: counter(toc) "."; color: var(--accent); font-weight: 700; min-width: 22px; }
+        .legal-toc a:hover { color: var(--text-primary); }
+
+        .legal-content section { margin-bottom: 42px; scroll-margin-top: 110px; }
+        .legal-content h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light);
+            display: flex; align-items: baseline; gap: 12px;
+        }
+        .legal-content h2 .n { color: var(--accent); font-size: 16px; font-weight: 800; }
+        .legal-content h3 { font-family: 'Outfit', sans-serif; font-size: 17px; color: var(--text-primary); margin: 22px 0 10px; }
+        .legal-content p, .legal-content li { color: var(--text-secondary); font-size: 15.5px; line-height: 1.8; }
+        .legal-content p { margin-bottom: 14px; }
+        .legal-content ul { margin: 0 0 16px; padding-left: 22px; }
+        .legal-content li { margin-bottom: 8px; }
+        .legal-content strong { color: var(--text-primary); }
+        .legal-content a { color: var(--accent); text-decoration: none; }
+        .legal-content a:hover { text-decoration: underline; }
+
+        .legal-content table { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: 14.5px; }
+        .legal-content th, .legal-content td { text-align: left; padding: 12px 14px; border: 1px solid var(--border-light); vertical-align: top; }
+        .legal-content th { background: rgba(var(--accent-rgb), 0.08); color: var(--text-primary); font-family: 'Outfit', sans-serif; font-weight: 600; }
+        .legal-content td { color: var(--text-secondary); line-height: 1.65; }
+        .table-wrap { overflow-x: auto; }
+
+        .callout {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+            padding: 18px 22px; margin: 20px 0;
+        }
+        .callout p { margin: 0; font-size: 14.5px; }
+
+        .legal-contact-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(8,13,26,0.4) 100%);
+            border: 1px solid var(--accent); border-radius: var(--radius);
+            padding: 28px 32px; margin-top: 8px;
+        }
+        .legal-contact-card p { margin-bottom: 8px; }
+        .legal-contact-card i { color: var(--accent); margin-right: 8px; }
+
+        .top-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+        .top-link:hover { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER / NAVEGAÇÃO ===== -->
+    <header class="site-header" id="site-header">
+        <div class="container header-container">
+            <a href="index.html" class="logo">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/>
+                </svg>
+                <div class="logo-text">
+                    <h1>CERTIVE</h1>
+                    <span>Vistorias</span>
+                </div>
+            </a>
+
+            <nav>
+                <ul class="nav-menu" id="nav-menu">
+                    <li><a href="index.html" class="nav-link">Home</a></li>
+                    <li><a href="index.html#servicos" class="nav-link">Serviços</a></li>
+                    <li><a href="index.html#localizacao" class="nav-link">Localização</a></li>
+                    <li><a href="curso.html" class="nav-link"><i class="ri-graduation-cap-line"></i> Curso</a></li>
+                    <li><a href="app.html" class="btn-restricted"><i class="ri-lock-2-line"></i> Área Restrita</a></li>
+                </ul>
+            </nav>
+
+            <button class="btn-mobile-nav" id="btn-mobile-nav" onclick="toggleMobileMenu()">
+                <i class="ri-menu-line"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ===== HERO ===== -->
+    <section class="legal-hero">
+        <div class="container">
+            <span class="eyebrow">Documento Legal</span>
+            <h1>Política de Privacidade</h1>
+            <p class="meta">Última atualização: 15 de setembro de 2026 &nbsp;·&nbsp; Vigência a partir da data de publicação</p>
+        </div>
+    </section>
+
+    <!-- ===== CONTEÚDO ===== -->
+    <section class="legal-body">
+        <div class="container">
+
+            <nav class="legal-toc" aria-label="Índice">
+                <h2>Índice</h2>
+                <ol>
+                    <li><a href="#quem-somos">Quem somos e o controlador</a></li>
+                    <li><a href="#definicoes">Definições</a></li>
+                    <li><a href="#dados">Dados que coletamos</a></li>
+                    <li><a href="#finalidades">Finalidades e bases legais</a></li>
+                    <li><a href="#compartilhamento">Com quem compartilhamos</a></li>
+                    <li><a href="#cookies">Cookies e tecnologias</a></li>
+                    <li><a href="#armazenamento">Armazenamento e segurança</a></li>
+                    <li><a href="#retencao">Prazo de retenção</a></li>
+                    <li><a href="#direitos">Seus direitos (LGPD)</a></li>
+                    <li><a href="#internacional">Transferência internacional</a></li>
+                    <li><a href="#menores">Crianças e adolescentes</a></li>
+                    <li><a href="#alteracoes">Alterações desta política</a></li>
+                    <li><a href="#contato">Como falar com a Certive</a></li>
+                </ol>
+            </nav>
+
+            <div class="legal-content">
+
+                <p>A sua privacidade é prioridade para a <strong>Certive Vistorias Veiculares</strong>. Esta Política de Privacidade descreve, de forma transparente, como coletamos, utilizamos, armazenamos, compartilhamos e protegemos os seus dados pessoais quando você utiliza o nosso site, a nossa plataforma de gestão, os nossos serviços de vistoria veicular e os nossos canais de atendimento.</p>
+                <p>Este documento foi elaborado em conformidade com a <strong>Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD)</strong>, com o Marco Civil da Internet (Lei nº 12.965/2014) e com o Código de Defesa do Consumidor (Lei nº 8.078/1990).</p>
+
+                <section id="quem-somos">
+                    <h2><span class="n">01</span> Quem somos e o controlador dos dados</h2>
+                    <p>A <strong>Certive Vistorias Veiculares</strong> é uma empresa especializada em vistorias veiculares cautelares, de transferência e laudos técnicos, com sede em São José, Santa Catarina, e é a <strong>controladora</strong> dos dados pessoais tratados por meio de seus canais digitais e presenciais, nos termos do art. 5º, VI, da LGPD.</p>
+                    <ul>
+                        <li><strong>Razão social:</strong> MELEGARI TECH SOLUÇÕES VEICULARES LTDA (nome fantasia: Certive Vistorias)</li>
+                        <li><strong>CNPJ:</strong> 64.683.079/0001-85</li>
+                        <li><strong>Endereço:</strong> Rua das Camélias, 345 — Bairro Kobrasol, São José/SC, CEP 88102-480</li>
+                        <li><strong>Site:</strong> <a href="https://certive.com.br">certive.com.br</a></li>
+                        <li><strong>Contato do Encarregado (DPO):</strong> <a href="mailto:certivevistorias@gmail.com">certivevistorias@gmail.com</a></li>
+                    </ul>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="definicoes">
+                    <h2><span class="n">02</span> Definições</h2>
+                    <ul>
+                        <li><strong>Dado pessoal:</strong> qualquer informação relacionada a pessoa natural identificada ou identificável.</li>
+                        <li><strong>Titular:</strong> a pessoa natural a quem se referem os dados pessoais (você).</li>
+                        <li><strong>Tratamento:</strong> toda operação realizada com dados pessoais, como coleta, uso, acesso, armazenamento, compartilhamento e eliminação.</li>
+                        <li><strong>Controlador:</strong> a Certive, responsável pelas decisões sobre o tratamento.</li>
+                        <li><strong>Operador:</strong> quem realiza o tratamento em nome do controlador (por exemplo, provedores de tecnologia).</li>
+                        <li><strong>ANPD:</strong> Autoridade Nacional de Proteção de Dados.</li>
+                    </ul>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="dados">
+                    <h2><span class="n">03</span> Dados que coletamos</h2>
+                    <p>Coletamos apenas os dados necessários para prestar nossos serviços e cumprir obrigações legais. As categorias são:</p>
+
+                    <h3>3.1. Dados fornecidos por você</h3>
+                    <ul>
+                        <li><strong>Dados cadastrais e de contato:</strong> nome completo, CPF ou CNPJ, telefone/WhatsApp, e-mail e endereço.</li>
+                        <li><strong>Dados do veículo e da vistoria:</strong> placa, chassi, RENAVAM, marca, modelo, ano, características técnicas, fotografias e informações necessárias à elaboração do laudo.</li>
+                        <li><strong>Dados de agendamento e atendimento:</strong> data, horário, unidade, mensagens trocadas com nossa equipe e histórico de solicitações.</li>
+                        <li><strong>Dados de pagamento:</strong> informações necessárias à cobrança e emissão de documento fiscal (processadas por instituições financeiras/meios de pagamento; a Certive não armazena dados completos de cartão).</li>
+                    </ul>
+
+                    <h3>3.2. Dados coletados automaticamente</h3>
+                    <ul>
+                        <li><strong>Dados de navegação:</strong> endereço IP, tipo de dispositivo e navegador, sistema operacional, páginas acessadas, data e hora de acesso.</li>
+                        <li><strong>Cookies e identificadores:</strong> conforme descrito na seção 6.</li>
+                    </ul>
+
+                    <h3>3.3. Dados de acesso ao Portal de Gestão</h3>
+                    <p>Para operadores credenciados, parceiros e lojistas com acesso à Área Restrita, tratamos credenciais de acesso e registros de atividade (logs) necessários à segurança e à auditoria da plataforma.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="finalidades">
+                    <h2><span class="n">04</span> Finalidades e bases legais</h2>
+                    <p>Tratamos seus dados para finalidades específicas, cada qual amparada por uma base legal prevista na LGPD:</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Finalidade</th><th>Base legal (LGPD)</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Realizar vistorias, elaborar e disponibilizar laudos técnicos</td><td>Execução de contrato (art. 7º, V)</td></tr>
+                                <tr><td>Agendar atendimentos e comunicar resultados (inclusive via WhatsApp)</td><td>Execução de contrato / legítimo interesse (art. 7º, V e IX)</td></tr>
+                                <tr><td>Emitir documentos fiscais e efetuar cobranças</td><td>Cumprimento de obrigação legal (art. 7º, II)</td></tr>
+                                <tr><td>Atender órgãos de trânsito e demais exigências regulatórias</td><td>Cumprimento de obrigação legal/regulatória (art. 7º, II)</td></tr>
+                                <tr><td>Prevenir fraudes e garantir a segurança da plataforma</td><td>Legítimo interesse (art. 7º, IX)</td></tr>
+                                <tr><td>Enviar comunicações promocionais e novidades</td><td>Consentimento (art. 7º, I)</td></tr>
+                                <tr><td>Aprimorar serviços e realizar análises estatísticas</td><td>Legítimo interesse (art. 7º, IX)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Quando o tratamento se basear em <strong>consentimento</strong>, você poderá revogá-lo a qualquer momento, sem prejuízo dos tratamentos já realizados.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="compartilhamento">
+                    <h2><span class="n">05</span> Com quem compartilhamos seus dados</h2>
+                    <p>A Certive <strong>não vende</strong> dados pessoais. O compartilhamento ocorre apenas quando necessário e limitado às finalidades desta política:</p>
+                    <ul>
+                        <li><strong>Órgãos públicos e de trânsito:</strong> como o DETRAN e demais autoridades, quando exigido para a finalidade da vistoria ou por obrigação legal.</li>
+                        <li><strong>Parceiros e clientes solicitantes:</strong> lojistas, seguradoras ou contratantes autorizados a receber o laudo, quando você for o objeto ou o solicitante do serviço.</li>
+                        <li><strong>Prestadores de serviço (operadores):</strong> provedores de infraestrutura em nuvem e banco de dados, hospedagem do site, plataformas de mensageria (por exemplo, WhatsApp) e meios de pagamento, que tratam dados exclusivamente em nome da Certive e sob obrigações de confidencialidade e segurança.</li>
+                        <li><strong>Autoridades e Poder Judiciário:</strong> em cumprimento de determinação legal, regulatória ou judicial.</li>
+                    </ul>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="cookies">
+                    <h2><span class="n">06</span> Cookies e tecnologias de rastreamento</h2>
+                    <p>Utilizamos cookies e tecnologias semelhantes para o funcionamento do site, para lembrar preferências, para manter sessões autenticadas na Área Restrita e para medir o desempenho das páginas. Você pode gerenciar ou bloquear cookies nas configurações do seu navegador; a desativação de determinados cookies pode limitar funcionalidades da plataforma.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="armazenamento">
+                    <h2><span class="n">07</span> Armazenamento e segurança</h2>
+                    <p>Seus dados são armazenados em ambientes seguros, com controle de acesso e adoção de medidas técnicas e administrativas aptas a proteger as informações contra acessos não autorizados, perda, alteração ou divulgação indevida, tais como criptografia em trânsito, políticas de acesso restrito e registros de auditoria.</p>
+                    <div class="callout">
+                        <p>Nenhum sistema é totalmente imune a incidentes. Caso ocorra um incidente de segurança que possa acarretar risco relevante aos titulares, a Certive adotará as providências cabíveis e comunicará os titulares e a ANPD, na forma da lei.</p>
+                    </div>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="retencao">
+                    <h2><span class="n">08</span> Prazo de retenção</h2>
+                    <p>Mantemos os dados pessoais apenas pelo tempo necessário ao cumprimento das finalidades para as quais foram coletados. Laudos, dados de vistoria e documentos fiscais podem ser retidos por prazos maiores para o cumprimento de obrigações legais e regulatórias, o exercício regular de direitos e a preservação de provas. Encerrado o prazo e a necessidade, os dados são eliminados ou anonimizados.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="direitos">
+                    <h2><span class="n">09</span> Seus direitos como titular</h2>
+                    <p>Nos termos do art. 18 da LGPD, você pode, a qualquer momento, solicitar:</p>
+                    <ul>
+                        <li>Confirmação da existência de tratamento;</li>
+                        <li>Acesso aos seus dados;</li>
+                        <li>Correção de dados incompletos, inexatos ou desatualizados;</li>
+                        <li>Anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desconformidade com a lei;</li>
+                        <li>Portabilidade dos dados a outro fornecedor, mediante requisição expressa;</li>
+                        <li>Eliminação dos dados tratados com base no consentimento;</li>
+                        <li>Informação sobre com quem compartilhamos seus dados;</li>
+                        <li>Informação sobre a possibilidade de não fornecer consentimento e suas consequências;</li>
+                        <li>Revogação do consentimento.</li>
+                    </ul>
+                    <p>Para exercer seus direitos, entre em contato pelo e-mail <a href="mailto:certivevistorias@gmail.com">certivevistorias@gmail.com</a>. Poderemos solicitar informações para confirmar sua identidade antes de atender ao pedido.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="internacional">
+                    <h2><span class="n">10</span> Transferência internacional de dados</h2>
+                    <p>Alguns de nossos prestadores de serviço de tecnologia podem armazenar ou processar dados em servidores localizados fora do Brasil. Nesses casos, adotamos medidas para garantir que a transferência ocorra em conformidade com a LGPD e com garantias adequadas de proteção dos dados.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="menores">
+                    <h2><span class="n">11</span> Crianças e adolescentes</h2>
+                    <p>Nossos serviços destinam-se a pessoas maiores de 18 anos. Não coletamos intencionalmente dados de crianças e adolescentes. Caso identifiquemos tal coleta sem a devida autorização, os dados serão eliminados.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="alteracoes">
+                    <h2><span class="n">12</span> Alterações desta política</h2>
+                    <p>Esta Política de Privacidade pode ser atualizada a qualquer momento para refletir mudanças em nossos serviços ou na legislação. A versão vigente estará sempre disponível nesta página, com a respectiva data de atualização. Recomendamos a consulta periódica.</p>
+                    <a class="top-link" href="#quem-somos">↑ voltar ao topo</a>
+                </section>
+
+                <section id="contato">
+                    <h2><span class="n">13</span> Como falar com a Certive</h2>
+                    <p>Em caso de dúvidas sobre esta política ou sobre o tratamento dos seus dados, fale com o nosso Encarregado de Proteção de Dados:</p>
+                    <div class="legal-contact-card">
+                        <p><i class="ri-mail-line"></i> <a href="mailto:certivevistorias@gmail.com">certivevistorias@gmail.com</a></p>
+                        <p><i class="ri-whatsapp-line"></i> (48) 93381-6198</p>
+                        <p><i class="ri-map-pin-2-line"></i> Rua das Camélias, 345 — Kobrasol, São José/SC, CEP 88102-480</p>
+                    </div>
+                    <p style="margin-top:24px;">Consulte também os nossos <a href="termos.html">Termos de Uso</a>.</p>
+                </section>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="container">
+            <p style="margin-bottom:10px;">
+                <a href="index.html" style="color:var(--text-secondary);text-decoration:none;">Home</a> &nbsp;·&nbsp;
+                <a href="privacidade.html" style="color:var(--accent);text-decoration:none;">Política de Privacidade</a> &nbsp;·&nbsp;
+                <a href="termos.html" style="color:var(--text-secondary);text-decoration:none;">Termos de Uso</a>
+            </p>
+            <p>&copy; 2026 Certive Vistorias Veiculares. Todos os direitos reservados.</p>
+            <p>São José - Santa Catarina - Brasil</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.getElementById('nav-menu');
+            if (menu) menu.classList.toggle('active');
+        }
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('site-header');
+            if (!header) return;
+            if (window.scrollY > 50) header.classList.add('header-scrolled');
+            else header.classList.remove('header-scrolled');
+        });
+    </script>
+</body>
+</html>
