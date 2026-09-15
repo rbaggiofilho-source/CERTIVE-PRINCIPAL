@@ -217,6 +217,9 @@ CREATE TABLE configuracoes_gerais (
   "chaveOpenAi" TEXT,
   "modeloOpenAi" TEXT NOT NULL DEFAULT 'gpt-4o-mini',
   "promptInstrucoes" TEXT,
+  "fatBanco" JSONB,
+  "fatEmailAssunto" TEXT,
+  "fatEmailCorpo" TEXT,
   "atualizadoEm" TIMESTAMPTZ DEFAULT NOW(),
   "atualizadoPor" TEXT
 );

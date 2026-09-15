@@ -6741,9 +6741,9 @@ function printInvoiceById(invoiceId) {
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
+            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
+            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -6794,10 +6794,10 @@ function printInvoiceById(invoiceId) {
                     <thead>
                         <tr style="border-bottom: 1px solid #000; text-align: left; font-size: 10px; color: #333; text-transform: uppercase;">
                             <th style="padding: 6px;">OS</th>
-                            <th style="padding: 6px;">Data</th>
                             <th style="padding: 6px;">Placa</th>
-                            <th style="padding: 6px;">Veículo / Obs</th>
-                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px;">Modelo do Veículo</th>
+                            <th style="padding: 6px; text-align: center;">Ano</th>
+                            <th style="padding: 6px;">Tipo de Serviço</th>
                             <th style="padding: 6px; text-align: right;">Valor</th>
                         </tr>
                     </thead>
@@ -6807,6 +6807,8 @@ function printInvoiceById(invoiceId) {
                 </table>
             </div>
         </div>
+
+        ${buildPaymentInstructionsHtml(f)}
 
         <div class="print-signatures" style="margin-top: 60px; display: flex; justify-content: space-between;">
             <div class="print-sig-block" style="width: 45%; border-top: 1px solid #000; text-align: center; font-size: 11px; padding-top: 6px;">
@@ -8786,6 +8788,9 @@ function switchConfigTab(tab, btn) {
     const tabBackup = document.getElementById('tab-cfg-backup');
     if (tabBackup) tabBackup.style.display = tab === 'backup' ? 'block' : 'none';
 
+    const tabFat = document.getElementById('tab-cfg-faturamento');
+    if (tabFat) tabFat.style.display = tab === 'faturamento' ? 'block' : 'none';
+
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
@@ -8793,6 +8798,7 @@ function switchConfigTab(tab, btn) {
     if (tab === 'whatsapp') renderConfigWhatsApp();
     if (tab === 'auditoria') runIntegrityAudit();
     if (tab === 'chatgpt') renderConfigChatGPT();
+    if (tab === 'faturamento') renderConfigFaturamento();
 }
 
 function renderConfigPage() {
@@ -8804,6 +8810,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
     else if (currentConfigTab === 'auditoria') runIntegrityAudit();
     else if (currentConfigTab === 'chatgpt') renderConfigChatGPT();
+    else if (currentConfigTab === 'faturamento') renderConfigFaturamento();
 }
 
 function exportEmergencyBackup() {
@@ -14417,9 +14424,9 @@ async function generateAndUploadInvoicePDF(f) {
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
+            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
+            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -14509,10 +14516,10 @@ async function generateAndUploadInvoicePDF(f) {
                     <thead>
                         <tr style="border-bottom: 1px solid #000; font-size: 10px; text-transform: uppercase;">
                             <th style="padding: 6px;">OS</th>
-                            <th style="padding: 6px;">Data</th>
                             <th style="padding: 6px;">Placa</th>
-                            <th style="padding: 6px;">Veículo / OBS</th>
-                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px;">Modelo do Veículo</th>
+                            <th style="padding: 6px; text-align: center;">Ano</th>
+                            <th style="padding: 6px;">Tipo de Serviço</th>
                             <th style="padding: 6px; text-align: right;">Valor</th>
                         </tr>
                     </thead>
@@ -14522,8 +14529,10 @@ async function generateAndUploadInvoicePDF(f) {
                 </table>
             </div>
         </div>
-        
+
         ${creditosHtml}
+
+        ${buildPaymentInstructionsHtml(f)}
     `;
 
     try {
@@ -15192,6 +15201,157 @@ async function submitConfigChatGPT(event) {
     } catch (err) {
         console.error("Erro ao salvar integração ChatGPT:", err);
         showToast("Erro ao salvar configurações da OpenAI.", "error");
+    }
+}
+
+// ==========================================================
+// CONFIGURAÇÃO DE FATURAMENTO — dados bancários + texto do e-mail
+// ----------------------------------------------------------
+// Guardados na mesma linha única de configuracoes_gerais (merge para não
+// sobrescrever campos de outras integrações, ex.: ChatGPT).
+// ==========================================================
+
+const DEFAULT_FAT_EMAIL_ASSUNTO = "Fatura {CODIGO} — Certive Vistorias";
+const DEFAULT_FAT_EMAIL_CORPO =
+`Prezado(a) {PARCEIRO},
+
+Segue em anexo a fatura referente aos serviços de vistoria prestados no período de {INICIO} a {FIM}, no valor total de {VALOR}.
+
+As instruções de pagamento constam no documento anexo. Em caso de dúvidas, estamos à disposição.
+
+Atenciosamente,
+Equipe Certive Vistorias.`;
+
+const DEFAULT_FAT_BANCO = {
+    favorecido: "MELEGARI TECH SOLUCOES VEICULARES LTDA",
+    cnpj: "64.683.079/0001-85",
+    banco: "461 - Asaas I.P S.A",
+    agencia: "0001",
+    conta: "7450656-9",
+    tipoConta: "Conta de Pagamento",
+    pix: ""
+};
+
+// Retorna a config de faturamento efetiva (o que estiver salvo, com fallback
+// para os valores padrão). Usado pelo PDF da fatura e pelo envio de e-mail.
+function getFaturamentoConfig() {
+    const cfg = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const b = cfg.fatBanco || {};
+    return {
+        favorecido: b.favorecido || DEFAULT_FAT_BANCO.favorecido,
+        cnpj: b.cnpj || DEFAULT_FAT_BANCO.cnpj,
+        banco: b.banco || DEFAULT_FAT_BANCO.banco,
+        agencia: b.agencia || DEFAULT_FAT_BANCO.agencia,
+        conta: b.conta || DEFAULT_FAT_BANCO.conta,
+        tipoConta: b.tipoConta || DEFAULT_FAT_BANCO.tipoConta,
+        pix: b.pix || DEFAULT_FAT_BANCO.pix,
+        emailAssunto: cfg.fatEmailAssunto || DEFAULT_FAT_EMAIL_ASSUNTO,
+        emailCorpo: cfg.fatEmailCorpo || DEFAULT_FAT_EMAIL_CORPO
+    };
+}
+
+// Bloco HTML com as instruções de pagamento (dados bancários) para o PDF da
+// fatura. Só faz sentido quando há valor em aberto a receber.
+function buildPaymentInstructionsHtml(f) {
+    if (f && f.pago) return '';
+    if (f && typeof f.valorTotal === 'number' && f.valorTotal <= 0) return '';
+    const c = getFaturamentoConfig();
+    const linhaPix = c.pix
+        ? `<tr><td style="padding: 3px 0; width: 130px; color:#555;">Chave PIX</td><td style="padding: 3px 0; font-weight: 700;">${c.pix}</td></tr>`
+        : '';
+    return `
+        <div style="border: 1px solid #2e7d32; border-radius: 4px; overflow: hidden; margin-top: 20px;">
+            <div style="font-weight: 800; font-size: 12px; background: #e8f5e9; color: #1b5e20; padding: 10px 14px; border-bottom: 1px solid #2e7d32;">
+                INSTRUÇÕES DE PAGAMENTO
+            </div>
+            <div style="padding: 12px 14px; font-size: 12px; line-height: 1.5;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tbody>
+                        <tr><td style="padding: 3px 0; width: 130px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${c.cnpj}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Banco</td><td style="padding: 3px 0; font-weight: 700;">${c.banco}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Agência</td><td style="padding: 3px 0; font-weight: 700;">${c.agencia}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Conta</td><td style="padding: 3px 0; font-weight: 700;">${c.conta} ${c.tipoConta ? '(' + c.tipoConta + ')' : ''}</td></tr>
+                        ${linhaPix}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderConfigFaturamento() {
+    const cfg = getFaturamentoConfig();
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    set('cfg-fat-favorecido', cfg.favorecido);
+    set('cfg-fat-cnpj', cfg.cnpj);
+    set('cfg-fat-banco', cfg.banco);
+    set('cfg-fat-agencia', cfg.agencia);
+    set('cfg-fat-conta', cfg.conta);
+    set('cfg-fat-tipo-conta', cfg.tipoConta);
+    set('cfg-fat-pix', cfg.pix);
+    set('cfg-fat-email-assunto', cfg.emailAssunto);
+    set('cfg-fat-email-corpo', cfg.emailCorpo);
+}
+
+async function submitConfigFaturamento(event) {
+    event.preventDefault();
+    if (!currentSession) return;
+
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+    // Merge: preserva o que já existe na linha única (ChatGPT, WhatsApp, etc.)
+    const existing = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const oldId = existing.id || null;
+
+    const payload = {
+        ...existing,
+        fatBanco: {
+            favorecido: val('cfg-fat-favorecido'),
+            cnpj: val('cfg-fat-cnpj'),
+            banco: val('cfg-fat-banco'),
+            agencia: val('cfg-fat-agencia'),
+            conta: val('cfg-fat-conta'),
+            tipoConta: val('cfg-fat-tipo-conta'),
+            pix: val('cfg-fat-pix')
+        },
+        fatEmailAssunto: val('cfg-fat-email-assunto') || DEFAULT_FAT_EMAIL_ASSUNTO,
+        fatEmailCorpo: (document.getElementById('cfg-fat-email-corpo') || {}).value || DEFAULT_FAT_EMAIL_CORPO,
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: currentSession.nome || 'Admin'
+    };
+
+    try {
+        showToast("Salvando configurações de faturamento...", "info");
+
+        if (window.useSupabase) {
+            if (oldId) {
+                const { error } = await supabaseClient.from('configuracoes_gerais')
+                    .update({ fatBanco: payload.fatBanco, fatEmailAssunto: payload.fatEmailAssunto, fatEmailCorpo: payload.fatEmailCorpo, atualizadoEm: payload.atualizadoEm, atualizadoPor: payload.atualizadoPor })
+                    .eq('id', oldId);
+                if (error) throw error;
+                payload.id = oldId;
+            } else {
+                const { data, error } = await supabaseClient.from('configuracoes_gerais')
+                    .insert({ fatBanco: payload.fatBanco, fatEmailAssunto: payload.fatEmailAssunto, fatEmailCorpo: payload.fatEmailCorpo, atualizadoEm: payload.atualizadoEm, atualizadoPor: payload.atualizadoPor })
+                    .select()
+                    .single();
+                if (error) throw error;
+                payload.id = data.id;
+            }
+        } else {
+            payload.id = oldId || (db.configuracoes_gerais && db.configuracoes_gerais.length > 0 ? Math.max(...db.configuracoes_gerais.map(r => r.id || 0)) + 1 : 1);
+        }
+
+        db.configuracoes_gerais = [payload];
+        if (!window.useSupabase && typeof saveDatabase === 'function') saveDatabase();
+
+        showToast("Configurações de faturamento salvas com sucesso!", "success");
+        logAudit("Config Faturamento", "Atualizou dados bancários / texto de e-mail da fatura.");
+        renderConfigFaturamento();
+    } catch (err) {
+        console.error("Erro ao salvar config de faturamento:", err);
+        showToast("Erro ao salvar configurações de faturamento.", "error");
     }
 }
 
