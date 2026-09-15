@@ -456,3 +456,15 @@ entrypoint = "./functions/setup-storage/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/setup-storage/*.html" ]
+
+[functions.send-invoice-forward]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-invoice-forward/deno.json"
+entrypoint = "./functions/send-invoice-forward/index.ts"
+
+[functions.cancel-asaas-billing]
+enabled = true
+verify_jwt = false
+import_map = "./functions/cancel-asaas-billing/deno.json"
+entrypoint = "./functions/cancel-asaas-billing/index.ts"

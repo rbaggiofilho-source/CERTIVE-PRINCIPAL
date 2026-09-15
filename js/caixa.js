@@ -57,6 +57,8 @@ function renderCaixaPage() {
 
     renderCaixaKPIs(activeCaixa);
     renderCaixaMovimentos(activeCaixa);
+    if (typeof renderBaixasPendentes === 'function') renderBaixasPendentes();
+    if (typeof atualizarBadgeCaixa === 'function') atualizarBadgeCaixa();
 }
 
 async function openTodayCaixaDrawer() {

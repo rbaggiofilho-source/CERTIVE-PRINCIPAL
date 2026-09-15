@@ -840,6 +840,32 @@
                 </div>
 
                 <!-- Auditoria: pendências de conferência com o DETRAN -->
+                <div class="panel-card" id="card-baixas-pendentes" style="margin-bottom: 20px; display: none; border-left: 3px solid var(--danger);">
+                    <div class="panel-card-header">
+                        <h3 style="margin: 0;">
+                            <i class="ri-refund-2-line" style="color: var(--danger);"></i>
+                            Baixas retroativas pendentes
+                            <span id="baixas-pendentes-contador" style="font-weight: 800;"></span>
+                        </h3>
+                    </div>
+                    <div class="panel-card-body" style="padding: 0;">
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px;">
+                                <thead>
+                                    <tr style="text-align: left;">
+                                        <th style="padding: 10px 14px;">Fatura</th>
+                                        <th style="padding: 10px 14px;">Dia do pagamento</th>
+                                        <th style="padding: 10px 14px; text-align: right;">Valor</th>
+                                        <th style="padding: 10px 14px;">Registrado por</th>
+                                        <th style="padding: 10px 14px; text-align: right;">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="baixas-pendentes-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="panel-card" id="card-pendencias" style="margin-bottom: 20px; display: none;">
                     <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <h3 style="margin: 0;">
@@ -1125,7 +1151,7 @@
                                 <i class="ri-refund-2-line"></i> Lançar Crédito/Cortesia
                             </button>
                             <button class="btn btn-primary" onclick="openGirarFaturaModal()">
-                                <i class="ri-folder-zip-line"></i> Fechar Lote & Gerar Fatura
+                                <i class="ri-folder-zip-line"></i> Fechar Fatura
                             </button>
                         </div>
                     </div>
@@ -1787,6 +1813,7 @@
                     <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
                     <button class="tab-btn" onclick="switchConfigTab('auditoria', this)" id="btn-cfg-auditoria"><i class="ri-shield-check-line"></i> Auditoria Contábil</button>
                     <button class="tab-btn" onclick="switchConfigTab('chatgpt', this)"><i class="ri-brain-line"></i> Integração IA (ChatGPT)</button>
+                    <button class="tab-btn" onclick="switchConfigTab('faturamento', this)"><i class="ri-bank-line"></i> Faturamento</button>
                     <button class="tab-btn" onclick="switchConfigTab('backup', this)"><i class="ri-database-2-line"></i> Backup & Contingência</button>
                 </div>
 
@@ -2250,6 +2277,86 @@
                     </div>
                 </div>
 
+                <!-- Config Tab: Faturamento (dados bancários + texto de e-mail) -->
+                <div id="tab-cfg-faturamento" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <!-- Dados bancários / instruções de pagamento -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-bank-line"></i> Dados Bancários (Instruções de Pagamento)</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">
+                                    Estes dados aparecem no rodapé do PDF da fatura, no bloco "Instruções de Pagamento".
+                                </p>
+                                <form id="config-faturamento-form" onsubmit="submitConfigFaturamento(event)">
+                                    <div class="form-group">
+                                        <label for="cfg-fat-favorecido">Favorecido (Razão Social)</label>
+                                        <input type="text" id="cfg-fat-favorecido" placeholder="Nome completo / Razão Social">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-fat-cnpj">CPF / CNPJ do favorecido</label>
+                                        <input type="text" id="cfg-fat-cnpj" placeholder="00.000.000/0000-00">
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-fat-banco">Banco</label>
+                                            <input type="text" id="cfg-fat-banco" placeholder="000 - Nome do Banco">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-fat-agencia">Agência</label>
+                                            <input type="text" id="cfg-fat-agencia" placeholder="0000">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-fat-conta">Conta</label>
+                                            <input type="text" id="cfg-fat-conta" placeholder="00000-0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-fat-tipo-conta">Tipo de Conta</label>
+                                            <input type="text" id="cfg-fat-tipo-conta" placeholder="Conta de Pagamento / Corrente">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cfg-fat-pix">Chave PIX (opcional)</label>
+                                        <input type="text" id="cfg-fat-pix" placeholder="CNPJ, e-mail, telefone ou chave aleatória">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
+                                        <i class="ri-save-line"></i> Salvar Dados Bancários
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Texto padrão do e-mail da fatura -->
+                        <div class="panel-card">
+                            <div class="panel-card-header">
+                                <h3><i class="ri-mail-send-line"></i> Texto Padrão do E-mail</h3>
+                            </div>
+                            <div class="panel-card-body">
+                                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">
+                                    Corpo do e-mail enviado ao encaminhar a fatura. Variáveis disponíveis:
+                                    <code>{PARCEIRO}</code>, <code>{CODIGO}</code>, <code>{INICIO}</code>, <code>{FIM}</code>, <code>{VALOR}</code>.
+                                </p>
+                                <form id="config-fat-email-form" onsubmit="submitConfigFaturamento(event)">
+                                    <div class="form-group">
+                                        <label for="cfg-fat-email-assunto">Assunto</label>
+                                        <input type="text" id="cfg-fat-email-assunto" placeholder="Fatura {CODIGO} — Certive Vistorias">
+                                    </div>
+                                    <div class="form-group" style="margin: 0;">
+                                        <label for="cfg-fat-email-corpo">Corpo do e-mail</label>
+                                        <textarea id="cfg-fat-email-corpo" rows="9" style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; background: var(--bg-primary); color: var(--text-primary); font-family: inherit; font-size: 12px; resize: vertical; box-sizing: border-box;"></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
+                                        <i class="ri-save-line"></i> Salvar Texto do E-mail
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Config Tab: Backup & Contingência (Fase 3) -->
                 <div id="tab-cfg-backup" style="display: none;">
                     <div class="panel-card" style="max-width: 600px; margin-bottom: 24px;">
@@ -2310,10 +2417,14 @@
 <div class="modal-overlay" id="modal-faturamento-fechar" onclick="closeFatModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
         <div class="modal-header">
-            <h3>Gerar Fatura do Parceiro</h3>
+            <h3>Fechar Fatura do Parceiro</h3>
             <button class="modal-close" onclick="closeFatModal()"><i class="ri-close-line"></i></button>
         </div>
         <div class="modal-body">
+            <div style="background: var(--bg-primary); border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: var(--text-secondary);">
+                <i class="ri-information-line" style="color: var(--primary);"></i>
+                Fechar a fatura apenas <strong>corta o período</strong> e gera o <strong>PDF</strong>. A cobrança automática (Asaas), o envio por e-mail/WhatsApp e a baixa são feitos depois, por botões separados na aba <strong>Histórico</strong>.
+            </div>
             <form id="fat-gerar-form" onsubmit="submitGirarFatura(event)">
                 <div class="form-group">
                     <label for="fat-modal-parceiro">Parceiro Selecionado</label>
@@ -2352,7 +2463,7 @@
                     </div>
                 </div>
                 <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 12px;">
-                    <i class="ri-check-double-line"></i> Fechar Lote & Registrar Fatura
+                    <i class="ri-file-pdf-2-line"></i> Fechar Fatura e Gerar PDF
                 </button>
             </form>
         </div>
@@ -2390,6 +2501,73 @@
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700; margin-top: 12px;">
                     <i class="ri-check-line"></i> Registrar Lançamento
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE BAIXA DE FATURA ===== -->
+<div class="modal-overlay" id="modal-fat-baixa" onclick="closeBaixaModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width: 480px;">
+        <div class="modal-header">
+            <h3>Dar Baixa na Fatura</h3>
+            <button class="modal-close" onclick="closeBaixaModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="fat-baixa-form" onsubmit="submitBaixaFatura(event)">
+                <input type="hidden" id="baixa-fat-id">
+                <div class="form-group">
+                    <label>Fatura</label>
+                    <input type="text" id="baixa-fat-resumo" readonly style="background: var(--bg-secondary); border-color: var(--border);">
+                </div>
+
+                <div class="form-group">
+                    <label>Quando o pagamento foi feito?</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-quando" value="hoje" checked onchange="onBaixaQuandoChange()"> <span>Hoje</span>
+                        </label>
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-quando" value="passado" onchange="onBaixaQuandoChange()"> <span>Data passada</span>
+                        </label>
+                    </div>
+                    <input type="date" id="baixa-data" style="display:none;">
+                </div>
+
+                <div class="form-group">
+                    <label for="baixa-forma">Forma de pagamento recebida</label>
+                    <select id="baixa-forma" required>
+                        <option value="transferencia">Transferência bancária</option>
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro / Espécie</option>
+                        <option value="cartao">Cartão</option>
+                    </select>
+                </div>
+
+                <!-- Só aparece quando a fatura tem cobrança Asaas em aberto -->
+                <div class="form-group" id="baixa-asaas-bloco" style="display:none;">
+                    <label>Esta fatura tem cobrança Asaas em aberto. O pagamento foi feito <strong>através da cobrança do Asaas</strong>?</label>
+                    <div style="display: flex; gap: 10px;">
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-via-asaas" value="sim"> <span>Sim, pelo Asaas</span>
+                        </label>
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-via-asaas" value="nao" checked> <span>Não, por fora</span>
+                        </label>
+                    </div>
+                    <small style="color: var(--text-secondary); display:block; margin-top:6px;">
+                        <i class="ri-information-line"></i> "Não" cancela a cobrança em aberto no Asaas para o cliente não ser cobrado de novo. "Sim" só baixa aqui (o Asaas já baixa sozinho).
+                    </small>
+                </div>
+
+                <div id="baixa-aviso-retroativo" style="display:none; background: var(--bg-primary); border:1px solid var(--warning); border-left:3px solid var(--warning); border-radius: var(--radius-sm); padding:10px 12px; margin-bottom:12px; font-size:12px; color:var(--text-secondary);">
+                    <i class="ri-alert-line" style="color: var(--warning);"></i>
+                    Pagamento em data passada: o caixa daquele dia já está fechado. A baixa é registrada agora e fica uma <strong>pendência</strong> para um operador Master reabrir o caixa, lançar e re-fechar.
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 4px;">
+                    <i class="ri-check-double-line"></i> Confirmar Baixa
                 </button>
             </form>
         </div>

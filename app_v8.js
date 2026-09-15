@@ -1543,6 +1543,9 @@ function navigateTo(pageId) {
     const activeNav = document.getElementById(`nav-${pageId}`);
     if (activeNav) activeNav.classList.add('active');
 
+    // Atualiza o badge de pendências de baixa retroativa no menu Caixa.
+    if (typeof atualizarBadgeCaixa === 'function') atualizarBadgeCaixa();
+
     // Toggle panels
     document.querySelectorAll('.section-panel').forEach(el => el.classList.remove('active'));
     const targetPanel = document.getElementById(`panel-${pageId}`);
@@ -6330,55 +6333,27 @@ async function submitGirarFatura(event) {
             }
         }
         
-        // --- Gerar PDF e Chamar Edge Function Asaas se líquido > 0 ---
+        // --- Gerar PDF (a cobrança Asaas e o envio viraram ações SEPARADAS) ---
+        // Desde 09/2026 o FECHAMENTO do lote NÃO dispara mais Asaas nem WhatsApp
+        // automaticamente. Fechar a fatura apenas corta o período (novas OS do
+        // parceiro já caem na próxima fatura por não terem faturaId) e gera o
+        // demonstrativo em PDF. Gerar cobrança automática (Asaas), encaminhar por
+        // e-mail/WhatsApp e dar baixa passaram a ser botões deliberados na aba
+        // Histórico. Motivo: clientes que adiantavam o pagamento por transferência
+        // eram cobrados indevidamente pela cobrança automática disparada no fechamento.
         try {
-            if (!pagoIntegral) {
-                showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
-                
-                // 1. Gera PDF e faz upload pro Supabase Storage
-                const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
-
-                showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
-                
-                // 2. Chama a Edge Function Asaas
-                const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sbAuthToken()}`
-                    },
-                    body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
-                });
-                
-                if (functionRes.ok) {
-                    const functionData = await functionRes.json();
-                    finalInvoice.asaas_payment_id = functionData.paymentId;
-                    finalInvoice.asaas_url = functionData.url;
-                    finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
-                    
-                    // Salva atualizações do Asaas na fatura do banco de dados
-                    await sbUpdate('faturas', inserted.id, {
-                        asaas_payment_id: finalInvoice.asaas_payment_id,
-                        asaas_url: finalInvoice.asaas_url,
-                        notificacao_zap: finalInvoice.notificacao_zap
-                    });
-                    
-                    showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
-                } else {
-                    let errText = "Erro desconhecido";
-                    try {
-                        const functionData = await functionRes.json();
-                        errText = functionData.error || errText;
-                    } catch(e) {}
-                    showToast("Erro Asaas: " + errText, "error");
+            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
+            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+            if (pdfUrl) {
+                finalInvoice.pdf_url = pdfUrl;
+                // Persiste a URL do PDF se a coluna existir (ignora se ainda não migrada).
+                if (window.onlineTables && window.onlineTables['faturas']) {
+                    try { await sbUpdate('faturas', inserted.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
                 }
-            } else {
-                showToast("Fatura liquidada 100% via créditos! Gerando comprovante...", "info");
-                await generateAndUploadInvoicePDF(finalInvoice);
             }
-        } catch(e) {
+        } catch (e) {
             console.error(e);
-            showToast("Erro ao chamar Asaas / WhatsApp.", "error");
+            showToast("Fatura fechada, mas houve um erro ao gerar o PDF.", "warning");
         }
         
         db.faturas.unshift(finalInvoice);
@@ -6645,7 +6620,7 @@ function renderFatFaturas() {
         if (f.asaas_url) {
             asaasBtn = `<a href="${f.asaas_url}" target="_blank" class="btn btn-secondary btn-sm btn-icon" title="Abrir Boleto Asaas" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); transition: background 0.2s;"><i class="ri-bank-card-line" style="font-size:14px;"></i></a>`;
         } else {
-            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="generateAsaasBillingForInvoice(${f.id}, this)" title="Gerar Cobrança Asaas"><i class="ri-bank-card-line"></i></button>`;
+            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="generateAsaasBillingForInvoice(${f.id}, this)" title="3. Gerar Cobrança Automática (Asaas)"><i class="ri-bank-card-line"></i></button>`;
         }
 
         let zapBtn = '';
@@ -6676,10 +6651,11 @@ function renderFatFaturas() {
                 <td>${boletoBadge}</td>
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
-                        <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="Imprimir Fatura"><i class="ri-printer-line"></i></button>
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="1. Imprimir / PDF da Fatura"><i class="ri-printer-line"></i></button>
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="forwardInvoice(${f.id}, this)" title="2. Encaminhar por E-mail + WhatsApp (sem cobrança)"><i class="ri-mail-send-line"></i></button>
                         ${asaasBtn}
                         ${zapBtn}
-                        ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})"><i class="ri-check-line"></i> Baixar</button>` : ''}
+                        ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})" title="4. Dar baixa (registrar pagamento)"><i class="ri-check-line"></i> Baixar</button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -6687,69 +6663,316 @@ function renderFatFaturas() {
     }).join('');
 }
 
-async function liquidateInvoice(invoiceId) {
-    // Requires an open cashier drawer to inject faturamento payments
-    const activeCaixa = getTodayOpenCaixa();
-    if (!activeCaixa) {
-        showToast("Erro: É necessário que o caixa de hoje esteja ABERTO para dar baixa na fatura.", "error");
-        return;
-    }
+// ==========================================================
+// BAIXA DE FATURA (novo fluxo — passo 4)
+// Pergunta a DATA do pagamento e, quando há cobrança Asaas em aberto, se o
+// pagamento foi feito PELO Asaas. Pagamento de hoje entra direto no caixa
+// aberto; pagamento em data passada vira PENDÊNCIA para um Master reabrir o
+// caixa daquele dia, lançar e re-fechar.
+// ==========================================================
 
+// Caixa (aberto OU fechado) da unidade ativa numa data YYYY-MM-DD.
+function getCaixaByDate(dateStr) {
+    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === dateStr);
+}
+
+function liquidateInvoice(invoiceId) {
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice) return;
+    if (invoice.pago) { showToast("Esta fatura já está baixada.", "info"); return; }
 
-    if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
-        try {
-            invoice.pago = true;
-            invoice.pagoEm = new Date().toISOString();
+    const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+    document.getElementById('baixa-fat-id').value = invoice.id;
+    document.getElementById('baixa-fat-resumo').value =
+        `${invoice.codigo} — ${partner ? partner.nome : ''} — ${formatCurrency(invoice.valorTotal)}`;
 
-            // Mark all related OSs as settled/pago
-            invoice.ordensIds.forEach(id => {
-                const os = db.ordens_servico.find(o => o.id === id);
-                if (os) os.pago = true;
-            });
+    const hojeRadio = document.querySelector('input[name="baixa-quando"][value="hoje"]');
+    if (hojeRadio) hojeRadio.checked = true;
+    const dataInput = document.getElementById('baixa-data');
+    const hojeStr = getLocalDateString(new Date());
+    dataInput.value = hojeStr;
+    dataInput.max = hojeStr;
+    dataInput.style.display = 'none';
+    document.getElementById('baixa-forma').value = 'transferencia';
+    document.getElementById('baixa-aviso-retroativo').style.display = 'none';
 
-            // Insert cash drawer inflow (Pix by default)
-            const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-            const newMov = {
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: invoice.valorTotal,
-                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
-                formaPagamento: "pix",
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: null,
-                faturaId: invoice.id
-            };
+    const asaasBloco = document.getElementById('baixa-asaas-bloco');
+    if (invoice.asaas_url || invoice.asaas_payment_id) {
+        asaasBloco.style.display = 'block';
+        const naoRadio = document.querySelector('input[name="baixa-via-asaas"][value="nao"]');
+        if (naoRadio) naoRadio.checked = true;
+    } else {
+        asaasBloco.style.display = 'none';
+    }
 
-            if (window.useSupabase) {
-                const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                db.caixa_movimentos.unshift(insertedMov);
+    document.getElementById('modal-fat-baixa').classList.add('active');
+}
 
-                await dbSave('faturas', {
-                    pago: true,
-                    pagoEm: invoice.pagoEm,
-                    pagoPor: currentSession ? currentSession.nome : 'Sistema'
-                }, 'update', invoice.id);
+function closeBaixaModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modal-fat-baixa').classList.remove('active');
+}
 
-                for (const osId of invoice.ordensIds) {
-                    await dbSave('ordens_servico', { pago: true }, 'update', osId);
-                }
-            } else {
-                newMov.id = db.caixa_movimentos.length + 1;
-                db.caixa_movimentos.push(newMov);
-            }
+function onBaixaQuandoChange() {
+    const sel = document.querySelector('input[name="baixa-quando"]:checked');
+    const passado = sel && sel.value === 'passado';
+    document.getElementById('baixa-data').style.display = passado ? 'block' : 'none';
+    document.getElementById('baixa-aviso-retroativo').style.display = passado ? 'block' : 'none';
+}
 
-            saveDatabase();
-            showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
-            logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
-            
-            renderFatFaturas();
-        } catch (err) {
-            console.error("Erro ao liquidar fatura:", err);
-            showToast("Erro ao processar a baixa da fatura no banco de dados.", "error");
+// Insere a entrada de caixa referente à baixa da fatura.
+async function injetarMovimentoBaixa(caixa, invoice, partner, dataISO, forma) {
+    const newMov = {
+        caixaId: caixa.id,
+        tipo: "entrada",
+        valor: invoice.valorTotal,
+        descricao: `Recebimento Fatura ${invoice.codigo} — ${partner ? partner.nome : ''}`,
+        formaPagamento: forma || 'transferencia',
+        data: dataISO,
+        operador: currentSession ? currentSession.nome : 'Sistema',
+        osId: null,
+        faturaId: invoice.id
+    };
+    if (window.useSupabase) {
+        const inserted = await sbInsert('caixa_movimentos', newMov);
+        db.caixa_movimentos.unshift(inserted);
+    } else {
+        newMov.id = db.caixa_movimentos.length + 1;
+        db.caixa_movimentos.push(newMov);
+    }
+    return newMov;
+}
+
+async function submitBaixaFatura(event) {
+    event.preventDefault();
+    const invoiceId = parseInt(document.getElementById('baixa-fat-id').value);
+    const invoice = db.faturas.find(f => f.id === invoiceId);
+    if (!invoice) return;
+    if (invoice.pago) { showToast("Fatura já baixada.", "info"); closeBaixaModal(); return; }
+
+    const quandoSel = document.querySelector('input[name="baixa-quando"]:checked');
+    const quando = quandoSel ? quandoSel.value : 'hoje';
+    const forma = document.getElementById('baixa-forma').value;
+    const hojeStr = getLocalDateString(new Date());
+
+    let dataPagStr = hojeStr;
+    if (quando === 'passado') {
+        dataPagStr = document.getElementById('baixa-data').value;
+        if (!dataPagStr) { showToast("Informe a data do pagamento.", "error"); return; }
+        if (dataPagStr > hojeStr) { showToast("A data do pagamento não pode ser futura.", "error"); return; }
+    }
+    const ehRetroativo = dataPagStr < hojeStr;
+
+    // Cobrança Asaas em aberto? Como o pagamento chegou?
+    const temAsaas = !!(invoice.asaas_url || invoice.asaas_payment_id);
+    let viaAsaas = false;
+    if (temAsaas) {
+        const r = document.querySelector('input[name="baixa-via-asaas"]:checked');
+        viaAsaas = !!(r && r.value === 'sim');
+    }
+
+    // Pré-condições de caixa
+    if (!ehRetroativo) {
+        if (!getTodayOpenCaixa()) {
+            showToast("Erro: o caixa de hoje precisa estar ABERTO para lançar a baixa.", "error");
+            return;
         }
+    } else {
+        if (!getCaixaByDate(dataPagStr)) {
+            showToast("Não há caixa registrado nessa data. Confira a data correta do pagamento.", "error");
+            return;
+        }
+    }
+
+    const btn = event.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+    try {
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+
+        // 1) Se pagou POR FORA e há cobrança Asaas em aberto → cancelar no Asaas.
+        if (temAsaas && !viaAsaas && window.useSupabase) {
+            try {
+                showToast("Cancelando cobrança em aberto no Asaas...", "info");
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-asaas-billing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+                    body: JSON.stringify({ faturaId: invoice.id })
+                });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.status === 'cancelada') {
+                    invoice.asaas_payment_id = null; invoice.asaas_url = null;
+                    showToast("Cobrança Asaas cancelada.", "success");
+                } else if (d.status === 'ja_recebida') {
+                    showToast("Atenção: a cobrança já consta RECEBIDA no Asaas. Baixa registrada mesmo assim.", "warning");
+                } else if (!res.ok) {
+                    showToast("Não foi possível cancelar no Asaas: " + (d.error || 'erro') + ". Baixa segue.", "warning");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Falha ao cancelar cobrança Asaas (a baixa interna segue).", "warning");
+            }
+        }
+
+        // 2) Marcar fatura e OS como pagas.
+        const pagoEmISO = ehRetroativo ? new Date(dataPagStr + 'T12:00:00').toISOString() : new Date().toISOString();
+        invoice.pago = true;
+        invoice.pagoEm = pagoEmISO;
+        invoice.pagoPor = currentSession ? currentSession.nome : 'Sistema';
+        invoice.ordensIds.forEach(id => { const os = db.ordens_servico.find(o => o.id === id); if (os) os.pago = true; });
+
+        if (window.useSupabase) {
+            const faturaUpdate = { pago: true, pagoEm: invoice.pagoEm, pagoPor: invoice.pagoPor };
+            // Só toca nos campos Asaas quando a cobrança foi de fato cancelada acima.
+            if (temAsaas && !viaAsaas && invoice.asaas_payment_id === null) {
+                faturaUpdate.asaas_payment_id = null;
+                faturaUpdate.asaas_url = null;
+            }
+            await dbSave('faturas', faturaUpdate, 'update', invoice.id);
+            for (const osId of invoice.ordensIds) { await dbSave('ordens_servico', { pago: true }, 'update', osId); }
+        }
+
+        // 3) Lançamento no caixa.
+        if (!ehRetroativo) {
+            await injetarMovimentoBaixa(getTodayOpenCaixa(), invoice, partner, pagoEmISO, forma);
+            showToast(`Fatura ${invoice.codigo} baixada! Entrada lançada no caixa de hoje.`, "success");
+        } else {
+            const caixaDia = getCaixaByDate(dataPagStr);
+            const pend = {
+                faturaId: invoice.id,
+                caixaId: caixaDia.id,
+                unidadeId: activeUnitId,
+                valor: invoice.valorTotal,
+                dataPagamento: dataPagStr,
+                formaPagamento: forma,
+                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner ? partner.nome : ''} (pgto ${formatDateBr(dataPagStr)})`,
+                resolvido: false,
+                criadoEm: new Date().toISOString(),
+                criadoPor: currentSession ? currentSession.nome : 'Sistema'
+            };
+            if (!db.baixas_faturas_pendentes) db.baixas_faturas_pendentes = [];
+            if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
+                const saved = await sbInsert('baixas_faturas_pendentes', pend);
+                db.baixas_faturas_pendentes.unshift(saved);
+            } else {
+                pend.id = db.baixas_faturas_pendentes.length + 1;
+                db.baixas_faturas_pendentes.unshift(pend);
+            }
+            showToast(`Fatura ${invoice.codigo} baixada! Pendência criada: um Master precisa reabrir o caixa de ${formatDateBr(dataPagStr)}, lançar e re-fechar.`, "success");
+        }
+
+        saveDatabase();
+        logAudit("Faturamento Baixa", `Baixou fatura ${invoice.codigo} (${formatCurrency(invoice.valorTotal)}) — pgto ${formatDateBr(dataPagStr)}${ehRetroativo ? ' [retroativo/pendente]' : ''}.`);
+        atualizarBadgeCaixa();
+        closeBaixaModal();
+        renderFatFaturas();
+    } catch (err) {
+        console.error("Erro ao dar baixa:", err);
+        showToast("Erro ao processar a baixa da fatura.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+}
+
+// ---- Pendências de baixa retroativa + badge de notificação ----
+function baixasPendentesAbertas() {
+    return (db.baixas_faturas_pendentes || []).filter(b => !b.resolvido && b.unidadeId === activeUnitId);
+}
+
+// Badge tipo "notificação de app" no menu Caixa Diário.
+function atualizarBadgeCaixa() {
+    const nav = document.getElementById('nav-caixa');
+    if (!nav) return;
+    let badge = document.getElementById('nav-caixa-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.id = 'nav-caixa-badge';
+        badge.style.cssText = 'margin-left:auto; background:var(--danger); color:#fff; font-size:9px; font-weight:800; min-width:18px; text-align:center; padding:2px 6px; border-radius:10px;';
+        nav.appendChild(badge);
+    }
+    const n = baixasPendentesAbertas().length;
+    if (n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+}
+
+// Lista as baixas retroativas pendentes no painel do Caixa.
+function renderBaixasPendentes() {
+    const card = document.getElementById('card-baixas-pendentes');
+    const tbody = document.getElementById('baixas-pendentes-tbody');
+    const contador = document.getElementById('baixas-pendentes-contador');
+    if (!card || !tbody) return;
+
+    const lista = baixasPendentesAbertas();
+    if (lista.length === 0) {
+        card.style.display = 'none';
+        tbody.innerHTML = '';
+        if (contador) contador.textContent = '';
+        return;
+    }
+    card.style.display = 'block';
+    if (contador) contador.textContent = `(${lista.length})`;
+
+    const master = isMasterSession();
+    tbody.innerHTML = lista.map(b => {
+        const inv = db.faturas.find(f => f.id === b.faturaId);
+        const acao = master
+            ? `<button class="btn btn-danger btn-sm" onclick="resolverBaixaPendente(${b.id})"><i class="ri-lock-unlock-line"></i> Reabrir e lançar</button>`
+            : `<span style="font-size:11px; color:var(--text-muted);">Aguardando Master</span>`;
+        return `
+            <tr style="border-top: 1px solid var(--border);">
+                <td style="padding: 10px 14px;"><strong>${inv ? inv.codigo : ('#' + b.faturaId)}</strong></td>
+                <td style="padding: 10px 14px; white-space: nowrap;">${formatDateBr(b.dataPagamento)}</td>
+                <td style="padding: 10px 14px; text-align: right; font-weight: 600;">${formatCurrency(b.valor)}</td>
+                <td style="padding: 10px 14px;">${b.criadoPor || '—'}</td>
+                <td style="padding: 10px 14px; text-align: right;">${acao}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Master reabre o caixa do dia da pendência, lança a entrada e marca resolvida.
+async function resolverBaixaPendente(pendId) {
+    if (!isMasterSession()) {
+        showToast("Apenas operadores Master podem reabrir caixas para lançar baixas retroativas.", "error");
+        return;
+    }
+    const pend = (db.baixas_faturas_pendentes || []).find(b => b.id === pendId);
+    if (!pend || pend.resolvido) return;
+    const invoice = db.faturas.find(f => f.id === pend.faturaId);
+    const partner = invoice ? db.parceiros.find(p => p.id === invoice.parceiroId) : null;
+    const caixa = db.caixa_diario.find(c => c.id === pend.caixaId);
+    if (!caixa) { showToast("Caixa do dia da pendência não encontrado.", "error"); return; }
+
+    if (!confirm(`Reabrir o caixa de ${formatDateBr(pend.dataPagamento)} e lançar ${formatCurrency(pend.valor)} (Fatura ${invoice ? invoice.codigo : ''})?\n\nApós lançar, o caixa ficará ABERTO no "Modo Dia Reaberto" para você conferir e re-fechar.`)) return;
+
+    try {
+        // 1) Lança a entrada no caixa daquele dia (back-dated).
+        const dataISO = new Date(pend.dataPagamento + 'T12:00:00').toISOString();
+        await injetarMovimentoBaixa(caixa, invoice || { id: pend.faturaId, codigo: '', valorTotal: pend.valor }, partner, dataISO, pend.formaPagamento);
+
+        // 2) Marca a pendência como resolvida.
+        pend.resolvido = true;
+        pend.resolvidoEm = new Date().toISOString();
+        pend.resolvidoPor = currentSession ? currentSession.nome : 'Master';
+        if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
+            await sbUpdate('baixas_faturas_pendentes', pend.id, {
+                resolvido: true, resolvidoEm: pend.resolvidoEm, resolvidoPor: pend.resolvidoPor
+            });
+        }
+        saveDatabase();
+        atualizarBadgeCaixa();
+        logAudit("Baixa Retroativa", `Lançou baixa retroativa da fatura ${invoice ? invoice.codigo : pend.faturaId} no caixa de ${formatDateBr(pend.dataPagamento)}.`);
+
+        // 3) Reabre o caixa daquele dia para conferência e re-fechamento (fluxo existente).
+        showToast("Entrada lançada. Reabrindo o caixa para conferência e re-fechamento...", "success");
+        if (typeof reopenCaixa === 'function' && caixa.status === 'fechado') {
+            await reopenCaixa(caixa.id);
+        } else if (typeof renderCaixaPage === 'function') {
+            renderCaixaPage();
+        }
+    } catch (err) {
+        console.error("Erro ao resolver baixa pendente:", err);
+        showToast("Erro ao lançar a baixa retroativa.", "error");
     }
 }
 
@@ -6769,9 +6992,9 @@ function printInvoiceById(invoiceId) {
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
+            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
+            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -6822,10 +7045,10 @@ function printInvoiceById(invoiceId) {
                     <thead>
                         <tr style="border-bottom: 1px solid #000; text-align: left; font-size: 10px; color: #333; text-transform: uppercase;">
                             <th style="padding: 6px;">OS</th>
-                            <th style="padding: 6px;">Data</th>
                             <th style="padding: 6px;">Placa</th>
-                            <th style="padding: 6px;">Veículo / Obs</th>
-                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px;">Modelo do Veículo</th>
+                            <th style="padding: 6px; text-align: center;">Ano</th>
+                            <th style="padding: 6px;">Tipo de Serviço</th>
                             <th style="padding: 6px; text-align: right;">Valor</th>
                         </tr>
                     </thead>
@@ -6835,6 +7058,8 @@ function printInvoiceById(invoiceId) {
                 </table>
             </div>
         </div>
+
+        ${buildPaymentInstructionsHtml(f)}
 
         <div class="print-signatures" style="margin-top: 60px; display: flex; justify-content: space-between;">
             <div class="print-sig-block" style="width: 45%; border-top: 1px solid #000; text-align: center; font-size: 11px; padding-top: 6px;">
@@ -8814,6 +9039,9 @@ function switchConfigTab(tab, btn) {
     const tabBackup = document.getElementById('tab-cfg-backup');
     if (tabBackup) tabBackup.style.display = tab === 'backup' ? 'block' : 'none';
 
+    const tabFat = document.getElementById('tab-cfg-faturamento');
+    if (tabFat) tabFat.style.display = tab === 'faturamento' ? 'block' : 'none';
+
     if (tab === 'precos') renderConfigPrecos();
     if (tab === 'parceiros') renderConfigParceiros();
     if (tab === 'operadores') renderConfigOperadores();
@@ -8821,6 +9049,7 @@ function switchConfigTab(tab, btn) {
     if (tab === 'whatsapp') renderConfigWhatsApp();
     if (tab === 'auditoria') runIntegrityAudit();
     if (tab === 'chatgpt') renderConfigChatGPT();
+    if (tab === 'faturamento') renderConfigFaturamento();
 }
 
 function renderConfigPage() {
@@ -8832,6 +9061,7 @@ function renderConfigPage() {
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
     else if (currentConfigTab === 'auditoria') runIntegrityAudit();
     else if (currentConfigTab === 'chatgpt') renderConfigChatGPT();
+    else if (currentConfigTab === 'faturamento') renderConfigFaturamento();
 }
 
 function exportEmergencyBackup() {
@@ -14445,9 +14675,9 @@ async function generateAndUploadInvoicePDF(f) {
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
             <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;">${formatDateBr(o.criadoEm)}</td>
             <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${removeDividedPaymentTag(o.observacoes) || '—'}</td>
+            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
+            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -14537,10 +14767,10 @@ async function generateAndUploadInvoicePDF(f) {
                     <thead>
                         <tr style="border-bottom: 1px solid #000; font-size: 10px; text-transform: uppercase;">
                             <th style="padding: 6px;">OS</th>
-                            <th style="padding: 6px;">Data</th>
                             <th style="padding: 6px;">Placa</th>
-                            <th style="padding: 6px;">Veículo / OBS</th>
-                            <th style="padding: 6px;">Serviço</th>
+                            <th style="padding: 6px;">Modelo do Veículo</th>
+                            <th style="padding: 6px; text-align: center;">Ano</th>
+                            <th style="padding: 6px;">Tipo de Serviço</th>
                             <th style="padding: 6px; text-align: right;">Valor</th>
                         </tr>
                     </thead>
@@ -14550,8 +14780,10 @@ async function generateAndUploadInvoicePDF(f) {
                 </table>
             </div>
         </div>
-        
+
         ${creditosHtml}
+
+        ${buildPaymentInstructionsHtml(f)}
     `;
 
     try {
@@ -14736,6 +14968,78 @@ async function resolveAuditoriaInconsistencies() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
+    }
+}
+
+// Substitui as variáveis do texto padrão do e-mail pela fatura concreta.
+function preencherTextoFatura(texto, fatura, partner) {
+    return String(texto || '')
+        .replace(/\{PARCEIRO\}/g, partner ? partner.nome : '')
+        .replace(/\{CODIGO\}/g, fatura.codigo || '')
+        .replace(/\{INICIO\}/g, formatDateBr(fatura.periodoInicio))
+        .replace(/\{FIM\}/g, formatDateBr(fatura.periodoFim))
+        .replace(/\{VALOR\}/g, formatCurrency(fatura.valorTotal));
+}
+
+// Passo 2 — ENCAMINHAR a fatura (e-mail + WhatsApp) SEM gerar cobrança Asaas.
+async function forwardInvoice(faturaId, btn) {
+    if (!window.useSupabase) {
+        showToast("Erro: O encaminhamento só está disponível no modo online (Supabase).", "error");
+        return;
+    }
+    const fatura = db.faturas.find(x => x.id === faturaId);
+    if (!fatura) return;
+    const partner = db.parceiros.find(p => p.id === fatura.parceiroId);
+
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line spinning" style="font-size:14px;"></i>'; }
+
+    try {
+        // Garante um PDF disponível (reusa o já gerado, senão gera agora).
+        let pdfUrl = fatura.pdf_url || null;
+        if (!pdfUrl) {
+            showToast("Gerando PDF da fatura para envio...", "info");
+            pdfUrl = await generateAndUploadInvoicePDF(fatura);
+            if (pdfUrl) {
+                fatura.pdf_url = pdfUrl;
+                try { await sbUpdate('faturas', fatura.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
+            }
+        }
+
+        const cfg = getFaturamentoConfig();
+        const assunto = preencherTextoFatura(cfg.emailAssunto, fatura, partner);
+        const corpo = preencherTextoFatura(cfg.emailCorpo, fatura, partner);
+
+        showToast("Encaminhando fatura (e-mail + WhatsApp)...", "info");
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-forward`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+            body: JSON.stringify({ faturaId, pdfUrl, canais: ['email', 'whatsapp'], assunto, corpo })
+        });
+
+        if (res.ok) {
+            const d = await res.json();
+            const map = {
+                enviado: 'enviado', erro: 'falhou', sem_email: 'sem e-mail no cadastro',
+                sem_whatsapp: 'sem WhatsApp no cadastro', sem_config: 'canal não configurado', nao_enviado: 'não enviado'
+            };
+            const partes = [];
+            if (d.email) partes.push(`E-mail: ${map[d.email] || d.email}`);
+            if (d.whatsapp) partes.push(`WhatsApp: ${map[d.whatsapp] || d.whatsapp}`);
+            const sucesso = d.email === 'enviado' || d.whatsapp === 'enviado';
+            showToast(`Encaminhamento — ${partes.join(' · ')}`, sucesso ? 'success' : 'warning');
+            logAudit("Faturamento Encaminhar", `Encaminhou fatura ${fatura.codigo} (${partes.join(', ')}).`);
+        } else {
+            let errText = "Erro desconhecido";
+            try { errText = (await res.json()).error || errText; } catch (e) {}
+            showToast("Erro ao encaminhar: " + errText, "error");
+        }
+    } catch (err) {
+        console.error("Erro ao encaminhar fatura:", err);
+        showToast("Erro de rede ao encaminhar a fatura.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+        if (typeof renderFatFaturas === 'function') renderFatFaturas();
     }
 }
 
@@ -15220,6 +15524,157 @@ async function submitConfigChatGPT(event) {
     } catch (err) {
         console.error("Erro ao salvar integração ChatGPT:", err);
         showToast("Erro ao salvar configurações da OpenAI.", "error");
+    }
+}
+
+// ==========================================================
+// CONFIGURAÇÃO DE FATURAMENTO — dados bancários + texto do e-mail
+// ----------------------------------------------------------
+// Guardados na mesma linha única de configuracoes_gerais (merge para não
+// sobrescrever campos de outras integrações, ex.: ChatGPT).
+// ==========================================================
+
+const DEFAULT_FAT_EMAIL_ASSUNTO = "Fatura {CODIGO} — Certive Vistorias";
+const DEFAULT_FAT_EMAIL_CORPO =
+`Prezado(a) {PARCEIRO},
+
+Segue em anexo a fatura referente aos serviços de vistoria prestados no período de {INICIO} a {FIM}, no valor total de {VALOR}.
+
+As instruções de pagamento constam no documento anexo. Em caso de dúvidas, estamos à disposição.
+
+Atenciosamente,
+Equipe Certive Vistorias.`;
+
+const DEFAULT_FAT_BANCO = {
+    favorecido: "MELEGARI TECH SOLUCOES VEICULARES LTDA",
+    cnpj: "64.683.079/0001-85",
+    banco: "461 - Asaas I.P S.A",
+    agencia: "0001",
+    conta: "7450656-9",
+    tipoConta: "Conta de Pagamento",
+    pix: ""
+};
+
+// Retorna a config de faturamento efetiva (o que estiver salvo, com fallback
+// para os valores padrão). Usado pelo PDF da fatura e pelo envio de e-mail.
+function getFaturamentoConfig() {
+    const cfg = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const b = cfg.fatBanco || {};
+    return {
+        favorecido: b.favorecido || DEFAULT_FAT_BANCO.favorecido,
+        cnpj: b.cnpj || DEFAULT_FAT_BANCO.cnpj,
+        banco: b.banco || DEFAULT_FAT_BANCO.banco,
+        agencia: b.agencia || DEFAULT_FAT_BANCO.agencia,
+        conta: b.conta || DEFAULT_FAT_BANCO.conta,
+        tipoConta: b.tipoConta || DEFAULT_FAT_BANCO.tipoConta,
+        pix: b.pix || DEFAULT_FAT_BANCO.pix,
+        emailAssunto: cfg.fatEmailAssunto || DEFAULT_FAT_EMAIL_ASSUNTO,
+        emailCorpo: cfg.fatEmailCorpo || DEFAULT_FAT_EMAIL_CORPO
+    };
+}
+
+// Bloco HTML com as instruções de pagamento (dados bancários) para o PDF da
+// fatura. Só faz sentido quando há valor em aberto a receber.
+function buildPaymentInstructionsHtml(f) {
+    if (f && f.pago) return '';
+    if (f && typeof f.valorTotal === 'number' && f.valorTotal <= 0) return '';
+    const c = getFaturamentoConfig();
+    const linhaPix = c.pix
+        ? `<tr><td style="padding: 3px 0; width: 130px; color:#555;">Chave PIX</td><td style="padding: 3px 0; font-weight: 700;">${c.pix}</td></tr>`
+        : '';
+    return `
+        <div style="border: 1px solid #2e7d32; border-radius: 4px; overflow: hidden; margin-top: 20px;">
+            <div style="font-weight: 800; font-size: 12px; background: #e8f5e9; color: #1b5e20; padding: 10px 14px; border-bottom: 1px solid #2e7d32;">
+                INSTRUÇÕES DE PAGAMENTO
+            </div>
+            <div style="padding: 12px 14px; font-size: 12px; line-height: 1.5;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tbody>
+                        <tr><td style="padding: 3px 0; width: 130px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${c.cnpj}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Banco</td><td style="padding: 3px 0; font-weight: 700;">${c.banco}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Agência</td><td style="padding: 3px 0; font-weight: 700;">${c.agencia}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">Conta</td><td style="padding: 3px 0; font-weight: 700;">${c.conta} ${c.tipoConta ? '(' + c.tipoConta + ')' : ''}</td></tr>
+                        ${linhaPix}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderConfigFaturamento() {
+    const cfg = getFaturamentoConfig();
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    set('cfg-fat-favorecido', cfg.favorecido);
+    set('cfg-fat-cnpj', cfg.cnpj);
+    set('cfg-fat-banco', cfg.banco);
+    set('cfg-fat-agencia', cfg.agencia);
+    set('cfg-fat-conta', cfg.conta);
+    set('cfg-fat-tipo-conta', cfg.tipoConta);
+    set('cfg-fat-pix', cfg.pix);
+    set('cfg-fat-email-assunto', cfg.emailAssunto);
+    set('cfg-fat-email-corpo', cfg.emailCorpo);
+}
+
+async function submitConfigFaturamento(event) {
+    event.preventDefault();
+    if (!currentSession) return;
+
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+    // Merge: preserva o que já existe na linha única (ChatGPT, WhatsApp, etc.)
+    const existing = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const oldId = existing.id || null;
+
+    const payload = {
+        ...existing,
+        fatBanco: {
+            favorecido: val('cfg-fat-favorecido'),
+            cnpj: val('cfg-fat-cnpj'),
+            banco: val('cfg-fat-banco'),
+            agencia: val('cfg-fat-agencia'),
+            conta: val('cfg-fat-conta'),
+            tipoConta: val('cfg-fat-tipo-conta'),
+            pix: val('cfg-fat-pix')
+        },
+        fatEmailAssunto: val('cfg-fat-email-assunto') || DEFAULT_FAT_EMAIL_ASSUNTO,
+        fatEmailCorpo: (document.getElementById('cfg-fat-email-corpo') || {}).value || DEFAULT_FAT_EMAIL_CORPO,
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: currentSession.nome || 'Admin'
+    };
+
+    try {
+        showToast("Salvando configurações de faturamento...", "info");
+
+        if (window.useSupabase) {
+            if (oldId) {
+                const { error } = await supabaseClient.from('configuracoes_gerais')
+                    .update({ fatBanco: payload.fatBanco, fatEmailAssunto: payload.fatEmailAssunto, fatEmailCorpo: payload.fatEmailCorpo, atualizadoEm: payload.atualizadoEm, atualizadoPor: payload.atualizadoPor })
+                    .eq('id', oldId);
+                if (error) throw error;
+                payload.id = oldId;
+            } else {
+                const { data, error } = await supabaseClient.from('configuracoes_gerais')
+                    .insert({ fatBanco: payload.fatBanco, fatEmailAssunto: payload.fatEmailAssunto, fatEmailCorpo: payload.fatEmailCorpo, atualizadoEm: payload.atualizadoEm, atualizadoPor: payload.atualizadoPor })
+                    .select()
+                    .single();
+                if (error) throw error;
+                payload.id = data.id;
+            }
+        } else {
+            payload.id = oldId || (db.configuracoes_gerais && db.configuracoes_gerais.length > 0 ? Math.max(...db.configuracoes_gerais.map(r => r.id || 0)) + 1 : 1);
+        }
+
+        db.configuracoes_gerais = [payload];
+        if (!window.useSupabase && typeof saveDatabase === 'function') saveDatabase();
+
+        showToast("Configurações de faturamento salvas com sucesso!", "success");
+        logAudit("Config Faturamento", "Atualizou dados bancários / texto de e-mail da fatura.");
+        renderConfigFaturamento();
+    } catch (err) {
+        console.error("Erro ao salvar config de faturamento:", err);
+        showToast("Erro ao salvar configurações de faturamento.", "error");
     }
 }
 
