@@ -1543,6 +1543,9 @@ function navigateTo(pageId) {
     const activeNav = document.getElementById(`nav-${pageId}`);
     if (activeNav) activeNav.classList.add('active');
 
+    // Atualiza o badge de pendências de baixa retroativa no menu Caixa.
+    if (typeof atualizarBadgeCaixa === 'function') atualizarBadgeCaixa();
+
     // Toggle panels
     document.querySelectorAll('.section-panel').forEach(el => el.classList.remove('active'));
     const targetPanel = document.getElementById(`panel-${pageId}`);
@@ -6660,69 +6663,316 @@ function renderFatFaturas() {
     }).join('');
 }
 
-async function liquidateInvoice(invoiceId) {
-    // Requires an open cashier drawer to inject faturamento payments
-    const activeCaixa = getTodayOpenCaixa();
-    if (!activeCaixa) {
-        showToast("Erro: É necessário que o caixa de hoje esteja ABERTO para dar baixa na fatura.", "error");
-        return;
-    }
+// ==========================================================
+// BAIXA DE FATURA (novo fluxo — passo 4)
+// Pergunta a DATA do pagamento e, quando há cobrança Asaas em aberto, se o
+// pagamento foi feito PELO Asaas. Pagamento de hoje entra direto no caixa
+// aberto; pagamento em data passada vira PENDÊNCIA para um Master reabrir o
+// caixa daquele dia, lançar e re-fechar.
+// ==========================================================
 
+// Caixa (aberto OU fechado) da unidade ativa numa data YYYY-MM-DD.
+function getCaixaByDate(dateStr) {
+    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === dateStr);
+}
+
+function liquidateInvoice(invoiceId) {
     const invoice = db.faturas.find(f => f.id === invoiceId);
     if (!invoice) return;
+    if (invoice.pago) { showToast("Esta fatura já está baixada.", "info"); return; }
 
-    if (confirm(`Confirmar recebimento de pagamento para a fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}?`)) {
-        try {
-            invoice.pago = true;
-            invoice.pagoEm = new Date().toISOString();
+    const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+    document.getElementById('baixa-fat-id').value = invoice.id;
+    document.getElementById('baixa-fat-resumo').value =
+        `${invoice.codigo} — ${partner ? partner.nome : ''} — ${formatCurrency(invoice.valorTotal)}`;
 
-            // Mark all related OSs as settled/pago
-            invoice.ordensIds.forEach(id => {
-                const os = db.ordens_servico.find(o => o.id === id);
-                if (os) os.pago = true;
-            });
+    const hojeRadio = document.querySelector('input[name="baixa-quando"][value="hoje"]');
+    if (hojeRadio) hojeRadio.checked = true;
+    const dataInput = document.getElementById('baixa-data');
+    const hojeStr = getLocalDateString(new Date());
+    dataInput.value = hojeStr;
+    dataInput.max = hojeStr;
+    dataInput.style.display = 'none';
+    document.getElementById('baixa-forma').value = 'transferencia';
+    document.getElementById('baixa-aviso-retroativo').style.display = 'none';
 
-            // Insert cash drawer inflow (Pix by default)
-            const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-            const newMov = {
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: invoice.valorTotal,
-                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner.nome}`,
-                formaPagamento: "pix",
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: null,
-                faturaId: invoice.id
-            };
+    const asaasBloco = document.getElementById('baixa-asaas-bloco');
+    if (invoice.asaas_url || invoice.asaas_payment_id) {
+        asaasBloco.style.display = 'block';
+        const naoRadio = document.querySelector('input[name="baixa-via-asaas"][value="nao"]');
+        if (naoRadio) naoRadio.checked = true;
+    } else {
+        asaasBloco.style.display = 'none';
+    }
 
-            if (window.useSupabase) {
-                const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                db.caixa_movimentos.unshift(insertedMov);
+    document.getElementById('modal-fat-baixa').classList.add('active');
+}
 
-                await dbSave('faturas', {
-                    pago: true,
-                    pagoEm: invoice.pagoEm,
-                    pagoPor: currentSession ? currentSession.nome : 'Sistema'
-                }, 'update', invoice.id);
+function closeBaixaModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modal-fat-baixa').classList.remove('active');
+}
 
-                for (const osId of invoice.ordensIds) {
-                    await dbSave('ordens_servico', { pago: true }, 'update', osId);
-                }
-            } else {
-                newMov.id = db.caixa_movimentos.length + 1;
-                db.caixa_movimentos.push(newMov);
-            }
+function onBaixaQuandoChange() {
+    const sel = document.querySelector('input[name="baixa-quando"]:checked');
+    const passado = sel && sel.value === 'passado';
+    document.getElementById('baixa-data').style.display = passado ? 'block' : 'none';
+    document.getElementById('baixa-aviso-retroativo').style.display = passado ? 'block' : 'none';
+}
 
-            saveDatabase();
-            showToast(`Fatura ${invoice.codigo} liquidada com sucesso! Entrada gerada no caixa.`, "success");
-            logAudit("Faturamento Baixa", `Liquidou fatura ${invoice.codigo} no valor de ${formatCurrency(invoice.valorTotal)}.`);
-            
-            renderFatFaturas();
-        } catch (err) {
-            console.error("Erro ao liquidar fatura:", err);
-            showToast("Erro ao processar a baixa da fatura no banco de dados.", "error");
+// Insere a entrada de caixa referente à baixa da fatura.
+async function injetarMovimentoBaixa(caixa, invoice, partner, dataISO, forma) {
+    const newMov = {
+        caixaId: caixa.id,
+        tipo: "entrada",
+        valor: invoice.valorTotal,
+        descricao: `Recebimento Fatura ${invoice.codigo} — ${partner ? partner.nome : ''}`,
+        formaPagamento: forma || 'transferencia',
+        data: dataISO,
+        operador: currentSession ? currentSession.nome : 'Sistema',
+        osId: null,
+        faturaId: invoice.id
+    };
+    if (window.useSupabase) {
+        const inserted = await sbInsert('caixa_movimentos', newMov);
+        db.caixa_movimentos.unshift(inserted);
+    } else {
+        newMov.id = db.caixa_movimentos.length + 1;
+        db.caixa_movimentos.push(newMov);
+    }
+    return newMov;
+}
+
+async function submitBaixaFatura(event) {
+    event.preventDefault();
+    const invoiceId = parseInt(document.getElementById('baixa-fat-id').value);
+    const invoice = db.faturas.find(f => f.id === invoiceId);
+    if (!invoice) return;
+    if (invoice.pago) { showToast("Fatura já baixada.", "info"); closeBaixaModal(); return; }
+
+    const quandoSel = document.querySelector('input[name="baixa-quando"]:checked');
+    const quando = quandoSel ? quandoSel.value : 'hoje';
+    const forma = document.getElementById('baixa-forma').value;
+    const hojeStr = getLocalDateString(new Date());
+
+    let dataPagStr = hojeStr;
+    if (quando === 'passado') {
+        dataPagStr = document.getElementById('baixa-data').value;
+        if (!dataPagStr) { showToast("Informe a data do pagamento.", "error"); return; }
+        if (dataPagStr > hojeStr) { showToast("A data do pagamento não pode ser futura.", "error"); return; }
+    }
+    const ehRetroativo = dataPagStr < hojeStr;
+
+    // Cobrança Asaas em aberto? Como o pagamento chegou?
+    const temAsaas = !!(invoice.asaas_url || invoice.asaas_payment_id);
+    let viaAsaas = false;
+    if (temAsaas) {
+        const r = document.querySelector('input[name="baixa-via-asaas"]:checked');
+        viaAsaas = !!(r && r.value === 'sim');
+    }
+
+    // Pré-condições de caixa
+    if (!ehRetroativo) {
+        if (!getTodayOpenCaixa()) {
+            showToast("Erro: o caixa de hoje precisa estar ABERTO para lançar a baixa.", "error");
+            return;
         }
+    } else {
+        if (!getCaixaByDate(dataPagStr)) {
+            showToast("Não há caixa registrado nessa data. Confira a data correta do pagamento.", "error");
+            return;
+        }
+    }
+
+    const btn = event.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+    try {
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+
+        // 1) Se pagou POR FORA e há cobrança Asaas em aberto → cancelar no Asaas.
+        if (temAsaas && !viaAsaas && window.useSupabase) {
+            try {
+                showToast("Cancelando cobrança em aberto no Asaas...", "info");
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-asaas-billing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+                    body: JSON.stringify({ faturaId: invoice.id })
+                });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.status === 'cancelada') {
+                    invoice.asaas_payment_id = null; invoice.asaas_url = null;
+                    showToast("Cobrança Asaas cancelada.", "success");
+                } else if (d.status === 'ja_recebida') {
+                    showToast("Atenção: a cobrança já consta RECEBIDA no Asaas. Baixa registrada mesmo assim.", "warning");
+                } else if (!res.ok) {
+                    showToast("Não foi possível cancelar no Asaas: " + (d.error || 'erro') + ". Baixa segue.", "warning");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Falha ao cancelar cobrança Asaas (a baixa interna segue).", "warning");
+            }
+        }
+
+        // 2) Marcar fatura e OS como pagas.
+        const pagoEmISO = ehRetroativo ? new Date(dataPagStr + 'T12:00:00').toISOString() : new Date().toISOString();
+        invoice.pago = true;
+        invoice.pagoEm = pagoEmISO;
+        invoice.pagoPor = currentSession ? currentSession.nome : 'Sistema';
+        invoice.ordensIds.forEach(id => { const os = db.ordens_servico.find(o => o.id === id); if (os) os.pago = true; });
+
+        if (window.useSupabase) {
+            const faturaUpdate = { pago: true, pagoEm: invoice.pagoEm, pagoPor: invoice.pagoPor };
+            // Só toca nos campos Asaas quando a cobrança foi de fato cancelada acima.
+            if (temAsaas && !viaAsaas && invoice.asaas_payment_id === null) {
+                faturaUpdate.asaas_payment_id = null;
+                faturaUpdate.asaas_url = null;
+            }
+            await dbSave('faturas', faturaUpdate, 'update', invoice.id);
+            for (const osId of invoice.ordensIds) { await dbSave('ordens_servico', { pago: true }, 'update', osId); }
+        }
+
+        // 3) Lançamento no caixa.
+        if (!ehRetroativo) {
+            await injetarMovimentoBaixa(getTodayOpenCaixa(), invoice, partner, pagoEmISO, forma);
+            showToast(`Fatura ${invoice.codigo} baixada! Entrada lançada no caixa de hoje.`, "success");
+        } else {
+            const caixaDia = getCaixaByDate(dataPagStr);
+            const pend = {
+                faturaId: invoice.id,
+                caixaId: caixaDia.id,
+                unidadeId: activeUnitId,
+                valor: invoice.valorTotal,
+                dataPagamento: dataPagStr,
+                formaPagamento: forma,
+                descricao: `Recebimento Fatura ${invoice.codigo} — ${partner ? partner.nome : ''} (pgto ${formatDateBr(dataPagStr)})`,
+                resolvido: false,
+                criadoEm: new Date().toISOString(),
+                criadoPor: currentSession ? currentSession.nome : 'Sistema'
+            };
+            if (!db.baixas_faturas_pendentes) db.baixas_faturas_pendentes = [];
+            if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
+                const saved = await sbInsert('baixas_faturas_pendentes', pend);
+                db.baixas_faturas_pendentes.unshift(saved);
+            } else {
+                pend.id = db.baixas_faturas_pendentes.length + 1;
+                db.baixas_faturas_pendentes.unshift(pend);
+            }
+            showToast(`Fatura ${invoice.codigo} baixada! Pendência criada: um Master precisa reabrir o caixa de ${formatDateBr(dataPagStr)}, lançar e re-fechar.`, "success");
+        }
+
+        saveDatabase();
+        logAudit("Faturamento Baixa", `Baixou fatura ${invoice.codigo} (${formatCurrency(invoice.valorTotal)}) — pgto ${formatDateBr(dataPagStr)}${ehRetroativo ? ' [retroativo/pendente]' : ''}.`);
+        atualizarBadgeCaixa();
+        closeBaixaModal();
+        renderFatFaturas();
+    } catch (err) {
+        console.error("Erro ao dar baixa:", err);
+        showToast("Erro ao processar a baixa da fatura.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+}
+
+// ---- Pendências de baixa retroativa + badge de notificação ----
+function baixasPendentesAbertas() {
+    return (db.baixas_faturas_pendentes || []).filter(b => !b.resolvido && b.unidadeId === activeUnitId);
+}
+
+// Badge tipo "notificação de app" no menu Caixa Diário.
+function atualizarBadgeCaixa() {
+    const nav = document.getElementById('nav-caixa');
+    if (!nav) return;
+    let badge = document.getElementById('nav-caixa-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.id = 'nav-caixa-badge';
+        badge.style.cssText = 'margin-left:auto; background:var(--danger); color:#fff; font-size:9px; font-weight:800; min-width:18px; text-align:center; padding:2px 6px; border-radius:10px;';
+        nav.appendChild(badge);
+    }
+    const n = baixasPendentesAbertas().length;
+    if (n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+}
+
+// Lista as baixas retroativas pendentes no painel do Caixa.
+function renderBaixasPendentes() {
+    const card = document.getElementById('card-baixas-pendentes');
+    const tbody = document.getElementById('baixas-pendentes-tbody');
+    const contador = document.getElementById('baixas-pendentes-contador');
+    if (!card || !tbody) return;
+
+    const lista = baixasPendentesAbertas();
+    if (lista.length === 0) {
+        card.style.display = 'none';
+        tbody.innerHTML = '';
+        if (contador) contador.textContent = '';
+        return;
+    }
+    card.style.display = 'block';
+    if (contador) contador.textContent = `(${lista.length})`;
+
+    const master = isMasterSession();
+    tbody.innerHTML = lista.map(b => {
+        const inv = db.faturas.find(f => f.id === b.faturaId);
+        const acao = master
+            ? `<button class="btn btn-danger btn-sm" onclick="resolverBaixaPendente(${b.id})"><i class="ri-lock-unlock-line"></i> Reabrir e lançar</button>`
+            : `<span style="font-size:11px; color:var(--text-muted);">Aguardando Master</span>`;
+        return `
+            <tr style="border-top: 1px solid var(--border);">
+                <td style="padding: 10px 14px;"><strong>${inv ? inv.codigo : ('#' + b.faturaId)}</strong></td>
+                <td style="padding: 10px 14px; white-space: nowrap;">${formatDateBr(b.dataPagamento)}</td>
+                <td style="padding: 10px 14px; text-align: right; font-weight: 600;">${formatCurrency(b.valor)}</td>
+                <td style="padding: 10px 14px;">${b.criadoPor || '—'}</td>
+                <td style="padding: 10px 14px; text-align: right;">${acao}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Master reabre o caixa do dia da pendência, lança a entrada e marca resolvida.
+async function resolverBaixaPendente(pendId) {
+    if (!isMasterSession()) {
+        showToast("Apenas operadores Master podem reabrir caixas para lançar baixas retroativas.", "error");
+        return;
+    }
+    const pend = (db.baixas_faturas_pendentes || []).find(b => b.id === pendId);
+    if (!pend || pend.resolvido) return;
+    const invoice = db.faturas.find(f => f.id === pend.faturaId);
+    const partner = invoice ? db.parceiros.find(p => p.id === invoice.parceiroId) : null;
+    const caixa = db.caixa_diario.find(c => c.id === pend.caixaId);
+    if (!caixa) { showToast("Caixa do dia da pendência não encontrado.", "error"); return; }
+
+    if (!confirm(`Reabrir o caixa de ${formatDateBr(pend.dataPagamento)} e lançar ${formatCurrency(pend.valor)} (Fatura ${invoice ? invoice.codigo : ''})?\n\nApós lançar, o caixa ficará ABERTO no "Modo Dia Reaberto" para você conferir e re-fechar.`)) return;
+
+    try {
+        // 1) Lança a entrada no caixa daquele dia (back-dated).
+        const dataISO = new Date(pend.dataPagamento + 'T12:00:00').toISOString();
+        await injetarMovimentoBaixa(caixa, invoice || { id: pend.faturaId, codigo: '', valorTotal: pend.valor }, partner, dataISO, pend.formaPagamento);
+
+        // 2) Marca a pendência como resolvida.
+        pend.resolvido = true;
+        pend.resolvidoEm = new Date().toISOString();
+        pend.resolvidoPor = currentSession ? currentSession.nome : 'Master';
+        if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
+            await sbUpdate('baixas_faturas_pendentes', pend.id, {
+                resolvido: true, resolvidoEm: pend.resolvidoEm, resolvidoPor: pend.resolvidoPor
+            });
+        }
+        saveDatabase();
+        atualizarBadgeCaixa();
+        logAudit("Baixa Retroativa", `Lançou baixa retroativa da fatura ${invoice ? invoice.codigo : pend.faturaId} no caixa de ${formatDateBr(pend.dataPagamento)}.`);
+
+        // 3) Reabre o caixa daquele dia para conferência e re-fechamento (fluxo existente).
+        showToast("Entrada lançada. Reabrindo o caixa para conferência e re-fechamento...", "success");
+        if (typeof reopenCaixa === 'function' && caixa.status === 'fechado') {
+            await reopenCaixa(caixa.id);
+        } else if (typeof renderCaixaPage === 'function') {
+            renderCaixaPage();
+        }
+    } catch (err) {
+        console.error("Erro ao resolver baixa pendente:", err);
+        showToast("Erro ao lançar a baixa retroativa.", "error");
     }
 }
 

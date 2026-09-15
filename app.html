@@ -840,6 +840,32 @@
                 </div>
 
                 <!-- Auditoria: pendências de conferência com o DETRAN -->
+                <div class="panel-card" id="card-baixas-pendentes" style="margin-bottom: 20px; display: none; border-left: 3px solid var(--danger);">
+                    <div class="panel-card-header">
+                        <h3 style="margin: 0;">
+                            <i class="ri-refund-2-line" style="color: var(--danger);"></i>
+                            Baixas retroativas pendentes
+                            <span id="baixas-pendentes-contador" style="font-weight: 800;"></span>
+                        </h3>
+                    </div>
+                    <div class="panel-card-body" style="padding: 0;">
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px;">
+                                <thead>
+                                    <tr style="text-align: left;">
+                                        <th style="padding: 10px 14px;">Fatura</th>
+                                        <th style="padding: 10px 14px;">Dia do pagamento</th>
+                                        <th style="padding: 10px 14px; text-align: right;">Valor</th>
+                                        <th style="padding: 10px 14px;">Registrado por</th>
+                                        <th style="padding: 10px 14px; text-align: right;">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="baixas-pendentes-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="panel-card" id="card-pendencias" style="margin-bottom: 20px; display: none;">
                     <div class="panel-card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <h3 style="margin: 0;">
@@ -2475,6 +2501,73 @@
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; font-weight: 700; margin-top: 12px;">
                     <i class="ri-check-line"></i> Registrar Lançamento
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL DE BAIXA DE FATURA ===== -->
+<div class="modal-overlay" id="modal-fat-baixa" onclick="closeBaixaModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width: 480px;">
+        <div class="modal-header">
+            <h3>Dar Baixa na Fatura</h3>
+            <button class="modal-close" onclick="closeBaixaModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="fat-baixa-form" onsubmit="submitBaixaFatura(event)">
+                <input type="hidden" id="baixa-fat-id">
+                <div class="form-group">
+                    <label>Fatura</label>
+                    <input type="text" id="baixa-fat-resumo" readonly style="background: var(--bg-secondary); border-color: var(--border);">
+                </div>
+
+                <div class="form-group">
+                    <label>Quando o pagamento foi feito?</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-quando" value="hoje" checked onchange="onBaixaQuandoChange()"> <span>Hoje</span>
+                        </label>
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-quando" value="passado" onchange="onBaixaQuandoChange()"> <span>Data passada</span>
+                        </label>
+                    </div>
+                    <input type="date" id="baixa-data" style="display:none;">
+                </div>
+
+                <div class="form-group">
+                    <label for="baixa-forma">Forma de pagamento recebida</label>
+                    <select id="baixa-forma" required>
+                        <option value="transferencia">Transferência bancária</option>
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro / Espécie</option>
+                        <option value="cartao">Cartão</option>
+                    </select>
+                </div>
+
+                <!-- Só aparece quando a fatura tem cobrança Asaas em aberto -->
+                <div class="form-group" id="baixa-asaas-bloco" style="display:none;">
+                    <label>Esta fatura tem cobrança Asaas em aberto. O pagamento foi feito <strong>através da cobrança do Asaas</strong>?</label>
+                    <div style="display: flex; gap: 10px;">
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-via-asaas" value="sim"> <span>Sim, pelo Asaas</span>
+                        </label>
+                        <label class="form-check" style="flex:1; border:1px solid var(--border); border-radius: var(--radius-sm); padding:8px 10px; cursor:pointer;">
+                            <input type="radio" name="baixa-via-asaas" value="nao" checked> <span>Não, por fora</span>
+                        </label>
+                    </div>
+                    <small style="color: var(--text-secondary); display:block; margin-top:6px;">
+                        <i class="ri-information-line"></i> "Não" cancela a cobrança em aberto no Asaas para o cliente não ser cobrado de novo. "Sim" só baixa aqui (o Asaas já baixa sozinho).
+                    </small>
+                </div>
+
+                <div id="baixa-aviso-retroativo" style="display:none; background: var(--bg-primary); border:1px solid var(--warning); border-left:3px solid var(--warning); border-radius: var(--radius-sm); padding:10px 12px; margin-bottom:12px; font-size:12px; color:var(--text-secondary);">
+                    <i class="ri-alert-line" style="color: var(--warning);"></i>
+                    Pagamento em data passada: o caixa daquele dia já está fechado. A baixa é registrada agora e fica uma <strong>pendência</strong> para um operador Master reabrir o caixa, lançar e re-fechar.
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 4px;">
+                    <i class="ri-check-double-line"></i> Confirmar Baixa
                 </button>
             </form>
         </div>

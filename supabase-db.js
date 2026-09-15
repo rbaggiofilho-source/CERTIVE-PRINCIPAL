@@ -16,7 +16,8 @@ const DECIMAL_FIELDS = {
     faturas: ['valorTotal'],
     parceiros: ['precoCombo', 'precoComboTransferencia'],
     parceiros_creditos: ['valor'],
-    pendencias_fechamento: ['valorTaxa']
+    pendencias_fechamento: ['valorTaxa'],
+    baixas_faturas_pendentes: ['valor']
 };
 
 /**
@@ -448,6 +449,16 @@ async function loadAllFromSupabase() {
         }
         db.parceiros_creditos = parceiros_creditos || [];
 
+        // Tabela de Baixas de Fatura Pendentes (retroativas) - carregamento defensivo
+        let baixas_faturas_pendentes = [];
+        try {
+            baixas_faturas_pendentes = await sbSelectAll('baixas_faturas_pendentes', 'id', false);
+            window.onlineTables['baixas_faturas_pendentes'] = true;
+        } catch (e) {
+            console.warn("⚠️ Tabela baixas_faturas_pendentes indisponível no Supabase. Rode a migration 20260915000001.", e.message);
+        }
+        db.baixas_faturas_pendentes = baixas_faturas_pendentes || [];
+
         // Tabela de Configurações Gerais (OpenAI, etc) - carregamento defensivo
         let configuracoes_gerais = [];
         try {
@@ -505,6 +516,9 @@ async function loadAllFromSupabase() {
         db.cautelares_pesquisas.forEach(cp => normalizeRecord('cautelares_pesquisas', cp));
         if (db.parceiros_creditos) {
             db.parceiros_creditos.forEach(pc => normalizeRecord('parceiros_creditos', pc));
+        }
+        if (db.baixas_faturas_pendentes) {
+            db.baixas_faturas_pendentes.forEach(bp => normalizeRecord('baixas_faturas_pendentes', bp));
         }
 
         // Aplicar localmente quaisquer pendências de sincronização que ainda residam na fila local
