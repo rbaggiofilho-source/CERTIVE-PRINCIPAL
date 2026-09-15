@@ -6617,7 +6617,7 @@ function renderFatFaturas() {
         if (f.asaas_url) {
             asaasBtn = `<a href="${f.asaas_url}" target="_blank" class="btn btn-secondary btn-sm btn-icon" title="Abrir Boleto Asaas" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); transition: background 0.2s;"><i class="ri-bank-card-line" style="font-size:14px;"></i></a>`;
         } else {
-            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="generateAsaasBillingForInvoice(${f.id}, this)" title="Gerar Cobrança Asaas"><i class="ri-bank-card-line"></i></button>`;
+            asaasBtn = `<button class="btn btn-secondary btn-sm btn-icon" onclick="generateAsaasBillingForInvoice(${f.id}, this)" title="3. Gerar Cobrança Automática (Asaas)"><i class="ri-bank-card-line"></i></button>`;
         }
 
         let zapBtn = '';
@@ -6648,10 +6648,11 @@ function renderFatFaturas() {
                 <td>${boletoBadge}</td>
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
-                        <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="Imprimir Fatura"><i class="ri-printer-line"></i></button>
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="1. Imprimir / PDF da Fatura"><i class="ri-printer-line"></i></button>
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="forwardInvoice(${f.id}, this)" title="2. Encaminhar por E-mail + WhatsApp (sem cobrança)"><i class="ri-mail-send-line"></i></button>
                         ${asaasBtn}
                         ${zapBtn}
-                        ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})"><i class="ri-check-line"></i> Baixar</button>` : ''}
+                        ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})" title="4. Dar baixa (registrar pagamento)"><i class="ri-check-line"></i> Baixar</button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -14717,6 +14718,78 @@ async function resolveAuditoriaInconsistencies() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
+    }
+}
+
+// Substitui as variáveis do texto padrão do e-mail pela fatura concreta.
+function preencherTextoFatura(texto, fatura, partner) {
+    return String(texto || '')
+        .replace(/\{PARCEIRO\}/g, partner ? partner.nome : '')
+        .replace(/\{CODIGO\}/g, fatura.codigo || '')
+        .replace(/\{INICIO\}/g, formatDateBr(fatura.periodoInicio))
+        .replace(/\{FIM\}/g, formatDateBr(fatura.periodoFim))
+        .replace(/\{VALOR\}/g, formatCurrency(fatura.valorTotal));
+}
+
+// Passo 2 — ENCAMINHAR a fatura (e-mail + WhatsApp) SEM gerar cobrança Asaas.
+async function forwardInvoice(faturaId, btn) {
+    if (!window.useSupabase) {
+        showToast("Erro: O encaminhamento só está disponível no modo online (Supabase).", "error");
+        return;
+    }
+    const fatura = db.faturas.find(x => x.id === faturaId);
+    if (!fatura) return;
+    const partner = db.parceiros.find(p => p.id === fatura.parceiroId);
+
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line spinning" style="font-size:14px;"></i>'; }
+
+    try {
+        // Garante um PDF disponível (reusa o já gerado, senão gera agora).
+        let pdfUrl = fatura.pdf_url || null;
+        if (!pdfUrl) {
+            showToast("Gerando PDF da fatura para envio...", "info");
+            pdfUrl = await generateAndUploadInvoicePDF(fatura);
+            if (pdfUrl) {
+                fatura.pdf_url = pdfUrl;
+                try { await sbUpdate('faturas', fatura.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
+            }
+        }
+
+        const cfg = getFaturamentoConfig();
+        const assunto = preencherTextoFatura(cfg.emailAssunto, fatura, partner);
+        const corpo = preencherTextoFatura(cfg.emailCorpo, fatura, partner);
+
+        showToast("Encaminhando fatura (e-mail + WhatsApp)...", "info");
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-forward`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+            body: JSON.stringify({ faturaId, pdfUrl, canais: ['email', 'whatsapp'], assunto, corpo })
+        });
+
+        if (res.ok) {
+            const d = await res.json();
+            const map = {
+                enviado: 'enviado', erro: 'falhou', sem_email: 'sem e-mail no cadastro',
+                sem_whatsapp: 'sem WhatsApp no cadastro', sem_config: 'canal não configurado', nao_enviado: 'não enviado'
+            };
+            const partes = [];
+            if (d.email) partes.push(`E-mail: ${map[d.email] || d.email}`);
+            if (d.whatsapp) partes.push(`WhatsApp: ${map[d.whatsapp] || d.whatsapp}`);
+            const sucesso = d.email === 'enviado' || d.whatsapp === 'enviado';
+            showToast(`Encaminhamento — ${partes.join(' · ')}`, sucesso ? 'success' : 'warning');
+            logAudit("Faturamento Encaminhar", `Encaminhou fatura ${fatura.codigo} (${partes.join(', ')}).`);
+        } else {
+            let errText = "Erro desconhecido";
+            try { errText = (await res.json()).error || errText; } catch (e) {}
+            showToast("Erro ao encaminhar: " + errText, "error");
+        }
+    } catch (err) {
+        console.error("Erro ao encaminhar fatura:", err);
+        showToast("Erro de rede ao encaminhar a fatura.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+        if (typeof renderFatFaturas === 'function') renderFatFaturas();
     }
 }
 
