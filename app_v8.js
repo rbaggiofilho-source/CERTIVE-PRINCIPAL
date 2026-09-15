@@ -1317,9 +1317,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.4.1';
+const APP_VERSION = '9.5.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.5.0',
+        data: '2026-09-15',
+        titulo: 'Vistorias reprovadas voltam a aparecer no faturamento',
+        resumo: 'Vistoria reprovada de parceiro também é cobrança: o laudo foi emitido e o DETRAN já cobrou os R$27. Mesmo assim, elas não apareciam na tela de faturamento — só as aprovadas entravam. Agora aprovada e reprovada aparecem juntas para faturar. Só o retorno (reapresentação) continua isento, como deve ser.',
+        mudancas: [
+            {
+                area: 'Faturamento',
+                titulo: 'Vistoria reprovada de parceiro agora entra no faturamento',
+                oQueMudou: 'A tela de faturamento só listava as vistorias aprovadas. As reprovadas ficavam de fora e o parceiro nunca era cobrado por elas — mesmo o laudo tendo sido emitido e o DETRAN já tendo cobrado a taxa. Em agosto, 11 vistorias de parceiro (R$ 1.773,00) estavam nessa situação; em julho eram 7 (R$ 883,00) e no início de setembro mais 2 (R$ 316,50).',
+                comoUsar: 'Abra Faturamento › Pendentes. As reprovadas agora aparecem na lista junto com as aprovadas, com o valor cheio, prontas para gerar a fatura do parceiro normalmente. O retorno (reapresentação) de uma reprovada continua isento e não aparece — está correto, não se cobra duas vezes.'
+            }
+        ]
+    },
     {
         versao: '9.4.1',
         data: '2026-09-01',
@@ -5959,11 +5973,16 @@ function loadFatPartnersFilter() {
 }
 
 function getUnbilledOSs() {
-    return db.ordens_servico.filter(o => 
-        o.unidadeId === activeUnitId && 
-        o.formaPagamento === 'faturamento' && 
-        !o.faturaId && 
-        o.status === 'concluida_aprovada'
+    // Uma vistoria REPROVADA é serviço prestado: o laudo foi emitido e o
+    // parceiro paga por ele (o custo do DETRAN de R$27 tambem ja foi gerado).
+    // Só o retorno/reapresentacao é isento — e esse entra como formaPagamento
+    // 'isento', logo ja fica de fora deste filtro. Por isso incluimos aqui
+    // tanto aprovada quanto reprovada; senao as reprovadas somem do faturamento.
+    return db.ordens_servico.filter(o =>
+        o.unidadeId === activeUnitId &&
+        o.formaPagamento === 'faturamento' &&
+        !o.faturaId &&
+        (o.status === 'concluida_aprovada' || o.status === 'concluida_reprovada')
     );
 }
 
