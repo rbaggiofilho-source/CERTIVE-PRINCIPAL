@@ -6330,55 +6330,27 @@ async function submitGirarFatura(event) {
             }
         }
         
-        // --- Gerar PDF e Chamar Edge Function Asaas se líquido > 0 ---
+        // --- Gerar PDF (a cobrança Asaas e o envio viraram ações SEPARADAS) ---
+        // Desde 09/2026 o FECHAMENTO do lote NÃO dispara mais Asaas nem WhatsApp
+        // automaticamente. Fechar a fatura apenas corta o período (novas OS do
+        // parceiro já caem na próxima fatura por não terem faturaId) e gera o
+        // demonstrativo em PDF. Gerar cobrança automática (Asaas), encaminhar por
+        // e-mail/WhatsApp e dar baixa passaram a ser botões deliberados na aba
+        // Histórico. Motivo: clientes que adiantavam o pagamento por transferência
+        // eram cobrados indevidamente pela cobrança automática disparada no fechamento.
         try {
-            if (!pagoIntegral) {
-                showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
-                
-                // 1. Gera PDF e faz upload pro Supabase Storage
-                const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
-
-                showToast("PDF gerado. Registrando no Asaas e enviando WhatsApp...", "info");
-                
-                // 2. Chama a Edge Function Asaas
-                const functionRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sbAuthToken()}`
-                    },
-                    body: JSON.stringify({ faturaId: inserted.id, pdfUrl: pdfUrl })
-                });
-                
-                if (functionRes.ok) {
-                    const functionData = await functionRes.json();
-                    finalInvoice.asaas_payment_id = functionData.paymentId;
-                    finalInvoice.asaas_url = functionData.url;
-                    finalInvoice.notificacao_zap = (functionData.zapStatus === 'enviado');
-                    
-                    // Salva atualizações do Asaas na fatura do banco de dados
-                    await sbUpdate('faturas', inserted.id, {
-                        asaas_payment_id: finalInvoice.asaas_payment_id,
-                        asaas_url: finalInvoice.asaas_url,
-                        notificacao_zap: finalInvoice.notificacao_zap
-                    });
-                    
-                    showToast("Cobrança Asaas gerada e WhatsApp enviado!", "success");
-                } else {
-                    let errText = "Erro desconhecido";
-                    try {
-                        const functionData = await functionRes.json();
-                        errText = functionData.error || errText;
-                    } catch(e) {}
-                    showToast("Erro Asaas: " + errText, "error");
+            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
+            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+            if (pdfUrl) {
+                finalInvoice.pdf_url = pdfUrl;
+                // Persiste a URL do PDF se a coluna existir (ignora se ainda não migrada).
+                if (window.onlineTables && window.onlineTables['faturas']) {
+                    try { await sbUpdate('faturas', inserted.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
                 }
-            } else {
-                showToast("Fatura liquidada 100% via créditos! Gerando comprovante...", "info");
-                await generateAndUploadInvoicePDF(finalInvoice);
             }
-        } catch(e) {
+        } catch (e) {
             console.error(e);
-            showToast("Erro ao chamar Asaas / WhatsApp.", "error");
+            showToast("Fatura fechada, mas houve um erro ao gerar o PDF.", "warning");
         }
         
         db.faturas.unshift(finalInvoice);
