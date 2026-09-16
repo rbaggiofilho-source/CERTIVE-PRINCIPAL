@@ -15558,7 +15558,9 @@ const DEFAULT_FAT_BANCO = {
     agencia: "0001",
     conta: "7450656-9",
     tipoConta: "Conta de Pagamento",
-    pix: "+55 48 933816198"
+    // Chave PIX aleatória cadastrada no Asaas (recebimento/reconciliação).
+    // O QR do documento e o campo "Chave PIX" usam exatamente esta chave.
+    pix: "83e5a290-14ad-4b22-a1af-ab0779c544d1"
 };
 
 // Identidade visual do documento da fatura (padrão do site).
