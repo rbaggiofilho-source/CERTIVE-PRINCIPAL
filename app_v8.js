@@ -7007,11 +7007,14 @@ function printInvoiceById(invoiceId) {
     const printArea = document.getElementById('print-area');
     printArea.innerHTML = `
         <div class="print-header">
-            <div>
-                <h1 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; color: #000;">CERTIVE VISTORIAS</h1>
-                <p style="font-size: 10px; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+            <div style="display:flex; align-items:center; gap:12px;">
+                ${certiveShieldSvg(38)}
+                <div>
+                    <h1 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; color: ${CERTIVE_NAVY};">CERTIVE VISTORIAS</h1>
+                    <p style="font-size: 10px; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+                </div>
             </div>
-            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px;">FATURA ${f.codigo}</div>
+            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px; color:${CERTIVE_NAVY}; border-color:${CERTIVE_NAVY};">FATURA ${f.codigo}</div>
         </div>
 
         <div style="margin-bottom: 24px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; border-bottom: 1px solid #000; padding-bottom: 16px;">
@@ -14723,12 +14726,15 @@ async function generateAndUploadInvoicePDF(f) {
     div.style.color = '#000';
     div.style.width = '800px';
     div.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
-            <div>
-                <h1 style="font-size: 24px; font-weight: 800; margin: 0;">CERTIVE VISTORIAS</h1>
-                <p style="font-size: 11px; text-transform: uppercase; margin: 4px 0 0 0;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid ${CERTIVE_NAVY}; padding-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                ${certiveShieldSvg(42)}
+                <div>
+                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: ${CERTIVE_NAVY};">CERTIVE VISTORIAS</h1>
+                    <p style="font-size: 11px; text-transform: uppercase; margin: 4px 0 0 0; color:#555;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
+                </div>
             </div>
-            <div style="border: 2px solid #000; padding: 8px 16px; font-weight: 800; font-size: 16px;">
+            <div style="border: 2px solid ${CERTIVE_NAVY}; color:${CERTIVE_NAVY}; padding: 8px 16px; font-weight: 800; font-size: 16px;">
                 FATURA ${f.codigo}
             </div>
         </div>
@@ -15552,8 +15558,80 @@ const DEFAULT_FAT_BANCO = {
     agencia: "0001",
     conta: "7450656-9",
     tipoConta: "Conta de Pagamento",
-    pix: ""
+    pix: "+55 48 933816198"
 };
+
+// Identidade visual do documento da fatura (padrão do site).
+const CERTIVE_NAVY = '#0a1f3d';
+const CERTIVE_GOLD = '#d4a017';
+
+// Brasão dourado (o mesmo escudo do login/sidebar). Renderizado como <img> com
+// data-URI de SVG — mais confiável no html2canvas/impressão que SVG inline.
+function certiveShieldSvg(size) {
+    const s = size || 34;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${CERTIVE_GOLD}" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm-5 7.93c.02-1.95 3.34-2.93 5-2.93s4.98.98 5 2.93C15.5 17.5 13.9 18 12 18s-3.5-.5-5-3.07z"/></svg>`;
+    return `<img src="data:image/svg+xml;utf8,${encodeURIComponent(svg)}" width="${s}" height="${s}" alt="Certive" style="flex:none; display:block;">`;
+}
+
+// ---- PIX "copia e cola" (BR Code EMV) + QR ----
+// CRC16-CCITT (0xFFFF, poly 0x1021) exigido pelo padrão do Banco Central.
+function pixCrc16(str) {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+        crc ^= (str.charCodeAt(i) & 0xFF) << 8;
+        for (let j = 0; j < 8; j++) {
+            crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+            crc &= 0xFFFF;
+        }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+// Remove acentos e limita tamanho (campos 59/60 do BR Code são ASCII curtos).
+function pixAscii(txt, max) {
+    const clean = String(txt || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E]/g, '').trim().toUpperCase();
+    return clean.substring(0, max || 25);
+}
+
+// Monta o payload PIX estático. amount opcional (com valor, o app do cliente já
+// vem preenchido). key aceita telefone (+55...), CNPJ, e-mail ou chave aleatória.
+function buildPixBrCode({ key, name, city, amount, txid }) {
+    const f = (id, val) => id + String(val.length).padStart(2, '0') + val;
+    const chave = String(key || '').replace(/\s+/g, '');
+    const gui = f('00', 'br.gov.bcb.pix') + f('01', chave);
+    const mai = f('26', gui);
+    let payload =
+        f('00', '01') +
+        mai +
+        f('52', '0000') +
+        f('53', '986') +
+        (amount ? f('54', Number(amount).toFixed(2)) : '') +
+        f('58', 'BR') +
+        f('59', pixAscii(name, 25) || 'CERTIVE') +
+        f('60', pixAscii(city, 15) || 'SAO JOSE') +
+        f('62', f('05', pixAscii(txid || '***', 25)));
+    payload += '6304';
+    return payload + pixCrc16(payload);
+}
+
+// Gera um data URL (PNG) do QR PIX usando a lib qrcodejs (global QRCode).
+function gerarQrPixDataUrl(payloadText, px) {
+    try {
+        if (typeof QRCode === 'undefined' || !payloadText) return null;
+        const holder = document.createElement('div');
+        holder.style.display = 'none';
+        document.body.appendChild(holder);
+        // eslint-disable-next-line no-new
+        new QRCode(holder, { text: payloadText, width: px || 150, height: px || 150, correctLevel: QRCode.CorrectLevel.M });
+        const canvas = holder.querySelector('canvas');
+        const dataUrl = canvas ? canvas.toDataURL('image/png') : (holder.querySelector('img') || {}).src || null;
+        document.body.removeChild(holder);
+        return dataUrl;
+    } catch (e) {
+        console.warn('Falha ao gerar QR PIX:', e);
+        return null;
+    }
+}
 
 // Retorna a config de faturamento efetiva (o que estiver salvo, com fallback
 // para os valores padrão). Usado pelo PDF da fatura e pelo envio de e-mail.
@@ -15579,18 +15657,41 @@ function buildPaymentInstructionsHtml(f) {
     if (f && f.pago) return '';
     if (f && typeof f.valorTotal === 'number' && f.valorTotal <= 0) return '';
     const c = getFaturamentoConfig();
+    const unit = f ? db.unidades.find(u => u.id === f.unidadeId) : null;
+
+    // QR PIX (BR Code) gerado a partir da chave configurada + valor da fatura.
+    let qrHtml = '';
+    if (c.pix) {
+        const payload = buildPixBrCode({
+            key: c.pix,
+            name: c.favorecido,
+            city: unit && unit.cidade ? unit.cidade : 'SAO JOSE',
+            amount: f && f.valorTotal ? f.valorTotal : null,
+            txid: f && f.codigo ? f.codigo.replace(/[^A-Za-z0-9]/g, '') : '***'
+        });
+        const dataUrl = gerarQrPixDataUrl(payload, 150);
+        if (dataUrl) {
+            qrHtml = `
+                <div style="flex:none; text-align:center; padding-left:14px; border-left:1px dashed #bbb;">
+                    <img src="${dataUrl}" alt="QR Code PIX" style="width:130px; height:130px; display:block;">
+                    <div style="font-size:10px; font-weight:800; color:${CERTIVE_NAVY}; margin-top:4px; letter-spacing:.03em;">PAGUE COM PIX</div>
+                </div>`;
+        }
+    }
+
     const linhaPix = c.pix
         ? `<tr><td style="padding: 3px 0; width: 130px; color:#555;">Chave PIX</td><td style="padding: 3px 0; font-weight: 700;">${c.pix}</td></tr>`
         : '';
+
     return `
-        <div style="border: 1px solid #2e7d32; border-radius: 4px; overflow: hidden; margin-top: 20px;">
-            <div style="font-weight: 800; font-size: 12px; background: #e8f5e9; color: #1b5e20; padding: 10px 14px; border-bottom: 1px solid #2e7d32;">
+        <div style="border: 1px solid ${CERTIVE_NAVY}; border-radius: 4px; overflow: hidden; margin-top: 20px;">
+            <div style="font-weight: 800; font-size: 12px; background: ${CERTIVE_NAVY}; color: #fff; padding: 10px 14px;">
                 INSTRUÇÕES DE PAGAMENTO
             </div>
-            <div style="padding: 12px 14px; font-size: 12px; line-height: 1.5;">
-                <table style="width: 100%; border-collapse: collapse;">
+            <div style="padding: 14px; font-size: 12px; line-height: 1.5; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <table style="border-collapse: collapse; flex:1;">
                     <tbody>
-                        <tr><td style="padding: 3px 0; width: 130px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
+                        <tr><td style="padding: 3px 0; width: 120px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${c.cnpj}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Banco</td><td style="padding: 3px 0; font-weight: 700;">${c.banco}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Agência</td><td style="padding: 3px 0; font-weight: 700;">${c.agencia}</td></tr>
@@ -15598,6 +15699,7 @@ function buildPaymentInstructionsHtml(f) {
                         ${linhaPix}
                     </tbody>
                 </table>
+                ${qrHtml}
             </div>
         </div>
     `;
