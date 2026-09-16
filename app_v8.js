@@ -4522,9 +4522,16 @@ async function submitCaixaMov(event) {
             const totalPago = totalPagoPorCaixa(contaPagarId);
             if (totalPago >= Number(conta.valor) - 0.005) {
                 const hoje = new Date().toISOString().substring(0, 10);
-                dbSave('contas_pagar', { pago: true, pagoEm: hoje }, 'update', contaPagarId);
-                showToast(`Conta "${conta.descricao}" quitada e baixada automaticamente.`, "success");
-                logAudit("Baixa automática", `Conta ${conta.descricao} quitada por pagamentos do caixa (${formatCurrency(totalPago)}).`);
+                try {
+                    await dbSave('contas_pagar', { pago: true, pagoEm: hoje }, 'update', contaPagarId, { strict: true });
+                    conta.pago = true;
+                    conta.pagoEm = hoje;
+                    showToast(`Conta "${conta.descricao}" quitada e baixada automaticamente.`, "success");
+                    logAudit("Baixa automática", `Conta ${conta.descricao} quitada por pagamentos do caixa (${formatCurrency(totalPago)}).`);
+                } catch (err) {
+                    console.error('[Certive] baixa automática — falha ao confirmar no banco:', err);
+                    showToast(`O pagamento foi lançado no caixa, mas a baixa da conta "${conta.descricao}" NÃO foi confirmada no banco. Dê a baixa manualmente quando estiver online.`, "error");
+                }
             } else {
                 const falta = Number(conta.valor) - totalPago;
                 showToast(`Pagamento parcial registrado. Faltam ${formatCurrency(falta)} para quitar "${conta.descricao}".`, "info");
@@ -7622,25 +7629,42 @@ function submitPayExpense(id) {
 
     const reader = new FileReader();
     reader.onload = async function(e) {
-        const updates = {
-            pago: true,
-            pagoEm: payDate,
-            comprovante: e.target.result
-        };
+        const comprovanteData = e.target.result;
 
+        // ETAPA 1 — grava o STATUS (leve) de forma estrita. Se o banco não
+        // confirmar, NÃO marcamos como paga, NÃO registramos auditoria e NÃO
+        // dizemos "sucesso". Antes o status ia junto com o comprovante pesado e,
+        // numa falha, era enfileirado com o base64 que estourava o localStorage —
+        // a baixa sumia sem rastro. Agora o status persiste sozinho e primeiro.
         try {
-            await dbSave('contas_pagar', updates, 'update', expense.id);
-            expense.pago = true;
-            expense.pagoEm = payDate;
-            expense.comprovante = e.target.result;
-
-            showToast("Pagamento registrado com sucesso!", "success");
-            logAudit("Pagamento Despesa", `Marcou despesa como paga e anexou comprovante: ${expense.descricao}.`);
-            closeOSModal();
-            renderContasGerais();
+            await dbSave('contas_pagar', { pago: true, pagoEm: payDate }, 'update', expense.id, { strict: true });
         } catch (err) {
-            console.error(err);
-            showToast("Erro ao registrar pagamento no banco.", "error");
+            console.error('[Certive] submitPayExpense — falha ao confirmar status:', err);
+            const pendente = err && err.enfileirado
+                ? " A baixa ficou pendente para sincronização, mas ainda NÃO está confirmada no banco."
+                : "";
+            showToast(`Não foi possível confirmar o pagamento no servidor. A conta CONTINUA EM ABERTO — verifique a conexão e tente novamente.${pendente}`, "error");
+            return; // conta permanece em aberto, refletindo a realidade do banco
+        }
+
+        // Status confirmado no banco: agora sim a conta está paga.
+        expense.pago = true;
+        expense.pagoEm = payDate;
+        logAudit("Pagamento Despesa", `Marcou despesa como paga: ${expense.descricao}.`);
+        closeOSModal();
+        renderContasGerais();
+
+        // ETAPA 2 — anexa o comprovante (pesado) numa gravação separada. Se
+        // falhar, a baixa JÁ está garantida; apenas avisamos para reenviar o
+        // comprovante, sem reverter o pagamento nem fingir que deu tudo certo.
+        try {
+            await dbSave('contas_pagar', { comprovante: comprovanteData }, 'update', expense.id, { strict: true });
+            expense.comprovante = comprovanteData;
+            showToast("Pagamento registrado e comprovante anexado com sucesso!", "success");
+            logAudit("Anexo Comprovante", `Anexou comprovante de pagamento: ${expense.descricao}.`);
+        } catch (err) {
+            console.error('[Certive] submitPayExpense — falha ao anexar comprovante:', err);
+            showToast("Conta marcada como PAGA, mas o comprovante não foi anexado. Reenvie o comprovante quando estiver online (botão de editar/anexar).", "warning");
         }
     };
     reader.onerror = function() {

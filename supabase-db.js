@@ -150,10 +150,15 @@ async function sbUpdate(table, id, updates) {
     // data is an array; return first element (or null if 0 rows matched)
     const result = data && data.length > 0 ? data[0] : null;
     if (!result) {
-        console.warn(`⚠️ sbUpdate(${table}, ${id}): nenhuma linha encontrada com esse ID.`);
-    } else {
-        console.log(`✅ sbUpdate(${table}): ID ${id}`);
+        // 0 linhas afetadas = a gravação NÃO aconteceu (ID inexistente ou RLS
+        // bloqueou o UPDATE). Antes isso retornava em silêncio e o chamador
+        // (ex.: baixa de conta a pagar) exibia "sucesso" sem nada ter mudado no
+        // banco. Agora vira erro explícito para que a falha nunca passe calada.
+        const msg = `Atualização não confirmada: nenhuma linha alterada em ${table} (ID ${id}).`;
+        console.warn(`⚠️ sbUpdate(${table}, ${id}): 0 linhas afetadas.`);
+        throw new Error(msg);
     }
+    console.log(`✅ sbUpdate(${table}): ID ${id}`);
     return prepareRecordFromDb(table, result);
 }
 
@@ -664,7 +669,13 @@ async function sbUpsertMetas(unidadeId, metasObject) {
  * Updates Supabase when window.useSupabase is true, otherwise falls back to localStorage.
  * Synchronously updates the local cache db to keep the UI immediate, then does the DB write.
  */
-async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
+async function dbSave(table, recordOrUpdates, action = 'insert', id = null, options = {}) {
+    // options.strict = true  →  se a gravação online falhar, o item é enfileirado
+    // para reenvio E o erro é RE-LANÇADO, para que operações críticas (ex.: baixa
+    // de conta a pagar) NÃO relatem "sucesso" quando o dado não chegou ao banco.
+    // Sem strict (padrão), mantém o comportamento resiliente antigo: engole o erro
+    // e segue com a fila offline, adequado para fluxos tolerantes a atraso.
+    const strict = options && options.strict === true;
     // Agenda sincronização das taxas flutuantes do DETRAN para após a conclusão da gravação dos dados
     if (typeof window.syncDetranFloatingPayable === 'function' && (table === 'ordens_servico' || table === 'taxas_referencia')) {
         setTimeout(() => {
@@ -709,8 +720,15 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
             return result;
         } catch (error) {
             console.error(`❌ Erro no dbSave online (${table}, ${action}):`, error);
+            const enfileirado = enqueueSyncItem(table, action, recordOrUpdates, id);
+            if (strict) {
+                // Deixa o chamador decidir a mensagem/UX. Não afirmamos sucesso.
+                const e = new Error(error && error.message ? error.message : 'Falha ao gravar no banco.');
+                e.enfileirado = enfileirado;   // true = ficou pendente para reenvio
+                e.causa = error;
+                throw e;
+            }
             showToast("Falha no banco online. Salvando localmente...", "warning");
-            enqueueSyncItem(table, action, recordOrUpdates, id);
         }
     }
     
@@ -778,24 +796,60 @@ function saveSyncQueue(queue) {
         if (typeof updateSyncIndicatorUI === 'function') {
             updateSyncIndicatorUI();
         }
+        return true;
     } catch (e) {
+        // Falha ao gravar a fila (cota do localStorage estourada, modo privado
+        // etc.). Antes isso era engolido e a pendência sumia sem ninguém saber.
+        // Agora avisa de forma inequívoca para que o usuário NÃO confie que a
+        // operação foi salva. A fila anterior no localStorage é preservada.
         console.error("Erro ao salvar fila de sincronização:", e);
+        const aviso = "ATENÇÃO: não foi possível salvar uma alteração pendente neste dispositivo (armazenamento cheio). A operação NÃO foi registrada — verifique sua conexão e refaça quando estiver online.";
+        if (typeof showToast === 'function') showToast(aviso, "error");
+        try { if (typeof alert === 'function') alert(aviso); } catch (_) { /* ambiente sem alert */ }
+        return false;
     }
 }
 
 function enqueueSyncItem(table, action, recordOrUpdates, id = null) {
+    // Campos base64 pesados (comprovante/anexo ~1 MB) NÃO podem entrar na fila:
+    // um punhado deles estoura a cota do localStorage e o saveSyncQueue acabava
+    // descartando a fila INTEIRA em silêncio — foi assim que baixas de contas a
+    // pagar (pago/pagoEm) sumiram sem deixar rastro. Aqui removemos os campos
+    // pesados antes de enfileirar: o status leve é preservado e sincroniza; o
+    // anexo pesado precisa ser reenviado manualmente quando a conexão voltar.
+    let payload = recordOrUpdates;
+    let camposPesadosOmitidos = null;
+    const pesados = (typeof CAMPOS_PESADOS !== 'undefined' && CAMPOS_PESADOS[table]) || [];
+    if (payload && typeof payload === 'object' && pesados.length) {
+        const clone = { ...payload };
+        pesados.forEach(campo => {
+            if (clone[campo] !== undefined && clone[campo] !== null) {
+                (camposPesadosOmitidos = camposPesadosOmitidos || []).push(campo);
+                delete clone[campo];
+            }
+        });
+        if (camposPesadosOmitidos) payload = clone;
+    }
+
     const queue = getSyncQueue();
     const queueId = 'sync_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     queue.push({
         id: queueId,
         table,
         action,
-        recordOrUpdates,
+        recordOrUpdates: payload,
+        camposPesadosOmitidos,   // registro do que não pôde ser enfileirado
         recordId: id,
         timestamp: new Date().toISOString()
     });
-    saveSyncQueue(queue);
-    console.log(`📥 Item enfileirado para sincronização offline: ${table} (${action})`);
+    const ok = saveSyncQueue(queue);
+    if (ok) {
+        console.log(`📥 Item enfileirado para sincronização offline: ${table} (${action})`);
+        if (camposPesadosOmitidos) {
+            console.warn(`⚠️ Campos pesados não enfileirados (${table}): ${camposPesadosOmitidos.join(', ')}. Reenvie o anexo quando estiver online.`);
+        }
+    }
+    return ok;
 }
 
 let isProcessingSyncQueue = false;
