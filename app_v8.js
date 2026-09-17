@@ -1317,9 +1317,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.5.0';
+const APP_VERSION = '9.5.1';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.5.1',
+        data: '2026-09-17',
+        titulo: 'Fechamento avisa quando o arquivo do DETRAN é o errado',
+        resumo: 'Descobrimos que, no fechamento de caixa, estava sendo anexado o comprovante que o próprio sistema gera, no lugar do relatório de laudos do DETRAN. Com o arquivo errado a conferência não tinha o que comparar e passava batida. Agora o sistema reconhece esse engano e avisa qual é o arquivo certo.',
+        mudancas: [
+            {
+                area: 'Fechamento de caixa',
+                titulo: 'O sistema identifica o comprovante errado',
+                oQueMudou: 'A conferência com o DETRAN precisa do relatório "Laudos realizados no período" (exportado do Portal ECV). No fechamento estava sendo anexado, por engano, o comprovante de fechamento que o próprio sistema imprime — que não tem os laudos no formato do DETRAN. Resultado: a conferência não rodava e nenhuma divergência era apontada, embora um PDF estivesse anexado.',
+                comoUsar: 'Ao anexar o arquivo no fechamento, se for o comprovante do próprio sistema, aparece o aviso "ARQUIVO ERRADO" explicando que o certo é o relatório de laudos do DETRAN (Portal ECV → "Laudos realizados no período" → exportar PDF). Anexe esse arquivo para a conferência acontecer e apontar erros de placa, laudos sem OS e OS sem laudo.'
+            }
+        ]
+    },
     {
         versao: '9.5.0',
         data: '2026-09-15',
@@ -4796,9 +4810,35 @@ async function extrairLinhasPdf(arrayBuffer) {
     return linhas;
 }
 
+// Assinaturas do comprovante de fechamento que o PRÓPRIO sistema gera.
+// O operador costuma anexar esse PDF por engano no lugar do relatório do
+// DETRAN ("Laudos realizados no período", exportado do Portal ECV). Como ele
+// não tem laudos no layout esperado, a conferência silenciosamente não roda.
+// Detectar aqui permite avisar o operador qual é o arquivo certo.
+const MARCADORES_COMPROVANTE_SISTEMA = [
+    'DEMONSTRATIVO FINANCEIRO',
+    'RESUMO FINANCEIRO E CONCILIACAO',
+    'RESUMO FINANCEIRO E CONCILIAÇÃO',
+    'DETALHE DOS LANCAMENTOS',
+    'DETALHE DOS LANÇAMENTOS',
+    'ASSINATURA DO OPERADOR',
+    'ASSINATURA DO SUPERVISOR'
+];
+
+function pareceComprovanteDoSistema(linhas) {
+    const texto = (linhas || []).join(' ').toUpperCase();
+    let achados = 0;
+    for (const m of MARCADORES_COMPROVANTE_SISTEMA) {
+        if (texto.includes(m)) achados++;
+        if (achados >= 2) return true; // dois marcadores já são conclusivos
+    }
+    return false;
+}
+
 // Extrai os laudos e o período coberto pelo relatório.
 async function lerRelatorioDetran(arrayBuffer) {
     const linhas = await extrairLinhasPdf(arrayBuffer);
+    const documentoDoSistema = pareceComprovanteDoSistema(linhas);
     const laudos = [];
     let periodo = null;
     linhas.forEach(bruta => {
@@ -4827,7 +4867,7 @@ async function lerRelatorioDetran(arrayBuffer) {
             });
         }
     });
-    return { laudos, periodo, totalLinhas: linhas.length };
+    return { laudos, periodo, totalLinhas: linhas.length, documentoDoSistema };
 }
 
 // dd/mm/aaaa -> aaaa-mm-dd
@@ -5259,9 +5299,24 @@ async function submitFecharCaixa(event) {
     // pode vir assinado digitalmente ou em layout diferente.
     try {
         const bytesAuditoria = await file.arrayBuffer();
-        const { laudos, periodo } = await lerRelatorioDetran(bytesAuditoria);
+        const { laudos, periodo, documentoDoSistema } = await lerRelatorioDetran(bytesAuditoria);
 
-        if (laudos.length === 0) {
+        if (documentoDoSistema) {
+            // Arquivo errado: é o comprovante de fechamento gerado pelo próprio
+            // sistema, não o relatório do DETRAN. Sem o relatório certo a
+            // conferência não tem com o que comparar.
+            logAudit('Fechamento sem conferência DETRAN',
+                'Anexou o comprovante de fechamento do próprio sistema no lugar do relatório de laudos do DETRAN. Conferência não realizada.');
+            const segue = confirm(
+                'ARQUIVO ERRADO\n\n' +
+                'Você anexou o comprovante de FECHAMENTO DE CAIXA gerado pelo próprio sistema.\n\n' +
+                'A conferência precisa do relatório do DETRAN:\n' +
+                'Portal ECV → "Laudos realizados no período" → exportar em PDF.\n\n' +
+                'Sem esse arquivo a conferência com o DETRAN NÃO acontece. ' +
+                'Fechar o caixa assim mesmo, sem conferência?'
+            );
+            if (!segue) return;
+        } else if (laudos.length === 0) {
             const segue = confirm(
                 'Não foi possível ler nenhum laudo no PDF anexado.\n\n' +
                 'Confira se é mesmo o relatório "Laudos realizados no período" do Portal ECV.\n\n' +
