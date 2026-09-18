@@ -1317,20 +1317,34 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.5.1';
+const APP_VERSION = '9.5.2';
 
 const ATUALIZACOES = [
     {
-        versao: '9.5.1',
-        data: '2026-09-17',
-        titulo: 'Fechamento avisa quando o arquivo do DETRAN é o errado',
-        resumo: 'Descobrimos que, no fechamento de caixa, estava sendo anexado o comprovante que o próprio sistema gera, no lugar do relatório de laudos do DETRAN. Com o arquivo errado a conferência não tinha o que comparar e passava batida. Agora o sistema reconhece esse engano e avisa qual é o arquivo certo.',
+        versao: '9.5.2',
+        data: '2026-09-18',
+        titulo: 'Conferência com o DETRAN volta a funcionar de verdade',
+        resumo: 'A conferência automática no fechamento de caixa não estava lendo o relatório do DETRAN — mesmo com o arquivo certo anexado todo dia. O motivo era técnico: no relatório do Portal ECV, cada linha é impressa em duas alturas ligeiramente diferentes, e o leitor quebrava cada laudo em duas partes, sem reconhecer nenhum. Corrigido. Testado com o relatório real de 17/09: leu os 9 laudos e o total de R$ 1.438,53, batendo com o rodapé do próprio DETRAN.',
         mudancas: [
             {
                 area: 'Fechamento de caixa',
-                titulo: 'O sistema identifica o comprovante errado',
-                oQueMudou: 'A conferência com o DETRAN precisa do relatório "Laudos realizados no período" (exportado do Portal ECV). No fechamento estava sendo anexado, por engano, o comprovante de fechamento que o próprio sistema imprime — que não tem os laudos no formato do DETRAN. Resultado: a conferência não rodava e nenhuma divergência era apontada, embora um PDF estivesse anexado.',
-                comoUsar: 'Ao anexar o arquivo no fechamento, se for o comprovante do próprio sistema, aparece o aviso "ARQUIVO ERRADO" explicando que o certo é o relatório de laudos do DETRAN (Portal ECV → "Laudos realizados no período" → exportar PDF). Anexe esse arquivo para a conferência acontecer e apontar erros de placa, laudos sem OS e OS sem laudo.'
+                titulo: 'O leitor agora entende o relatório do DETRAN',
+                oQueMudou: 'O relatório "Laudos realizados no período" do Portal ECV imprime, na mesma linha, a placa um pouquinho mais baixa que o valor. O leitor agrupava o texto pela altura exata e, com isso, separava cada laudo em dois pedaços que não casavam com nada — lia zero laudos e a conferência passava batida, embora o arquivo estivesse correto. Agora o leitor agrupa por proximidade e remonta a linha inteira.',
+                comoUsar: 'Nada muda no procedimento: continue anexando o relatório de laudos do Portal ECV no fechamento. A diferença é que agora a conferência realmente roda e aponta placa digitada errada, laudo sem OS e OS sem laudo.'
+            }
+        ]
+    },
+    {
+        versao: '9.5.1',
+        data: '2026-09-17',
+        titulo: 'Rede de segurança: aviso se o arquivo anexado for o comprovante do sistema',
+        resumo: 'Passo de segurança: se por engano for anexado, no fechamento, o comprovante de caixa que o próprio sistema gera em vez do relatório de laudos do DETRAN, o sistema avisa qual é o arquivo certo.',
+        mudancas: [
+            {
+                area: 'Fechamento de caixa',
+                titulo: 'O sistema reconhece o comprovante do próprio sistema',
+                oQueMudou: 'Se alguém anexar o comprovante de fechamento gerado pelo sistema (que não é o relatório do DETRAN), aparece o aviso "ARQUIVO ERRADO" indicando o certo. É uma proteção; o relatório correto continua sendo o "Laudos realizados no período" do Portal ECV.',
+                comoUsar: 'Se aparecer o aviso "ARQUIVO ERRADO", troque o anexo pelo relatório de laudos exportado do Portal ECV.'
             }
         ]
     },
@@ -4783,6 +4797,14 @@ const RE_PERIODO = /Per[íi]odo\s+de\s*:\s*(\d{2}\/\d{2}\/\d{4})\s+a\s+(\d{2}\/\
 // Reconstrói as linhas do PDF agrupando os fragmentos de texto pela posição
 // vertical. O getTextContent devolve pedaços soltos; sem reagrupar por Y, a
 // linha da placa se mistura com a de cima e a regex não casa.
+//
+// IMPORTANTE: NÃO dá para agrupar por Y arredondado. No relatório real do
+// Portal ECV, as colunas de valor (nº da nota, R$, status) são desenhadas
+// ~1pt ACIMA das colunas de placa da MESMA linha (ex.: 737,45 vs 736,37).
+// Arredondar jogava cada metade num grupo diferente e QUEBRAVA cada laudo em
+// duas linhas — a regex nunca casava e a conferência lia zero laudos todo dia.
+// Agora agrupamos por PROXIMIDADE: pedaços dentro de uma tolerância vertical
+// (bem menor que o ~13pt entre linhas de verdade) entram na mesma linha.
 async function extrairLinhasPdf(arrayBuffer) {
     if (typeof pdfjsLib === 'undefined') throw new Error('pdfjsLib indisponível');
     pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
@@ -4791,21 +4813,35 @@ async function extrairLinhasPdf(arrayBuffer) {
     for (let n = 1; n <= pdf.numPages; n++) {
         const page = await pdf.getPage(n);
         const content = await page.getTextContent();
-        const porY = new Map();
-        content.items.forEach(item => {
-            if (!item.str || !item.str.trim()) return;
-            const y = Math.round(item.transform[5]);   // posição vertical
-            const x = item.transform[4];               // posição horizontal
-            if (!porY.has(y)) porY.set(y, []);
-            porY.get(y).push({ x, str: item.str });
+
+        const pedacos = content.items
+            .filter(it => it.str && it.str.trim())
+            .map(it => ({
+                y: it.transform[5],                       // posição vertical
+                x: it.transform[4],                       // posição horizontal
+                str: it.str,
+                h: Math.abs(it.height || it.transform[3] || 8)
+            }))
+            .sort((a, b) => b.y - a.y);                    // de cima para baixo
+
+        // Agrupa por proximidade vertical. A tolerância acompanha a altura da
+        // fonte (metades da mesma linha ficam a ~1pt; linhas distam ~13pt),
+        // com um piso para relatórios de fonte pequena.
+        const grupos = [];
+        pedacos.forEach(p => {
+            const tol = Math.max(3, p.h * 0.6);
+            const atual = grupos.length ? grupos[grupos.length - 1] : null;
+            if (atual && Math.abs(atual.y - p.y) <= tol) {
+                atual.itens.push(p);
+            } else {
+                grupos.push({ y: p.y, itens: [p] });
+            }
         });
-        // Y decrescente = de cima para baixo na página
-        [...porY.entries()]
-            .sort((a, b) => b[0] - a[0])
-            .forEach(([, pedacos]) => {
-                pedacos.sort((a, b) => a.x - b.x);
-                linhas.push(pedacos.map(p => p.str).join(' ').replace(/\s+/g, ' ').trim());
-            });
+
+        grupos.forEach(g => {
+            g.itens.sort((a, b) => a.x - b.x);
+            linhas.push(g.itens.map(p => p.str).join(' ').replace(/\s+/g, ' ').trim());
+        });
     }
     return linhas;
 }
