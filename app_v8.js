@@ -1317,9 +1317,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.5.2';
+const APP_VERSION = '9.5.3';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.5.3',
+        data: '2026-09-24',
+        titulo: 'Contas a Pagar: some o erro que travava o salvamento da despesa',
+        resumo: 'Ao cadastrar uma despesa (ex.: DARF, FGTS), às vezes aparecia "Erro ao salvar no banco... contas_pagar_competencia_plausivel" e a conta só era salva localmente (ficava como pendente de sincronizar). A causa era o ano da competência digitado com poucos dígitos no seletor de mês (ex.: 26 virava o ano 0026). Agora o sistema corrige o ano sozinho antes de salvar.',
+        mudancas: [
+            {
+                area: 'Contas a Pagar',
+                titulo: 'A competência com ano digitado errado é corrigida automaticamente',
+                oQueMudou: 'No campo "Competência (mês de referência)", o navegador deixa digitar o ano com dois dígitos — e "26" acabava virando o ano 0026, que o sistema recusava por segurança. A despesa então não salvava online e ficava pendente. Agora, ao salvar, o ano de dois dígitos vira 2026 e, se ficar muito longe do vencimento, a competência assume o mês do vencimento. Vale para o cadastro, a edição e a sincronização das despesas que ficaram presas.',
+                comoUsar: 'Cadastre a despesa normalmente. Se você tinha despesas "pendentes de sincronizar" por causa desse erro, elas sobem sozinhas na próxima sincronização. Dica: ao preencher a competência, digite o ano com quatro dígitos (2026).'
+            }
+        ]
+    },
     {
         versao: '9.5.2',
         data: '2026-09-18',
@@ -7468,7 +7482,7 @@ function submitDespesaForm(event) {
 
     // Competência (mês de referência). Padrão = mês do vencimento; gravada no dia 1.
     const compMes = (document.getElementById('desp-competencia').value) || (venc ? venc.substring(0, 7) : '');
-    const competencia = compMes ? `${compMes}-01` : null;
+    const competencia = compMes ? normalizarCompetencia(`${compMes}-01`, venc) : null;
 
     if (val <= 0) {
         showToast("Valor de despesa inválido.", "error");
@@ -7580,7 +7594,7 @@ async function submitEditContaForm(event) {
     const desc = document.getElementById('edit-conta-desc').value.trim().toUpperCase();
     const venc = document.getElementById('edit-conta-vencimento').value;
     const compMes = (document.getElementById('edit-conta-competencia').value) || (venc ? venc.substring(0, 7) : '');
-    const competencia = compMes ? `${compMes}-01` : null;
+    const competencia = compMes ? normalizarCompetencia(`${compMes}-01`, venc) : null;
     const val = parseFloat(document.getElementById('edit-conta-valor').value);
     const cat = document.getElementById('edit-conta-categoria').value;
     const fornecedor = document.getElementById('edit-conta-fornecedor').value.trim().toUpperCase();

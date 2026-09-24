@@ -61,7 +61,36 @@ function prepareRecordForDb(table, record) {
             delete clean.pdfConsolidado;
         }
     }
+    if (table === 'contas_pagar' && clean.competencia) {
+        clean.competencia = normalizarCompetencia(clean.competencia, clean.vencimento);
+    }
     return clean;
+}
+
+/**
+ * Normaliza a competência antes de gravar. O <input type="month"> deixa digitar
+ * o ano com poucos dígitos (ex.: "26" vira 0026), e a competência "0026-09-01"
+ * era barrada pelo check constraint contas_pagar_competencia_plausivel (ano
+ * 2000-2100), travando o salvamento online e forçando o modo local. Aqui o ano
+ * de 2 dígitos vira 20xx e, se ainda ficar implausível, cai para o mês do
+ * vencimento. Vale para cadastro, edição e re-sincronização de pendências.
+ */
+function normalizarCompetencia(competencia, vencimento) {
+    const s = String(competencia).trim();
+    const m = s.match(/^(\d{1,6})-(\d{1,2})(?:-(\d{1,2}))?$/);
+    if (!m) return competencia;
+    let ano = parseInt(m[1], 10);
+    const mes = m[2].padStart(2, '0');
+    const dia = (m[3] || '01').padStart(2, '0');
+    if (ano < 100) ano += 2000;                 // "26" -> 2026
+    const v = String(vencimento || '').match(/^(\d{4})-(\d{2})/);
+    const anoVenc = v ? parseInt(v[1], 10) : null;
+    // Implausível (fora de 2000-2100) ou muito longe do vencimento (mais de 1
+    // ano) => usa o mês do vencimento. Cobre tanto "26"->0026 quanto o ano de
+    // 1 dígito (ex.: "0002") que o +2000 não resolveria sozinho.
+    const irreal = ano < 2000 || ano > 2100 || (anoVenc !== null && Math.abs(ano - anoVenc) > 1);
+    if (irreal) return v ? `${v[1]}-${v[2]}-01` : null;
+    return `${ano}-${mes}-${dia}`;
 }
 
 /**
