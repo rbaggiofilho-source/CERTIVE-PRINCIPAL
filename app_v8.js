@@ -1317,9 +1317,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.5.3';
+const APP_VERSION = '9.6.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.6.0',
+        data: '2026-09-27',
+        titulo: 'Conferência do DETRAN agora também confere o valor',
+        resumo: 'Além de conferir placa, laudo sem OS e OS sem laudo, o fechamento passa a comparar o VALOR de cada laudo do DETRAN com o valor da OS. Quando o valor diferir, aparece como divergência e vira pendência de auditoria. Combos ficam de fora (a OS cobra o pacote e o DETRAN registra só a transferência), para não dar alarme falso.',
+        mudancas: [
+            {
+                area: 'Fechamento de caixa',
+                titulo: 'Conferência de valor laudo × OS',
+                oQueMudou: 'A conferência com o DETRAN comparava placa e presença (laudo↔OS), mas não o valor. Agora, quando um laudo do DETRAN casa com uma OS do mesmo dia e o valor é diferente, isso aparece na lista de divergências do fechamento ("VALOR DIFERENTE DO DETRAN") e é gravado como pendência até ser corrigido. Vistorias combo são ignoradas nessa comparação, porque a OS cobra o pacote (cautelar + transferência) e o DETRAN registra só a transferência — a diferença é esperada.',
+                comoUsar: 'Nada muda no procedimento. No fechamento, se algum valor não bater com o DETRAN, o sistema avisa junto com as outras divergências, apontando OS, valor no sistema e valor no DETRAN.'
+            }
+        ]
+    },
     {
         versao: '9.5.3',
         data: '2026-09-24',
@@ -5021,6 +5035,36 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
     });
     const osTypo = new Set(typos.map(t => t.os));
 
+    // Conferência de VALOR: para o laudo que casa com uma OS do MESMO dia,
+    // compara o valor cobrado. Combos ficam de fora (ver servicoEhCombo). O
+    // mesmo dia evita cruzar o mesmo carro vistoriado em datas diferentes.
+    const diaLocalDeOS = o => {
+        const d = o.criadoEm ? new Date(o.criadoEm) : null;
+        if (!d) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const osPorPlacaDia = new Map();
+    osPeriodo.forEach(o => {
+        const k = `${norm(o.placa)}|${diaLocalDeOS(o)}`;
+        if (!osPorPlacaDia.has(k)) osPorPlacaDia.set(k, []);
+        osPorPlacaDia.get(k).push(o);
+    });
+    const valoresDivergentes = [];
+    const osValorUsada = new Set();
+    cobrados.forEach(l => {
+        const lista = osPorPlacaDia.get(`${norm(l.placa)}|${dataBrParaISO(l.data)}`);
+        if (!lista) return;
+        // Casa com uma OS não-combo ainda não usada; se só houver combo, pula
+        // (diferença esperada). Placa já apontada como digitada errada também sai.
+        const o = lista.find(x => !osValorUsada.has(x) && !osTypo.has(x) && !servicoEhCombo(x.servicoId));
+        if (!o) return;
+        const vOS = Number(o.valor) || 0;
+        if (vOS > 0 && Math.abs(vOS - l.valor) >= 0.01) {
+            valoresDivergentes.push({ os: o, laudo: l, valorOS: vOS, valorDetran: l.valor });
+            osValorUsada.add(o);
+        }
+    });
+
     return {
         totalLaudos: laudos.length,
         retornos: laudos.length - cobrados.length,
@@ -5029,7 +5073,8 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
         taxaPrevista: cobrados.length * 27.00,
         faltamNoSistema: semOS.filter(l => !laudosUsados.has(l)),
         naoEnviadasAoDetran: semLaudo.filter(o => !osTypo.has(o)),
-        placasErradas: typos
+        placasErradas: typos,
+        valoresDivergentes
     };
 }
 
@@ -5083,6 +5128,18 @@ function pendenciasDaAuditoria(auditoria, osAbertas) {
             valorTaxa: 0,
             osId: t.os.id,
             osNumero: t.os.numero
+        });
+    });
+
+    (auditoria.valoresDivergentes || []).forEach(v => {
+        itens.push({
+            tipo: 'valor_divergente',
+            chave: chavePendencia('valor_divergente', v.os.numero),
+            placa: v.os.placa,
+            descricao: `${v.os.numero} (${v.os.placa}): valor no sistema ${formatCurrency(v.valorOS)}, no DETRAN ${formatCurrency(v.valorDetran)}`,
+            valorTaxa: 0,
+            osId: v.os.id,
+            osNumero: v.os.numero
         });
     });
 
@@ -5170,6 +5227,7 @@ const ROTULO_PENDENCIA = {
     laudo_sem_os: 'Taxa paga sem OS',
     os_sem_laudo: 'OS sem laudo',
     placa_errada: 'Placa errada',
+    valor_divergente: 'Valor diferente do DETRAN',
     os_aberta:    'OS em aberto'
 };
 
@@ -5177,6 +5235,7 @@ const COR_PENDENCIA = {
     laudo_sem_os: 'var(--danger)',
     os_sem_laudo: 'var(--danger)',
     placa_errada: 'var(--warning, #B07206)',
+    valor_divergente: 'var(--warning, #B07206)',
     os_aberta:    'var(--warning, #B07206)'
 };
 
@@ -5278,6 +5337,10 @@ function textoAuditoriaDetran(a) {
         p.push('  laudo; 2) ha OS duplicada para o mesmo veiculo? 3) o laudo nao foi enviado.');
         a.naoEnviadasAoDetran.forEach(o => p.push(`  ${o.numero} — ${o.placa} — ${formatCurrency(o.valor)}`));
     }
+    if ((a.valoresDivergentes || []).length) {
+        p.push('', `VALOR DIFERENTE DO DETRAN (${a.valoresDivergentes.length}):`);
+        a.valoresDivergentes.forEach(v => p.push(`  ${v.os.numero} — ${v.os.placa}: sistema ${formatCurrency(v.valorOS)} x DETRAN ${formatCurrency(v.valorDetran)}`));
+    }
     return p.join('\n');
 }
 
@@ -5377,7 +5440,8 @@ async function submitFecharCaixa(event) {
             const auditoria = auditarRelatorioDetran(laudos, periodo, activeCaixa.unidadeId);
             const problemas = auditoria.faltamNoSistema.length
                             + auditoria.naoEnviadasAoDetran.length
-                            + auditoria.placasErradas.length;
+                            + auditoria.placasErradas.length
+                            + (auditoria.valoresDivergentes || []).length;
 
             if (problemas === 0) {
                 showToast(`Conferência OK: ${auditoria.cobrados} laudos batem com o sistema. Taxa prevista ${formatCurrency(auditoria.taxaPrevista)}.`, "success");
@@ -5392,7 +5456,8 @@ async function submitFecharCaixa(event) {
                     `Fechou com ${problemas} divergência(s). ` +
                     `Faltam no sistema: ${auditoria.faltamNoSistema.length}. ` +
                     `Não saíram no DETRAN: ${auditoria.naoEnviadasAoDetran.length}. ` +
-                    `Placas erradas: ${auditoria.placasErradas.length}.`);
+                    `Placas erradas: ${auditoria.placasErradas.length}. ` +
+                    `Valores diferentes: ${(auditoria.valoresDivergentes || []).length}.`);
             }
 
             // Grava as pendências e recontabiliza as que já estavam abertas.
@@ -15447,6 +15512,15 @@ function servicoGeraLaudoDetran(servicoId) {
 // true quando a OS é um RETORNO (reapresentação) — laudo gratuito.
 function osEhRetornoDetran(o) {
     return o.reapresentacaoOrigemID !== null && o.reapresentacaoOrigemID !== undefined;
+}
+
+// true quando o serviço é COMBO. No combo a OS cobra o pacote (cautelar +
+// transferência), mas o DETRAN registra só a transferência — então o valor da
+// OS é legitimamente maior que o do laudo. Por isso a conferência de valor
+// ignora combos, senão apontaria divergência em toda vistoria combo.
+function servicoEhCombo(servicoId) {
+    const s = (db.servicos || []).find(x => x.id === servicoId);
+    return s ? /COMBO/i.test(s.nome || '') : false;
 }
 
 // Retorna as OS que compõem a guia DETRAN de um mês/unidade.
