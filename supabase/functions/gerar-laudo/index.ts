@@ -21,7 +21,27 @@ const PINTURA_ITENS = [
 
 const CLASSIFICACOES = new Set(["ORIGINAL", "REPINTURA", "REPINTURA COM MASSA", "AVARIADO", "NÃO SE APLICA", "NÃO AVALIADO"]);
 const STATUS = new Set(["sucesso", "bloqueado"]);
-const SILHUETAS = new Set(["hatch", "sedan", "suv", "pickup", "van", "minivan", "cupe", "outro"]);
+// O schema do prompt devolve em MAIÚSCULAS (HATCH, SEDAN...); compara sem caixa
+const SILHUETAS = new Set(["hatch", "sedan", "suv", "pickup", "van", "minivan", "cupe"]);
+
+// Slots das seções 3 (estrutura) e 5 (vidros), na ordem da captura (app_v8.js)
+const SLOTS_ESTRUTURA = [
+  "longarina_diant_esq", "torre_amort_diant_esq", "painel_corta_fogo", "torre_amort_diant_dir", "longarina_diant_dir",
+  "torre_amort_tras_dir", "longarina_tras_dir", "assoalho_porta_malas", "longarina_tras_esq", "torre_amort_tras_esq",
+];
+const SLOTS_VIDROS = [
+  "vidro_parabrisa", "vidro_porta_diant_esq", "vidro_porta_tras_esq", "vidro_traseiro", "vidro_porta_tras_dir", "vidro_porta_diant_dir",
+];
+// Fotos em que o agente precisa LER números/etiquetas vão em alta resolução; as demais em baixa
+const SLOTS_LEITURA = new Set([
+  "placa_dianteira", "painel_hodometro", "crlv_documento", "chassi_gravado", "chassi_secundario", "motor_gravado", "etiqueta_eta",
+  ...SLOTS_VIDROS,
+]);
+
+// Limite de duração da Edge Function (~150 s no plano gratuito): uma tentativa longa
+// e a segunda só se ainda houver tempo de sobra.
+const PRAZO_TOTAL_MS = 140_000;
+const MIN_PARA_REPETIR_MS = 45_000;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -37,7 +57,8 @@ function validarResposta(valor: unknown): string[] {
   }
   if (!r.campos || typeof r.campos !== "object" || Array.isArray(r.campos)) erros.push("campos é obrigatório e deve ser um objeto.");
   if (!r.fotos_laudo || typeof r.fotos_laudo !== "object" || Array.isArray(r.fotos_laudo)) erros.push("fotos_laudo é obrigatório e deve ser um objeto.");
-  if (!SILHUETAS.has(String(r.silhueta))) erros.push("silhueta possui valor inválido.");
+  if (!SILHUETAS.has(String(r.silhueta).toLowerCase())) erros.push("silhueta possui valor inválido.");
+  else r.silhueta = String(r.silhueta).toLowerCase();
   if (!Array.isArray(r.pintura_marcadores) || r.pintura_marcadores.length !== 19) {
     erros.push("pintura_marcadores deve conter exatamente 19 itens.");
   } else {
@@ -55,9 +76,12 @@ function validarResposta(valor: unknown): string[] {
 
 async function chamarOpenAI(apiKey: string, body: unknown) {
   let ultimoErro = "";
+  const inicio = Date.now();
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    const restante = PRAZO_TOTAL_MS - (Date.now() - inicio);
+    if (tentativa > 1 && restante < MIN_PARA_REPETIR_MS) break;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120_000);
+    const timer = setTimeout(() => controller.abort(), restante);
     try {
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST", signal: controller.signal,
@@ -69,7 +93,7 @@ async function chamarOpenAI(apiKey: string, body: unknown) {
       ultimoErro = `Serviço de geração respondeu HTTP ${response.status}: ${texto.slice(0, 500)}`;
       if (response.status < 500) break;
     } catch (erro) {
-      ultimoErro = erro instanceof DOMException && erro.name === "AbortError" ? "Tempo limite de 120 segundos excedido." : String(erro);
+      ultimoErro = erro instanceof DOMException && erro.name === "AbortError" ? "Tempo limite excedido na geração do laudo. Tente novamente." : String(erro);
     } finally { clearTimeout(timer); }
   }
   throw new Error(ultimoErro || "Não foi possível gerar o laudo.");
@@ -125,15 +149,26 @@ Deno.serve(async (req) => {
       consulta_placa: consultaPlaca,
       etiquetas: { eta_motor: d2.eta_motor ?? null, eta_coluna: d2.eta_coluna ?? null },
       pintura: PINTURA_ITENS.map(([codigo, nome], i) => ({ numero: i + 1, codigo, nome, micras: d4[`pint_${codigo}_um`] ?? null, classe: d4[`pint_${codigo}_classe`] ?? null, reparo: d4[`pint_${codigo}_reparo`] ?? null })),
-      vidros: fotosPacote.filter((f) => secaoIds.includes((fotos || []).find((x) => x.id === f.fotoId)?.secaoId) && ["vidro_original", "gravacao_lida", "desbaste"].some((k) => k in f.metadados)).map((f) => ({ fotoId: f.id, slotCodigo: f.slotCodigo, vidro_original: f.metadados.vidro_original ?? null, gravacao_lida: f.metadados.gravacao_lida ?? null, desbaste: f.metadados.desbaste ?? null })),
-      estrutura_por_peca: fotosPacote.filter((f) => f.metadados.status_estrutural).map((f) => ({ fotoId: f.id, slotCodigo: f.slotCodigo, status_estrutural: f.metadados.status_estrutural, observacao: f.metadados.observacao_peca ?? null })),
+      // Por slot, com os mesmos padrões que a tela mostra quando o vistoriador não altera
+      // (estrutura "original", gravação do vidro original, sem desbaste).
+      vidros: SLOTS_VIDROS.map((slot) => {
+        const f = fotosPacote.find((x) => x.slotCodigo === slot);
+        const m = (f?.metadados || {}) as Record<string, unknown>;
+        return { slotCodigo: slot, fotoId: f?.id ?? null, fotografado: !!f, vidro_original: m.vidro_original !== false, gravacao_lida: m.gravacao_lida ?? null, desbaste: m.desbaste === true };
+      }),
+      fotos_faltando: [...SLOTS_ESTRUTURA, ...SLOTS_VIDROS, ...SLOTS_LEITURA].filter((slot, i, arr) => arr.indexOf(slot) === i && !fotosPacote.some((f) => f.slotCodigo === slot)),
+      estrutura_por_peca: SLOTS_ESTRUTURA.map((slot) => {
+        const f = fotosPacote.find((x) => x.slotCodigo === slot);
+        const m = (f?.metadados || {}) as Record<string, unknown>;
+        return { slotCodigo: slot, fotoId: f?.id ?? null, fotografado: !!f, status_estrutural: m.status_estrutural || "original", observacao: m.observacao_peca ?? null };
+      }),
       fotos: fotosPacote.map(({ id, fotoId, slotCodigo, metadados }) => ({ id, fotoId, slotCodigo, metadados })),
     };
 
     const conteudo: Record<string, unknown>[] = [{ type: "input_text", text: `Gere o laudo cautelar conforme o prompt. Pacote completo da vistoria:\n${JSON.stringify(pacote)}` }];
     for (const foto of fotosPacote.filter((f) => /^https?:\/\//.test(f.url_original || ""))) {
       conteudo.push({ type: "input_text", text: `FOTO ${foto.id} — SLOT ${foto.slotCodigo}` });
-      conteudo.push({ type: "input_image", image_url: foto.url_original, detail: "high" });
+      conteudo.push({ type: "input_image", image_url: foto.url_original, detail: SLOTS_LEITURA.has(foto.slotCodigo) ? "high" : "low" });
     }
     const promptId = Deno.env.get("OPENAI_PROMPT_ID");
     const promptVersion = Deno.env.get("OPENAI_PROMPT_VERSION");
@@ -149,6 +184,8 @@ Deno.serve(async (req) => {
     if (errosValidacao.length) return json({ erro: "Resposta inválida; o laudo não foi gerado.", detalhes: errosValidacao }, 422);
 
     const fotosPorId = Object.fromEntries(fotosPacote.map((f) => [f.id, f.url_original]));
+    // Guarda junto as URLs das fotos: a reemissão do PDF em outro aparelho usa esta resposta
+    resposta.fotos_urls = fotosPorId;
     const pacoteSemImagens = { ...pacote, fotos: pacote.fotos };
     const { data: registro, error: registroErro } = await db.from("laudos_gerados").insert({
       cautelarId, criadoPor: user.id, promptId, promptVersion,

@@ -856,6 +856,22 @@ async function generateInspectionReport(cautelarId) {
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) throw new Error("Vistoria não encontrada");
 
+    // O conteúdo gerado fica no navegador de quem gerou; em outro aparelho busca a
+    // última versão registrada no servidor (laudos_gerados).
+    if (!cautelar.dadosIaConfeccionado && window.useSupabase && typeof supabaseClient !== 'undefined') {
+        try {
+            const { data } = await supabaseClient.from('laudos_gerados')
+                .select('id, resposta').eq('cautelarId', cautelarId)
+                .order('criadoEm', { ascending: false }).limit(1);
+            if (data && data[0] && data[0].resposta) {
+                cautelar.dadosIaConfeccionado = data[0].resposta;
+                cautelar.laudoGeradoId = data[0].id;
+            }
+        } catch (e) {
+            console.warn('Não foi possível buscar o laudo gerado no servidor:', e);
+        }
+    }
+
     const os = db.ordens_servico.find(o => o.id === cautelar.osId);
     if (!os) throw new Error("Ordem de serviço não encontrada");
 
@@ -967,6 +983,13 @@ async function generateInspectionReport(cautelarId) {
 
     // 3. Iterar pelos campos do Field Map
     for (const field of fieldMap.fields) {
+        // Tabela de pintura e status das etiquetas: o modelo traz linhas já impressas
+        // (15 peças, todas "Original"). Esses campos são removidos e a página é
+        // redesenhada com os dados reais em desenharPinturaEEtiquetas().
+        if (CAMPOS_REDESENHADOS_P6.includes(field.name)) {
+            try { form.removeField(form.getTextField(field.name)); } catch (_) { /* campo ausente */ }
+            continue;
+        }
         const page = pdfDoc.getPages()[field.page - 1];
         if (!page) continue;
 
@@ -1033,6 +1056,12 @@ async function generateInspectionReport(cautelarId) {
                 console.warn(`Erro ao preencher campo de texto "${field.name}":`, err);
             }
         }
+    }
+
+    try {
+        await desenharPinturaEEtiquetas(pdfDoc, pdfDoc.getPages()[5], dadosIa, camposGerados, dataSec2, dataSec4, dataSec5);
+    } catch (erro) {
+        console.warn('Falha ao desenhar a tabela de pintura/etiquetas:', erro);
     }
 
     // Página IV do conteúdo: substitui o desenho padrão somente quando há uma
@@ -1301,6 +1330,86 @@ function resolveFieldValue(fieldName, context, dataSec1, dataSec2, dataSec3, dat
         default:
             return '';
     }
+}
+
+const CAMPOS_REDESENHADOS_P6 = ['paint.table_items', 'labels.engine_bay_status', 'labels.column_status'];
+
+const LAUDO_CORES_CLASSE = {
+    'ORIGINAL': [47, 107, 63],
+    'REPINTURA': [201, 169, 97],
+    'REPINTURA COM MASSA': [184, 100, 43],
+    'AVARIADO': [139, 38, 53],
+    'NÃO SE APLICA': [150, 142, 128],
+    'NÃO AVALIADO': [150, 142, 128]
+};
+
+/**
+ * Página IV (pintura): cobre a tabela estática do modelo e desenha as 19 peças na
+ * ordem da vistoria com a classificação do vistoriador; faz o mesmo com o status
+ * das etiquetas ETA. Coordenadas em pontos, origem no topo (modelo de 341 × 512).
+ */
+async function desenharPinturaEEtiquetas(pdfDoc, pagina, dadosIa, camposGerados, dataSec2, dataSec4, dataSec5) {
+    if (!pagina) return;
+    const { rgb, StandardFonts } = PDFLib;
+    const { height } = pagina.getSize();
+    const topo = y => height - y;
+    const cor = arr => rgb(arr[0] / 255, arr[1] / 255, arr[2] / 255);
+    const fundo = cor([245, 244, 241]);
+    const linha = cor([226, 222, 215]);
+    const tinta = cor([15, 24, 36]);
+    const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const negrito = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // ---- Tabela de pintura (abaixo do cabeçalho ITEM / PEÇA / CONDIÇÃO) ----
+    const tab = { x0: 141, x1: 309.5, y0: 134.8, y1: 374 };
+    pagina.drawRectangle({ x: tab.x0, y: topo(tab.y1), width: tab.x1 - tab.x0, height: tab.y1 - tab.y0, color: fundo });
+    const itens = laudoPinturaItens();
+    const porNumero = Object.fromEntries(((dadosIa && dadosIa.pintura_marcadores) || [])
+        .map(m => [Number(m.numero), String(m.classificacao || '').toUpperCase()]));
+    const alturaLinha = (tab.y1 - tab.y0) / Math.max(itens.length, 1);
+    const tamanho = Math.min(6, alturaLinha * 0.5);
+    itens.forEach((item, i) => {
+        const yTopo = tab.y0 + i * alturaLinha;
+        const yBase = topo(yTopo + alturaLinha / 2 + tamanho * 0.35);
+        let classe = porNumero[i + 1] || String(laudoPinturaClasse(dataSec4, i)).toUpperCase();
+        if (classe === 'NÃO APLICÁVEL') classe = 'NÃO SE APLICA';
+        const numero = String(i + 1).padStart(2, '0');
+        pagina.drawText(numero, { x: 156 - negrito.widthOfTextAtSize(numero, tamanho) / 2, y: yBase, size: tamanho, font: negrito, color: tinta });
+        pagina.drawText(item.nome, { x: 176, y: yBase, size: tamanho, font: regular, color: tinta });
+        const rotulo = classe === 'REPINTURA COM MASSA' ? 'Repint. c/ massa' : classe.charAt(0) + classe.slice(1).toLowerCase();
+        pagina.drawText(rotulo, {
+            x: 306 - negrito.widthOfTextAtSize(rotulo, tamanho), y: yBase, size: tamanho, font: negrito,
+            color: cor(LAUDO_CORES_CLASSE[classe] || LAUDO_CORES_CLASSE['NÃO AVALIADO'])
+        });
+        if (i < itens.length - 1) {
+            pagina.drawLine({ start: { x: tab.x0 + 2, y: topo(yTopo + alturaLinha) }, end: { x: tab.x1 - 2, y: topo(yTopo + alturaLinha) }, thickness: 0.4, color: linha });
+        }
+    });
+    [171.4, 264].forEach(x => pagina.drawLine({ start: { x, y: topo(tab.y0) }, end: { x, y: topo(tab.y1) }, thickness: 0.4, color: linha }));
+
+    // ---- Status das etiquetas ETA (coluna da direita da faixa ETIQUETAS) ----
+    const statusEtiqueta = (campo, codigo, legado) => {
+        const v = (camposGerados && camposGerados[campo]) || laudoEtiqueta(dataSec2[codigo]) || dataSec5[legado] || 'Não avaliada';
+        return String(v).toUpperCase();
+    };
+    const etiquetas = [
+        { y: 434.5, valor: statusEtiqueta('labels.engine_bay_status', 'eta_motor', 'label_eta_compartimento_status') },
+        { y: 450, valor: statusEtiqueta('labels.column_status', 'eta_coluna', 'label_eta_coluna_status') }
+    ];
+    // Cobre o "ORIGINAL" impresso e os retângulos brancos dos marcadores do modelo,
+    // refazendo as faixas com as cores originais (cabeçalho, linhas e divisória).
+    const faixas = [
+        { y0: 420, y1: 427.8, rgb: [236, 232, 226] },
+        { y0: 427.8, y1: 441, rgb: [245, 243, 239] },
+        { y0: 441, y1: 442.4, rgb: [237, 234, 229] },
+        { y0: 442.4, y1: 456, rgb: [246, 244, 241] }
+    ];
+    faixas.forEach(f => pagina.drawRectangle({ x: 262, y: topo(f.y1), width: 58.5, height: f.y1 - f.y0, color: cor(f.rgb) }));
+    etiquetas.forEach(et => {
+        const corEt = et.valor.startsWith('PRESERVADA') || et.valor === 'ORIGINAL' ? [47, 107, 63]
+            : (et.valor.startsWith('NÃO') ? [150, 142, 128] : [139, 38, 53]);
+        pagina.drawText(et.valor, { x: 305 - negrito.widthOfTextAtSize(et.valor, 6), y: topo(et.y + 2), size: 6, font: negrito, color: cor(corEt) });
+    });
 }
 
 async function cropImageToFit(imageUrl, wPoints, hPoints, scale = 2) {

@@ -15271,24 +15271,45 @@ async function solicitarLaudoAoServidor(cautelarId) {
     return data;
 }
 
-function confirmarEmissaoComInconsistencias(itens, podeForcar) {
+function confirmarEmissaoComInconsistencias(itens, podeForcar, bloqueado) {
     const textoSeguro = valor => String(valor).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const titulo = bloqueado ? 'Laudo bloqueado: faltam itens obrigatórios' : 'Confira os apontamentos antes de emitir';
+    const subtitulo = bloqueado
+        ? 'O laudo não pode ser emitido até que os itens abaixo sejam corrigidos.'
+        : 'Estes pontos não impedem a emissão, mas devem ser conferidos:';
+    const rotuloEmitir = bloqueado ? 'Emitir mesmo assim' : 'Emitir laudo';
     return new Promise(resolve => {
         const fundo = document.createElement('div');
         fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px';
         fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:620px;width:100%;border-radius:10px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
-            <h3 style="margin:0 0 12px">Revisão necessária antes da emissão</h3>
-            <p style="color:var(--text-secondary);font-size:13px">Confira os apontamentos encontrados:</p>
+            <h3 style="margin:0 0 12px">${titulo}</h3>
+            <p style="color:var(--text-secondary);font-size:13px">${subtitulo}</p>
             <ul style="max-height:280px;overflow:auto;padding-left:22px">${itens.map(i => `<li style="margin:7px 0">${textoSeguro(i)}</li>`).join('')}</ul>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
                 <button class="btn btn-secondary" data-acao="voltar">Voltar e corrigir</button>
-                ${podeForcar ? '<button class="btn btn-primary" data-acao="emitir">Emitir mesmo assim</button>' : ''}
+                ${podeForcar ? `<button class="btn btn-primary" data-acao="emitir">${rotuloEmitir}</button>` : ''}
             </div></div>`;
         document.body.appendChild(fundo);
         fundo.querySelector('[data-acao="voltar"]').onclick = () => { fundo.remove(); resolve(false); };
         const emitir = fundo.querySelector('[data-acao="emitir"]');
         if (emitir) emitir.onclick = () => { fundo.remove(); resolve(true); };
     });
+}
+
+/**
+ * Antes de gerar o laudo no servidor, garante que as fotos que ainda estão no
+ * aparelho subiram (o servidor só enxerga o que está no banco). Devolve quantas
+ * continuam pendentes neste aparelho.
+ */
+async function cautelarFotosPendentesAntesDoLaudo(cautelarId) {
+    try {
+        await cautelarEnviarPendentes(cautelarId);
+        const noAparelho = await CautelarOfflineDB.getAllFotos(cautelarId).catch(() => []);
+        return noAparelho.length;
+    } catch (e) {
+        console.warn('Não foi possível conferir fotos pendentes:', e);
+        return 0;
+    }
 }
 
 async function analisarLaudoComIAInvisivel() {
@@ -15324,6 +15345,13 @@ async function gerarLaudoFinalPdf() {
         emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
     }
 
+    // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
+    const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
+    if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
+        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+        return;
+    }
+
     // 1. O servidor monta, valida e registra o pacote antes da geração do PDF.
     showToast("O sistema está gerando o laudo…", "info");
     let laudoServidor;
@@ -15331,10 +15359,17 @@ async function gerarLaudoFinalPdf() {
         laudoServidor = await analisarLaudoComIAInvisivel();
         const resposta = laudoServidor.resposta;
         const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
-        const precisaRevisao = laudoServidor.status === 'bloqueado' || (laudoServidor.inconsistencias || []).length > 0;
-        if (precisaRevisao) {
-            const podeForcar = !!(currentSession.permissoes || []).includes('cautelar_administrar');
-            const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar);
+        // Bloqueio só quando faltam itens obrigatórios (status "bloqueado"): aí apenas
+        // o administrador pode forçar. Inconsistências são avisos: quem finaliza confere
+        // e emite.
+        const bloqueado = laudoServidor.status === 'bloqueado';
+        const temAvisos = (laudoServidor.inconsistencias || []).length > 0;
+        if (bloqueado || temAvisos) {
+            const permissoes = currentSession.permissoes || [];
+            const podeForcar = bloqueado
+                ? permissoes.includes('cautelar_administrar')
+                : (permissoes.includes('finalizar_cautelar') || permissoes.includes('cautelar_administrar'));
+            const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar, bloqueado);
             if (!confirmou) {
                 if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
                 return;
@@ -15342,7 +15377,12 @@ async function gerarLaudoFinalPdf() {
         }
         cautelar.dadosIaConfeccionado = resposta;
         cautelar.laudoGeradoId = laudoServidor.laudoId;
-        if (resposta.campos && resposta.campos['final.opinion_text']) document.getElementById('caut-final-obs').value = resposta.campos['final.opinion_text'];
+        // O texto final do laudo vem de resposta.campos; o campo de observações só é
+        // preenchido se o operador não tiver escrito nada.
+        const obsOperador = document.getElementById('caut-final-obs');
+        if (obsOperador && !obsOperador.value.trim() && resposta.campos && resposta.campos['final.opinion_text']) {
+            obsOperador.value = resposta.campos['final.opinion_text'];
+        }
         saveDatabase();
     } catch (erro) {
         console.error("Erro ao gerar laudo no servidor:", erro);
