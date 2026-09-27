@@ -14658,12 +14658,12 @@ async function reabrirLaudo(placa) {
         if (window.useSupabase) {
             await Promise.all([
                 sbUpdate('cautelares', cautelar.id, {
+                    // dadosIaConfeccionado é só local (não há coluna no banco)
                     status: 'em_andamento',
-                    pdf_url: null,
+                    pdfUrl: null,
                     pdfHash: null,
                     dataHoraFinalizacao: null,
-                    finalizadoPorId: null,
-                    dadosIaConfeccionado: null
+                    finalizadoPorId: null
                 }),
                 sbUpdate('ordens_servico', os.id, {
                     status: 'em_execucao',
