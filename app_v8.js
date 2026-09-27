@@ -1317,9 +1317,29 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.6.0';
+const APP_VERSION = '9.6.1';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.6.1',
+        data: '2026-09-27',
+        titulo: 'Correção da enxurrada de erros "duplicate key" na sincronização',
+        resumo: 'Alguns operadores viam vários erros seguidos ("duplicate key... pendencias_fechamento" e "bigint null") repetindo sem parar. Era a fila de sincronização presa em itens que nunca iam dar certo. Corrigido: esses itens são descartados em vez de repetir, e a auditoria deixou de tentar recriar uma pendência que já existe.',
+        mudancas: [
+            {
+                area: 'Sincronização',
+                titulo: 'Itens impossíveis não travam mais a fila',
+                oQueMudou: 'Quando uma gravação falhava por um motivo definitivo (o registro já existia, ou o id era inválido), o sistema recolocava o item na fila e tentava de novo, sem parar, enchendo a tela de erros. Agora esses casos são descartados (o dado já estava salvo ou não teria como salvar) e só erros de internet continuam sendo repetidos.',
+                comoUsar: 'Se você viu essa enxurrada de erros, feche e abra o sistema depois desta atualização: a fila vai limpar sozinha e os avisos param.'
+            },
+            {
+                area: 'Fechamento de caixa',
+                titulo: 'Auditoria não recria pendência que já existe',
+                oQueMudou: 'A conferência do DETRAN tentava criar de novo uma pendência cuja divergência já tinha sido registrada antes (mesmo já resolvida), o que gerava o erro "duplicate key". Agora, se a divergência reaparece, a pendência existente é reaberta em vez de duplicada.',
+                comoUsar: 'Nada muda no uso.'
+            }
+        ]
+    },
     {
         versao: '9.6.0',
         data: '2026-09-27',
@@ -5198,16 +5218,27 @@ async function resolverPendenciasCorrigidas(unidadeId, chavesAtuais, quem) {
 
 // Grava as pendências de hoje: cria as novas, incrementa as que reapareceram.
 async function registrarPendencias(unidadeId, itens, quem, dataFechamento) {
-    const abertas = pendenciasAbertas(unidadeId);
+    // Procura pela chave em TODAS as pendências da unidade (abertas E resolvidas).
+    // O índice único (unidadeId, chave) cobre as duas: inserir uma chave que já
+    // existe resolvida dava "duplicate key" e entupia a fila de sincronização.
+    // Se a divergência reaparece, a pendência resolvida é REABERTA.
+    const todas = (db.pendencias_fechamento || []).filter(p => p.unidadeId === unidadeId);
     let novas = 0, repetidas = 0;
     for (const item of itens) {
-        const existente = abertas.find(p => p.chave === item.chave);
+        const existente = todas.find(p => p.chave === item.chave);
         try {
             if (existente) {
-                await dbSave('pendencias_fechamento', {
+                const upd = {
                     vezesIgnorada: (Number(existente.vezesIgnorada) || 1) + 1,
                     ultimoFechamento: dataFechamento
-                }, 'update', existente.id);
+                };
+                if (existente.resolvida) {   // a divergência voltou: reabre
+                    upd.resolvida = false;
+                    upd.resolvidaEm = null;
+                    upd.resolvidaPor = null;
+                    upd.resolvidaComo = null;
+                }
+                await dbSave('pendencias_fechamento', upd, 'update', existente.id);
                 repetidas++;
             } else {
                 await dbSave('pendencias_fechamento', {
