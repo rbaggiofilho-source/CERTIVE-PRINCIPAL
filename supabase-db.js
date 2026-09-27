@@ -824,6 +824,12 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
             return result;
         } catch (error) {
             console.error(`❌ Erro no dbSave online (${table}, ${action}):`, error);
+            // Update/delete sem id nunca vai aplicar — não enfileira, senão fica
+            // repetindo "invalid input syntax for type bigint: null" pra sempre.
+            if ((action === 'update' || action === 'delete') && !id) {
+                console.warn(`dbSave ${action} em ${table} sem id — ignorado, não enfileirado.`);
+                return null;
+            }
             showToast("Falha no banco online. Salvando localmente...", "warning");
             enqueueSyncItem(table, action, recordOrUpdates, id);
         }
@@ -952,11 +958,24 @@ async function processSyncQueue() {
                 await sbUpsertMetas(item.recordOrUpdates.unidadeId, item.recordOrUpdates.metas);
             }
         } catch (err) {
-            console.error(`❌ Falha ao sincronizar item ${item.id} (${item.table}):`, err);
-            failedItems.push(item);
+            const code = err && err.code;
+            const msg = String((err && err.message) || '');
+            // Erro PERMANENTE: repetir não adianta. Ou o registro já existe
+            // (chave duplicada = já aplicado), ou é impossível de aplicar (id
+            // nulo/ inválido, viola constraint). Descarta para não entupir a
+            // fila e inundar a tela de erros. Só erro transitório (rede) volta.
+            const permanente =
+                ['23505', '22P02', '23514', '23502', '23503'].includes(code) ||
+                /duplicate key|invalid input syntax|violates .* constraint|already exists/i.test(msg);
+            if (permanente) {
+                console.warn(`⚠️ Item ${item.id} (${item.table}/${item.action}) descartado da fila — erro permanente, não adianta repetir: ${msg}`);
+            } else {
+                console.error(`❌ Falha ao sincronizar item ${item.id} (${item.table}):`, err);
+                failedItems.push(item);
+            }
         }
     }
-    
+
     saveSyncQueue(failedItems);
     isProcessingSyncQueue = false;
     
