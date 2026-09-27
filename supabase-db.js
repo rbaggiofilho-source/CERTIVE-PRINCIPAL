@@ -541,7 +541,11 @@ async function loadAllFromSupabase() {
         
         db.cautelares.forEach(c => normalizeRecord('cautelares', c));
         db.cautelares_secoes.forEach(cs => normalizeRecord('cautelares_secoes', cs));
-        db.cautelares_fotos.forEach(cf => normalizeRecord('cautelares_fotos', cf));
+        db.cautelares_fotos.forEach(cf => {
+            normalizeRecord('cautelares_fotos', cf);
+            // A coluna no banco é "metadados"; a tela de captura lê metadados_json
+            if (!cf.metadados_json && cf.metadados) cf.metadados_json = cf.metadados;
+        });
         db.cautelares_pesquisas.forEach(cp => normalizeRecord('cautelares_pesquisas', cp));
         if (db.parceiros_creditos) {
             db.parceiros_creditos.forEach(pc => normalizeRecord('parceiros_creditos', pc));

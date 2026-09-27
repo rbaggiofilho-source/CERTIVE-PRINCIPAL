@@ -11712,14 +11712,16 @@ function iniciarCautelar(osId) {
         return;
     }
 
-    // Gerar número de dossiê sequencial anual
+    // Gerar número de dossiê sequencial anual. O id sai do maior id existente
+    // (não do length): a limpeza do saveDatabase remove cautelares antigas e o
+    // length+1 passava a repetir o id de uma cautelar que ainda existe.
     const year = new Date().getFullYear();
-    const count = db.cautelares.length + 1;
-    const dossie = `CV-${year}-${String(count).padStart(5, '0')}`;
+    const newId = cautelarProximoId(db.cautelares);
+    const dossie = `CV-${year}-${String(newId).padStart(5, '0')}`;
 
     // Criar entidade Cautelar
     const newCautelar = {
-        id: db.cautelares.length + 1,
+        id: newId,
         osId: os.id,
         dossieNumero: dossie,
         status: "em_captura",
@@ -11733,32 +11735,7 @@ function iniciarCautelar(osId) {
     };
 
     // Criar as 8 seções padrão
-    const secaoNomes = [
-        "IDENTIFICAÇÃO DO VEÍCULO",
-        "NUMERAÇÃO E DOCUMENTAÇÃO",
-        "ANÁLISE ESTRUTURAL",
-        "ANÁLISE DE PINTURA (MEDIDOR)",
-        "VIDROS E ETIQUETAS",
-        "COMPARTIMENTO DO MOTOR",
-        "INTERIOR E QUADROS DE PORTA",
-        "OBSERVAÇÕES FINAIS E ASSINATURA"
-    ];
-
-    secaoNomes.forEach((nome, i) => {
-        const num = i + 1;
-        const newSecao = {
-            id: db.cautelares_secoes.length + 1,
-            cautelarId: newCautelar.id,
-            numeroSecao: num,
-            nomeSecao: nome,
-            status: num === 1 ? "em_andamento" : "nao_iniciada",
-            dadosJson: {},
-            parecerSecao: "conforme",
-            observacaoTexto: "",
-            dataHoraCompletada: null
-        };
-        db.cautelares_secoes.push(newSecao);
-    });
+    const novasSecoes = cautelarCriarSecoes(newCautelar.id);
 
     // Atualizar status da OS
     os.status = "em_execucao";
@@ -11767,7 +11744,11 @@ function iniciarCautelar(osId) {
     saveDatabase();
 
     if (window.useSupabase) {
+        // As seções precisam ir para o banco junto com a cautelar: antes só a
+        // cautelar era gravada e, ao recarregar o app (ex.: o celular fecha o
+        // navegador ao abrir a câmera), ela voltava sem seções e a captura travava.
         sbInsert('cautelares', newCautelar)
+            .then(() => cautelarSincronizarSecoes(novasSecoes))
             .then(() => sbUpdate('ordens_servico', os.id, { status: os.status }))
             .catch(e => console.warn("Erro ao salvar nova Cautelar no Supabase:", e));
     }
@@ -11777,6 +11758,102 @@ function iniciarCautelar(osId) {
 
     // Redireciona para o fluxo de captura mobile (Milestone 2)
     continuarCautelar(newCautelar.id);
+}
+
+const CAUTELAR_SECAO_NOMES = [
+    "IDENTIFICAÇÃO DO VEÍCULO",
+    "NUMERAÇÃO E DOCUMENTAÇÃO",
+    "ANÁLISE ESTRUTURAL",
+    "ANÁLISE DE PINTURA (MEDIDOR)",
+    "VIDROS E ETIQUETAS",
+    "COMPARTIMENTO DO MOTOR",
+    "INTERIOR E QUADROS DE PORTA",
+    "OBSERVAÇÕES FINAIS E ASSINATURA"
+];
+
+function cautelarProximoId(lista) {
+    return (lista || []).reduce((max, r) => Math.max(max, Number(r.id) || 0), 0) + 1;
+}
+
+/**
+ * Cria localmente as seções que faltam (1 a 8) de uma cautelar e devolve as criadas.
+ */
+function cautelarCriarSecoes(cautelarId) {
+    const existentes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
+    const criadas = [];
+    CAUTELAR_SECAO_NOMES.forEach((nome, i) => {
+        const num = i + 1;
+        if (existentes.some(s => s.numeroSecao === num)) return;
+        const newSecao = {
+            id: cautelarProximoId(db.cautelares_secoes),
+            cautelarId: cautelarId,
+            numeroSecao: num,
+            nomeSecao: nome,
+            status: num === 1 ? "em_andamento" : "nao_iniciada",
+            dadosJson: {},
+            parecerSecao: "conforme",
+            observacaoTexto: "",
+            dataHoraCompletada: null
+        };
+        db.cautelares_secoes.push(newSecao);
+        criadas.push(newSecao);
+    });
+    return criadas;
+}
+
+/**
+ * Grava no Supabase as seções criadas localmente, adotando o id gerado pelo banco
+ * (o id local pode colidir com seções já existentes na nuvem).
+ */
+async function cautelarSincronizarSecoes(secoes) {
+    if (!window.useSupabase || !secoes || secoes.length === 0) return;
+    for (const secao of secoes) {
+        const { id: idLocal, ...semId } = secao;
+        const salva = await sbInsert('cautelares_secoes', semId);
+        if (salva && salva.id && salva.id !== idLocal) {
+            secao.id = salva.id;
+            db.cautelares_fotos.forEach(f => { if (f.secaoId === idLocal) f.secaoId = salva.id; });
+        }
+    }
+    saveDatabase();
+}
+
+/**
+ * Recupera as fotos que ficaram só no IndexedDB do aparelho (ex.: o navegador foi
+ * fechado por falta de memória e, ao recarregar, a lista local veio do banco sem elas).
+ */
+async function cautelarRecuperarFotosOffline(cautelarId) {
+    let registros = [];
+    try {
+        registros = await CautelarOfflineDB.getAllFotos(cautelarId);
+    } catch (e) {
+        console.warn("IndexedDB indisponível para recuperar fotos:", e);
+        return 0;
+    }
+    let recuperadas = 0;
+    registros.forEach(rec => {
+        let secaoNum = null;
+        Object.keys(CAUTELAR_SLOTS).forEach(n => {
+            if (CAUTELAR_SLOTS[n].some(sl => sl.codigo === rec.slotCodigo)) secaoNum = parseInt(n);
+        });
+        const secao = secaoNum && db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+        if (!secao) return;
+        if (db.cautelares_fotos.some(f => f.secaoId === secao.id && f.slotCodigo === rec.slotCodigo)) return;
+        db.cautelares_fotos.push({
+            id: cautelarProximoId(db.cautelares_fotos),
+            secaoId: secao.id,
+            slotCodigo: rec.slotCodigo,
+            slotNomeDisplay: rec.slotCodigo.toUpperCase(),
+            urlOriginal: '',
+            urlThumb: '',
+            dataHoraCaptura: rec.timestamp,
+            metadados_json: rec.metadados || {},
+            ordemExibicao: 0
+        });
+        recuperadas++;
+    });
+    if (recuperadas > 0) saveDatabase();
+    return recuperadas;
 }
 
 /**
@@ -11947,6 +12024,25 @@ function continuarCautelar(cautelarId) {
     // Gravar estado global
     window.activeCautelarId = cautelarId;
     window.activeSecaoNum = 1;
+
+    // Auto-reparo: cautelares criadas antes desta correção ficaram sem seções no
+    // banco; sem elas a tela de captura abria vazia e não avançava.
+    const secoesFaltando = cautelarCriarSecoes(cautelarId);
+    if (secoesFaltando.length > 0) {
+        saveDatabase();
+        if (window.useSupabase) {
+            cautelarSincronizarSecoes(secoesFaltando)
+                .catch(e => console.warn("Erro ao recriar seções da Cautelar no Supabase:", e));
+        }
+    }
+
+    // Traz de volta as fotos que só estão no aparelho (IndexedDB)
+    cautelarRecuperarFotosOffline(cautelarId).then(n => {
+        if (n > 0 && window.activeCautelarId === cautelarId) {
+            showToast(`${n} foto(s) recuperada(s) do aparelho.`, "info");
+            renderCapturaSecao(window.activeSecaoNum);
+        }
+    });
 
     // Achar a última seção completa para já abrir na seção atual
     const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
@@ -12119,10 +12215,12 @@ function getPhotoSlotCardHtml(slot, secaoId) {
         // Exibe preview da foto tirada (local Blob ou url base64)
         const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
         const isLocalBlob = displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
+        // A miniatura base64 aparece na hora; o original do IndexedDB entra por cima depois
+        const initialSrc = (displayUrl.startsWith('http') || displayUrl.startsWith('data:')) ? displayUrl : '';
         
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
-                <img id="img-preview-${slot.codigo}" src="${isLocalBlob ? '' : displayUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
+                <img id="img-preview-${slot.codigo}" src="${initialSrc}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
                 <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
                     <i class="ri-delete-bin-line"></i>
                 </button>
@@ -12138,7 +12236,12 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                 if (record && record.blob) {
                     const freshUrl = URL.createObjectURL(record.blob);
                     const imgEl = document.getElementById(`img-preview-${slot.codigo}`);
-                    if (imgEl) imgEl.src = freshUrl;
+                    if (imgEl) {
+                        imgEl.onload = () => URL.revokeObjectURL(freshUrl);
+                        imgEl.src = freshUrl;
+                    } else {
+                        URL.revokeObjectURL(freshUrl);
+                    }
                 } else if (photo.urlThumb) {
                     const imgEl = document.getElementById(`img-preview-${slot.codigo}`);
                     if (imgEl) imgEl.src = photo.urlThumb;
@@ -12726,7 +12829,7 @@ function validarSecaoCompleta() {
                 secao.dataHoraCompletada = new Date().toISOString();
                 saveDatabase();
                 if (window.useSupabase) {
-                    sbUpdate('cautelares_secoes', secao.id, { status: 'completa', data_hora_completada: secao.dataHoraCompletada }).catch(e => console.warn(e));
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'completa', dataHoraCompletada: secao.dataHoraCompletada }).catch(e => console.warn(e));
                 }
             }
         } else {
@@ -12745,7 +12848,7 @@ function validarSecaoCompleta() {
                 secao.dataHoraCompletada = null;
                 saveDatabase();
                 if (window.useSupabase) {
-                    sbUpdate('cautelares_secoes', secao.id, { status: 'em_andamento', data_hora_completada: null }).catch(e => console.warn(e));
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'em_andamento', dataHoraCompletada: null }).catch(e => console.warn(e));
                 }
             }
         }
@@ -12778,7 +12881,7 @@ function autoSaveCampo(campoId, valor) {
         window.autoSaveTimeout = setTimeout(() => {
             saveDatabase();
             if (window.useSupabase) {
-                sbUpdate('cautelares_secoes', secao.id, { dados_json: secao.dadosJson })
+                sbUpdate('cautelares_secoes', secao.id, { dadosJson: secao.dadosJson })
                     .then(() => {
                         document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
                     })
@@ -12829,7 +12932,7 @@ function avancarSecao() {
 
         if (window.useSupabase) {
             Promise.all([
-                sbUpdate('cautelares', cautelar.id, { status: cautelar.status, data_hora_envio: cautelar.dataHoraEnvio }),
+                sbUpdate('cautelares', cautelar.id, { status: cautelar.status, dataHoraEnvio: cautelar.dataHoraEnvio }),
                 sbUpdate('ordens_servico', os.id, { status: os.status })
             ]).catch(e => console.warn(e));
         }
@@ -12890,9 +12993,13 @@ async function handleFotoUpload(slotCodigo, event) {
     document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`;
 
     try {
-        // 1. Comprimir imagem e thumbnail no cliente
-        const blobOriginal = await compressImage(file, 1920, 0.85);
-        const blobThumb = await compressImage(file, 400, 0.70);
+        // 1. Comprimir imagem e thumbnail no cliente. A foto da câmera é decodificada
+        // uma única vez; a miniatura sai da versão já reduzida (decodificar a foto de
+        // 12+ MP duas vezes estourava a memória do celular e o navegador era fechado).
+        const blobOriginal = await compressImage(file, 1600, 0.82);
+        const blobThumb = await compressImage(blobOriginal, 400, 0.70);
+        // Libera a referência ao arquivo original da câmera
+        event.target.value = '';
 
         // Converte thumbnail para Base64 para salvar no LocalStorage cache de forma leve
         const base64Thumb = await new Promise((resolve) => {
@@ -12934,13 +13041,13 @@ async function handleFotoUpload(slotCodigo, event) {
         await CautelarOfflineDB.saveFoto(window.activeCautelarId, slotCodigo, blobOriginal, metadados);
 
         // 4. Cria e salva o registro CautelarFoto
-        const photoId = db.cautelares_fotos.length + 1;
+        const photoId = cautelarProximoId(db.cautelares_fotos);
         const newPhoto = {
             id: photoId,
             secaoId: secao.id,
             slotCodigo: slotCodigo,
             slotNomeDisplay: slotCodigo.toUpperCase(),
-            urlOriginal: URL.createObjectURL(blobOriginal), // URL local para visualização instantânea
+            urlOriginal: '', // o original fica no IndexedDB; a tela lê de lá
             urlThumb: base64Thumb, // Thumb em base64 no localStorage
             dataHoraCaptura: metadados.timestamp,
             metadados_json: metadados,
@@ -12957,24 +13064,33 @@ async function handleFotoUpload(slotCodigo, event) {
                 const storagePath = `cautelares/${window.activeCautelarId}/${slotCodigo}.jpg`;
                 const { data, error } = await supabaseClient.storage
                     .from('cautelares')
-                    .upload(storagePath, blobOriginal, { upsert: true });
+                    .upload(storagePath, blobOriginal, { upsert: true, contentType: 'image/jpeg' });
 
                 if (!error) {
                     const { data: publicUrlData } = supabaseClient.storage
                         .from('cautelares')
                         .getPublicUrl(storagePath);
                     newPhoto.urlOriginal = publicUrlData.publicUrl;
+                } else {
+                    console.warn("Upload da foto no Storage falhou; o original segue salvo no aparelho.", error);
                 }
 
-                await sbInsert('cautelares_fotos', {
-                    secao_id: newPhoto.secaoId,
-                    slot_codigo: newPhoto.slotCodigo,
-                    slot_nome_display: newPhoto.slotNomeDisplay,
+                // Colunas da tabela são camelCase (exceto url_original/url_thumb)
+                const salva = await sbInsert('cautelares_fotos', {
+                    secaoId: newPhoto.secaoId,
+                    slotCodigo: newPhoto.slotCodigo,
+                    slotNomeDisplay: newPhoto.slotNomeDisplay,
                     url_original: newPhoto.urlOriginal,
                     url_thumb: newPhoto.urlThumb,
-                    data_hora_captura: newPhoto.dataHoraCaptura,
+                    dataHoraCaptura: newPhoto.dataHoraCaptura,
                     metadados: newPhoto.metadados_json
                 });
+                if (salva && salva.id) {
+                    newPhoto.id = salva.id;
+                    newPhoto.url_original = salva.url_original;
+                    newPhoto.url_thumb = salva.url_thumb;
+                }
+                saveDatabase();
 
                 document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
             } catch (supaErr) {
@@ -13033,45 +13149,66 @@ async function deleteFotoCaptura(slotCodigo) {
  * Comprime o arquivo de imagem usando canvas no cliente.
  */
 function compressImage(file, maxSide, quality) {
+    // Decodifica direto do Blob (sem FileReader/data URL, que criava uma string
+    // base64 de vários MB além do bitmap) e libera tudo ao final.
+    const desenhar = (fonte, w, h, liberar) => new Promise((resolve, reject) => {
+        let width = w;
+        let height = h;
+        if (width > height) {
+            if (width > maxSide) {
+                height *= maxSide / width;
+                width = maxSide;
+            }
+        } else {
+            if (height > maxSide) {
+                width *= maxSide / height;
+                height = maxSide;
+            }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(fonte, 0, 0, canvas.width, canvas.height);
+        liberar();
+
+        canvas.toBlob((blob) => {
+            // Zera o canvas para o navegador devolver a memória na hora
+            canvas.width = 0;
+            canvas.height = 0;
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error("Canvas blob conversion failed"));
+            }
+        }, 'image/jpeg', quality);
+    });
+
+    if (typeof createImageBitmap === 'function') {
+        return createImageBitmap(file, { imageOrientation: 'from-image' })
+            .catch(() => createImageBitmap(file))
+            .then(bmp => desenhar(bmp, bmp.width, bmp.height, () => bmp.close && bmp.close()))
+            .catch(() => compressImageViaImg(file, desenhar));
+    }
+    return compressImageViaImg(file, desenhar);
+}
+
+function compressImageViaImg(file, desenhar) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = (err) => reject(err);
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onerror = (err) => reject(err);
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > maxSide) {
-                        height *= maxSide / width;
-                        width = maxSide;
-                    }
-                } else {
-                    if (height > maxSide) {
-                        width *= maxSide / height;
-                        height = maxSide;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        resolve(blob);
-                    } else {
-                        reject(new Error("Canvas blob conversion failed"));
-                    }
-                }, 'image/jpeg', quality);
-            };
-            img.src = e.target.result;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onerror = (err) => {
+            URL.revokeObjectURL(url);
+            reject(err);
         };
-        reader.readAsDataURL(file);
+        img.onload = () => {
+            desenhar(img, img.naturalWidth || img.width, img.naturalHeight || img.height, () => {
+                URL.revokeObjectURL(url);
+                img.src = '';
+            }).then(resolve, reject);
+        };
+        img.src = url;
     });
 }
 
@@ -14429,7 +14566,7 @@ async function gerarLaudoFinalPdf() {
                 }).then(({ data, error }) => {
                     if (!error) {
                         const { data: publicUrlData } = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath);
-                        sbUpdate('cautelares', cautelar.id, { pdf_url: publicUrlData.publicUrl });
+                        sbUpdate('cautelares', cautelar.id, { pdfUrl: publicUrlData.publicUrl });
                         cautelar.pdfUrl = publicUrlData.publicUrl;
                         saveDatabase();
                     }
