@@ -960,7 +960,10 @@ async function generateInspectionReport(cautelarId) {
         return f ? (f.url_original || f.url_thumb || '') : '';
     };
 
-    const dadosIa = cautelar.dadosIaConfeccionado;
+    const dadosIa = cautelar.dadosIaConfeccionado || {};
+    const camposGerados = dadosIa.campos || dadosIa.fields || {};
+    const fotosGeradas = dadosIa.fotos_laudo || dadosIa.photo_assignments || {};
+    const fotosUrls = dadosIa.fotos_urls || dadosIa.fotosMapTemp || {};
 
     // 3. Iterar pelos campos do Field Map
     for (const field of fieldMap.fields) {
@@ -979,9 +982,9 @@ async function generateInspectionReport(cautelarId) {
         if (field.type === "image") {
             let photoUrl = null;
             // Tenta obter a foto classificada pela IA
-            if (dadosIa && dadosIa.photo_assignments && dadosIa.photo_assignments[field.name]) {
-                const tempId = dadosIa.photo_assignments[field.name];
-                photoUrl = dadosIa.fotosMapTemp[tempId] || null;
+            if (fotosGeradas[field.name]) {
+                const fotoId = fotosGeradas[field.name];
+                photoUrl = fotosUrls[fotoId] || null;
             }
             // Fallback para o mapeamento local de slots se a IA não classificou
             if (!photoUrl) {
@@ -1014,8 +1017,8 @@ async function generateInspectionReport(cautelarId) {
         } else {
             // Preenchimento de texto via IA com fallback para resolvedor local
             let value = null;
-            if (dadosIa && dadosIa.fields && dadosIa.fields[field.name] !== undefined) {
-                value = dadosIa.fields[field.name];
+            if (camposGerados[field.name] !== undefined) {
+                value = camposGerados[field.name];
             }
             if (value === null || value === undefined) {
                 value = resolveFieldValue(field.name, context, dataSec1, dataSec2, dataSec3, dataSec4, dataSec5, dataSec6, dataSec7, dataSec8);
@@ -1030,6 +1033,47 @@ async function generateInspectionReport(cautelarId) {
                 console.warn(`Erro ao preencher campo de texto "${field.name}":`, err);
             }
         }
+    }
+
+    // Página IV do conteúdo: substitui o desenho padrão somente quando há uma
+    // silhueta disponível. Assim, instalações sem os PNGs mantêm o template atual.
+    try {
+        const tipoInformado = String(dataSec1.tipoVeiculo || os.veiculoTipo || 'sedan').toLowerCase();
+        const tipo = ['hatch', 'sedan', 'suv', 'pickup', 'van', 'minivan', 'cupe'].includes(tipoInformado) ? tipoInformado : 'outro';
+        const [imagemResp, marcadoresResp] = await Promise.all([
+            fetch(`assets/silhuetas/${tipo === 'outro' ? 'sedan' : tipo}.png`),
+            fetch('assets/silhuetas/marcadores.json')
+        ]);
+        if (imagemResp.ok && marcadoresResp.ok) {
+            const imagem = await pdfDoc.embedPng(await imagemResp.arrayBuffer());
+            const coordenadas = (await marcadoresResp.json())[tipo] || {};
+            const pagina = pdfDoc.getPages()[5];
+            const { width, height } = pagina.getSize();
+            const area = { x: 18 * width / 341, y: height - (318 * height / 512), width: 162 * width / 341, height: 174 * height / 512 };
+            pagina.drawImage(imagem, area);
+            const cores = {
+                'ORIGINAL': PDFLib.rgb(47 / 255, 107 / 255, 63 / 255),
+                'REPINTURA': PDFLib.rgb(201 / 255, 169 / 255, 97 / 255),
+                'REPINTURA COM MASSA': PDFLib.rgb(184 / 255, 100 / 255, 43 / 255),
+                'AVARIADO': PDFLib.rgb(139 / 255, 38 / 255, 53 / 255),
+                'NÃO SE APLICA': PDFLib.rgb(216 / 255, 207 / 255, 190 / 255),
+                'NÃO AVALIADO': PDFLib.rgb(216 / 255, 207 / 255, 190 / 255)
+            };
+            const porNumero = Object.fromEntries((dadosIa.pintura_marcadores || []).map(m => [Number(m.numero), String(m.classificacao || '').toUpperCase()]));
+            const fonte = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+            laudoPinturaItens().forEach((_, indice) => {
+                const numero = indice + 1;
+                const posicao = coordenadas[String(numero)];
+                if (!posicao) return;
+                const classe = porNumero[numero] || String(laudoPinturaClasse(dataSec4, indice)).toUpperCase();
+                const x = area.x + area.width * Number(posicao.x) / 100;
+                const y = area.y + area.height * (1 - Number(posicao.y) / 100);
+                pagina.drawCircle({ x, y, size: 5.5, color: cores[classe] || cores['NÃO AVALIADO'], borderColor: PDFLib.rgb(1, 1, 1), borderWidth: 0.8 });
+                pagina.drawText(String(numero), { x: x - (numero > 9 ? 3.1 : 1.7), y: y - 2.1, size: 5.2, font: fonte, color: PDFLib.rgb(1, 1, 1) });
+            });
+        }
+    } catch (erro) {
+        console.warn('Silhueta específica indisponível; mantendo o desenho do template.', erro);
     }
 
     // 4. Desenhar assinatura digital do vistoriador na página 10
@@ -1205,7 +1249,7 @@ function resolveFieldValue(fieldName, context, dataSec1, dataSec2, dataSec3, dat
         case 'paint.table_items': {
             return laudoPinturaItens().map((item, idx) => {
                 const cond = laudoPinturaClasse(dataSec4, idx);
-                return `${item.nome.toUpperCase()}: ${cond.toUpperCase()}`;
+                return cond.toUpperCase();
             }).join('\n');
         }
         case 'labels.engine_bay_status': return (laudoEtiqueta(dataSec2.eta_motor) || dataSec5.label_eta_compartimento_status || 'ORIGINAL').toUpperCase();
