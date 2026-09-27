@@ -845,6 +845,8 @@ async function slicePageFromGrid(pageIndex) {
  * Preenchimento nativo do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib AcroForm.
  */
 async function generateInspectionReport(cautelarId) {
+    // Cautelares encerradas não vêm na carga inicial: busca seções e fotos
+    if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) throw new Error("Vistoria não encontrada");
 
@@ -946,9 +948,10 @@ async function generateInspectionReport(cautelarId) {
     };
 
     const fotosVistoria = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
+    // No PDF usa a foto em resolução cheia; a miniatura (400px) só como reserva
     const getFotoUrl = (codigo) => {
         const f = fotosVistoria.find(ph => ph.slotCodigo === codigo);
-        return f ? (f.url_thumb || f.url_original || '') : '';
+        return f ? (f.url_original || f.url_thumb || '') : '';
     };
 
     const dadosIa = cautelar.dadosIaConfeccionado;
