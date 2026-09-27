@@ -2021,6 +2021,7 @@ function clearOSForm() {
     document.getElementById('os-veiculo-chassi').value = '';
     document.getElementById('os-veiculo-marca-modelo').value = '';
     document.getElementById('os-veiculo-ano').value = '';
+    if (document.getElementById('os-veiculo-tipo')) document.getElementById('os-veiculo-tipo').value = '';
     document.getElementById('os-nome-cliente').value = '';
     document.getElementById('os-cpf-cliente').value = '';
     document.getElementById('os-celular-cliente').value = '';
@@ -2070,6 +2071,7 @@ function submitOSForm() {
         const chassiEl = document.getElementById('os-veiculo-chassi');
         const marcaModeloEl = document.getElementById('os-veiculo-marca-modelo');
         const anoEl = document.getElementById('os-veiculo-ano');
+        const tipoVeicEl = document.getElementById('os-veiculo-tipo');
         const nomeEl = document.getElementById('os-nome-cliente');
         const cpfEl = document.getElementById('os-cpf-cliente');
         const celEl = document.getElementById('os-celular-cliente');
@@ -2089,6 +2091,7 @@ function submitOSForm() {
         const chassi = chassiEl ? chassiEl.value.trim().toUpperCase() : '';
         const marcaModelo = marcaModeloEl ? marcaModeloEl.value.trim().toUpperCase() : '';
         const ano = anoEl ? anoEl.value.trim() : '';
+        const veiculoTipo = tipoVeicEl ? tipoVeicEl.value : '';
         const nome = nomeEl ? nomeEl.value.trim() : '';
         const cpf = cpfEl ? cpfEl.value.trim() : '';
         const cel = celEl ? celEl.value.trim() : '';
@@ -2200,6 +2203,7 @@ function submitOSForm() {
             veiculoChassi: chassi,
             veiculoMarcaModelo: marcaModelo,
             veiculoAno: ano,
+            veiculoTipo: veiculoTipo || null,
             servicoId: service.id,
             servicoNome: finalServiceName,
             valor: valor,
@@ -2794,6 +2798,7 @@ function openEditOSModal(id) {
     document.getElementById('edit-os-veiculo-chassi').value = os.veiculoChassi || '';
     document.getElementById('edit-os-veiculo-marca-modelo').value = os.veiculoMarcaModelo || '';
     document.getElementById('edit-os-veiculo-ano').value = os.veiculoAno || '';
+    if (document.getElementById('edit-os-veiculo-tipo')) document.getElementById('edit-os-veiculo-tipo').value = os.veiculoTipo || '';
     document.getElementById('edit-os-obs').value = removeDividedPaymentTag(os.observacoes);
     
     // Populate service dropdown
@@ -2919,6 +2924,7 @@ async function submitEditOSForm(event) {
     const chassi = document.getElementById('edit-os-veiculo-chassi').value.trim().toUpperCase();
     const marcaModelo = document.getElementById('edit-os-veiculo-marca-modelo').value.trim().toUpperCase();
     const ano = document.getElementById('edit-os-veiculo-ano').value.trim();
+    const veiculoTipo = document.getElementById('edit-os-veiculo-tipo') ? document.getElementById('edit-os-veiculo-tipo').value : (os.veiculoTipo || '');
     const obs = document.getElementById('edit-os-obs').value.trim();
     const serviceId = parseInt(document.getElementById('edit-os-servico').value);
     const valor = parseFloat(document.getElementById('edit-os-valor').value);
@@ -2964,6 +2970,7 @@ async function submitEditOSForm(event) {
     os.veiculoChassi = chassi;
     os.veiculoMarcaModelo = marcaModelo;
     os.veiculoAno = ano;
+    os.veiculoTipo = veiculoTipo || null;
     os.observacoes = finalObs;
     os.servicoId = service.id;
     
@@ -3083,6 +3090,7 @@ async function submitEditOSForm(event) {
         veiculoChassi: os.veiculoChassi,
         veiculoMarcaModelo: os.veiculoMarcaModelo,
         veiculoAno: os.veiculoAno,
+        veiculoTipo: os.veiculoTipo,
         observacoes: os.observacoes,
         servicoId: os.servicoId,
         servicoNome: os.servicoNome,
@@ -3479,6 +3487,7 @@ function triggerRecheckOS(parentOsId) {
     document.getElementById('os-veiculo-chassi').value = parentOs.veiculoChassi || '';
     document.getElementById('os-veiculo-marca-modelo').value = parentOs.veiculoMarcaModelo || '';
     document.getElementById('os-veiculo-ano').value = parentOs.veiculoAno || '';
+    if (document.getElementById('os-veiculo-tipo')) document.getElementById('os-veiculo-tipo').value = parentOs.veiculoTipo || '';
     document.getElementById('os-nome-cliente').value = parentOs.clienteNome;
     document.getElementById('os-cpf-cliente').value = parentOs.clienteCpfCnpj;
     document.getElementById('os-celular-cliente').value = parentOs.clienteCelular;
@@ -12109,57 +12118,93 @@ const CautelarOfflineDB = {
     }
 };
 
-// Mapeamento estático de fotos obrigatórias por seção (34 fotos obrigatórias)
+// Mapeamento estático de fotos obrigatórias por seção. A ordem dos slots segue o
+// caminho físico do vistoriador (região por região), para ele não ir e voltar
+// entre dianteira e traseira. "grupo" vira um cabeçalho na tela.
 const CAUTELAR_SLOTS = {
     1: [
+        { codigo: 'placa_dianteira', nome: 'PLACA DIANTEIRA EM CLOSE', grupo: 'EXTERNO', texto: true },
         { codigo: 'frente_45_dir', nome: 'FRENTE 45° LADO DIREITO' },
         { codigo: 'traseira_45_esq', nome: 'TRASEIRA 45° LADO ESQUERDO' },
-        { codigo: 'painel_hodometro', nome: 'PAINEL DE INSTRUMENTOS COM HODÔMETRO' },
-        { codigo: 'crlv_documento', nome: 'CRLV / CRV DO VEÍCULO' },
-        { codigo: 'placa_dianteira', nome: 'PLACA DIANTEIRA EM CLOSE' }
+        { codigo: 'painel_hodometro', nome: 'PAINEL DE INSTRUMENTOS COM HODÔMETRO', grupo: 'CABINE', texto: true },
+        { codigo: 'crlv_documento', nome: 'CRLV / CRV DO VEÍCULO', texto: true }
     ],
     2: [
-        { codigo: 'chassi_gravado', nome: 'NÚMERO DO CHASSI GRAVADO' },
-        { codigo: 'chassi_secundario', nome: 'NÚMERO DO CHASSI (PLAQUETAS/SECUNDÁRIO)' },
-        { codigo: 'motor_gravado', nome: 'NÚMERO DO MOTOR GRAVADO' },
-        { codigo: 'etiqueta_eta', nome: 'ETIQUETA ETA COMPARTIMENTO MOTOR' }
+        { codigo: 'chassi_gravado', nome: 'NÚMERO DO CHASSI GRAVADO', grupo: 'CAPÔ ABERTO', texto: true },
+        { codigo: 'chassi_secundario', nome: 'NÚMERO DO CHASSI (PLAQUETAS/SECUNDÁRIO)', texto: true },
+        { codigo: 'motor_gravado', nome: 'NÚMERO DO MOTOR GRAVADO', texto: true },
+        { codigo: 'etiqueta_eta', nome: 'ETIQUETA ETA COMPARTIMENTO MOTOR', texto: true }
     ],
     3: [
-        { codigo: 'longarina_diant_esq', nome: 'LONGARINA DIANTEIRA ESQUERDA' },
-        { codigo: 'longarina_diant_dir', nome: 'LONGARINA DIANTEIRA DIREITA' },
-        { codigo: 'longarina_tras_esq', nome: 'LONGARINA TRASEIRA ESQUERDA' },
-        { codigo: 'longarina_tras_dir', nome: 'LONGARINA TRASEIRA DIREITA' },
+        { codigo: 'longarina_diant_esq', nome: 'LONGARINA DIANTEIRA ESQUERDA', grupo: 'DIANTEIRA — CAPÔ ABERTO' },
         { codigo: 'torre_amort_diant_esq', nome: 'TORRE DO AMORTECEDOR DIANTEIRO ESQUERDO' },
-        { codigo: 'torre_amort_diant_dir', nome: 'TORRE DO AMORTECEDOR DIANTEIRO DIREITO' },
-        { codigo: 'torre_amort_tras_esq', nome: 'TORRE DO AMORTECEDOR TRASEIRO ESQUERDO' },
-        { codigo: 'torre_amort_tras_dir', nome: 'TORRE DO AMORTECEDOR TRASEIRO DIREITO' },
         { codigo: 'painel_corta_fogo', nome: 'PAINEL CORTA-FOGO (ESTRUTURA)' },
-        { codigo: 'assoalho_porta_malas', nome: 'ASSOALHO DO PORTA-MALAS' }
+        { codigo: 'torre_amort_diant_dir', nome: 'TORRE DO AMORTECEDOR DIANTEIRO DIREITO' },
+        { codigo: 'longarina_diant_dir', nome: 'LONGARINA DIANTEIRA DIREITA' },
+        { codigo: 'torre_amort_tras_dir', nome: 'TORRE DO AMORTECEDOR TRASEIRO DIREITO', grupo: 'TRASEIRA — PORTA-MALAS ABERTO' },
+        { codigo: 'longarina_tras_dir', nome: 'LONGARINA TRASEIRA DIREITA' },
+        { codigo: 'assoalho_porta_malas', nome: 'ASSOALHO DO PORTA-MALAS' },
+        { codigo: 'longarina_tras_esq', nome: 'LONGARINA TRASEIRA ESQUERDA' },
+        { codigo: 'torre_amort_tras_esq', nome: 'TORRE DO AMORTECEDOR TRASEIRO ESQUERDO' }
     ],
     4: [
         { codigo: 'medidor_pintura_uso', nome: 'FOTO DO MEDIDOR MINIPA EM USO (EVIDÊNCIA)' }
     ],
+    // Volta de 360° no sentido: frente → lado do motorista → traseira → lado do passageiro
     5: [
-        { codigo: 'vidro_parabrisa', nome: 'GRAVAÇÃO VIDRO PARA-BRISA' },
-        { codigo: 'vidro_porta_diant_esq', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA ESQUERDA' },
-        { codigo: 'vidro_porta_diant_dir', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA DIREITA' },
-        { codigo: 'vidro_porta_tras_esq', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA ESQUERDA' },
-        { codigo: 'vidro_porta_tras_dir', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA DIREITA' },
-        { codigo: 'vidro_traseiro', nome: 'GRAVAÇÃO VIDRO TRASEIRO' }
+        { codigo: 'vidro_parabrisa', nome: 'GRAVAÇÃO VIDRO PARA-BRISA', texto: true },
+        { codigo: 'vidro_porta_diant_esq', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA ESQUERDA (MOTORISTA)', texto: true },
+        { codigo: 'vidro_porta_tras_esq', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA ESQUERDA', texto: true },
+        { codigo: 'vidro_traseiro', nome: 'GRAVAÇÃO VIDRO TRASEIRO', texto: true },
+        { codigo: 'vidro_porta_tras_dir', nome: 'GRAVAÇÃO VIDRO PORTA TRASEIRA DIREITA', texto: true },
+        { codigo: 'vidro_porta_diant_dir', nome: 'GRAVAÇÃO VIDRO PORTA DIANTEIRA DIREITA', texto: true }
     ],
     6: [
-        { codigo: 'motor_vista_geral', nome: 'VISTA GERAL DO COMPARTIMENTO DO MOTOR' },
+        { codigo: 'motor_vista_geral', nome: 'VISTA GERAL DO COMPARTIMENTO DO MOTOR', grupo: 'CAPÔ ABERTO' },
         { codigo: 'motor_painel_corta_fogo', nome: 'PAINEL CORTA-FOGO (LADO DO MOTOR)' },
         { codigo: 'motor_batentes_dobradicas', nome: 'BATENTES DAS DOBRADIÇAS DO CAPÔ' }
     ],
     7: [
-        { codigo: 'quadro_porta_diant_dir', nome: 'QUADRO PORTA DIANTEIRA DIREITA' },
         { codigo: 'quadro_porta_diant_esq', nome: 'QUADRO PORTA DIANTEIRA ESQUERDA' },
+        { codigo: 'quadro_porta_tras_esq', nome: 'QUADRO PORTA TRASEIRA ESQUERDA' },
         { codigo: 'quadro_porta_tras_dir', nome: 'QUADRO PORTA TRASEIRA DIREITA' },
-        { codigo: 'quadro_porta_tras_esq', nome: 'QUADRO PORTA TRASEIRA ESQUERDA' }
+        { codigo: 'quadro_porta_diant_dir', nome: 'QUADRO PORTA DIANTEIRA DIREITA' }
     ],
     8: []
 };
+
+// Ordem em que as seções são percorridas na captura (a numeração de cada seção no
+// banco e no laudo não muda). Todo o trabalho com o capô aberto fica junto:
+// numeração (II) → compartimento do motor (VI) → estrutura, que começa pela
+// dianteira e termina no porta-malas (III). Depois as voltas de 360°: pintura (IV),
+// vidros (V) e quadros de porta/interior (VII). Por fim o fechamento (VIII).
+const CAUTELAR_ORDEM_SECOES = [1, 2, 6, 3, 4, 5, 7, 8];
+
+function cautelarPosicaoSecao(secaoNum) {
+    return CAUTELAR_ORDEM_SECOES.indexOf(secaoNum);
+}
+function cautelarProximaSecao(secaoNum) {
+    return CAUTELAR_ORDEM_SECOES[cautelarPosicaoSecao(secaoNum) + 1] || null;
+}
+function cautelarSecaoAnterior(secaoNum) {
+    const i = cautelarPosicaoSecao(secaoNum);
+    return i > 0 ? CAUTELAR_ORDEM_SECOES[i - 1] : null;
+}
+function cautelarSlotInfo(slotCodigo) {
+    return Object.values(CAUTELAR_SLOTS).flat().find(sl => sl.codigo === slotCodigo) || null;
+}
+
+// Leva a tela da captura para o topo (ao trocar de seção a página abria no fim)
+function cautelarRolarParaTopo() {
+    const area = document.getElementById('captura-scroll-area');
+    if (area) area.scrollTop = 0;
+    let el = document.getElementById('cautelar-captura-view');
+    while (el) {
+        if (el.scrollTop) el.scrollTop = 0;
+        el = el.parentElement;
+    }
+    window.scrollTo(0, 0);
+}
 
 // Variáveis globais de controle da Captura
 window.activeCautelarId = null;
@@ -12216,9 +12261,9 @@ async function continuarCautelar(cautelarId) {
     // Achar a última seção completa para já abrir na seção atual
     const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
     let targetSec = 1;
-    secoes.sort((a, b) => a.numeroSecao - b.numeroSecao);
+    secoes.sort((a, b) => cautelarPosicaoSecao(a.numeroSecao) - cautelarPosicaoSecao(b.numeroSecao));
     
-    // Procura a primeira não completa
+    // Procura a primeira não completa (na ordem de execução)
     const firstPending = secoes.find(s => s.status !== 'completa');
     if (firstPending) {
         targetSec = firstPending.numeroSecao;
@@ -12235,7 +12280,7 @@ async function continuarCautelar(cautelarId) {
     document.getElementById('cautelar-captura-view').style.display = 'flex';
 
     // Renderiza a seção
-    renderCapturaSecao(targetSec);
+    irParaSecaoCaptura(targetSec);
 }
 
 /**
@@ -12250,8 +12295,9 @@ function renderCapturaSecao(secaoNum) {
     if (!secao) return;
 
     // 1. Atualizar Títulos
-    const algarismosRomanos = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
-    document.getElementById('captura-secao-titulo-romano').textContent = `SEÇÃO ${algarismosRomanos[secaoNum]}`;
+    const algarismosRomanos = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+    const posicao = cautelarPosicaoSecao(secaoNum);
+    document.getElementById('captura-secao-titulo-romano').textContent = `ETAPA ${algarismosRomanos[posicao]} DE VIII`;
     document.getElementById('captura-secao-titulo-nome').textContent = secao.nomeSecao;
 
     // 2. Renderizar a Barra de Progresso de 8 segmentos
@@ -12271,6 +12317,12 @@ function renderCapturaSecao(secaoNum) {
         slotsGrid.style.marginBottom = '20px';
 
         slots.forEach(slot => {
+            if (slot.grupo) {
+                const cab = document.createElement('div');
+                cab.style.cssText = 'grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--accent); border-bottom: 1px solid var(--border); padding: 6px 0 4px; margin-top: 4px;';
+                cab.innerHTML = `<i class="ri-map-pin-2-line"></i> ${slot.grupo}`;
+                slotsGrid.appendChild(cab);
+            }
             const photoCard = getPhotoSlotCardHtml(slot, secao.id);
             slotsGrid.appendChild(photoCard);
         });
@@ -12292,6 +12344,13 @@ function renderCapturaSecao(secaoNum) {
     validarSecaoCompleta();
 }
 
+// Troca de seção pelo usuário: abre a nova seção já no topo
+function irParaSecaoCaptura(secaoNum) {
+    renderCapturaSecao(secaoNum);
+    cautelarRolarParaTopo();
+    requestAnimationFrame(cautelarRolarParaTopo);
+}
+
 /**
  * Desenha a progress bar horizontal de 8 segmentos.
  */
@@ -12300,7 +12359,7 @@ function renderCapturaProgressBar(activeSec) {
     if (!barContainer) return;
 
     let html = '';
-    for (let i = 1; i <= 8; i++) {
+    CAUTELAR_ORDEM_SECOES.forEach((i, pos) => {
         const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === i);
         const status = secao ? secao.status : 'nao_iniciada';
         
@@ -12315,8 +12374,8 @@ function renderCapturaProgressBar(activeSec) {
             border = '1px solid var(--success)';
         }
 
-        html += `<div style="flex: 1; height: 6px; background: ${color}; border: ${border}; border-radius: 3px;" title="Seção ${i}"></div>`;
-    }
+        html += `<div style="flex: 1; height: 6px; background: ${color}; border: ${border}; border-radius: 3px;" title="Etapa ${pos + 1}: ${secao ? secao.nomeSecao : ''}"></div>`;
+    });
     barContainer.innerHTML = html;
 }
 
@@ -12348,6 +12407,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                         <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original</option>
                         <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Indícios de Reparo</option>
                         <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Indícios de Substituição</option>
+                        <option value="indicio_avaria" ${currentStatus === 'indicio_avaria' ? 'selected' : ''}>Indício de Avaria</option>
                         <option value="nao_aplicavel" ${currentStatus === 'nao_aplicavel' ? 'selected' : ''}>Não se Aplica</option>
                     </select>
                 </div>
@@ -12360,8 +12420,16 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     } else if (window.activeSecaoNum === 5) {
         const isOriginal = photo ? photo.metadados_json?.vidro_original !== false : true;
         const numGravado = photo ? photo.metadados_json?.gravacao_lida || '' : '';
+        const desbaste = photo ? photo.metadados_json?.desbaste === true : false;
         extraControls = `
             <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Indícios de Desbaste / Polimento na gravação?</label>
+                    <select id="desbaste-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'desbaste', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                        <option value="nao" ${!desbaste ? 'selected' : ''}>NÃO</option>
+                        <option value="sim" ${desbaste ? 'selected' : ''}>SIM — há desbaste/polimento</option>
+                    </select>
+                </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Gravação Original?</label>
                     <select id="original-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
@@ -12373,6 +12441,18 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Número Gravado</label>
                     <input type="text" id="gravacao-foto-${slot.codigo}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${slot.codigo}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
                 </div>
+            </div>
+        `;
+    }
+
+    // Quilometragem digitada junto da foto do painel
+    if (slot.codigo === 'painel_hodometro') {
+        const secKm = db.cautelares_secoes.find(s => s.id === secaoId);
+        const kmAtual = secKm && secKm.dadosJson ? (secKm.dadosJson.quilometragem || '') : '';
+        extraControls = `
+            <div style="margin-top: 12px; text-align: left;">
+                <label for="caut-km" style="font-size: 11px; color: var(--text-secondary); font-weight: 700;">QUILOMETRAGEM EXIBIDA NO PAINEL <span style="color:var(--danger)">*</span></label>
+                <input type="number" inputmode="numeric" id="caut-km" value="${kmAtual}" placeholder="DIGITE A KM DO PAINEL..." oninput="autoSaveCampo('quilometragem', this.value)" style="margin-top: 4px; width: 100%; font-size: 16px; font-weight: 700; font-family: monospace;">
             </div>
         `;
     }
@@ -12392,7 +12472,8 @@ function getPhotoSlotCardHtml(slot, secaoId) {
         
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
-                <img id="img-preview-${slot.codigo}" src="${initialSrc}" style="width: 100%; height: 100%; object-fit: cover;" alt="${slot.nome}">
+                <img id="img-preview-${slot.codigo}" src="${initialSrc}" onclick="abrirPreviewFotoCautelar('${slot.codigo}')" style="width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" alt="${slot.nome}">
+                <span style="position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 10px; pointer-events: none;"><i class="ri-zoom-in-line"></i> Toque para ampliar</span>
                 <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
                     <i class="ri-delete-bin-line"></i>
                 </button>
@@ -12439,6 +12520,147 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     return card;
 }
 
+const CAUTELAR_TIPOS_VEICULO = [
+    { v: 'hatch', t: 'Hatch' },
+    { v: 'sedan', t: 'Sedan' },
+    { v: 'suv', t: 'SUV' },
+    { v: 'pickup', t: 'Pick-up' },
+    { v: 'van', t: 'Van / Utilitário' },
+    { v: 'minivan', t: 'Minivan' },
+    { v: 'cupe', t: 'Cupê' },
+    { v: 'outro', t: 'Outro' }
+];
+window.CAUTELAR_TIPOS_VEICULO = CAUTELAR_TIPOS_VEICULO;
+
+const CAUTELAR_ETIQUETAS = [
+    { codigo: 'eta_motor', nome: 'Etiqueta ETA do compartimento do motor' },
+    { codigo: 'eta_coluna', nome: 'Etiqueta ETA da coluna / batente da porta' }
+];
+const CAUTELAR_ETIQUETA_STATUS = [
+    { v: 'preservada', t: 'Preservada' },
+    { v: 'danificada', t: 'Danificada' },
+    { v: 'ausente', t: 'Ausente' }
+];
+
+// Peças da pintura na ordem de execução (volta de 360°). "laudo" é o nome curto
+// usado na tabela do laudo.
+const CAUTELAR_PINTURA_ITENS = [
+    { codigo: 'para_choque_diant', nome: 'Para-choque dianteiro', tipo: 'plastico' },
+    { codigo: 'capo', nome: 'Capô', tipo: 'metal' },
+    { codigo: 'paralama_diant_esq', nome: 'Paralama dianteiro esquerdo', tipo: 'metal' },
+    { codigo: 'coluna_diant_esq', nome: 'Coluna dianteira esquerda', tipo: 'coluna' },
+    { codigo: 'porta_diant_esq', nome: 'Porta dianteira esquerda', tipo: 'metal' },
+    { codigo: 'coluna_central_esq', nome: 'Coluna central esquerda', tipo: 'coluna' },
+    { codigo: 'porta_tras_esq', nome: 'Porta traseira esquerda', tipo: 'metal' },
+    { codigo: 'coluna_tras_esq', nome: 'Coluna traseira esquerda', tipo: 'coluna' },
+    { codigo: 'paralama_tras_esq', nome: 'Paralama traseiro esquerdo', tipo: 'metal' },
+    { codigo: 'tampa_traseira', nome: 'Tampa traseira', tipo: 'metal' },
+    { codigo: 'para_choque_tras', nome: 'Para-choque traseiro', tipo: 'plastico' },
+    { codigo: 'paralama_tras_dir', nome: 'Paralama traseiro direito', tipo: 'metal' },
+    { codigo: 'coluna_tras_dir', nome: 'Coluna traseira direita', tipo: 'coluna' },
+    { codigo: 'porta_tras_dir', nome: 'Porta traseira direita', tipo: 'metal' },
+    { codigo: 'coluna_central_dir', nome: 'Coluna central direita', tipo: 'coluna' },
+    { codigo: 'porta_diant_dir', nome: 'Porta dianteira direita', tipo: 'metal' },
+    { codigo: 'coluna_diant_dir', nome: 'Coluna dianteira direita', tipo: 'coluna' },
+    { codigo: 'paralama_diant_dir', nome: 'Paralama dianteiro direito', tipo: 'metal' },
+    { codigo: 'teto', nome: 'Teto', tipo: 'metal' }
+].map((it, i) => Object.assign(it, { ordem: i + 1 }));
+window.CAUTELAR_PINTURA_ITENS = CAUTELAR_PINTURA_ITENS;
+
+// Classificação manual (os valores são os mesmos usados nas cores do laudo)
+const CAUTELAR_CLASSES_PINTURA = [
+    { v: 'Original', t: 'Original' },
+    { v: 'Repintura', t: 'Repintura' },
+    { v: 'Repintura com massa', t: 'Repintura c/ massa' },
+    { v: 'Avariado', t: 'Avariado' },
+    { v: 'Não aplicável', t: 'Não se aplica' }
+];
+const CAUTELAR_CLASSES_COLUNA = [
+    { v: 'Original', t: 'Original' },
+    { v: 'Repintura', t: 'Repintura' },
+    { v: 'Repintura com massa', t: 'Repintura c/ massa' }
+];
+
+function cautelarColunaComReparo(d) {
+    return CAUTELAR_PINTURA_ITENS.some(it => it.tipo === 'coluna' && (d || {})[`pint_${it.codigo}_reparo`] === 'sim');
+}
+
+// Grupo de botões de escolha única (mais rápido que select no celular)
+function cautelarChipsHtml(campo, atual, opcoes) {
+    return `<div class="caut-chips" data-campo="${campo}" style="display: flex; flex-wrap: wrap; gap: 6px;">` +
+        opcoes.map(op => {
+            const ativo = atual === op.v;
+            return `<button type="button" data-valor="${op.v}" onclick="cautelarEscolherChip(this)" style="padding: 7px 12px; font-size: 12px; font-weight: 700; border-radius: 16px; cursor: pointer; border: 1px solid ${ativo ? 'var(--accent)' : 'var(--border)'}; background: ${ativo ? 'var(--accent)' : 'transparent'}; color: ${ativo ? '#0b1220' : 'var(--text-primary)'};">${op.t}</button>`;
+        }).join('') + `</div>`;
+}
+
+function cautelarEscolherChip(btn) {
+    const grupo = btn.closest('.caut-chips');
+    if (!grupo) return;
+    grupo.querySelectorAll('button').forEach(b => {
+        const ativo = b === btn;
+        b.style.background = ativo ? 'var(--accent)' : 'transparent';
+        b.style.borderColor = ativo ? 'var(--accent)' : 'var(--border)';
+        b.style.color = ativo ? '#0b1220' : 'var(--text-primary)';
+    });
+    const campo = grupo.dataset.campo;
+    const valor = btn.dataset.valor;
+    // grava já na memória para a validação enxergar sem esperar o debounce
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === window.activeSecaoNum);
+    if (secao) {
+        secao.dadosJson = secao.dadosJson || {};
+        secao.dadosJson[campo] = valor;
+    }
+    autoSaveCampo(campo, valor);
+    if (campo === 'tipoVeiculo') {
+        const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+        const os = cautelar && db.ordens_servico.find(o => o.id === cautelar.osId);
+        if (os && os.veiculoTipo !== valor) {
+            os.veiculoTipo = valor;
+            saveDatabase();
+            if (window.useSupabase) sbUpdate('ordens_servico', os.id, { veiculoTipo: valor }).catch(e => console.warn(e));
+        }
+    }
+    if (window.activeSecaoNum === 4) cautelarAtualizarObsSec4();
+    validarSecaoCompleta();
+}
+
+function cautelarAtualizarObsSec4() {
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === 4);
+    const label = document.getElementById('caut-secao4-obs-label');
+    if (!secao || !label) return;
+    label.innerHTML = cautelarColunaComReparo(secao.dadosJson)
+        ? `Observações <span style="color:var(--danger)">* (descreva os reparos estruturais encontrados nas colunas)</span>`
+        : 'Observações do Vistoriador (Opcional)';
+}
+
+// Compara o chassi digitado com o CHASSI da O.S. (antes comparava com o RENAVAM)
+function cautelarValidarChassi() {
+    const input = document.getElementById('caut-chassi');
+    const span = document.getElementById('caut-chassi-validation');
+    if (!input || !span) return;
+    const cautelar = db.cautelares.find(c => c.id === window.activeCautelarId);
+    const os = cautelar && db.ordens_servico.find(o => o.id === cautelar.osId);
+    const normalizar = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const lido = normalizar(input.value);
+    const cadastro = normalizar(os && os.veiculoChassi);
+    if (!lido) {
+        span.style.display = 'none';
+        return;
+    }
+    span.style.display = 'block';
+    if (!cadastro) {
+        span.innerHTML = `<i class="ri-information-line"></i> Chassi não informado no cadastro da O.S. — sem conferência automática.`;
+        span.style.color = 'var(--text-secondary)';
+    } else if (lido === cadastro) {
+        span.innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i> Confere com o chassi da O.S.`;
+        span.style.color = 'var(--success)';
+    } else {
+        span.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do chassi da O.S. (${os.veiculoChassi})`;
+        span.style.color = 'var(--danger)';
+    }
+}
+
 /**
  * Carrega a estrutura de campos por seção técnica.
  */
@@ -12450,8 +12672,8 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
-                        <label for="caut-km">Quilometragem Lida (Hodômetro) <span style="color:var(--danger)">*</span></label>
-                        <input type="number" id="caut-km" value="${data.quilometragem || ''}" placeholder="DIGITE A KM ATUAL..." oninput="autoSaveCampo('quilometragem', this.value)" required>
+                        <label>Tipo de Veículo (carroceria) <span style="color:var(--danger)">*</span></label>
+                        ${cautelarChipsHtml('tipoVeiculo', data.tipoVeiculo || os.veiculoTipo || '', CAUTELAR_TIPOS_VEICULO)}
                     </div>
                     <div class="form-group">
                         <label for="caut-placa-ok">Placa Confere com o CRLV? <span style="color:var(--danger)">*</span></label>
@@ -12478,12 +12700,20 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             `;
             break;
 
-        case 2:
+        case 2: {
+            const etiquetasHtml = CAUTELAR_ETIQUETAS.map(et => {
+                const atual = data[et.codigo] || '';
+                return `
+                    <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                        <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">${et.nome} <span style="color:var(--danger)">*</span></div>
+                        ${cautelarChipsHtml(et.codigo, atual, CAUTELAR_ETIQUETA_STATUS)}
+                    </div>`;
+            }).join('');
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
                         <label for="caut-chassi">Chassi Lido <span style="color:var(--danger)">*</span></label>
-                        <input type="text" id="caut-chassi" value="${data.chassiLido || ''}" placeholder="DIGITE O CHASSI LIDO..." oninput="autoSaveCampo('chassiLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <input type="text" id="caut-chassi" value="${data.chassiLido || ''}" placeholder="DIGITE O CHASSI LIDO..." oninput="this.value = this.value.toUpperCase(); autoSaveCampo('chassiLido', this.value); cautelarValidarChassi();" style="font-family: monospace; letter-spacing: 1px;" required>
                         <span id="caut-chassi-validation" style="font-size: 11px; margin-top: 4px; display: none;"></span>
                     </div>
                     <div class="form-group">
@@ -12499,42 +12729,27 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                             <label style="display: flex !important; align-items: center; justify-content: flex-start !important; gap: 8px; font-weight: 500; font-size: 13px; width: fit-content; cursor: pointer;">
                                 <input type="checkbox" id="caut-motor-ok" ${data.motorOriginal !== false ? 'checked' : ''} onchange="autoSaveCampo('motorOriginal', this.checked)"> <span>Gravação de Motor Original</span>
                             </label>
-                            <label style="display: flex !important; align-items: center; justify-content: flex-start !important; gap: 8px; font-weight: 500; font-size: 13px; width: fit-content; cursor: pointer;">
-                                <input type="checkbox" id="caut-eta-ok" ${data.etiquetasEtaOriginais !== false ? 'checked' : ''} onchange="autoSaveCampo('etiquetasEtaOriginais', this.checked)"> <span>Etiquetas ETA Preservadas</span>
-                            </label>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="caut-secao2-obs">Observações (Opcional)</label>
-                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI E MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <label>Etiquetas ETA — avalie cada uma <span style="color:var(--danger)">*</span></label>
+                        ${etiquetasHtml}
+                        <p style="font-size: 11px; color: var(--warning, #f59e0b); margin: 8px 0 0;"><i class="ri-information-line"></i> Etiqueta DANIFICADA ou AUSENTE: descreva no campo de observações abaixo (local, estado e o que foi constatado).</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="caut-secao2-obs" id="caut-secao2-obs-label">Observações (Opcional)</label>
+                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI, MOTOR E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
                     </div>
                 </div>
             `;
-            // Ativa validação instantânea após injetar
-            setTimeout(() => {
-                const input = document.getElementById('caut-chassi');
-                if (input) {
-                    const validationSpan = document.getElementById('caut-chassi-validation');
-                    const match = input.value === (os.renavam || os.placa || ''); // simulado
-                    // O chassi original está na OS (renavam/observações, etc. ou simularemos contra o chassi cadastrado na OS)
-                    const osChassi = os.renavam || ''; // No schema, renavam/chassi
-                    if (input.value) {
-                        validationSpan.style.display = 'block';
-                        if (input.value === osChassi) {
-                            validationSpan.innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i> Confere com o cadastro da O.S.`;
-                            validationSpan.style.color = 'var(--success)';
-                        } else {
-                            validationSpan.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do cadastro da O.S. (${osChassi})`;
-                            validationSpan.style.color = 'var(--danger)';
-                        }
-                    }
-                }
-            }, 100);
+            setTimeout(() => cautelarValidarChassi(), 50);
             break;
+        }
 
         case 3:
             const showEnchenteObs = data.indicioEnchente === 'sim';
-            const showBatidaObs = data.indicioBatida === 'sim';
+            const showDeformacao = data.indicioBatida === 'sim';
+            const showBatidaObs = showDeformacao && data.deformacaoEstrutural === 'sim';
             const showParecerObs = data.parecerEstrutural && data.parecerEstrutural !== 'conforme';
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
@@ -12551,22 +12766,30 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
 
                     <div class="form-group">
-                        <label for="caut-batida">Indícios de Batida / Deformação Estrutural? <span style="color:var(--danger)">*</span></label>
+                        <label for="caut-batida">Indícios de Batida? <span style="color:var(--danger)">*</span></label>
                         <select id="caut-batida" onchange="autoSaveCampo('indicioBatida', this.value); toggleDynamicFieldsSec3();" required>
                             <option value="nao" ${data.indicioBatida === 'sim' ? '' : 'selected'}>NÃO</option>
                             <option value="sim" ${data.indicioBatida === 'sim' ? 'selected' : ''}>SIM</option>
                         </select>
                     </div>
+                    <div class="form-group" id="caut-deformacao-container" style="display: ${showDeformacao ? 'block' : 'none'};">
+                        <label for="caut-deformacao">Houve Deformação Estrutural? <span style="color:var(--danger)">*</span></label>
+                        <select id="caut-deformacao" onchange="autoSaveCampo('deformacaoEstrutural', this.value); toggleDynamicFieldsSec3();">
+                            <option value="">SELECIONE...</option>
+                            <option value="nao" ${data.deformacaoEstrutural === 'nao' ? 'selected' : ''}>NÃO</option>
+                            <option value="sim" ${data.deformacaoEstrutural === 'sim' ? 'selected' : ''}>SIM</option>
+                        </select>
+                    </div>
                     <div class="form-group" id="caut-batida-obs-container" style="display: ${showBatidaObs ? 'block' : 'none'};">
-                        <label for="caut-batida-obs">Descreva os indícios de batida/deformação <span style="color:var(--danger)">*</span></label>
-                        <textarea id="caut-batida-obs" placeholder="Descreva os danos, cortes ou soldas estruturais encontrados..." oninput="autoSaveCampo('obsBatida', this.value)" ${showBatidaObs ? 'required' : ''}>${data.obsBatida || ''}</textarea>
+                        <label for="caut-batida-obs">Descreva a deformação estrutural <span style="color:var(--danger)">*</span></label>
+                        <textarea id="caut-batida-obs" placeholder="Descreva onde está a deformação, cortes ou soldas estruturais encontrados..." oninput="autoSaveCampo('obsBatida', this.value)" ${showBatidaObs ? 'required' : ''}>${data.obsBatida || ''}</textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="caut-parecer-estrutural">Parecer Estrutural Consolidado <span style="color:var(--danger)">*</span></label>
                         <select id="caut-parecer-estrutural" onchange="autoSaveCampo('parecerEstrutural', this.value); toggleDynamicFieldsSec3();" required>
                             <option value="conforme" ${data.parecerEstrutural === 'conforme' || !data.parecerEstrutural ? 'selected' : ''}>CONFORME</option>
-                            <option value="com_ressalvas" ${data.parecerEstrutural === 'com_ressalvas' ? 'selected' : ''}>CONFORME COM RESSALVAS</option>
+                            <option value="com_ressalvas" ${data.parecerEstrutural === 'com_ressalvas' ? 'selected' : ''}>CONFORME COM RESSALVA</option>
                             <option value="nao_conforme" ${data.parecerEstrutural === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME</option>
                         </select>
                     </div>
@@ -12579,59 +12802,48 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             setTimeout(() => toggleDynamicFieldsSec3(), 100);
             break;
 
-        case 4:
-            // Painéis de espessura
-            const paineis = [
-                "Capô", "Teto", "Tampa traseira",
-                "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
-                "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
-                "Coluna A esquerda", "Coluna A direita",
-                "Coluna B esquerda", "Coluna B direita",
-                "Coluna C esquerda", "Coluna C direita"
-            ];
-            
-            const tableRowsHtml = paineis.map((p, idx) => {
-                const key = `painel_${idx}`;
-                const val = data[key] ? parseFloat(data[key]) : 0;
-                
-                // Classificação com base no micrômetro
-                const classification = val === 0 ? '' : (val >= 80 && val <= 150 ? 'original' : (val > 150 && val <= 250 ? 'repintura' : 'acima_padrao'));
-                const color = classification === 'original' ? 'var(--success)' : (classification === 'repintura' ? 'var(--warning)' : (classification === 'acima_padrao' ? 'var(--danger)' : 'var(--text-secondary)'));
-                const labelClass = classification === 'original' ? 'ORIGINAL (80-150 µm)' : (classification === 'repintura' ? 'REPINTURA (150-250 µm)' : (classification === 'acima_padrao' ? 'MASSA/ALTO (>250 µm)' : 'NÃO MEDIDO'));
-
+        case 4: {
+            // Ordem de execução: volta de 360° começando pela frente, lado do
+            // motorista, traseira, lado do passageiro e, por fim, o teto.
+            const linhas = CAUTELAR_PINTURA_ITENS.map(item => {
+                const um = data[`pint_${item.codigo}_um`] || '';
+                const classe = data[`pint_${item.codigo}_classe`] || '';
+                const opcoes = item.tipo === 'coluna' ? CAUTELAR_CLASSES_COLUNA : CAUTELAR_CLASSES_PINTURA;
+                const medida = item.tipo === 'plastico' ? `
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px;">Peça plástica — apenas classificação</div>` : `
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <input type="number" inputmode="decimal" value="${um}" placeholder="µm" oninput="autoSaveCampo('pint_${item.codigo}_um', this.value)" style="width: 100px; text-align: right; font-family: monospace; padding: 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
+                        <span style="font-size: 11px; color: var(--text-secondary);">µm medidos</span>
+                    </div>`;
+                const reparo = item.tipo === 'coluna' ? `
+                    <div style="margin-top: 8px;">
+                        <div style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">Há indícios de reparos estruturais? <span style="color:var(--danger)">*</span></div>
+                        ${cautelarChipsHtml(`pint_${item.codigo}_reparo`, data[`pint_${item.codigo}_reparo`] || '', [{ v: 'nao', t: 'Não' }, { v: 'sim', t: 'Sim' }])}
+                    </div>` : '';
                 return `
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="font-weight:600; font-size:12px; padding: 8px 0;">${p}</td>
-                        <td style="width: 110px; padding: 4px 0;">
-                            <input type="number" id="espessura-${key}" value="${val || ''}" placeholder="0 µm" oninput="atualizarMedidorPintura('${key}', this.value)" style="width:90px; text-align:right; font-family:monospace; padding:6px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
-                        </td>
-                        <td id="classif-${key}" style="font-size:10px; font-weight:700; color: ${color}; text-align:right; padding: 8px 0;">${labelClass}</td>
-                    </tr>
-                `;
+                    <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">${item.ordem}. ${item.nome}</div>
+                        ${medida}
+                        <div style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">${item.tipo === 'coluna' ? 'Estado geral' : 'Classificação'} <span style="color:var(--danger)">*</span></div>
+                        ${cautelarChipsHtml(`pint_${item.codigo}_classe`, classe, opcoes)}
+                        ${reparo}
+                    </div>`;
             }).join('');
 
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
-                    <label style="display:block; font-size:11px; color:var(--text-secondary); font-weight:700; text-transform:uppercase; margin-bottom:12px;">ESPESSURA DA PINTURA (MICRA - µm)</label>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size:11px;">
-                                <th style="text-align:left; padding-bottom:8px;">PAINEL</th>
-                                <th style="text-align:left; padding-bottom:8px;">VALOR (µm)</th>
-                                <th style="text-align:right; padding-bottom:8px;">CLASSIFICAÇÃO</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRowsHtml}
-                        </tbody>
-                    </table>
+                    <label style="display:block; font-size:11px; color:var(--text-secondary); font-weight:700; text-transform:uppercase; margin-bottom:4px;">ESPESSURA DA PINTURA (MICRA - µm) E CLASSIFICAÇÃO</label>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin: 0 0 8px;">Siga a ordem: frente → lado do motorista → traseira → lado do passageiro → teto. Registre a medida e depois classifique a peça.</p>
+                    ${linhas}
                     <div class="form-group" style="margin-top:20px;">
-                        <label for="caut-secao4-obs">Observações do Vistoriador (Opcional)</label>
-                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <label for="caut-secao4-obs" id="caut-secao4-obs-label">Observações do Vistoriador (Opcional)</label>
+                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA E AS COLUNAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
                     </div>
                 </div>
             `;
+            setTimeout(() => cautelarAtualizarObsSec4(), 50);
             break;
+        }
 
         case 5:
             html = `
@@ -12676,7 +12888,8 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
-                        <label for="caut-quadro-porta">Sinais de Intervenção/Soldas nos Quadros de Portas (Colunas)? <span style="color:var(--danger)">*</span></label>
+                        <label for="caut-quadro-porta">Sinais de Intervenção/Soldas nos Quadros de Portas? <span style="color:var(--danger)">*</span></label>
+                        <p style="font-size: 11px; color: var(--text-secondary); margin: 2px 0 6px;">Avalie o quadro de porta POR INTEIRO (soleira, batentes, dobradiças, contorno e colunas) — não apenas as colunas de sustentação do teto.</p>
                         <select id="caut-quadro-porta" onchange="autoSaveCampo('intervencaoQuadros', this.value); toggleObsRequiredSec7();" required>
                             <option value="nao" ${data.intervencaoQuadros === 'sim' ? '' : 'selected'}>NÃO</option>
                             <option value="sim" ${data.intervencaoQuadros === 'sim' ? 'selected' : ''}>SIM</option>
@@ -12705,11 +12918,11 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
             html = `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 20px;">
                     <div class="form-group">
-                        <label for="caut-parecer-preliminar">Parecer Preliminar Consolidado <span style="color:var(--danger)">*</span></label>
+                        <label for="caut-parecer-preliminar">Parecer Técnico Final <span style="color:var(--danger)">*</span></label>
                         <select id="caut-parecer-preliminar" onchange="autoSaveCampo('parecerPreliminar', this.value); toggleObsRequiredSec8();" required>
                             <option value="">SELECIONE...</option>
                             <option value="conforme" ${data.parecerPreliminar === 'conforme' ? 'selected' : ''}>CONFORME</option>
-                            <option value="com_ressalvas" ${data.parecerPreliminar === 'com_ressalvas' ? 'selected' : ''}>COM RESSALVAS</option>
+                            <option value="com_ressalvas" ${data.parecerPreliminar === 'com_ressalvas' ? 'selected' : ''}>CONFORME COM RESSALVA</option>
                             <option value="nao_conforme" ${data.parecerPreliminar === 'nao_conforme' ? 'selected' : ''}>NÃO CONFORME</option>
                         </select>
                     </div>
@@ -12766,10 +12979,15 @@ function toggleDynamicFieldsSec3() {
         enchenteInput.required = show;
     }
 
+    const deformacaoContainer = document.getElementById('caut-deformacao-container');
+    const deformacaoSel = document.getElementById('caut-deformacao');
+    if (deformacaoContainer) deformacaoContainer.style.display = batida === 'sim' ? 'block' : 'none';
+    const deformacao = batida === 'sim' && deformacaoSel ? deformacaoSel.value : '';
+
     const batidaContainer = document.getElementById('caut-batida-obs-container');
     const batidaInput = document.getElementById('caut-batida-obs');
     if (batidaContainer && batidaInput) {
-        const show = batida === 'sim';
+        const show = deformacao === 'sim';
         batidaContainer.style.display = show ? 'block' : 'none';
         batidaInput.required = show;
     }
@@ -12875,6 +13093,8 @@ function salvarEtiquetaVidro(slotCodigo, field, value) {
             photo.metadados_json.vidro_original = value === 'sim';
         } else if (field === 'gravacao') {
             photo.metadados_json.gravacao_lida = value.toUpperCase();
+        } else if (field === 'desbaste') {
+            photo.metadados_json.desbaste = value === 'sim';
         }
         saveDatabase();
         if (window.useSupabase && !photo.pendenteEnvio) {
@@ -12906,7 +13126,11 @@ function validarSecaoCompleta() {
     // 2. Validar campos obrigatórios por seção
     switch (secaoNum) {
         case 1:
-            const km = document.getElementById('caut-km')?.value;
+            if (!((secao.dadosJson || {}).tipoVeiculo)) {
+                isComplete = false;
+                pendingItems.push("Tipo de Veículo");
+            }
+            const km = document.getElementById('caut-km')?.value ?? (secao.dadosJson || {}).quilometragem;
             const conservacao = document.getElementById('caut-conservacao')?.value;
             if (!km || parseFloat(km) <= 0) {
                 isComplete = false;
@@ -12917,9 +13141,10 @@ function validarSecaoCompleta() {
                 pendingItems.push("Estado Geral de Conservação");
             }
             break;
-        case 2:
+        case 2: {
             const chassi = document.getElementById('caut-chassi')?.value;
             const motor = document.getElementById('caut-motor')?.value;
+            const d2 = secao.dadosJson || {};
             if (!chassi || chassi.trim().length < 5) {
                 isComplete = false;
                 pendingItems.push("Chassi Lido");
@@ -12928,7 +13153,26 @@ function validarSecaoCompleta() {
                 isComplete = false;
                 pendingItems.push("Motor Lido");
             }
+            let etiquetaComProblema = false;
+            CAUTELAR_ETIQUETAS.forEach(et => {
+                if (!d2[et.codigo]) {
+                    isComplete = false;
+                    pendingItems.push(et.nome);
+                } else if (d2[et.codigo] !== 'preservada') {
+                    etiquetaComProblema = true;
+                }
+            });
+            const obs2 = document.getElementById('caut-secao2-obs');
+            const label2 = document.getElementById('caut-secao2-obs-label');
+            if (label2) label2.innerHTML = etiquetaComProblema
+                ? `Observações <span style="color:var(--danger)">* (descreva a etiqueta danificada/ausente)</span>`
+                : 'Observações (Opcional)';
+            if (etiquetaComProblema && (!obs2 || !obs2.value.trim())) {
+                isComplete = false;
+                pendingItems.push("Observação sobre etiqueta danificada/ausente");
+            }
             break;
+        }
         case 3:
             const enchenteVal = document.getElementById('caut-enchente')?.value;
             const enchenteObsVal = document.getElementById('caut-enchente-obs')?.value;
@@ -12937,10 +13181,15 @@ function validarSecaoCompleta() {
                 pendingItems.push("Observações de Indícios de Enchente");
             }
             const batidaVal = document.getElementById('caut-batida')?.value;
+            const deformacaoVal = document.getElementById('caut-deformacao')?.value;
             const batidaObsVal = document.getElementById('caut-batida-obs')?.value;
-            if (batidaVal === 'sim' && (!batidaObsVal || !batidaObsVal.trim())) {
+            if (batidaVal === 'sim' && !deformacaoVal) {
                 isComplete = false;
-                pendingItems.push("Observações de Indícios de Batida");
+                pendingItems.push("Houve deformação estrutural?");
+            }
+            if (batidaVal === 'sim' && deformacaoVal === 'sim' && (!batidaObsVal || !batidaObsVal.trim())) {
+                isComplete = false;
+                pendingItems.push("Descrição da deformação estrutural");
             }
             const parecerVal = document.getElementById('caut-parecer-estrutural')?.value;
             const parecerObsVal = document.getElementById('caut-secao3-obs')?.value;
@@ -12949,6 +13198,25 @@ function validarSecaoCompleta() {
                 pendingItems.push("Comentários e Justificativa do Parecer Estrutural");
             }
             break;
+        case 4: {
+            const d4 = secao.dadosJson || {};
+            let semMedida = 0, semClasse = 0, semReparo = 0;
+            CAUTELAR_PINTURA_ITENS.forEach(item => {
+                const classe = d4[`pint_${item.codigo}_classe`];
+                if (!classe) semClasse++;
+                if (item.tipo !== 'plastico' && classe !== 'Não aplicável' && !(parseFloat(d4[`pint_${item.codigo}_um`]) > 0)) semMedida++;
+                if (item.tipo === 'coluna' && !d4[`pint_${item.codigo}_reparo`]) semReparo++;
+            });
+            if (semMedida) { isComplete = false; pendingItems.push(`Medida (µm) de ${semMedida} peça(s)`); }
+            if (semClasse) { isComplete = false; pendingItems.push(`Classificação de ${semClasse} peça(s)`); }
+            if (semReparo) { isComplete = false; pendingItems.push(`Reparo estrutural de ${semReparo} coluna(s)`); }
+            const obs4 = document.getElementById('caut-secao4-obs');
+            if (cautelarColunaComReparo(d4) && (!obs4 || !obs4.value.trim())) {
+                isComplete = false;
+                pendingItems.push("Descrição do reparo estrutural nas colunas (observações)");
+            }
+            break;
+        }
         case 7:
             const doorInput = document.getElementById('caut-secao7-obs');
             const conservacaoInterior = document.getElementById('caut-conservacao-interior')?.value;
@@ -13030,7 +13298,7 @@ function validarSecaoCompleta() {
     // Ocultar/Exibir botão voltar se estiver na primeira seção
     const btnAnterior = document.getElementById('btn-captura-anterior');
     if (btnAnterior) {
-        btnAnterior.style.display = secaoNum === 1 ? 'none' : 'flex';
+        btnAnterior.style.display = cautelarPosicaoSecao(secaoNum) === 0 ? 'none' : 'flex';
     }
 }
 
@@ -13075,9 +13343,10 @@ function autoSaveCampo(campoId, valor) {
  */
 function avancarSecao() {
     const current = window.activeSecaoNum;
-    if (current < 8) {
+    const proxima = cautelarProximaSecao(current);
+    if (proxima) {
         // Inicializa a próxima seção se necessário
-        const nextSecao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === (current + 1));
+        const nextSecao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === proxima);
         if (nextSecao && nextSecao.status === 'nao_iniciada') {
             nextSecao.status = 'em_andamento';
             saveDatabase();
@@ -13085,7 +13354,7 @@ function avancarSecao() {
                 sbUpdate('cautelares_secoes', nextSecao.id, { status: 'em_andamento' }).catch(e => console.warn(e));
             }
         }
-        renderCapturaSecao(current + 1);
+        irParaSecaoCaptura(proxima);
         
         // Efeito vibratório se suportado
         if (navigator.vibrate) navigator.vibrate(50);
@@ -13121,9 +13390,9 @@ function avancarSecao() {
  * Retrocede para a seção anterior.
  */
 function voltarSecao() {
-    const current = window.activeSecaoNum;
-    if (current > 1) {
-        renderCapturaSecao(current - 1);
+    const anterior = cautelarSecaoAnterior(window.activeSecaoNum);
+    if (anterior) {
+        irParaSecaoCaptura(anterior);
     }
 }
 
@@ -13142,6 +13411,7 @@ function confirmarSairCaptura() {
  */
 function salvarESairCaptura() {
     fecharCameraCautelar();
+    fecharPreviewFotoCautelar();
     window.activeCautelarId = null;
     
     // Limpar timeouts
@@ -13183,7 +13453,7 @@ async function abrirCameraCautelar(slotCodigo) {
     }
 
     fecharCameraCautelar();
-    const slotInfo = Object.values(CAUTELAR_SLOTS).flat().find(sl => sl.codigo === slotCodigo);
+    const slotInfo = cautelarSlotInfo(slotCodigo);
 
     const overlay = document.createElement('div');
     overlay.id = 'cautelar-camera-overlay';
@@ -13195,6 +13465,11 @@ async function abrirCameraCautelar(slotCodigo) {
         </div>
         <div style="flex:1;position:relative;overflow:hidden;">
             <video id="cam-video" autoplay playsinline muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;"></video>
+            ${slotInfo && slotInfo.texto ? `
+            <div style="position:absolute;left:6%;right:6%;top:50%;height:28%;transform:translateY(-50%);border:2px dashed rgba(255,255,255,0.85);border-radius:8px;pointer-events:none;"></div>
+            <div style="position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 3px #000;padding:0 16px;pointer-events:none;">
+                Enquadre o número/etiqueta INTEIRO na HORIZONTAL, do início ao fim, dentro da moldura
+            </div>` : ''}
             <div id="cam-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;text-align:center;padding:24px;">Abrindo câmera...</div>
         </div>
         <div style="padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;">
@@ -13264,6 +13539,291 @@ function fecharCameraCautelar() {
     if (overlay) {
         const video = overlay.querySelector('video');
         if (video) video.srcObject = null;
+        overlay.remove();
+    }
+}
+
+/**
+ * Gira um JPEG em múltiplos de 90° (sentido horário).
+ */
+async function cautelarGirarBlob(blob, graus) {
+    graus = ((graus % 360) + 360) % 360;
+    if (!graus) return blob;
+    const bmp = await createImageBitmap(blob);
+    const deitar = graus === 90 || graus === 270;
+    const canvas = document.createElement('canvas');
+    canvas.width = deitar ? bmp.height : bmp.width;
+    canvas.height = deitar ? bmp.width : bmp.height;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(graus * Math.PI / 180);
+    ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+    if (bmp.close) bmp.close();
+    const out = await new Promise(r => canvas.toBlob(r, 'image/jpeg', CAUTELAR_FOTO_QUALIDADE));
+    canvas.width = 0;
+    canvas.height = 0;
+    if (!out) throw new Error('Falha ao girar a imagem');
+    return out;
+}
+
+// Original da foto: do aparelho (se ainda não enviada) ou da nuvem
+async function cautelarObterOriginal(cautelarId, slotCodigo) {
+    const rec = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo).catch(() => null);
+    if (rec && rec.blob) return { blob: rec.blob, metadados: rec.metadados || {} };
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+    const url = photo && (photo.url_original || photo.urlOriginal);
+    if (!url || !url.startsWith('http')) return null;
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return { blob: await resp.blob(), metadados: photo.metadados_json || {} };
+}
+
+/**
+ * Gira uma foto já registrada e a coloca de novo na fila de envio.
+ */
+async function cautelarGirarFoto(cautelarId, slotCodigo, graus) {
+    const orig = await cautelarObterOriginal(cautelarId, slotCodigo);
+    if (!orig) throw new Error('Foto original indisponível');
+    const girada = await cautelarGirarBlob(orig.blob, graus);
+    const thumb = await compressImage(girada, 400, 0.70);
+    const metadados = Object.assign({}, orig.metadados, { rotacaoManual: ((orig.metadados.rotacaoManual || 0) + graus) % 360 });
+    await CautelarOfflineDB.saveFoto(cautelarId, slotCodigo, girada, metadados, thumb);
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+    if (photo) {
+        photo.pendenteEnvio = true;
+        photo.metadados_json = Object.assign({}, photo.metadados_json || {}, { rotacaoManual: metadados.rotacaoManual });
+        saveDatabase();
+    }
+    return girada;
+}
+
+function cautelarConfigIA() {
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
+    return config && config.chaveOpenAi ? config : null;
+}
+
+/**
+ * Fotos de números e etiquetas (chassi, motor, ETA, vidros, placa, CRLV, painel):
+ * identifica a orientação do texto e gira a imagem para a informação ficar na
+ * horizontal, legível da esquerda para a direita. Usa a integração de IA já
+ * configurada no sistema; sem ela (ou sem internet), o vistoriador pode girar na
+ * pré-visualização.
+ */
+async function cautelarAutoOrientar(cautelarId, slotCodigo) {
+    const info = cautelarSlotInfo(slotCodigo);
+    const config = cautelarConfigIA();
+    if (!info || !info.texto || !config || navigator.onLine === false) return;
+
+    const chave = `${cautelarId}_${slotCodigo}`;
+    window._cautelarOrientando.add(chave);
+    cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Ajustando orientação da foto...`);
+    try {
+        const rec = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo);
+        if (!rec || !rec.blob) return;
+        const amostra = await compressImage(rec.blob, 768, 0.8);
+        const dataUrl = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(amostra);
+        });
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        let graus = 0;
+        try {
+            const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                signal: controller.signal,
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.chaveOpenAi}` },
+                body: JSON.stringify({
+                    model: config.modeloOpenAi || "gpt-4o-mini",
+                    response_format: { type: "json_object" },
+                    temperature: 0,
+                    messages: [
+                        {
+                            role: "system",
+                            content: "Você analisa fotos de vistoria veicular. Responda apenas JSON no formato {\"rotacao\": N}, " +
+                                "onde N é 0, 90, 180 ou 270: quantos graus a imagem deve ser girada no sentido HORÁRIO para que " +
+                                "o texto/número principal fique na horizontal, legível da esquerda para a direita e de cabeça para cima."
+                        },
+                        {
+                            role: "user",
+                            content: [
+                                { type: "text", text: `Foto: ${info.nome}. Qual rotação horária deixa a informação principal na horizontal e legível?` },
+                                { type: "image_url", image_url: { url: dataUrl, detail: "low" } }
+                            ]
+                        }
+                    ]
+                })
+            });
+            if (resp.ok) {
+                const json = await resp.json();
+                const conteudo = JSON.parse(json.choices?.[0]?.message?.content || '{}');
+                const n = parseInt(conteudo.rotacao, 10);
+                if ([90, 180, 270].includes(n)) graus = n;
+            } else {
+                console.warn('Orientação automática indisponível:', resp.status);
+            }
+        } finally {
+            clearTimeout(timer);
+        }
+
+        if (graus) {
+            const girada = await cautelarGirarBlob(rec.blob, graus);
+            const thumb = await compressImage(girada, 400, 0.70);
+            const metadados = Object.assign({}, rec.metadados || {}, { rotacaoAuto: graus });
+            await CautelarOfflineDB.saveFoto(cautelarId, slotCodigo, girada, metadados, thumb);
+            const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+            const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+            const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+            if (photo) {
+                photo.metadados_json = Object.assign({}, photo.metadados_json || {}, { rotacaoAuto: graus });
+                saveDatabase();
+            }
+            if (window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum && !document.getElementById('cautelar-preview-overlay')) {
+                renderCapturaSecao(secaoNum);
+            }
+        }
+    } catch (e) {
+        console.warn('Falha na orientação automática da foto:', e);
+    } finally {
+        window._cautelarOrientando.delete(chave);
+    }
+}
+
+/**
+ * Pré-visualização em tela cheia: ampliar para conferir detalhes, girar,
+ * excluir ou fechar. Na foto do painel, pede a quilometragem.
+ */
+async function abrirPreviewFotoCautelar(slotCodigo, opcoes = {}) {
+    const cautelarId = window.activeCautelarId;
+    const info = cautelarSlotInfo(slotCodigo);
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    if (!secao) return;
+    fecharPreviewFotoCautelar();
+
+    const ehPainel = slotCodigo === 'painel_hodometro';
+    const kmAtual = (secao.dadosJson || {}).quilometragem || '';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cautelar-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100001;background:#000;display:flex;flex-direction:column;';
+    overlay.innerHTML = `
+        <div style="padding:12px 16px;color:#fff;font-size:13px;font-weight:700;text-transform:uppercase;">${info ? info.nome : slotCodigo}</div>
+        <div id="prev-area" style="flex:1;overflow:auto;position:relative;background:#000;-webkit-overflow-scrolling:touch;">
+            <img id="prev-img" alt="" style="display:block;width:100%;height:100%;object-fit:contain;">
+            <div id="prev-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;">Carregando foto...</div>
+        </div>
+        ${ehPainel ? `
+        <div style="padding:10px 16px;background:#111;">
+            <label for="prev-km" style="color:#fff;font-size:12px;font-weight:700;">QUILOMETRAGEM EXIBIDA NO PAINEL *</label>
+            <input type="number" inputmode="numeric" id="prev-km" value="${kmAtual}" placeholder="Digite a km que aparece na foto" style="margin-top:6px;width:100%;font-size:20px;font-weight:700;font-family:monospace;padding:10px;">
+        </div>` : ''}
+        <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;gap:8px;background:#111;">
+            <button type="button" id="prev-zoom" style="flex:1;background:#333;color:#fff;border:none;border-radius:8px;padding:12px 0;font-size:13px;font-weight:700;"><i class="ri-zoom-in-line"></i> 1x</button>
+            <button type="button" id="prev-girar" style="flex:1;background:#333;color:#fff;border:none;border-radius:8px;padding:12px 0;font-size:13px;font-weight:700;"><i class="ri-clockwise-line"></i> Girar</button>
+            <button type="button" id="prev-excluir" style="flex:1;background:#b91c1c;color:#fff;border:none;border-radius:8px;padding:12px 0;font-size:13px;font-weight:700;"><i class="ri-delete-bin-line"></i> Excluir</button>
+            <button type="button" id="prev-fechar" style="flex:1.2;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:12px 0;font-size:13px;font-weight:700;"><i class="ri-check-line"></i> Fechar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const img = overlay.querySelector('#prev-img');
+    const msg = overlay.querySelector('#prev-msg');
+    let urlTemp = null;
+    const carregar = async () => {
+        msg.style.display = 'flex';
+        try {
+            const rec = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo).catch(() => null);
+            if (urlTemp) { URL.revokeObjectURL(urlTemp); urlTemp = null; }
+            if (rec && rec.blob) {
+                urlTemp = URL.createObjectURL(rec.blob);
+                img.src = urlTemp;
+            } else {
+                const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+                img.src = photo ? (photo.url_original || photo.url_thumb || photo.urlThumb || '') : '';
+            }
+            img.onload = () => { msg.style.display = 'none'; };
+            img.onerror = () => { msg.textContent = 'Não foi possível carregar a foto.'; };
+        } catch (e) {
+            msg.textContent = 'Não foi possível carregar a foto.';
+        }
+    };
+    overlay._liberar = () => { if (urlTemp) URL.revokeObjectURL(urlTemp); };
+    await carregar();
+
+    // Zoom: 1x → 2x → 3x (arraste para percorrer a foto ampliada)
+    let zoom = 1;
+    const aplicarZoom = () => {
+        if (zoom === 1) {
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.maxWidth = '';
+        } else {
+            img.style.width = `${zoom * 100}%`;
+            img.style.height = 'auto';
+            img.style.maxWidth = 'none';
+        }
+        overlay.querySelector('#prev-zoom').innerHTML = `<i class="ri-zoom-in-line"></i> ${zoom}x`;
+    };
+    overlay.querySelector('#prev-zoom').onclick = () => { zoom = zoom >= 3 ? 1 : zoom + 1; aplicarZoom(); };
+    img.ondblclick = () => { zoom = zoom === 1 ? 2 : 1; aplicarZoom(); };
+
+    const kmInput = overlay.querySelector('#prev-km');
+    const salvarKm = () => {
+        if (!kmInput) return true;
+        const v = kmInput.value.trim();
+        if (!v || parseFloat(v) <= 0) {
+            kmInput.focus();
+            showToast("Digite a quilometragem exibida no painel.", "warning");
+            return false;
+        }
+        if (window.activeSecaoNum === secaoNum) {
+            const campo = document.getElementById('caut-km');
+            if (campo) campo.value = v;
+        }
+        secao.dadosJson = secao.dadosJson || {};
+        secao.dadosJson.quilometragem = v;
+        autoSaveCampo('quilometragem', v);
+        return true;
+    };
+    if (kmInput && opcoes.focarKm) setTimeout(() => kmInput.focus(), 300);
+
+    overlay.querySelector('#prev-fechar').onclick = () => {
+        if (!salvarKm()) return;
+        fecharPreviewFotoCautelar();
+        if (window.activeSecaoNum === secaoNum) renderCapturaSecao(secaoNum);
+    };
+    overlay.querySelector('#prev-excluir').onclick = async () => {
+        fecharPreviewFotoCautelar();
+        await deleteFotoCaptura(slotCodigo);
+    };
+    overlay.querySelector('#prev-girar').onclick = async () => {
+        const btn = overlay.querySelector('#prev-girar');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ri-loader-4-line"></i> ...';
+        try {
+            await cautelarGirarFoto(cautelarId, slotCodigo, 90);
+            await carregar();
+            cautelarEnviarPendentes(cautelarId);
+        } catch (e) {
+            console.warn(e);
+            showToast("Não foi possível girar a foto agora.", "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ri-clockwise-line"></i> Girar';
+        }
+    };
+}
+
+function fecharPreviewFotoCautelar() {
+    const overlay = document.getElementById('cautelar-preview-overlay');
+    if (overlay) {
+        if (overlay._liberar) overlay._liberar();
         overlay.remove();
     }
 }
@@ -13364,7 +13924,15 @@ async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
             renderCapturaSecao(secaoNum);
         }
 
-        // 3. Envio em segundo plano
+        // Foto do painel: já pede a quilometragem com a imagem ampliada
+        if (slotCodigo === 'painel_hodometro') {
+            abrirPreviewFotoCautelar(slotCodigo, { focarKm: true });
+        }
+
+        // 3. Fotos de números/etiquetas: deixa a informação na horizontal antes de enviar
+        await cautelarAutoOrientar(cautelarId, slotCodigo);
+
+        // 4. Envio em segundo plano
         cautelarEnviarPendentes(cautelarId);
     } catch (e) {
         console.error("Erro no processamento da imagem:", e);
@@ -13374,6 +13942,7 @@ async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
 }
 
 window._cautelarEnviando = window._cautelarEnviando || new Set();
+window._cautelarOrientando = window._cautelarOrientando || new Set();
 
 /**
  * Envia para a nuvem todas as fotos desta cautelar que estão só no aparelho.
@@ -13398,7 +13967,7 @@ async function cautelarEnviarPendentes(cautelarId) {
     let falhas = 0;
     for (const rec of registros) {
         const chave = `${cautelarId}_${rec.slotCodigo}`;
-        if (window._cautelarEnviando.has(chave)) continue;
+        if (window._cautelarEnviando.has(chave) || window._cautelarOrientando.has(chave)) continue;
         window._cautelarEnviando.add(chave);
         cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Enviando fotos...`);
         try {
@@ -13502,7 +14071,7 @@ async function deleteFotoCaptura(slotCodigo) {
         }
 
         // 2. Apaga da nuvem (só se já tinha sido enviada: id provisório é negativo)
-        if (window.useSupabase && !photo.pendenteEnvio && photo.id > 0) {
+        if (window.useSupabase && photo.id > 0) {
             sbDelete('cautelares_fotos', photo.id).catch(e => console.warn(e));
             const base = `cautelares/${cautelarId}/${slotCodigo}`;
             supabaseClient.storage.from('cautelares').remove([`${base}.jpg`, `${base}_thumb.jpg`])
@@ -14570,6 +15139,88 @@ async function imageToAiBase64(url) {
     });
 }
 
+/**
+ * Resumo textual da vistoria (dados realmente coletados na captura), usado como
+ * base da redação do laudo.
+ */
+function cautelarResumoParaLaudo(os, secoes, fotos) {
+    const d = n => (secoes.find(s => s.numeroSecao === n)?.dadosJson) || {};
+    const d1 = d(1), d2 = d(2), d3 = d(3), d4 = d(4), d6 = d(6), d7 = d(7), d8 = d(8);
+    const simNao = v => v === 'sim' ? 'SIM' : (v === 'nao' ? 'NÃO' : 'N/A');
+    const foto = cod => (fotos || []).find(f => f.slotCodigo === cod);
+    const meta = cod => (foto(cod) || {}).metadados_json || (foto(cod) || {}).metadados || {};
+    const rotuloEstrutura = {
+        original: 'Original', reparo_aparente: 'Indícios de reparo', substituicao: 'Indícios de substituição',
+        indicio_avaria: 'Indício de avaria', nao_aplicavel: 'Não se aplica'
+    };
+    const etqStatus = { preservada: 'PRESERVADA', danificada: 'DANIFICADA', ausente: 'AUSENTE' };
+
+    let t = `DADOS DO VEÍCULO (cadastro da O.S.):
+- Placa: ${os.placa || 'N/A'}
+- Marca/Modelo: ${os.veiculoMarcaModelo || 'N/A'}
+- Ano: ${os.veiculoAno || 'N/A'}
+- Tipo de carroceria: ${os.veiculoTipo || d1.tipoVeiculo || 'N/A'}
+- Chassi (cadastro): ${os.veiculoChassi || 'N/A'}
+- Renavam: ${os.renavam || 'N/A'}
+
+IDENTIFICAÇÃO
+- Quilometragem lida no painel: ${d1.quilometragem || 'N/A'} km
+- Placa confere com o CRLV: ${d1.placaConfere === 'nao' ? 'NÃO' : 'SIM'}
+- Estado geral de conservação: ${d1.estadoConservacao || 'N/A'}
+- Observações: ${d1.observacao || 'Nenhuma'}
+
+NUMERAÇÃO (CHASSI, MOTOR E ETIQUETAS)
+- Chassi lido no veículo: ${d2.chassiLido || 'N/A'}
+- Motor lido no veículo: ${d2.motorLido || 'N/A'}
+- Gravação do chassi original: ${d2.chassiOriginal !== false ? 'SIM' : 'NÃO'}
+- Gravação do motor original: ${d2.motorOriginal !== false ? 'SIM' : 'NÃO'}
+${CAUTELAR_ETIQUETAS.map(et => `- ${et.nome}: ${etqStatus[d2[et.codigo]] || 'N/A'}`).join('\n')}
+- Observações: ${d2.observacao || 'Nenhuma'}
+
+COMPARTIMENTO DO MOTOR
+- Sinais de reparo/troca de estruturas no vão do motor: ${simNao(d6.reparoMotor)}
+- Cor original preservada no vão: ${d6.corMotorOk === 'nao' ? 'NÃO' : 'SIM'}
+- Observações: ${d6.observacao || 'Nenhuma'}
+
+ESTRUTURA
+- Indícios de enchente: ${simNao(d3.indicioEnchente || 'nao')}${d3.indicioEnchente === 'sim' ? ` (${d3.obsEnchente || ''})` : ''}
+- Indícios de batida: ${simNao(d3.indicioBatida || 'nao')}
+${d3.indicioBatida === 'sim' ? `- Houve deformação estrutural: ${simNao(d3.deformacaoEstrutural)}${d3.deformacaoEstrutural === 'sim' ? ` (${d3.obsBatida || ''})` : ''}\n` : ''}- Avaliação por peça:
+${(CAUTELAR_SLOTS[3] || []).map(sl => {
+        const m = meta(sl.codigo);
+        const st = rotuloEstrutura[m.status_estrutural || 'original'] || m.status_estrutural;
+        return `  * ${sl.nome}: ${st}${m.observacao_peca ? ` — ${m.observacao_peca}` : ''}`;
+    }).join('\n')}
+- Parecer estrutural: ${d3.parecerEstrutural || 'conforme'}
+- Observações: ${d3.observacao || 'Nenhuma'}
+
+PINTURA E ACABAMENTO (medição em micras e classificação feita pelo vistoriador)
+${CAUTELAR_PINTURA_ITENS.map(it => {
+        const um = d4[`pint_${it.codigo}_um`];
+        const classe = d4[`pint_${it.codigo}_classe`] || 'N/A';
+        const reparo = it.tipo === 'coluna' ? ` | indícios de reparo estrutural: ${simNao(d4[`pint_${it.codigo}_reparo`])}` : '';
+        return `  * ${it.nome}: ${it.tipo === 'plastico' ? 'peça plástica' : (um ? um + ' µm' : 'sem medida')} — ${classe}${reparo}`;
+    }).join('\n')}
+- Observações: ${d4.observacao || 'Nenhuma'}
+
+VIDROS (gravação do chassi)
+${(CAUTELAR_SLOTS[5] || []).map(sl => {
+        const m = meta(sl.codigo);
+        return `  * ${sl.nome}: gravação ${m.vidro_original === false ? 'NÃO original' : 'original'}${m.gravacao_lida ? ` (${m.gravacao_lida})` : ''}${m.desbaste ? ' — INDÍCIOS DE DESBASTE/POLIMENTO' : ''}`;
+    }).join('\n')}
+
+QUADROS DE PORTA E INTERIOR
+- Intervenção/soldas nos quadros de porta (avaliação do quadro inteiro): ${simNao(d7.intervencaoQuadros || 'nao')}
+- Conservação do interior: ${d7.conservacaoInterior || 'N/A'}
+- Observações: ${d7.observacao || 'Nenhuma'}
+
+FECHAMENTO
+- Parecer técnico do vistoriador: ${d8.parecerPreliminar === 'com_ressalvas' ? 'CONFORME COM RESSALVA' : (d8.parecerPreliminar === 'nao_conforme' ? 'NÃO CONFORME' : (d8.parecerPreliminar ? 'CONFORME' : 'N/A'))}
+- Observações finais: ${d8.observacao || 'Nenhuma'}
+`;
+    return t;
+}
+
 async function analisarLaudoComIAInvisivel() {
     const cautelarId = window.activeFinalizacaoCautelarId;
     if (!cautelarId) return;
@@ -14598,88 +15249,7 @@ async function analisarLaudoComIAInvisivel() {
         const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
         const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
 
-        let checklistText = `DADOS DO VEÍCULO:
-- Placa: ${os.placa || 'N/A'}
-- Marca/Modelo: ${os.clienteNome || 'N/A'}
-- Ano Fabricação/Modelo: ${os.fabricacaoAno || 'N/A'}/${os.modeloAno || 'N/A'}
-- Cor: ${os.cor || 'N/A'}
-- Renavam OS: ${os.renavam || 'N/A'}
-- Chassi OS: ${os.chassi || 'N/A'}
-- Motor OS: ${os.motor || 'N/A'}
-
-SEÇÃO I: IDENTIFICAÇÃO DO VEÍCULO
-- Quilometragem lida: ${dataSec1.quilometragem || 'N/A'} km
-- Placa confere com CRLV: ${dataSec1.placaConfere || 'sim'}
-- Estado geral de conservação: ${dataSec1.estadoConservacao || 'N/A'}
-- Observações da identificação: ${dataSec1.observacao || 'Nenhum'}
-
-SEÇÃO II: CHASSI E MOTOR
-- Chassi Lido no veículo: ${dataSec2.chassiLido || 'N/A'}
-- Motor Lido no veículo: ${dataSec2.motorLido || 'N/A'}
-- Gravação de Chassi Original: ${dataSec2.chassiOriginal !== false ? 'SIM' : 'NÃO'}
-- Gravação de Motor Original: ${dataSec2.motorOriginal !== false ? 'SIM' : 'NÃO'}
-- Etiquetas ETA Preservadas: ${dataSec2.etiquetasEtaOriginais !== false ? 'SIM' : 'NÃO'}
-- Observações de Chassi/Motor: ${dataSec2.observacao || 'Nenhum'}
-
-SEÇÃO III: ESTRUTURA GERAL
-- Indícios de Enchente: ${dataSec3.indicioEnchente || 'nao'} (Detalhes: ${dataSec3.obsEnchente || 'N/A'})
-- Indícios de Batida / Deformação: ${dataSec3.indicioBatida || 'nao'} (Detalhes: ${dataSec3.obsBatida || 'N/A'})
-- Parecer Estrutural: ${dataSec3.parecerEstrutural || 'conforme'}
-- Observações estruturais: ${dataSec3.observacao || 'Nenhum'}
-
-SEÇÃO IV: ESPESSURA DA PINTURA
-- Dados de espessura de pintura lidos nos painéis (medidas em micras):
-`;
-
-        const paineisNomes = [
-            "Capô", "Teto", "Tampa traseira",
-            "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
-            "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
-            "Coluna A esquerda", "Coluna A direita",
-            "Coluna B esquerda", "Coluna B direita",
-            "Coluna C esquerda", "Coluna C direita"
-        ];
-        paineisNomes.forEach((nome, idx) => {
-            const val = dataSec4[`painel_${idx}`] || '';
-            const status = dataSec4[`painel_${idx}_status`] || 'normal';
-            if (val) {
-                checklistText += `  * ${nome}: ${val} micras (${status.toUpperCase()})\n`;
-            }
-        });
-
-        checklistText += `
-SEÇÃO V: ITENS DE SEGURANÇA E VIDROS
-- Pneus confere: ${dataSec5.pneusConfere !== false ? 'SIM' : 'NÃO'}
-- Rodas confere: ${dataSec5.rodasConfere !== false ? 'SIM' : 'NÃO'}
-- Estepe confere: ${dataSec5.estepeConfere !== false ? 'SIM' : 'NÃO'}
-- Parabrisa original: ${dataSec5.parabrisaOriginal !== false ? 'SIM' : 'NÃO'}
-- Vidros laterais originais: ${dataSec5.vidrosLateraisOriginais !== false ? 'SIM' : 'NÃO'}
-- Vigia original: ${dataSec5.vigiaOriginal !== false ? 'SIM' : 'NÃO'}
-- Observações de segurança/vidros: ${dataSec5.observacao || 'Nenhum'}
-
-SEÇÃO VI: DIAGNÓSTICO DE SUSPENSÃO, FREIOS E ESCAPAMENTO
-- Estado Suspensao: ${dataSec6.estadoSuspensao || 'N/A'}
-- Estado Freios: ${dataSec6.estadoFreios || 'N/A'}
-- Estado Escapamento: ${dataSec6.estadoEscapamento || 'N/A'}
-- Vazamento de fluidos: ${dataSec6.vazamentoFluidos || 'nao'}
-- Observações: ${dataSec6.observacao || 'Nenhum'}
-
-SEÇÃO VII: DIAGNÓSTICO DO SISTEMA ELÉTRICO E ELETRÔNICO
-- Painel de Instrumentos: ${dataSec7.painelInstrumentos || 'N/A'}
-- Iluminação Externa: ${dataSec7.iluminaçãoExterna || 'N/A'}
-- Funcionamento Vidros Elétricos: ${dataSec7.funcionamentoVidrosElétricos || 'N/A'}
-- Ar Condicionado: ${dataSec7.arCondicionado || 'N/A'}
-- Scanner de erros OBD: ${dataSec7.scannerErros || 'N/A'}
-- Observações: ${dataSec7.observacao || 'Nenhum'}
-
-SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
-- Histórico de Leilão: ${dataSec8.historicoLeilao || 'nao'}
-- Histórico de Sinistro: ${dataSec8.historicoSinistro || 'nao'}
-- Histórico de Roubo/Furto: ${dataSec8.historicoRouboFurto || 'nao'}
-- Débitos/Multas pendentes: ${dataSec8.debitoMultas || 'nao'}
-- Restrição Judicial/Administrativa: ${dataSec8.restricaoJudicial || 'nao'}
-- Observações de histórico/documentos: ${dataSec8.observacaoFinal || 'Nenhum'}
-`;
+        let checklistText = cautelarResumoParaLaudo(os, secoes, fotos);
 
         const contentPayload = [
             {
@@ -14693,7 +15263,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
         const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
         
         // Conversão em lote para Base64 compactado
-        showToast("Compactando e carregando fotos para a IA...", "info");
+        showToast("O sistema está preparando as fotos do laudo...", "info");
         for (let index = 0; index < fotosParaEnviar.length; index++) {
             const foto = fotosParaEnviar[index];
             const tempId = `foto_${index + 1}`;
@@ -14716,7 +15286,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
             }
         }
 
-        showToast("Enviando dados do laudo para análise técnica do ChatGPT...", "info");
+        showToast("O sistema está gerando o laudo...", "info");
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
@@ -14735,7 +15305,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
                     messages: [
                         {
                             role: "system",
-                            content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                            content: (config.promptInstrucoes || getDefaultOpenAIPrompt()) + LAUDO_SEM_MENCAO_IA
                         },
                         {
                             role: "user",
@@ -14780,29 +15350,29 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
                         }
 
                         saveDatabase();
-                        showToast("Laudo confeccionado com sucesso pelo ChatGPT!", "success");
+                        showToast("Laudo gerado pelo sistema com sucesso!", "success");
                     } else {
                         console.warn("Resposta da IA com status de falha ou campos vazios:", aiResult);
-                        showToast("ChatGPT retornou dados incompletos. Usando fallback técnico.", "warning");
+                        showToast("O sistema gerou o laudo com a redação padrão.", "warning");
                     }
                 }
             } else {
                 const errText = await response.text();
                 console.error(`Erro da API da OpenAI (${response.status}):`, errText);
-                showToast(`IA Indisponível (Erro ${response.status}). O laudo será gerado por fallback local.`, "warning");
+                showToast("Redação automática indisponível no momento. O laudo será gerado com a redação padrão.", "warning");
             }
         } catch (fetchErr) {
             clearTimeout(timeoutId);
             if (fetchErr.name === 'AbortError') {
                 console.warn("Timeout de 45s excedido na chamada da OpenAI.");
-                showToast("Tempo limite de resposta da IA excedido (conexão lenta). O laudo continuará de forma manual.", "warning");
+                showToast("Conexão lenta: o laudo será gerado com a redação padrão.", "warning");
             } else {
                 throw fetchErr;
             }
         }
     } catch (err) {
         console.error("Erro na análise por IA (background):", err);
-        showToast("Erro na comunicação com a IA. Usando fallback técnico.", "warning");
+        showToast("O laudo será gerado com a redação padrão.", "warning");
     }
 }
 
@@ -14830,11 +15400,11 @@ async function gerarLaudoFinalPdf() {
     const originalText = emitirBtn ? emitirBtn.innerHTML : "";
     if (emitirBtn) {
         emitirBtn.disabled = true;
-        emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> PROCESSANDO LAUDO POR IA...`;
+        emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
     }
 
     // 1. Chamar a IA de forma invisível para preencher a redação pericial antes da geração do PDF
-    showToast("Processando parecer técnico do laudo com IA...", "info");
+    showToast("O sistema está gerando o laudo...", "info");
     await analisarLaudoComIAInvisivel();
 
     const parecerFinal = document.getElementById('caut-final-parecer').value;
@@ -15994,6 +16564,9 @@ window.syncDetranFloatingPayable = async function() {
 // ==========================================================
 // MÓDULO DE INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (CHATGPT)
 // ==========================================================
+
+// O laudo é do sistema Certive: o cliente não deve ver menção à ferramenta usada na redação
+const LAUDO_SEM_MENCAO_IA = "\n\nREGRA OBRIGATÓRIA: nunca mencione inteligência artificial, IA, ChatGPT, OpenAI ou modelo de linguagem em nenhum texto do laudo. O laudo é emitido pelo sistema Certive e assinado pelo vistoriador.";
 
 function getDefaultOpenAIPrompt() {
     return `Você é o Perito Técnico e Designer Gráfico Oficial da Certive Vistorias.
@@ -17215,7 +17788,7 @@ async function analisarLaudoComIA() {
 
     const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
     if (!config || !config.chaveOpenAi) {
-        showToast("Chave da API da OpenAI não configurada. Vá em Configurações > Integração IA.", "warning");
+        showToast("Análise automática do laudo não configurada. Fale com o administrador do sistema.", "warning");
         return;
     }
 
@@ -17257,88 +17830,7 @@ async function analisarLaudoComIA() {
         const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
 
         // Formatar o texto de resumo da vistoria
-        let checklistText = `DADOS DO VEÍCULO:
-- Placa: ${os.placa || 'N/A'}
-- Marca/Modelo: ${os.clienteNome || 'N/A'}
-- Ano Fabricação/Modelo: ${os.fabricacaoAno || 'N/A'}/${os.modeloAno || 'N/A'}
-- Cor: ${os.cor || 'N/A'}
-- Chassi OS: ${os.renavam || 'N/A'}
-- Motor OS: ${os.chassi || 'N/A'}
-
-SEÇÃO I: IDENTIFICAÇÃO DO VEÍCULO
-- Quilometragem lida: ${dataSec1.quilometragem || 'N/A'} km
-- Placa confere com CRLV: ${dataSec1.placaConfere || 'sim'}
-- Estado geral de conservação: ${dataSec1.estadoConservacao || 'N/A'}
-- Observações da identificação: ${dataSec1.observacao || 'Nenhum'}
-
-SEÇÃO II: CHASSI E MOTOR
-- Chassi Lido no veículo: ${dataSec2.chassiLido || 'N/A'}
-- Motor Lido no veículo: ${dataSec2.motorLido || 'N/A'}
-- Gravação de Chassi Original: ${dataSec2.chassiOriginal !== false ? 'SIM' : 'NÃO'}
-- Gravação de Motor Original: ${dataSec2.motorOriginal !== false ? 'SIM' : 'NÃO'}
-- Etiquetas ETA Preservadas: ${dataSec2.etiquetasEtaOriginais !== false ? 'SIM' : 'NÃO'}
-- Observações de Chassi/Motor: ${dataSec2.observacao || 'Nenhum'}
-
-SEÇÃO III: ESTRUTURA GERAL
-- Indícios de Enchente: ${dataSec3.indicioEnchente || 'nao'} (Detalhes: ${dataSec3.obsEnchente || 'N/A'})
-- Indícios de Batida / Deformação: ${dataSec3.indicioBatida || 'nao'} (Detalhes: ${dataSec3.obsBatida || 'N/A'})
-- Parecer Estrutural: ${dataSec3.parecerEstrutural || 'conforme'}
-- Observações estruturais: ${dataSec3.observacao || 'Nenhum'}
-
-SEÇÃO IV: ESPESSURA DA PINTURA
-- Dados de espessura de pintura lidos nos painéis (medidas em micras):
-`;
-
-        // Medidas micrométricas
-        const paineisNomes = [
-            "Capô", "Teto", "Tampa traseira",
-            "Paralama dianteiro esquerdo", "Porta dianteira esquerda", "Porta traseira esquerda", "Paralama traseiro esquerdo",
-            "Paralama traseiro direito", "Porta traseira direita", "Porta dianteira direita", "Paralama dianteiro direito",
-            "Coluna A esquerda", "Coluna A direita",
-            "Coluna B esquerda", "Coluna B direita",
-            "Coluna C esquerda", "Coluna C direita"
-        ];
-        paineisNomes.forEach((nome, idx) => {
-            const val = dataSec4[`painel_${idx}`] || '';
-            const status = dataSec4[`painel_${idx}_status`] || 'normal';
-            if (val) {
-                checklistText += `  * ${nome}: ${val} micras (${status.toUpperCase()})\n`;
-            }
-        });
-
-        checklistText += `
-SEÇÃO V: ITENS DE SEGURANÇA E VIDROS
-- Pneus confere: ${dataSec5.pneusConfere !== false ? 'SIM' : 'NÃO'}
-- Rodas confere: ${dataSec5.rodasConfere !== false ? 'SIM' : 'NÃO'}
-- Estepe confere: ${dataSec5.estepeConfere !== false ? 'SIM' : 'NÃO'}
-- Parabrisa original: ${dataSec5.parabrisaOriginal !== false ? 'SIM' : 'NÃO'}
-- Vidros laterais originais: ${dataSec5.vidrosLateraisOriginais !== false ? 'SIM' : 'NÃO'}
-- Vigia original: ${dataSec5.vigiaOriginal !== false ? 'SIM' : 'NÃO'}
-- Observações de segurança/vidros: ${dataSec5.observacao || 'Nenhum'}
-
-SEÇÃO VI: DIAGNÓSTICO DE SUSPENSÃO, FREIOS E ESCAPAMENTO
-- Estado Suspensao: ${dataSec6.estadoSuspensao || 'N/A'}
-- Estado Freios: ${dataSec6.estadoFreios || 'N/A'}
-- Estado Escapamento: ${dataSec6.estadoEscapamento || 'N/A'}
-- Vazamento de fluidos: ${dataSec6.vazamentoFluidos || 'nao'}
-- Observações: ${dataSec6.observacao || 'Nenhum'}
-
-SEÇÃO VII: DIAGNÓSTICO DO SISTEMA ELÉTRICO E ELETRÔNICO
-- Painel de Instrumentos: ${dataSec7.painelInstrumentos || 'N/A'}
-- Iluminação Externa: ${dataSec7.iluminaçãoExterna || 'N/A'}
-- Funcionamento Vidros Elétricos: ${dataSec7.funcionamentoVidrosElétricos || 'N/A'}
-- Ar Condicionado: ${dataSec7.arCondicionado || 'N/A'}
-- Scanner de erros OBD: ${dataSec7.scannerErros || 'N/A'}
-- Observações: ${dataSec7.observacao || 'Nenhum'}
-
-SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
-- Histórico de Leilão: ${dataSec8.historicoLeilao || 'nao'}
-- Histórico de Sinistro: ${dataSec8.historicoSinistro || 'nao'}
-- Histórico de Roubo/Furto: ${dataSec8.historicoRouboFurto || 'nao'}
-- Débitos/Multas pendentes: ${dataSec8.debitoMultas || 'nao'}
-- Restrição Judicial/Administrativa: ${dataSec8.restricaoJudicial || 'nao'}
-- Observações de histórico/documentos: ${dataSec8.observacaoFinal || 'Nenhum'}
-`;
+        let checklistText = cautelarResumoParaLaudo(os, secoes, fotos);
 
         // Preparar payload de mensagens para a OpenAI
         const contentPayload = [
@@ -17368,7 +17860,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
             }
         }
 
-        if (loadingText) loadingText.textContent = `Etapa 2/4: Enviando dados ao ChatGPT...`;
+        if (loadingText) loadingText.textContent = `Etapa 2/4: O sistema está analisando a vistoria...`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
@@ -17388,7 +17880,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
                     messages: [
                         {
                             role: "system",
-                            content: config.promptInstrucoes || getDefaultOpenAIPrompt()
+                            content: (config.promptInstrucoes || getDefaultOpenAIPrompt()) + LAUDO_SEM_MENCAO_IA
                         },
                         {
                             role: "user",
@@ -17449,7 +17941,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
                 alertsContainer.innerHTML = html;
             }
             
-            showToast("Vistoria incompleta detectada pela IA. Emissão bloqueada.", "error");
+            showToast("Vistoria incompleta detectada pelo sistema. Emissão bloqueada.", "error");
             if (emitirBtn) emitirBtn.disabled = true;
             return;
         }
@@ -17501,7 +17993,7 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
 
     } catch (err) {
         console.error("Erro na análise por IA:", err);
-        showToast(`Erro na análise por IA: ${err.message}`, "error");
+        showToast("Não foi possível concluir a análise automática do laudo. Tente novamente.", "error");
         if (badge) {
             badge.textContent = "Erro";
             badge.style.background = "rgba(239, 68, 68, 0.15)";

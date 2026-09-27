@@ -248,7 +248,7 @@ const CAMPOS_PESADOS = {
 
 const COLUNAS_LEVES = {
     contas_pagar: 'id,unidadeId,descricao,tipo,vencimento,valor,observacoes,pago,pagoEm,recorrente,frequencia,recorrenciaGrupoId,codigoBarras,categoria,fornecedor,criadoPor,competencia,"temAnexo","temComprovante"',
-    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato"',
+    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,veiculoTipo,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato"',
     caixa_diario: 'id,unidadeId,data,status,abertoPor,fechadoPor,fechadoEm,saldoAbertura,"saldoEspécieInformado","temRelatorioDetran"'
 };
 

@@ -13,6 +13,19 @@ if (!document.getElementById('google-font-montserrat')) {
     document.head.appendChild(link);
 }
 
+// Peças de pintura na ordem da captura (definidas em app_v8.js)
+function laudoPinturaItens() {
+    return (window.CAUTELAR_PINTURA_ITENS || []).map(it => ({ codigo: it.codigo, nome: it.nome }));
+}
+// Classificação manual da peça; cai no formato antigo (micrometro_N) se existir
+function laudoPinturaClasse(dataSec4, idx) {
+    const item = laudoPinturaItens()[idx];
+    return (item && dataSec4[`pint_${item.codigo}_classe`]) || dataSec4[`micrometro_${idx + 1}`] || 'Não avaliado';
+}
+function laudoEtiqueta(v) {
+    return ({ preservada: 'Preservada', danificada: 'Danificada', ausente: 'Ausente' })[v] || '';
+}
+
 function atualizarPreviewLaudo() {
     const previewContainer = document.getElementById('laudo-preview-container');
     if (!previewContainer) return;
@@ -105,7 +118,7 @@ function atualizarPreviewLaudo() {
         const cor = valOrFallback(os.cor);
         const combustivel = valOrFallback(dataSec1.combustivel || os.combustivel);
         const renavam = valOrFallback(os.renavam);
-        const chassi = valOrFallback(os.chassi || dataSec2.chassiLido);
+        const chassi = valOrFallback(os.veiculoChassi || os.chassi || dataSec2.chassiLido);
         const motor = valOrFallback(os.motor || dataSec2.motorLido);
         const quilometragem = formatQuilometragem(dataSec1.quilometragem);
         const anoFab = valOrFallback(os.fabricacaoAno || os.ano_fabricacao);
@@ -439,27 +452,20 @@ function atualizarPreviewLaudo() {
         // =========================================================================
         // PAGINA 06: 04 PINTURA E ACABAMENTO (BACKGROUND pagina_06.png)
         // =========================================================================
-        const paintItemsList = [
-            "Capô", "Teto", "Tampa traseira",
-            "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.", "Paralama traseiro esq.",
-            "Paralama traseiro dir.", "Porta traseira dir.", "Porta dianteira dir.", "Paralama dianteiro dir.",
-            "Coluna A esquerda", "Coluna A direita",
-            "Coluna B esquerda", "Coluna B direita",
-            "Coluna C esquerda", "Coluna C direita"
-        ];
-        const getPaintCondition = (index) => {
-            return dataSec4[`micrometro_${index}`] || 'Original';
-        };
+        // Peças na ordem da vistoria, com a classificação manual do vistoriador
+        const paintItemsList = laudoPinturaItens();
+        const getPaintCondition = (index) => laudoPinturaClasse(dataSec4, index - 1);
         const getPaintColor = (cond) => {
             if (cond === 'Repintura') return '#C9A961';
             if (cond === 'Repintura com massa' || cond === 'Massa') return '#B8642B';
             if (cond === 'Avariado' || cond === 'Pequenos riscos / amassado') return '#8B2635';
-            if (cond === 'Não aplicável') return '#D8CFBE';
+            if (cond === 'Não aplicável' || cond === 'Não avaliado') return '#D8CFBE';
             return '#2F6B3F'; // Original
         };
 
         let paintTableHtml = '';
-        paintItemsList.forEach((name, i) => {
+        paintItemsList.forEach((item, i) => {
+            const name = item.nome;
             const cond = getPaintCondition(i + 1);
             paintTableHtml += `
                 <div style="height: 18px; display: flex; align-items: center; justify-content: space-between; font-size: 8.5px; font-weight: 700; border-bottom: 1px solid var(--rule); padding: 0 4px; box-sizing: border-box;">
@@ -469,8 +475,8 @@ function atualizarPreviewLaudo() {
             `;
         });
 
-        const etaMotorStatus = dataSec5['label_eta_compartimento_status'] || 'Original';
-        const etaColunaStatus = dataSec5['label_eta_coluna_status'] || 'Original';
+        const etaMotorStatus = laudoEtiqueta(dataSec2.eta_motor) || dataSec5['label_eta_compartimento_status'] || 'Original';
+        const etaColunaStatus = laudoEtiqueta(dataSec2.eta_coluna) || dataSec5['label_eta_coluna_status'] || 'Original';
 
         html += `
             <div id="certive-page-6" class="certive-page" style="background-image: url('pagina_06.png');">
@@ -1197,21 +1203,13 @@ function resolveFieldValue(fieldName, context, dataSec1, dataSec2, dataSec3, dat
         case 'structure.final_status': return (dataSec3.parecerEstrutural || 'CONFORME').toUpperCase();
 
         case 'paint.table_items': {
-            const paintItemsList = [
-                "Capô", "Teto", "Tampa traseira",
-                "Paralama dianteiro esq.", "Porta dianteira esq.", "Porta traseira esq.", "Paralama traseiro esq.",
-                "Paralama traseiro dir.", "Porta traseira dir.", "Porta dianteira dir.", "Paralama dianteiro dir.",
-                "Coluna A esquerda", "Coluna A direita",
-                "Coluna B esquerda", "Coluna B direita",
-                "Coluna C esquerda", "Coluna C direita"
-            ];
-            return paintItemsList.map((name, idx) => {
-                const cond = dataSec4[`micrometro_${idx + 1}`] || 'Original';
-                return `${name.toUpperCase()}: ${cond.toUpperCase()}`;
+            return laudoPinturaItens().map((item, idx) => {
+                const cond = laudoPinturaClasse(dataSec4, idx);
+                return `${item.nome.toUpperCase()}: ${cond.toUpperCase()}`;
             }).join('\n');
         }
-        case 'labels.engine_bay_status': return (dataSec5.label_eta_compartimento_status || 'ORIGINAL').toUpperCase();
-        case 'labels.column_status': return (dataSec5.label_eta_coluna_status || 'ORIGINAL').toUpperCase();
+        case 'labels.engine_bay_status': return (laudoEtiqueta(dataSec2.eta_motor) || dataSec5.label_eta_compartimento_status || 'ORIGINAL').toUpperCase();
+        case 'labels.column_status': return (laudoEtiqueta(dataSec2.eta_coluna) || dataSec5.label_eta_coluna_status || 'ORIGINAL').toUpperCase();
 
         case 'glass.table': {
             const glassNames = ["Para-brisa", "Vidro dianteiro esq.", "Vidro dianteiro dir.", "Vidro traseiro esq.", "Vidro traseiro dir.", "Vigia traseiro"];
