@@ -295,6 +295,20 @@
                                     <label for="os-veiculo-ano">Ano Fab/Modelo</label>
                                     <input type="text" id="os-veiculo-ano" placeholder="EX: 2020/2021" maxlength="9">
                                 </div>
+                                <div class="form-group">
+                                    <label for="os-veiculo-tipo">Tipo de Veículo</label>
+                                    <select id="os-veiculo-tipo">
+                                        <option value="">NÃO INFORMADO</option>
+                                        <option value="hatch">HATCH</option>
+                                        <option value="sedan">SEDAN</option>
+                                        <option value="suv">SUV</option>
+                                        <option value="pickup">PICK-UP</option>
+                                        <option value="van">VAN / UTILITÁRIO</option>
+                                        <option value="minivan">MINIVAN</option>
+                                        <option value="cupe">CUPÊ</option>
+                                        <option value="outro">OUTRO</option>
+                                    </select>
+                                </div>
                             </div>
                             <!-- Seleção de Solicitante Recorrente (Oculto se particular) -->
                             <div class="form-group" id="form-group-solicitante-recorrente" style="display: none; background: rgba(212,160,23,0.03); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
@@ -628,7 +642,7 @@
                     </div>
 
                     <!-- Área principal de formulário rolável -->
-                    <div style="padding: 20px 16px; flex: 1; overflow-y: auto; max-height: calc(100vh - 210px);">
+                    <div id="captura-scroll-area" style="padding: 20px 16px; flex: 1; overflow-y: auto; max-height: calc(100vh - 210px);">
                         <!-- Título da Seção -->
                         <div style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
                             <h3 id="captura-secao-titulo-romano" style="font-family: 'Outfit', sans-serif; font-size: 26px; color: var(--accent); margin-bottom: 2px;">SEÇÃO I</h3>
@@ -670,9 +684,9 @@
                             <div class="form-group">
                                 <label for="caut-final-parecer" style="font-size: 11px; font-weight: 700;">PARECER TÉCNICO FINAL <span style="color:var(--danger)">*</span></label>
                                 <select id="caut-final-parecer" onchange="atualizarPreviewLaudo()" required style="height: 38px; font-size: 12px;">
-                                    <option value="conforme">CONFORME (Aprovado sem restrições)</option>
-                                    <option value="com_ressalvas">COM RESSALVAS (Aprovado com marcas/reparos leves)</option>
-                                    <option value="nao_conforme">NÃO CONFORME (Reprovado - Danos graves/sinistro)</option>
+                                    <option value="conforme">CONFORME</option>
+                                    <option value="com_ressalvas">CONFORME COM RESSALVA</option>
+                                    <option value="nao_conforme">NÃO CONFORME</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -2638,6 +2652,20 @@
                         <label for="edit-os-veiculo-ano">Ano Fab/Modelo</label>
                         <input type="text" id="edit-os-veiculo-ano" required>
                     </div>
+                    <div class="form-group">
+                        <label for="edit-os-veiculo-tipo">Tipo de Veículo</label>
+                        <select id="edit-os-veiculo-tipo">
+                                        <option value="">NÃO INFORMADO</option>
+                                        <option value="hatch">HATCH</option>
+                                        <option value="sedan">SEDAN</option>
+                                        <option value="suv">SUV</option>
+                                        <option value="pickup">PICK-UP</option>
+                                        <option value="van">VAN / UTILITÁRIO</option>
+                                        <option value="minivan">MINIVAN</option>
+                                        <option value="cupe">CUPÊ</option>
+                                        <option value="outro">OUTRO</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="edit-os-obs">Observações do Veículo (Modelo, Ano, Cor)</label>
@@ -3074,10 +3102,10 @@
         </div>
     </div>
 
-<script src="supabase-db.js?v=20260927-cautelar3"></script>
-<script src="app_v8.js?v=20260927-cautelar3"></script>
+<script src="supabase-db.js?v=20260927-cautelar4"></script>
+<script src="app_v8.js?v=20260927-cautelar4"></script>
 <script src="svg_templates.js"></script>
-<script src="laudo_pdf_v2.js?v=8.4.1"></script>
+<script src="laudo_pdf_v2.js?v=8.4.2"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
