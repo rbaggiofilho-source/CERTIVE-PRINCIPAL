@@ -15252,159 +15252,49 @@ FECHAMENTO
     return t;
 }
 
+async function solicitarLaudoAoServidor(cautelarId) {
+    if (!window.useSupabase || !window.supabaseClient) {
+        throw new Error("A emissão do laudo requer conexão com o servidor.");
+    }
+    const { data, error } = await supabaseClient.functions.invoke('gerar-laudo', {
+        body: { cautelarId }
+    });
+    if (error) {
+        let detalhe = error.message;
+        try {
+            const contexto = await error.context.json();
+            detalhe = contexto.erro || (contexto.detalhes || []).join(' ') || detalhe;
+        } catch (_) { /* resposta sem corpo JSON */ }
+        throw new Error(detalhe || "Não foi possível gerar o laudo.");
+    }
+    if (!data || !data.resposta) throw new Error("O servidor retornou um laudo vazio.");
+    return data;
+}
+
+function confirmarEmissaoComInconsistencias(itens, podeForcar) {
+    const textoSeguro = valor => String(valor).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    return new Promise(resolve => {
+        const fundo = document.createElement('div');
+        fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px';
+        fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:620px;width:100%;border-radius:10px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+            <h3 style="margin:0 0 12px">Revisão necessária antes da emissão</h3>
+            <p style="color:var(--text-secondary);font-size:13px">Confira os apontamentos encontrados:</p>
+            <ul style="max-height:280px;overflow:auto;padding-left:22px">${itens.map(i => `<li style="margin:7px 0">${textoSeguro(i)}</li>`).join('')}</ul>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+                <button class="btn btn-secondary" data-acao="voltar">Voltar e corrigir</button>
+                ${podeForcar ? '<button class="btn btn-primary" data-acao="emitir">Emitir mesmo assim</button>' : ''}
+            </div></div>`;
+        document.body.appendChild(fundo);
+        fundo.querySelector('[data-acao="voltar"]').onclick = () => { fundo.remove(); resolve(false); };
+        const emitir = fundo.querySelector('[data-acao="emitir"]');
+        if (emitir) emitir.onclick = () => { fundo.remove(); resolve(true); };
+    });
+}
+
 async function analisarLaudoComIAInvisivel() {
     const cautelarId = window.activeFinalizacaoCautelarId;
-    if (!cautelarId) return;
-
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
-    if (!config || !config.chaveOpenAi) {
-        console.log("Integração ChatGPT não configurada. Prosseguindo com redação manual.");
-        return;
-    }
-
-    try {
-        const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-        const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
-
-        const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
-        const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
-        const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
-        const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
-        const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
-        const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
-        const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
-        const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
-
-        // Coletar as fotos
-        const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-        const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
-
-        let checklistText = cautelarResumoParaLaudo(os, secoes, fotos);
-
-        const contentPayload = [
-            {
-                type: "text",
-                text: `Confeccione o laudo cautelar veicular gerando o JSON de resposta contendo todos os campos do PDF preenchidos e a classificação correta de cada foto conforme as instruções.\n\nDADOS DA VISTORIA:\n${checklistText}`
-            }
-        ];
-
-        const fotosMapTemp = {};
-        const maxFotos = 15;
-        const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
-        
-        // Conversão em lote para Base64 compactado
-        showToast("O sistema está preparando as fotos do laudo...", "info");
-        for (let index = 0; index < fotosParaEnviar.length; index++) {
-            const foto = fotosParaEnviar[index];
-            const tempId = `foto_${index + 1}`;
-            const base64Data = await imageToAiBase64(foto.url_original);
-            
-            if (base64Data) {
-                // Guarda a URL, não o base64: dadosIaConfeccionado fica no
-                // localStorage e 15 fotos em base64 por laudo lotavam o aparelho
-                fotosMapTemp[tempId] = foto.url_original;
-                contentPayload.push({
-                    type: "text",
-                    text: `FOTO SEGUINTE ID: ${tempId}`
-                });
-                contentPayload.push({
-                    type: "image_url",
-                    image_url: {
-                        url: base64Data
-                    }
-                });
-            }
-        }
-
-        showToast("O sistema está gerando o laudo...", "info");
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
-        
-        try {
-            const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                signal: controller.signal,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${config.chaveOpenAi}`
-                },
-                body: JSON.stringify({
-                    model: config.modeloOpenAi || "gpt-4o-mini",
-                    response_format: { type: "json_object" },
-                    messages: [
-                        {
-                            role: "system",
-                            content: (config.promptInstrucoes || getDefaultOpenAIPrompt()) + LAUDO_SEM_MENCAO_IA
-                        },
-                        {
-                            role: "user",
-                            content: contentPayload
-                        }
-                    ]
-                })
-            });
-
-            clearTimeout(timeoutId);
-
-            if (response.ok) {
-                const resData = await response.json();
-                const rawJson = resData.choices[0]?.message?.content;
-                if (rawJson) {
-                    const aiResult = JSON.parse(rawJson);
-                    if (aiResult.status === "sucesso" && aiResult.fields) {
-                        cautelar.dadosIaConfeccionado = {
-                            fields: aiResult.fields,
-                            photo_assignments: aiResult.photo_assignments || {},
-                            fotosMapTemp: fotosMapTemp
-                        };
-
-                        if (aiResult.fields['final.opinion_text']) {
-                            const obsTextarea = document.getElementById('caut-final-obs');
-                            if (obsTextarea) {
-                                obsTextarea.value = aiResult.fields['final.opinion_text'];
-                            }
-                        }
-                        if (aiResult.fields['final.status']) {
-                            const parecerSelect = document.getElementById('caut-final-parecer');
-                            if (parecerSelect) {
-                                const val = aiResult.fields['final.status'].toUpperCase();
-                                if (val.includes("RESSALVA")) {
-                                    parecerSelect.value = "com_ressalvas";
-                                } else if (val.includes("NÃO CONFORME") || val.includes("REPROVAD")) {
-                                    parecerSelect.value = "nao_conforme";
-                                } else {
-                                    parecerSelect.value = "conforme";
-                                }
-                            }
-                        }
-
-                        saveDatabase();
-                        showToast("Laudo gerado pelo sistema com sucesso!", "success");
-                    } else {
-                        console.warn("Resposta da IA com status de falha ou campos vazios:", aiResult);
-                        showToast("O sistema gerou o laudo com a redação padrão.", "warning");
-                    }
-                }
-            } else {
-                const errText = await response.text();
-                console.error(`Erro da API da OpenAI (${response.status}):`, errText);
-                showToast("Redação automática indisponível no momento. O laudo será gerado com a redação padrão.", "warning");
-            }
-        } catch (fetchErr) {
-            clearTimeout(timeoutId);
-            if (fetchErr.name === 'AbortError') {
-                console.warn("Timeout de 45s excedido na chamada da OpenAI.");
-                showToast("Conexão lenta: o laudo será gerado com a redação padrão.", "warning");
-            } else {
-                throw fetchErr;
-            }
-        }
-    } catch (err) {
-        console.error("Erro na análise por IA (background):", err);
-        showToast("O laudo será gerado com a redação padrão.", "warning");
-    }
+    if (!cautelarId) throw new Error("Nenhum laudo ativo para finalização.");
+    return solicitarLaudoAoServidor(cautelarId);
 }
 
 /**
@@ -15434,9 +15324,32 @@ async function gerarLaudoFinalPdf() {
         emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
     }
 
-    // 1. Chamar a IA de forma invisível para preencher a redação pericial antes da geração do PDF
-    showToast("O sistema está gerando o laudo...", "info");
-    await analisarLaudoComIAInvisivel();
+    // 1. O servidor monta, valida e registra o pacote antes da geração do PDF.
+    showToast("O sistema está gerando o laudo…", "info");
+    let laudoServidor;
+    try {
+        laudoServidor = await analisarLaudoComIAInvisivel();
+        const resposta = laudoServidor.resposta;
+        const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
+        const precisaRevisao = laudoServidor.status === 'bloqueado' || (laudoServidor.inconsistencias || []).length > 0;
+        if (precisaRevisao) {
+            const podeForcar = !!(currentSession.permissoes || []).includes('cautelar_administrar');
+            const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar);
+            if (!confirmou) {
+                if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+                return;
+            }
+        }
+        cautelar.dadosIaConfeccionado = resposta;
+        cautelar.laudoGeradoId = laudoServidor.laudoId;
+        if (resposta.campos && resposta.campos['final.opinion_text']) document.getElementById('caut-final-obs').value = resposta.campos['final.opinion_text'];
+        saveDatabase();
+    } catch (erro) {
+        console.error("Erro ao gerar laudo no servidor:", erro);
+        showToast(erro.message || "Não foi possível gerar o laudo.", "error");
+        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+        return;
+    }
 
     const parecerFinal = document.getElementById('caut-final-parecer').value;
     const obsFinal = document.getElementById('caut-final-obs').value;
@@ -16715,11 +16628,11 @@ async function submitConfigChatGPT(event) {
     event.preventDefault();
     if (!currentSession) return;
 
-    const key = document.getElementById('cfg-openai-key').value.trim();
+    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
+    const keyInput = document.getElementById('cfg-openai-key');
+    const key = keyInput ? keyInput.value.trim() : (config.chaveOpenAi || '');
     const model = document.getElementById('cfg-openai-model').value;
     const prompt = document.getElementById('cfg-openai-prompt').value.trim();
-
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
     const oldId = config.id || null;
 
     const payload = {
@@ -17812,227 +17725,30 @@ async function chatgptEnviarMensagem(event) {
 
 async function analisarLaudoComIA() {
     const cautelarId = window.activeFinalizacaoCautelarId;
-    if (!cautelarId) {
-        showToast("Nenhum laudo ativo para finalização.", "error");
-        return;
-    }
-
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
-    if (!config || !config.chaveOpenAi) {
-        showToast("Análise automática do laudo não configurada. Fale com o administrador do sistema.", "warning");
-        return;
-    }
-
+    if (!cautelarId) return showToast("Nenhum laudo ativo para finalização.", "error");
     const btn = document.getElementById('btn-cautelar-ia-analisar');
-    const loadingDiv = document.getElementById('cautelar-ia-loading');
-    const loadingText = document.getElementById('cautelar-ia-loading-text');
-    const badge = document.getElementById('ia-status-badge');
-    const alertsContainer = document.getElementById('ia-alertas-container');
-
-    // Desabilitar botão e mostrar loader
-    if (btn) btn.disabled = true;
-    if (loadingDiv) loadingDiv.style.display = 'flex';
-    if (alertsContainer) {
-        alertsContainer.innerHTML = '';
-        alertsContainer.style.display = 'none';
-    }
-    if (badge) {
-        badge.textContent = "Analisando...";
-        badge.style.background = "rgba(212, 160, 23, 0.15)";
-        badge.style.color = "var(--accent)";
-    }
-
+    const loading = document.getElementById('cautelar-ia-loading');
     try {
+        if (btn) btn.disabled = true;
+        if (loading) loading.style.display = 'flex';
+        showToast("O sistema está gerando o laudo…", "info");
+        const resultado = await solicitarLaudoAoServidor(cautelarId);
         const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-        const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
-
-        const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
-        const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
-        const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
-        const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
-        const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
-        const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
-        const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
-        const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
-
-        // Coletar as fotos
-        const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-        const fotosValidas = fotos.filter(f => f.url_original && (f.url_original.startsWith('http') || f.url_original.startsWith('data:image/')));
-
-        // Formatar o texto de resumo da vistoria
-        let checklistText = cautelarResumoParaLaudo(os, secoes, fotos);
-
-        // Preparar payload de mensagens para a OpenAI
-        const contentPayload = [
-            {
-                type: "text",
-                text: `Analise a seguinte vistoria cautelar e as imagens do veículo. Com base nos dados e fotos fornecidos, recomende um parecer final técnico e gere um parágrafo detalhado descrevendo o laudo técnico do veículo.\n\nCHECKLIST DA VISTORIA:\n${checklistText}`
-            }
-        ];
-
-        // Anexar fotos do laudo para a análise visual
-        const maxFotos = 12;
-        const fotosParaEnviar = fotosValidas.slice(0, maxFotos);
-        
-        // 1. Etapa de Validação: Compactando fotos
-        if (loadingText) loadingText.textContent = `Etapa 1/4: Compactando e carregando ${fotosParaEnviar.length} imagens...`;
-        
-        for (let index = 0; index < fotosParaEnviar.length; index++) {
-            const foto = fotosParaEnviar[index];
-            const base64Data = await imageToAiBase64(foto.url_original);
-            if (base64Data) {
-                contentPayload.push({
-                    type: "image_url",
-                    image_url: {
-                        url: base64Data
-                    }
-                });
-            }
+        if (cautelar) {
+            cautelar.dadosIaConfeccionado = resultado.resposta;
+            cautelar.laudoGeradoId = resultado.laudoId;
+            saveDatabase();
         }
-
-        if (loadingText) loadingText.textContent = `Etapa 2/4: O sistema está analisando a vistoria...`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos de tempo limite
-
-        let response;
-        try {
-            response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                signal: controller.signal,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${config.chaveOpenAi}`
-                },
-                body: JSON.stringify({
-                    model: config.modeloOpenAi || "gpt-4o-mini",
-                    response_format: { type: "json_object" },
-                    messages: [
-                        {
-                            role: "system",
-                            content: (config.promptInstrucoes || getDefaultOpenAIPrompt()) + LAUDO_SEM_MENCAO_IA
-                        },
-                        {
-                            role: "user",
-                            content: contentPayload
-                        }
-                    ]
-                })
-            });
-            clearTimeout(timeoutId);
-        } catch (fetchErr) {
-            clearTimeout(timeoutId);
-            if (fetchErr.name === 'AbortError') {
-                throw new Error("Tempo limite de resposta excedido (conexão lenta).");
-            } else {
-                throw fetchErr;
-            }
-        }
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `HTTP ${response.status}`);
-        }
-
-        const resData = await response.json();
-        const rawJson = resData.choices[0]?.message?.content;
-        if (!rawJson) throw new Error("A API retornou uma resposta vazia.");
-
-        const aiResult = JSON.parse(rawJson);
-
-        // Processar os resultados com base nas etapas do Revisor Técnico
-        if (alertsContainer) {
-            alertsContainer.innerHTML = '';
-            alertsContainer.style.display = 'none';
-        }
-
-        const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
-
-        if (aiResult.status === 'vistoria_incompleta') {
-            if (badge) {
-                badge.textContent = "Bloqueado";
-                badge.style.background = "rgba(239, 68, 68, 0.15)";
-                badge.style.color = "var(--danger)";
-            }
-            if (alertsContainer) {
-                alertsContainer.style.display = 'flex';
-                alertsContainer.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                
-                let html = `<div style="font-weight: 700; font-size: 11px; color: var(--danger); display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                    <i class="ri-error-warning-line"></i> VISTORIA INCOMPLETA (BLOQUEADO)
-                </div>`;
-                
-                (aiResult.erros || []).forEach(err => {
-                    html += `<div style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; margin-bottom: 4px;">
-                        <i class="ri-close-circle-fill" style="color: var(--danger); margin-top: 1px; flex-shrink:0;"></i>
-                        <span>${err}</span>
-                    </div>`;
-                });
-                alertsContainer.innerHTML = html;
-            }
-            
-            showToast("Vistoria incompleta detectada pelo sistema. Emissão bloqueada.", "error");
-            if (emitirBtn) emitirBtn.disabled = true;
-            return;
-        }
-
-        // Se for sucesso, reabilitar botão de emissão
-        if (emitirBtn) emitirBtn.disabled = false;
-
-        // Processar Etapa 2: Inconsistências
-        if (aiResult.inconsistencias && aiResult.inconsistencias.length > 0) {
-            if (alertsContainer) {
-                alertsContainer.style.display = 'flex';
-                alertsContainer.style.borderColor = 'rgba(212, 160, 23, 0.3)';
-                
-                let html = `<div style="font-weight: 700; font-size: 11px; color: var(--accent); display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                    <i class="ri-alert-line"></i> INCONSISTÊNCIAS PARA REVISÃO
-                </div>`;
-                
-                aiResult.inconsistencias.forEach(inc => {
-                    html += `<div style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; margin-bottom: 4px;">
-                        <i class="ri-alert-fill" style="color: var(--accent); margin-top: 1px; flex-shrink:0;"></i>
-                        <span>${inc}</span>
-                    </div>`;
-                });
-                alertsContainer.innerHTML = html;
-            }
-            showToast("Inconsistências encontradas entre fotos e checklist.", "warning");
-        }
-
-        // Preencher os campos no formulário de finalização com a consolidação da IA
-        const parecerSelect = document.getElementById('caut-final-parecer');
-        const obsTextarea = document.getElementById('caut-final-obs');
-
-        if (parecerSelect && aiResult.parecer_final) {
-            parecerSelect.value = aiResult.parecer_final;
-        }
-        if (obsTextarea && aiResult.observacao) {
-            obsTextarea.value = aiResult.observacao;
-        }
-
-        showToast("Laudo validado e parecer gerado com sucesso!", "success");
-        if (badge) {
-            badge.textContent = "Concluída";
-            badge.style.background = "rgba(16, 185, 129, 0.15)";
-            badge.style.color = "var(--success)";
-        }
-
-        // Atualizar o laudo na tela
-        atualizarPreviewLaudo();
-
-    } catch (err) {
-        console.error("Erro na análise por IA:", err);
-        showToast("Não foi possível concluir a análise automática do laudo. Tente novamente.", "error");
-        if (badge) {
-            badge.textContent = "Erro";
-            badge.style.background = "rgba(239, 68, 68, 0.15)";
-            badge.style.color = "var(--danger)";
-        }
+        const avisos = [...(resultado.pendencias || []), ...(resultado.inconsistencias || [])];
+        showToast(avisos.length ? `Laudo preparado com ${avisos.length} apontamento(s).` : "Laudo preparado com sucesso!", avisos.length ? "warning" : "success");
+        return resultado;
+    } catch (erro) {
+        console.error("Erro ao preparar laudo:", erro);
+        showToast(erro.message || "Não foi possível preparar o laudo.", "error");
+        throw erro;
     } finally {
         if (btn) btn.disabled = false;
-        if (loadingDiv) loadingDiv.style.display = 'none';
+        if (loading) loading.style.display = 'none';
     }
 }
 

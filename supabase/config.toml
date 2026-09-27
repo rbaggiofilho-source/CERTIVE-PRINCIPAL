@@ -468,3 +468,8 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/cancel-asaas-billing/deno.json"
 entrypoint = "./functions/cancel-asaas-billing/index.ts"
+
+[functions.gerar-laudo]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/gerar-laudo/index.ts"
