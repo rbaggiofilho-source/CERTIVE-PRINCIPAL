@@ -11500,6 +11500,44 @@ function renderRegistrarCautelarPage() {
 
     // 3. Chamar a filtragem e desenho inicial das tabelas
     filterCautelares();
+
+    // 4. Fotos que ficaram só no aparelho (de qualquer cautelar): tenta enviar
+    cautelarEnviarTodasPendentes();
+}
+
+/**
+ * Varre o IndexedDB e envia as fotos pendentes de todas as cautelares (no
+ * máximo uma vez a cada 2 minutos). Fotos de cautelar que não existe mais são
+ * descartadas, para o aparelho não acumular imagens indefinidamente.
+ */
+async function cautelarEnviarTodasPendentes() {
+    const agora = Date.now();
+    if (window._cautelarVarreduraEm && agora - window._cautelarVarreduraEm < 120000) return;
+    window._cautelarVarreduraEm = agora;
+    if (!window.useSupabase || typeof indexedDB === 'undefined') return;
+    let registros = [];
+    try {
+        const conn = await CautelarOfflineDB.open();
+        registros = await new Promise((resolve, reject) => {
+            const req = conn.transaction(['fotos'], 'readonly').objectStore('fotos').getAllKeys();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = reject;
+        });
+    } catch (e) {
+        return;
+    }
+    const ids = Array.from(new Set(registros.map(k => parseInt(String(k).split('_')[0])).filter(n => !isNaN(n))));
+    for (const cid of ids) {
+        // Só descarta com a lista de cautelares vinda do banco (não do cache offline)
+        const listaConfiavel = window.onlineTables && window.onlineTables['cautelares'];
+        if (listaConfiavel && !db.cautelares.some(c => c.id === cid)) {
+            const recs = await CautelarOfflineDB.getAllFotos(cid).catch(() => []);
+            for (const r of recs) await CautelarOfflineDB.deleteFoto(cid, r.slotCodigo).catch(() => {});
+            continue;
+        }
+        await garantirDetalhesCautelarApp(cid);
+        await cautelarEnviarPendentes(cid);
+    }
 }
 
 /**
@@ -11703,27 +11741,36 @@ function getCautelarActionButton(item) {
 /**
  * Cria uma nova Cautelar associada a uma O.S. (Iniciar Vistoria).
  */
-function iniciarCautelar(osId) {
+async function iniciarCautelar(osId) {
     if (!db || !currentSession) return;
+    if (window._iniciandoCautelar) return; // evita duplo toque criar duas cautelares
+    window._iniciandoCautelar = true;
+    try {
+        await iniciarCautelarInterno(osId);
+    } finally {
+        window._iniciandoCautelar = false;
+    }
+}
 
+async function iniciarCautelarInterno(osId) {
     const os = db.ordens_servico.find(o => o.id === osId);
     if (!os) {
         showToast("Ordem de serviço não encontrada.", "error");
         return;
     }
 
-    // Gerar número de dossiê sequencial anual. O id sai do maior id existente
-    // (não do length): a limpeza do saveDatabase remove cautelares antigas e o
-    // length+1 passava a repetir o id de uma cautelar que ainda existe.
-    const year = new Date().getFullYear();
-    const newId = cautelarProximoId(db.cautelares);
-    const dossie = `CV-${year}-${String(newId).padStart(5, '0')}`;
+    // Já existe cautelar para esta OS (ex.: criada em outro aparelho): só continua
+    const existente = db.cautelares.find(c => c.osId === os.id);
+    if (existente) {
+        continuarCautelar(existente.id);
+        return;
+    }
 
-    // Criar entidade Cautelar
-    const newCautelar = {
-        id: newId,
+    const year = new Date().getFullYear();
+    const montar = (id) => ({
+        id: id,
         osId: os.id,
-        dossieNumero: dossie,
+        dossieNumero: `CV-${year}-${String(id).padStart(5, '0')}`,
         status: "em_captura",
         vistoriadorId: currentSession.id,
         finalizadoPorId: null,
@@ -11732,7 +11779,38 @@ function iniciarCautelar(osId) {
         dataHoraFinalizacao: null,
         parecerConsolidado: null,
         parecerTexto: ""
-    };
+    });
+
+    let newCautelar = null;
+    const online = window.useSupabase && (!window.onlineTables || window.onlineTables['cautelares']);
+
+    if (online) {
+        // O id (e o número do dossiê) sai do maior id no BANCO, não só do cache
+        // local: vários vistoriadores iniciam cautelares no mesmo dia. Em caso de
+        // colisão (dois aparelhos ao mesmo tempo) tenta o próximo número.
+        for (let tentativa = 0; tentativa < 5 && !newCautelar; tentativa++) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('cautelares').select('id').order('id', { ascending: false }).limit(1);
+                if (error) throw error;
+                const maxRemoto = data && data[0] ? data[0].id : 0;
+                const id = Math.max(maxRemoto, cautelarProximoId(db.cautelares) - 1) + 1 + tentativa;
+                const candidata = montar(id);
+                const { error: errIns } = await supabaseClient.from('cautelares').insert(candidata);
+                if (errIns) {
+                    if (errIns.code === '23505') continue; // id/dossiê já usado
+                    throw errIns;
+                }
+                newCautelar = candidata;
+            } catch (e) {
+                console.warn("Falha ao registrar a cautelar no Supabase; seguindo offline.", e);
+                break;
+            }
+        }
+    }
+
+    const salvaNoBanco = !!newCautelar;
+    if (!newCautelar) newCautelar = montar(cautelarProximoId(db.cautelares));
 
     // Criar as 8 seções padrão
     const novasSecoes = cautelarCriarSecoes(newCautelar.id);
@@ -11743,21 +11821,26 @@ function iniciarCautelar(osId) {
     db.cautelares.push(newCautelar);
     saveDatabase();
 
-    if (window.useSupabase) {
-        // As seções precisam ir para o banco junto com a cautelar: antes só a
-        // cautelar era gravada e, ao recarregar o app (ex.: o celular fecha o
-        // navegador ao abrir a câmera), ela voltava sem seções e a captura travava.
-        sbInsert('cautelares', newCautelar)
-            .then(() => cautelarSincronizarSecoes(novasSecoes))
-            .then(() => sbUpdate('ordens_servico', os.id, { status: os.status }))
-            .catch(e => console.warn("Erro ao salvar nova Cautelar no Supabase:", e));
+    if (salvaNoBanco) {
+        // As seções vão para o banco antes de abrir a captura, já com o id real,
+        // para as fotos apontarem para a seção certa.
+        try {
+            await cautelarSincronizarSecoes(novasSecoes);
+            await sbUpdate('ordens_servico', os.id, { status: os.status });
+        } catch (e) {
+            console.warn("Erro ao salvar seções da Cautelar no Supabase:", e);
+        }
     }
 
-    logAudit("Registrar Cautelar", `Iniciou captura da cautelar para placa ${os.placa}. Dossie: ${dossie}`);
+    logAudit("Registrar Cautelar", `Iniciou captura da cautelar para placa ${os.placa}. Dossie: ${newCautelar.dossieNumero}`);
     showToast(`Vistoria iniciada para placa ${os.placa}!`, "success");
 
     // Redireciona para o fluxo de captura mobile (Milestone 2)
     continuarCautelar(newCautelar.id);
+}
+
+async function garantirDetalhesCautelarApp(cautelarId) {
+    if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
 }
 
 const CAUTELAR_SECAO_NOMES = [
@@ -11775,6 +11858,15 @@ function cautelarProximoId(lista) {
     return (lista || []).reduce((max, r) => Math.max(max, Number(r.id) || 0), 0) + 1;
 }
 
+// Id provisório (negativo) para seções/fotos ainda não gravadas no banco. Como o
+// app só carrega as cautelares em andamento, um id positivo "max+1" local podia
+// coincidir com o de um registro antigo que está só na nuvem.
+let _cautelarIdTemp = 0;
+function cautelarIdTemporario() {
+    _cautelarIdTemp += 1;
+    return -(Date.now() * 100 + (_cautelarIdTemp % 100));
+}
+
 /**
  * Cria localmente as seções que faltam (1 a 8) de uma cautelar e devolve as criadas.
  */
@@ -11785,7 +11877,7 @@ function cautelarCriarSecoes(cautelarId) {
         const num = i + 1;
         if (existentes.some(s => s.numeroSecao === num)) return;
         const newSecao = {
-            id: cautelarProximoId(db.cautelares_secoes),
+            id: cautelarIdTemporario(),
             cautelarId: cautelarId,
             numeroSecao: num,
             nomeSecao: nome,
@@ -11840,7 +11932,7 @@ async function cautelarRecuperarFotosOffline(cautelarId) {
         if (!secao) return;
         if (db.cautelares_fotos.some(f => f.secaoId === secao.id && f.slotCodigo === rec.slotCodigo)) return;
         db.cautelares_fotos.push({
-            id: cautelarProximoId(db.cautelares_fotos),
+            id: cautelarIdTemporario(),
             secaoId: secao.id,
             slotCodigo: rec.slotCodigo,
             slotNomeDisplay: rec.slotCodigo.toUpperCase(),
@@ -11848,7 +11940,8 @@ async function cautelarRecuperarFotosOffline(cautelarId) {
             urlThumb: '',
             dataHoraCaptura: rec.timestamp,
             metadados_json: rec.metadados || {},
-            ordemExibicao: 0
+            ordemExibicao: 0,
+            pendenteEnvio: true
         });
         recuperadas++;
     });
@@ -11866,11 +11959,15 @@ const CautelarOfflineDB = {
     db: null,
 
     open() {
+        // Reaproveita a conexão: abrir uma nova a cada foto acumulava conexões
+        if (this.db) return Promise.resolve(this.db);
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);
             request.onerror = (e) => reject(e);
             request.onsuccess = (e) => {
                 this.db = e.target.result;
+                this.db.onclose = () => { this.db = null; };
+                this.db.onversionchange = () => { this.db.close(); this.db = null; };
                 resolve(this.db);
             };
             request.onupgradeneeded = (e) => {
@@ -11882,7 +11979,7 @@ const CautelarOfflineDB = {
         });
     },
 
-    saveFoto(cautelarId, slotCodigo, blob, metadados) {
+    saveFoto(cautelarId, slotCodigo, blob, metadados, thumb) {
         return this.open().then((db) => {
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction(['fotos'], 'readwrite');
@@ -11893,6 +11990,7 @@ const CautelarOfflineDB = {
                     cautelarId: parseInt(cautelarId),
                     slotCodigo: slotCodigo,
                     blob: blob,
+                    thumb: thumb || null,
                     metadados: metadados,
                     timestamp: new Date().toISOString()
                 };
@@ -12006,8 +12104,10 @@ window.autoSaveTimeout = null;
 /**
  * Abre o formulário de Captura Mobile para a Cautelar selecionada.
  */
-function continuarCautelar(cautelarId) {
+async function continuarCautelar(cautelarId) {
     if (!db || !currentSession) return;
+
+    await garantirDetalhesCautelarApp(cautelarId);
 
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) {
@@ -12027,7 +12127,10 @@ function continuarCautelar(cautelarId) {
 
     // Auto-reparo: cautelares criadas antes desta correção ficaram sem seções no
     // banco; sem elas a tela de captura abria vazia e não avançava.
-    const secoesFaltando = cautelarCriarSecoes(cautelarId);
+    // Inclui as seções criadas offline (id provisório negativo) que ainda não subiram
+    const secoesFaltando = cautelarCriarSecoes(cautelarId)
+        .concat(db.cautelares_secoes.filter(sc => sc.cautelarId === cautelarId && sc.id < 0))
+        .filter((sc, i, arr) => arr.indexOf(sc) === i);
     if (secoesFaltando.length > 0) {
         saveDatabase();
         if (window.useSupabase) {
@@ -12036,12 +12139,13 @@ function continuarCautelar(cautelarId) {
         }
     }
 
-    // Traz de volta as fotos que só estão no aparelho (IndexedDB)
+    // Traz de volta as fotos que só estão no aparelho (IndexedDB) e tenta enviá-las
     cautelarRecuperarFotosOffline(cautelarId).then(n => {
         if (n > 0 && window.activeCautelarId === cautelarId) {
             showToast(`${n} foto(s) recuperada(s) do aparelho.`, "info");
             renderCapturaSecao(window.activeSecaoNum);
         }
+        cautelarEnviarPendentes(cautelarId);
     });
 
     // Achar a última seção completa para já abrir na seção atual
@@ -12212,9 +12316,12 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     const inputId = `input-camera-${slot.codigo}`;
     
     if (photo) {
-        // Exibe preview da foto tirada (local Blob ou url base64)
+        // Exibe preview da foto: URL da nuvem, ou a miniatura guardada no aparelho
         const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
-        const isLocalBlob = displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
+        const isLocalBlob = photo.pendenteEnvio || displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
+        const statusFoto = photo.pendenteEnvio
+            ? `<span id="status-envio-${slot.codigo}" style="font-size: 9px; color: var(--warning, #f59e0b); display: block; margin-top: 2px;"><i class="ri-upload-cloud-2-line"></i> Salva no aparelho — aguardando envio</span>`
+            : `<span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada e enviada</span>`;
         // A miniatura base64 aparece na hora; o original do IndexedDB entra por cima depois
         const initialSrc = (displayUrl.startsWith('http') || displayUrl.startsWith('data:')) ? displayUrl : '';
         
@@ -12226,15 +12333,15 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                 </button>
             </div>
             <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${slot.nome}</h5>
-            <span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada com sucesso</span>
+            ${statusFoto}
             ${extraControls}
         `;
 
         if (isLocalBlob) {
             // Puxa o Blob real do IndexedDB assincronamente e cria uma URL temporária válida
             CautelarOfflineDB.getFoto(window.activeCautelarId, slot.codigo).then(record => {
-                if (record && record.blob) {
-                    const freshUrl = URL.createObjectURL(record.blob);
+                if (record && (record.thumb || record.blob)) {
+                    const freshUrl = URL.createObjectURL(record.thumb || record.blob);
                     const imgEl = document.getElementById(`img-preview-${slot.codigo}`);
                     if (imgEl) {
                         imgEl.onload = () => URL.revokeObjectURL(freshUrl);
@@ -12253,12 +12360,13 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     } else {
         // Exibe slot vazio para tirar a foto
         card.innerHTML = `
-            <input type="file" id="${inputId}" accept="image/*" capture="environment" style="display: none;" onchange="handleFotoUpload('${slot.codigo}', event)">
-            <div onclick="document.getElementById('${inputId}').click()" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
+            <input type="file" id="${inputId}" accept="image/*" style="display: none;" onchange="handleFotoUpload('${slot.codigo}', event)">
+            <div onclick="abrirCameraCautelar('${slot.codigo}')" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
                 <i class="ri-camera-lens-line" style="font-size: 40px; color: var(--accent); margin-bottom: 10px; display: inline-block;"></i>
                 <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${slot.nome}</h5>
                 <span style="font-size: 11px; color: var(--text-secondary);">Tocar para capturar</span>
             </div>
+            <button type="button" onclick="document.getElementById('${inputId}').click()" style="margin-top: 8px; background: none; border: none; color: var(--text-secondary); font-size: 11px; text-decoration: underline; cursor: pointer;">Escolher da galeria</button>
             ${extraControls}
         `;
     }
@@ -12682,7 +12790,7 @@ function salvarStatusFoto(slotCodigo, field, value) {
             photo.metadados_json.observacao_peca = value;
         }
         saveDatabase();
-        if (window.useSupabase) {
+        if (window.useSupabase && !photo.pendenteEnvio) {
             sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
         }
     }
@@ -12704,7 +12812,7 @@ function salvarEtiquetaVidro(slotCodigo, field, value) {
             photo.metadados_json.gravacao_lida = value.toUpperCase();
         }
         saveDatabase();
-        if (window.useSupabase) {
+        if (window.useSupabase && !photo.pendenteEnvio) {
             sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
         }
     }
@@ -12968,6 +13076,7 @@ function confirmarSairCaptura() {
  * Fecha a tela de captura e recarrega a listagem principal.
  */
 function salvarESairCaptura() {
+    fecharCameraCautelar();
     window.activeCautelarId = null;
     
     // Limpar timeouts
@@ -12984,46 +13093,175 @@ function salvarESairCaptura() {
 }
 
 /**
- * Captura a imagem tirada do input, comprime, salva em IndexedDB e atualiza a UI.
+ * CÂMERA DENTRO DA PÁGINA
+ * O <input capture> abre o app de câmera do sistema e o navegador vai para
+ * segundo plano; no Android ele é encerrado por falta de memória no meio da
+ * vistoria (a partir da 2ª/3ª foto). Aqui a câmera roda na própria página via
+ * getUserMedia, então o navegador nunca sai da tela. Sem suporte ou sem
+ * permissão, cai para o seletor de arquivo.
+ */
+const CAUTELAR_FOTO_LADO_MAX = 1600;
+const CAUTELAR_FOTO_QUALIDADE = 0.82;
+
+async function abrirCameraCautelar(slotCodigo) {
+    const usarArquivo = () => {
+        const input = document.getElementById(`input-camera-${slotCodigo}`);
+        if (input) {
+            input.setAttribute('capture', 'environment');
+            input.click();
+            input.removeAttribute('capture');
+        }
+    };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        usarArquivo();
+        return;
+    }
+
+    fecharCameraCautelar();
+    const slotInfo = Object.values(CAUTELAR_SLOTS).flat().find(sl => sl.codigo === slotCodigo);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cautelar-camera-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#000;display:flex;flex-direction:column;';
+    overlay.innerHTML = `
+        <div style="padding:12px 16px;color:#fff;font-size:13px;font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span>${slotInfo ? slotInfo.nome : slotCodigo}</span>
+            <button type="button" id="cam-fechar" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;">Cancelar</button>
+        </div>
+        <div style="flex:1;position:relative;overflow:hidden;">
+            <video id="cam-video" autoplay playsinline muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;"></video>
+            <div id="cam-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;text-align:center;padding:24px;">Abrindo câmera...</div>
+        </div>
+        <div style="padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;">
+            <button type="button" id="cam-sistema" style="background:none;border:none;color:#bbb;font-size:12px;text-decoration:underline;width:90px;text-align:left;">Câmera do celular</button>
+            <button type="button" id="cam-disparo" aria-label="Tirar foto" disabled style="width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,0.25);"></button>
+            <span style="width:90px;"></span>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#cam-fechar').onclick = () => fecharCameraCautelar();
+    overlay.querySelector('#cam-sistema').onclick = () => { fecharCameraCautelar(); usarArquivo(); };
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        });
+    } catch (err) {
+        console.warn("Câmera na página indisponível; usando a câmera do sistema.", err);
+        fecharCameraCautelar();
+        showToast("Não foi possível abrir a câmera aqui. Usando a câmera do celular.", "warning");
+        usarArquivo();
+        return;
+    }
+    // O overlay pode ter sido fechado enquanto a permissão era pedida
+    if (!document.getElementById('cautelar-camera-overlay')) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+    }
+    window._cautelarCameraStream = stream;
+
+    const video = overlay.querySelector('#cam-video');
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+        overlay.querySelector('#cam-msg').style.display = 'none';
+        overlay.querySelector('#cam-disparo').disabled = false;
+    };
+
+    overlay.querySelector('#cam-disparo').onclick = async () => {
+        const w = video.videoWidth, h = video.videoHeight;
+        if (!w || !h) return;
+        const escala = Math.min(1, CAUTELAR_FOTO_LADO_MAX / Math.max(w, h));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * escala);
+        canvas.height = Math.round(h * escala);
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', CAUTELAR_FOTO_QUALIDADE));
+        canvas.width = 0;
+        canvas.height = 0;
+        fecharCameraCautelar();
+        if (navigator.vibrate) navigator.vibrate(30);
+        if (!blob) {
+            showToast("Falha ao capturar a foto. Tente novamente.", "error");
+            return;
+        }
+        await processarFotoCautelar(slotCodigo, blob, { origem: 'camera_pagina', jaReduzida: true });
+    };
+}
+
+function fecharCameraCautelar() {
+    if (window._cautelarCameraStream) {
+        window._cautelarCameraStream.getTracks().forEach(t => t.stop());
+        window._cautelarCameraStream = null;
+    }
+    const overlay = document.getElementById('cautelar-camera-overlay');
+    if (overlay) {
+        const video = overlay.querySelector('video');
+        if (video) video.srcObject = null;
+        overlay.remove();
+    }
+}
+
+/**
+ * Foto vinda do seletor de arquivo (galeria ou câmera do sistema).
  */
 async function handleFotoUpload(slotCodigo, event) {
     const file = event.target.files[0];
     if (!file) return;
+    event.target.value = '';
+    await processarFotoCautelar(slotCodigo, file, {
+        origem: 'arquivo',
+        exif: { sizeBytes: file.size, type: file.type, name: file.name }
+    });
+}
 
-    document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`;
+function cautelarSecaoDoSlot(slotCodigo) {
+    let secaoNum = null;
+    Object.keys(CAUTELAR_SLOTS).forEach(n => {
+        if (CAUTELAR_SLOTS[n].some(sl => sl.codigo === slotCodigo)) secaoNum = parseInt(n);
+    });
+    return secaoNum;
+}
+
+function cautelarIndicador(html) {
+    const el = document.getElementById('captura-sync-indicator');
+    if (el) el.innerHTML = html;
+}
+
+/**
+ * Reduz a foto, guarda no aparelho (IndexedDB) e registra no slot. O envio para
+ * a nuvem é feito em seguida, em segundo plano (cautelarEnviarPendentes); se a
+ * rede falhar, a foto continua no aparelho e é reenviada depois.
+ */
+async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
+    const cautelarId = window.activeCautelarId;
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo) || window.activeSecaoNum;
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    if (!cautelarId || !secao) {
+        showToast("Seção da vistoria não encontrada. Saia e entre de novo na cautelar.", "error");
+        return;
+    }
+
+    cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`);
 
     try {
-        // 1. Comprimir imagem e thumbnail no cliente. A foto da câmera é decodificada
-        // uma única vez; a miniatura sai da versão já reduzida (decodificar a foto de
-        // 12+ MP duas vezes estourava a memória do celular e o navegador era fechado).
-        const blobOriginal = await compressImage(file, 1600, 0.82);
+        const blobOriginal = opcoes.jaReduzida
+            ? fonte
+            : await compressImage(fonte, CAUTELAR_FOTO_LADO_MAX, CAUTELAR_FOTO_QUALIDADE);
         const blobThumb = await compressImage(blobOriginal, 400, 0.70);
-        // Libera a referência ao arquivo original da câmera
-        event.target.value = '';
 
-        // Converte thumbnail para Base64 para salvar no LocalStorage cache de forma leve
-        const base64Thumb = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(blobThumb);
-        });
-
-        // 2. Coletar metadados (GPS + Timestamp + User-Agent)
         const metadados = {
             device: navigator.userAgent,
             timestamp: new Date().toISOString(),
-            exif: {
-                sizeBytes: file.size,
-                type: file.type,
-                name: file.name
-            }
+            origem: opcoes.origem || 'arquivo',
+            exif: opcoes.exif || { sizeBytes: blobOriginal.size, type: 'image/jpeg' }
         };
-
-        // Solicita geolocalização por prompt se consentido
         if (navigator.geolocation) {
             try {
                 const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                    // maximumAge reaproveita a posição recente: não segura cada foto 3s
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, maximumAge: 120000 });
                 });
                 metadados.gps = {
                     latitude: position.coords.latitude,
@@ -13035,83 +13273,147 @@ async function handleFotoUpload(slotCodigo, event) {
             }
         }
 
-        const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === window.activeSecaoNum);
-        
-        // 3. Persiste a foto original em Blob no IndexedDB local offline
-        await CautelarOfflineDB.saveFoto(window.activeCautelarId, slotCodigo, blobOriginal, metadados);
+        // 1. Guarda no aparelho primeiro: se o app cair, a foto não se perde
+        await CautelarOfflineDB.saveFoto(cautelarId, slotCodigo, blobOriginal, metadados, blobThumb);
 
-        // 4. Cria e salva o registro CautelarFoto
-        const photoId = cautelarProximoId(db.cautelares_fotos);
-        const newPhoto = {
-            id: photoId,
+        // 2. Registro local, marcado como pendente de envio (sem base64: o
+        //    localStorage tem ~5MB e é regravado a cada alteração)
+        const existente = db.cautelares_fotos.findIndex(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+        if (existente !== -1) db.cautelares_fotos.splice(existente, 1);
+        db.cautelares_fotos.push({
+            id: cautelarIdTemporario(),
             secaoId: secao.id,
             slotCodigo: slotCodigo,
             slotNomeDisplay: slotCodigo.toUpperCase(),
-            urlOriginal: '', // o original fica no IndexedDB; a tela lê de lá
-            urlThumb: base64Thumb, // Thumb em base64 no localStorage
+            urlOriginal: '',
+            urlThumb: '',
             dataHoraCaptura: metadados.timestamp,
             metadados_json: metadados,
-            ordemExibicao: 0
-        };
-
-        db.cautelares_fotos.push(newPhoto);
+            ordemExibicao: 0,
+            pendenteEnvio: true
+        });
         saveDatabase();
 
-        // 5. Se estiver online no Supabase, envia a foto para o bucket
-        if (window.useSupabase) {
-            try {
-                // Simulação do upload online de Storage do Supabase (Bucket: cautelares)
-                const storagePath = `cautelares/${window.activeCautelarId}/${slotCodigo}.jpg`;
-                const { data, error } = await supabaseClient.storage
-                    .from('cautelares')
-                    .upload(storagePath, blobOriginal, { upsert: true, contentType: 'image/jpeg' });
-
-                if (!error) {
-                    const { data: publicUrlData } = supabaseClient.storage
-                        .from('cautelares')
-                        .getPublicUrl(storagePath);
-                    newPhoto.urlOriginal = publicUrlData.publicUrl;
-                } else {
-                    console.warn("Upload da foto no Storage falhou; o original segue salvo no aparelho.", error);
-                }
-
-                // Colunas da tabela são camelCase (exceto url_original/url_thumb)
-                const salva = await sbInsert('cautelares_fotos', {
-                    secaoId: newPhoto.secaoId,
-                    slotCodigo: newPhoto.slotCodigo,
-                    slotNomeDisplay: newPhoto.slotNomeDisplay,
-                    url_original: newPhoto.urlOriginal,
-                    url_thumb: newPhoto.urlThumb,
-                    dataHoraCaptura: newPhoto.dataHoraCaptura,
-                    metadados: newPhoto.metadados_json
-                });
-                if (salva && salva.id) {
-                    newPhoto.id = salva.id;
-                    newPhoto.url_original = salva.url_original;
-                    newPhoto.url_thumb = salva.url_thumb;
-                }
-                saveDatabase();
-
-                document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
-            } catch (supaErr) {
-                console.warn("Falha no upload online do Supabase. Salvo em fila local.", supaErr);
-                document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-wifi-off-line" style="color:var(--danger);"></i> Offline (Salvo Local)`;
-            }
-        } else {
-            document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Salvo Localmente`;
+        showToast("Foto capturada!", "success");
+        if (window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum) {
+            renderCapturaSecao(secaoNum);
         }
 
-        showToast("Foto capturada com sucesso!", "success");
-
-        // Recarrega o slot de fotos na tela
-        renderCapturaSecao(window.activeSecaoNum);
-
+        // 3. Envio em segundo plano
+        cautelarEnviarPendentes(cautelarId);
     } catch (e) {
         console.error("Erro no processamento da imagem:", e);
         showToast("Falha ao capturar a foto. Tente novamente.", "error");
-        document.getElementById('captura-sync-indicator').innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`;
+        cautelarIndicador(`<i class="ri-error-warning-line" style="color:var(--danger);"></i> Falha na foto`);
     }
 }
+
+window._cautelarEnviando = window._cautelarEnviando || new Set();
+
+/**
+ * Envia para a nuvem todas as fotos desta cautelar que estão só no aparelho.
+ * Depois de enviada, a foto é apagada do IndexedDB para não lotar o celular.
+ */
+async function cautelarEnviarPendentes(cautelarId) {
+    if (!window.useSupabase || (window.onlineTables && !window.onlineTables['cautelares_fotos'])) return;
+    if (navigator.onLine === false) {
+        cautelarIndicador(`<i class="ri-wifi-off-line" style="color:var(--danger);"></i> Sem internet (fotos salvas no aparelho)`);
+        return;
+    }
+    // Garante que toda foto guardada no aparelho tenha o registro local
+    await cautelarRecuperarFotosOffline(cautelarId);
+    let registros = [];
+    try {
+        registros = await CautelarOfflineDB.getAllFotos(cautelarId);
+    } catch (e) {
+        return;
+    }
+    if (registros.length === 0) return;
+
+    let falhas = 0;
+    for (const rec of registros) {
+        const chave = `${cautelarId}_${rec.slotCodigo}`;
+        if (window._cautelarEnviando.has(chave)) continue;
+        window._cautelarEnviando.add(chave);
+        cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Enviando fotos...`);
+        try {
+            await cautelarEnviarFoto(cautelarId, rec);
+        } catch (e) {
+            falhas++;
+            console.warn(`Envio da foto ${rec.slotCodigo} falhou; fica no aparelho para reenviar.`, e);
+        } finally {
+            window._cautelarEnviando.delete(chave);
+        }
+    }
+    cautelarIndicador(falhas > 0
+        ? `<i class="ri-wifi-off-line" style="color:var(--danger);"></i> ${falhas} foto(s) aguardando envio`
+        : `<i class="ri-checkbox-circle-fill" style="color:var(--success);"></i> Sincronizado`);
+}
+
+async function cautelarEnviarFoto(cautelarId, rec) {
+    const slotCodigo = rec.slotCodigo;
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    if (!secao) throw new Error('Seção não encontrada');
+    if (secao.id < 0) throw new Error('Seção ainda não gravada no banco');
+    const photo = db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+    // Sem registro local (cautelarRecuperarFotosOffline recria antes do envio)
+    if (!photo) return;
+
+    const thumb = rec.thumb || await compressImage(rec.blob, 400, 0.70);
+    const base = `cautelares/${cautelarId}/${slotCodigo}`;
+    const bucket = supabaseClient.storage.from('cautelares');
+    const up1 = await bucket.upload(`${base}.jpg`, rec.blob, { upsert: true, contentType: 'image/jpeg' });
+    if (up1.error) throw up1.error;
+    const up2 = await bucket.upload(`${base}_thumb.jpg`, thumb, { upsert: true, contentType: 'image/jpeg' });
+    if (up2.error) throw up2.error;
+    // ?v= evita que o navegador mostre a foto antiga quando o slot é refeito
+    const v = Date.now();
+    const urlOriginal = `${bucket.getPublicUrl(`${base}.jpg`).data.publicUrl}?v=${v}`;
+    const urlThumb = `${bucket.getPublicUrl(`${base}_thumb.jpg`).data.publicUrl}?v=${v}`;
+
+    const linha = {
+        secaoId: secao.id,
+        slotCodigo: slotCodigo,
+        slotNomeDisplay: photo.slotNomeDisplay || slotCodigo.toUpperCase(),
+        url_original: urlOriginal,
+        url_thumb: urlThumb,
+        dataHoraCaptura: photo.dataHoraCaptura || rec.timestamp,
+        metadados: photo.metadados_json || rec.metadados || {}
+    };
+    // Uma linha por slot: se já existir (ex.: envio anterior que caiu no meio), atualiza
+    const { data: jaTem, error: errSel } = await supabaseClient
+        .from('cautelares_fotos').select('id').eq('secaoId', secao.id).eq('slotCodigo', slotCodigo).limit(1);
+    if (errSel) throw errSel;
+    let salva;
+    if (jaTem && jaTem.length > 0) {
+        salva = await sbUpdate('cautelares_fotos', jaTem[0].id, linha);
+        salva = Array.isArray(salva) ? salva[0] : salva;
+        if (salva) salva.id = salva.id || jaTem[0].id;
+    } else {
+        salva = await sbInsert('cautelares_fotos', linha);
+    }
+
+    photo.id = (salva && salva.id) || photo.id;
+    photo.url_original = urlOriginal;
+    photo.url_thumb = urlThumb;
+    photo.urlOriginal = '';
+    photo.urlThumb = '';
+    delete photo.pendenteEnvio;
+    saveDatabase();
+    await CautelarOfflineDB.deleteFoto(cautelarId, slotCodigo);
+
+    const st = document.getElementById(`status-envio-${slotCodigo}`);
+    if (st && window.activeCautelarId === cautelarId) {
+        st.style.color = 'var(--success)';
+        st.innerHTML = '<i class="ri-checkbox-circle-fill"></i> Capturada e enviada';
+    }
+}
+
+// Voltou a internet: reenvia as fotos pendentes da cautelar aberta
+window.addEventListener('online', () => {
+    if (window.activeCautelarId) cautelarEnviarPendentes(window.activeCautelarId);
+});
 
 /**
  * Remove a foto do slot e apaga do banco de dados e IndexedDB.
@@ -13120,18 +13422,26 @@ async function deleteFotoCaptura(slotCodigo) {
     const confirmMsg = "Deseja realmente apagar esta foto?";
     if (!confirm(confirmMsg)) return;
 
-    const secao = db.cautelares_secoes.find(s => s.cautelarId === window.activeCautelarId && s.numeroSecao === window.activeSecaoNum);
+    const cautelarId = window.activeCautelarId;
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === window.activeSecaoNum);
     const photoIdx = db.cautelares_fotos.findIndex(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
 
     if (photoIdx !== -1) {
         const photo = db.cautelares_fotos[photoIdx];
-        
-        // 1. Apaga do IndexedDB
-        await CautelarOfflineDB.deleteFoto(window.activeCautelarId, slotCodigo);
 
-        // 2. Apaga da base online do Supabase
-        if (window.useSupabase) {
+        // 1. Apaga do aparelho
+        try {
+            await CautelarOfflineDB.deleteFoto(cautelarId, slotCodigo);
+        } catch (e) {
+            console.warn(e);
+        }
+
+        // 2. Apaga da nuvem (só se já tinha sido enviada: id provisório é negativo)
+        if (window.useSupabase && !photo.pendenteEnvio && photo.id > 0) {
             sbDelete('cautelares_fotos', photo.id).catch(e => console.warn(e));
+            const base = `cautelares/${cautelarId}/${slotCodigo}`;
+            supabaseClient.storage.from('cautelares').remove([`${base}.jpg`, `${base}_thumb.jpg`])
+                .catch(e => console.warn(e));
         }
 
         // 3. Remove localmente
@@ -13337,8 +13647,9 @@ window.operatorSignatureConfirmed = false;
 /**
  * Abre o painel de finalização desktop para a Cautelar selecionada.
  */
-function abrirFinalizacaoDesktop(cautelarId) {
+async function abrirFinalizacaoDesktop(cautelarId) {
     if (!db || !currentSession) return;
+    await garantirDetalhesCautelarApp(cautelarId);
 
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) {
@@ -14324,7 +14635,9 @@ SEÇÃO VIII: DOCUMENTAÇÃO, HISTÓRICO E PARECER PRELIMINAR
             const base64Data = await imageToAiBase64(foto.url_original);
             
             if (base64Data) {
-                fotosMapTemp[tempId] = base64Data;
+                // Guarda a URL, não o base64: dadosIaConfeccionado fica no
+                // localStorage e 15 fotos em base64 por laudo lotavam o aparelho
+                fotosMapTemp[tempId] = foto.url_original;
                 contentPayload.push({
                     type: "text",
                     text: `FOTO SEGUINTE ID: ${tempId}`
@@ -14755,8 +15068,9 @@ window.excluirVistoria = excluirVistoria;
 /**
  * Abre a visualização resumida (modo leitura) da Cautelar.
  */
-function verResumoCautelar(cautelarId) {
+async function verResumoCautelar(cautelarId) {
     if (!db) return;
+    await garantirDetalhesCautelarApp(cautelarId);
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
     if (!cautelar) return;
 
@@ -14793,8 +15107,8 @@ function verResumoCautelar(cautelarId) {
 /**
  * Abre ou baixa o laudo PDF finalizado da Cautelar.
  */
-function exibirPdfCautelar(cautelarId) {
-    verResumoCautelar(cautelarId);
+async function exibirPdfCautelar(cautelarId) {
+    await verResumoCautelar(cautelarId);
     
     showToast("Gerando cópia do Laudo PDF...", "info");
     setTimeout(() => {

@@ -290,20 +290,98 @@ async function comRetentativa(fn, descricao, tentativas = 3) {
     throw ultimoErro;
 }
 
-async function sbSelectAll(table, orderBy = 'id', ascending = true) {
+// O PostgREST do Supabase devolve no máximo 1000 linhas por consulta e corta o
+// resto em silêncio; por isso a leitura é feita em páginas.
+const SB_PAGINA = 1000;
+
+async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Infinity) {
     const colunas = COLUNAS_LEVES[table] || '*';
     return comRetentativa(async () => {
-        const { data, error } = await supabaseClient
-            .from(table)
-            .select(colunas)
-            .order(orderBy, { ascending });
+        const todos = [];
+        for (let de = 0; de < limite; de += SB_PAGINA) {
+            let q = supabaseClient
+                .from(table)
+                .select(colunas)
+                .order(orderBy, { ascending });
+            // Desempate estável para a paginação não pular nem repetir linhas
+            if (orderBy !== 'id' && table !== 'portarias_uf') q = q.order('id', { ascending: true });
+            const { data, error } = await q.range(de, Math.min(de + SB_PAGINA, limite) - 1);
 
-        if (error) {
-            console.error(`❌ sbSelectAll(${table}):`, error.message);
-            throw error;
+            if (error) {
+                console.error(`❌ sbSelectAll(${table}):`, error.message);
+                throw error;
+            }
+            const pagina = data || [];
+            pagina.forEach(r => todos.push(r));
+            if (pagina.length < SB_PAGINA) break;
         }
-        return (data || []).map(r => prepareRecordFromDb(table, r));
+        return todos.map(r => prepareRecordFromDb(table, r));
     }, `sbSelectAll(${table})`);
+}
+
+/**
+ * Busca as linhas cuja coluna está numa lista de valores, em lotes (a URL do
+ * filtro "in" tem limite de tamanho) e paginando cada lote.
+ */
+async function sbSelectIn(table, coluna, valores) {
+    const lista = Array.from(new Set((valores || []).filter(v => v !== null && v !== undefined)));
+    const todos = [];
+    for (let i = 0; i < lista.length; i += 200) {
+        const lote = lista.slice(i, i + 200);
+        for (let de = 0; ; de += SB_PAGINA) {
+            const { data, error } = await supabaseClient
+                .from(table)
+                .select('*')
+                .in(coluna, lote)
+                .order('id', { ascending: true })
+                .range(de, de + SB_PAGINA - 1);
+            if (error) {
+                console.error(`❌ sbSelectIn(${table}):`, error.message);
+                throw error;
+            }
+            const pagina = data || [];
+            pagina.forEach(r => todos.push(r));
+            if (pagina.length < SB_PAGINA) break;
+        }
+    }
+    return todos.map(r => prepareRecordFromDb(table, r));
+}
+
+// Cautelares cujo laudo já foi emitido: seções e fotos delas não são carregadas
+// na abertura do app (crescem sem parar), só sob demanda.
+const CAUTELAR_STATUS_ENCERRADOS = ['concluida', 'finalizada', 'finalizado', 'concluido'];
+
+function cautelarEncerrada(c) {
+    return !!c && CAUTELAR_STATUS_ENCERRADOS.includes(c.status);
+}
+
+/**
+ * Garante em memória as seções e fotos de uma cautelar (as encerradas não vêm
+ * na carga inicial). Usar antes de abrir captura, finalização, laudo ou PDF.
+ */
+async function garantirDetalhesCautelar(cautelarId) {
+    if (!db || !window.useSupabase || !supabaseClient) return;
+    if (window.onlineTables && !window.onlineTables['cautelares_secoes']) return;
+    db.cautelares_secoes = db.cautelares_secoes || [];
+    db.cautelares_fotos = db.cautelares_fotos || [];
+    try {
+        let secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId);
+        if (secoes.length === 0) {
+            const remotas = await sbSelectIn('cautelares_secoes', 'cautelarId', [cautelarId]);
+            remotas.forEach(s => db.cautelares_secoes.push(s));
+            secoes = remotas;
+        }
+        const secaoIds = secoes.map(s => s.id);
+        if (secaoIds.length === 0) return;
+        if (db.cautelares_fotos.some(f => secaoIds.includes(f.secaoId))) return;
+        const fotos = await sbSelectIn('cautelares_fotos', 'secaoId', secaoIds);
+        fotos.forEach(f => {
+            if (!f.metadados_json && f.metadados) f.metadados_json = f.metadados;
+            db.cautelares_fotos.push(f);
+        });
+    } catch (e) {
+        console.warn(`Não foi possível carregar os detalhes da cautelar ${cautelarId}:`, e);
+    }
 }
 
 /**
@@ -378,7 +456,7 @@ async function loadAllFromSupabase() {
             sbSelectAll('caixa_movimentos', 'id', true),
             sbSelectAll('contas_pagar', 'id', true),
             sbSelectAll('faturas', 'id', true),
-            sbSelectAll('auditoria', 'id', false), // Most recent first
+            sbSelectAll('auditoria', 'id', false, 1000), // Most recent first
             sbSelectAll('portarias_uf', 'uf'),
             sbSelectAll('metas_despesas'),
             sbSelectAll('solicitantes_parceiros'),
@@ -444,14 +522,18 @@ async function loadAllFromSupabase() {
         } catch (e) {
             console.warn("⚠️ Tabela cautelares indisponível no Supabase. Usando array vazio.", e.message);
         }
+        // Seções e fotos: só das cautelares em andamento. As encerradas são
+        // buscadas sob demanda (garantirDetalhesCautelar) para a carga não
+        // crescer indefinidamente com o volume diário de vistorias.
+        const cautelaresAbertas = (cautelares || []).filter(c => !cautelarEncerrada(c)).map(c => c.id);
         try {
-            cautelares_secoes = await sbSelectAll('cautelares_secoes');
+            cautelares_secoes = await sbSelectIn('cautelares_secoes', 'cautelarId', cautelaresAbertas);
             window.onlineTables['cautelares_secoes'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares_secoes indisponível no Supabase. Usando array vazio.", e.message);
         }
         try {
-            cautelares_fotos = await sbSelectAll('cautelares_fotos');
+            cautelares_fotos = await sbSelectIn('cautelares_fotos', 'secaoId', (cautelares_secoes || []).map(s => s.id));
             window.onlineTables['cautelares_fotos'] = true;
         } catch (e) {
             console.warn("⚠️ Tabela cautelares_fotos indisponível no Supabase. Usando array vazio.", e.message);
