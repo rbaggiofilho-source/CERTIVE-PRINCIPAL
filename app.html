@@ -132,9 +132,6 @@
             <div class="nav-item active" onclick="navigateTo('atendimento')" id="nav-atendimento">
                 <i class="ri-customer-service-2-line"></i> Atendimento
             </div>
-            <div class="nav-item" onclick="navigateTo('chatgpt')" id="nav-chatgpt">
-                <i class="ri-robot-2-line"></i> ChatGPT
-            </div>
             <div class="nav-item" onclick="navigateTo('registrar-cautelar')" id="nav-registrar-cautelar">
                 <i class="ri-survey-line"></i> Registro de Cautelar
             </div>
@@ -492,57 +489,6 @@
                                     </table>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ================= PÁGINA: CHATGPT ================= -->
-            <section class="section-panel" id="panel-chatgpt">
-                <div class="chatgpt-layout">
-                    <!-- Lista de conversas -->
-                    <aside class="chatgpt-sidebar" id="chatgpt-sidebar">
-                        <button class="chatgpt-new-btn" onclick="chatgptNovaConversa()">
-                            <i class="ri-add-line"></i> Nova conversa
-                        </button>
-                        <div class="chatgpt-conversas-list" id="chatgpt-conversas-list">
-                            <!-- Conversas do operador (via JS) -->
-                        </div>
-                    </aside>
-
-                    <!-- Área do chat -->
-                    <div class="chatgpt-main">
-                        <div class="chatgpt-header">
-                            <div class="chatgpt-header-title">
-                                <i class="ri-robot-2-line"></i>
-                                <span id="chatgpt-titulo-atual">Assistente ChatGPT</span>
-                            </div>
-                            <div class="chatgpt-header-actions">
-                                <select id="chatgpt-modelo" class="chatgpt-modelo-select" title="Modelo de IA">
-                                    <option value="gpt-4o" selected>GPT-4o</option>
-                                    <option value="gpt-4o-mini">GPT-4o Mini</option>
-                                </select>
-                                <button class="chatgpt-mobile-toggle" onclick="chatgptToggleSidebar()" title="Conversas">
-                                    <i class="ri-chat-history-line"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="chatgpt-messages" id="chatgpt-messages">
-                            <!-- Mensagens (via JS) -->
-                        </div>
-
-                        <div class="chatgpt-input-area">
-                            <form id="chatgpt-form" class="chatgpt-input-wrap" onsubmit="chatgptEnviarMensagem(event)">
-                                <textarea id="chatgpt-input" class="chatgpt-input" rows="1"
-                                    placeholder="Envie uma mensagem para o ChatGPT..."
-                                    onkeydown="chatgptInputKeydown(event)"
-                                    oninput="chatgptAutoGrow(this)"></textarea>
-                                <button type="submit" class="chatgpt-send-btn" id="chatgpt-send-btn" title="Enviar">
-                                    <i class="ri-send-plane-2-fill"></i>
-                                </button>
-                            </form>
-                            <div class="chatgpt-hint">O ChatGPT pode cometer erros. Considere verificar informações importantes.</div>
                         </div>
                     </div>
                 </div>
@@ -1826,7 +1772,6 @@
                     <button class="tab-btn" onclick="switchConfigTab('portarias', this)">Portarias por UF</button>
                     <button class="tab-btn" onclick="switchConfigTab('whatsapp', this)"><i class="ri-whatsapp-line"></i> Notificações WhatsApp</button>
                     <button class="tab-btn" onclick="switchConfigTab('auditoria', this)" id="btn-cfg-auditoria"><i class="ri-shield-check-line"></i> Auditoria Contábil</button>
-                    <button class="tab-btn" onclick="switchConfigTab('chatgpt', this)"><i class="ri-brain-line"></i> Integração IA (ChatGPT)</button>
                     <button class="tab-btn" onclick="switchConfigTab('faturamento', this)"><i class="ri-bank-line"></i> Faturamento</button>
                     <button class="tab-btn" onclick="switchConfigTab('backup', this)"><i class="ri-database-2-line"></i> Backup & Contingência</button>
                 </div>
@@ -2236,55 +2181,6 @@
                                 <button class="btn btn-primary" id="btn-resolver-auditoria" onclick="resolveAuditoriaInconsistencies()" style="box-shadow: 0 4px 12px rgba(212, 160, 23, 0.25);">
                                     <i class="ri-magic-line"></i> Corrigir Inconsistências Localizadas
                                 </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Config Tab: ChatGPT -->
-                <div id="tab-cfg-chatgpt" style="display: none;">
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
-                        
-                        <!-- Painel de Configurações da API -->
-                        <div class="panel-card">
-                            <div class="panel-card-header">
-                                <h3><i class="ri-cpu-line"></i> Configurações da API da OpenAI</h3>
-                            </div>
-                            <div class="panel-card-body">
-                                <form id="config-chatgpt-form" onsubmit="submitConfigChatGPT(event)">
-                                    <div class="form-group" style="padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);">
-                                        <strong><i class="ri-shield-keyhole-line"></i> Credencial protegida no servidor</strong>
-                                        <small style="color: var(--text-secondary); display: block; margin-top: 6px; line-height:1.5;">
-                                            A credencial usada para gerar laudos não é armazenada nem exibida no navegador. O administrador da infraestrutura deve cadastrá-la como segredo da função do servidor.
-                                        </small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="cfg-openai-model">Modelo de Inteligência Artificial</label>
-                                        <select id="cfg-openai-model" required style="height: 38px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm); width: 100%; padding: 0 10px;">
-                                            <option value="gpt-4o-mini" selected>GPT-4o Mini (Recomendado - Mais rápido e econômico)</option>
-                                            <option value="gpt-4o">GPT-4o (Completo - Análise ultra profunda e precisa)</option>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                                        <i class="ri-save-line"></i> Salvar Integração OpenAI
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- Painel de Prompt e Instruções Técnicas -->
-                        <div class="panel-card">
-                            <div class="panel-card-header">
-                                <h3><i class="ri-article-line"></i> Prompt de Orientação Técnica da IA</h3>
-                            </div>
-                            <div class="panel-card-body">
-                                <div class="form-group" style="margin: 0;">
-                                    <label for="cfg-openai-prompt">Instruções para o Parecer do Laudo</label>
-                                    <textarea id="cfg-openai-prompt" rows="8" placeholder="Instrua a IA sobre como ela deve escrever e analisar os laudos..." style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; background: var(--bg-primary); color: var(--text-primary); font-family: inherit; font-size: 12px; resize: vertical; box-sizing: border-box;"></textarea>
-                                    <small style="color: var(--text-secondary); display: block; margin-top: 6px;">
-                                        Dica: Instrua a IA a ser formal, analítica e a descrever com precisão as avarias de funilaria/pintura ou estrutura, diferenciando itens leves (riscos, pequenos amassados) de danos sérios (corte de longarina, soldas estruturais).
-                                    </small>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -3101,8 +2997,8 @@
         </div>
     </div>
 
-<script src="supabase-db.js?v=20260927-laudo"></script>
-<script src="app_v8.js?v=20260928-orientacao1"></script>
+<script src="supabase-db.js?v=20260928-fase0"></script>
+<script src="app_v8.js?v=20260928-fase0"></script>
 <script src="svg_templates.js"></script>
 <script src="laudo_pdf_v2.js?v=8.7.0"></script>
 <script src="js/laudo_certive.js?v=3.0.0"></script>

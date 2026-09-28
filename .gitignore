@@ -1,2 +1,5 @@
 .env
 *.exe
+node_modules/
+server.log
+*.log
