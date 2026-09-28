@@ -1,3 +1,10 @@
+// Escape de texto digitado por usuários antes de montar HTML (evita XSS:
+// um nome de cliente com <script> ou <img onerror> não pode virar código na tela).
+function escHtml(valor) {
+    return String(valor == null ? '' : valor).replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[c]);
+}
+window.escHtml = escHtml;
+
 // ==========================================
 // CERTIVE VISTORIAS — CORE ENGINE (app.js)
 // ==========================================
@@ -42,893 +49,19 @@ window.modoDiaReaberto = localStorage.getItem('certive_modoDiaReaberto') === 'tr
 window.dataDiaReaberto = localStorage.getItem('certive_dataDiaReaberto');
 window.caixaReabertoId = localStorage.getItem('certive_caixaReabertoId') ? parseInt(localStorage.getItem('certive_caixaReabertoId')) : null;
 
-// Initialize Database in localStorage
-function initDatabase() {
-    // One-time simulation of reproved OS for user testing
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_simulado_reprovado')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.ordens_servico) {
-                const exists = tempDb.ordens_servico.find(o => o.placa === "REPRO99");
-                if (!exists) {
-                    const osId = tempDb.ordens_servico.length + 2000;
-                    const num = "OS-" + String(osId).padStart(4, '0');
-                    const simulatedOS = {
-                        id: osId,
-                        numero: num,
-                        criadoEm: "2026-06-09T14:00:00.000Z",
-                        criadoPor: "Ana Atendente",
-                        unidadeId: 1, // Matriz São José
-                        clienteTipo: "particular",
-                        parceiroId: null,
-                        clienteNome: "SIMULADO REPROVADO",
-                        clienteCpfCnpj: "11122233344",
-                        clienteCelular: "48999998888",
-                        placa: "REPRO99",
-                        renavam: "12345678901",
-                        servicoId: 1,
-                        servicoNome: "Vistoria de Transferência — Pequeno Porte",
-                        valor: 150.00,
-                        pago: true,
-                        formaPagamento: "pix",
-                        detranRegistrado: true,
-                        docVeiculoApresentado: true,
-                        docIdentificacaoApresentado: true,
-                        status: "concluida_reprovada",
-                        finalizadoEm: "2026-06-09T14:30:00.000Z",
-                        finalizadoPor: "Ana Atendente",
-                        canceladoEm: null,
-                        canceladoPor: null,
-                        reapresentacaoOrigemID: null
-                    };
-                    tempDb.ordens_servico.unshift(simulatedOS);
+// Os dados vêm SEMPRE do banco (loadAllFromSupabase). Nada de dados de clientes,
+// caixa ou financeiro fica gravado no navegador: num computador compartilhado de
+// balcão, o próximo usuário não pode ver o que o anterior acessou. As fotos da
+// vistoria ainda não enviadas ficam no IndexedDB (CautelarOfflineDB) até subirem.
+function saveDatabase() { /* sem cópia local do banco */ }
 
-                    if (tempDb.caixa_movimentos) {
-                        tempDb.caixa_movimentos.push({
-                            id: tempDb.caixa_movimentos.length + 2000,
-                            caixaId: 91,
-                            tipo: "entrada",
-                            valor: 150.00,
-                            descricao: `Serviço Vistoria de Transferência (Placa: REPRO99)`,
-                            formaPagamento: "pix",
-                            data: "2026-06-09T14:00:00.000Z",
-                            operador: "Ana Atendente",
-                            osId: osId,
-                            faturaId: null
-                        });
-                    }
-                    localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                    localStorage.setItem('certive_simulado_reprovado', 'true');
-                }
-            }
-        } catch (e) {
-            console.error("Error seeding simulated OS:", e);
-        }
-    }
-    // One-time correction to reopen today's closed cash drawer for testing
-    const tempLocalDate = new Date();
-    const tempYear = tempLocalDate.getFullYear();
-    const tempMonth = String(tempLocalDate.getMonth() + 1).padStart(2, '0');
-    const tempDay = String(tempLocalDate.getDate()).padStart(2, '0');
-    const tempTodayStr = `${tempYear}-${tempMonth}-${tempDay}`;
-
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_reopened_v3')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.caixa_diario) {
-                tempDb.caixa_diario.forEach(cd => {
-                    if (cd.data === tempTodayStr && cd.status === "fechado") {
-                        cd.status = "aberto";
-                        cd.fechadoPor = null;
-                        cd.fechadoEm = null;
-                    }
-                });
-                localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                localStorage.setItem('certive_reopened_v3', 'true');
-            }
-        } catch (e) {
-            console.error("One-time reopen error:", e);
-        }
-    }
-
-    const isSeeded = localStorage.getItem('certive_db_seeded');
-    let dbValid = false;
-    if (isSeeded) {
-        try {
-            loadDatabase();
-            if (db && db.operadores && db.operadores.length > 0 && db.unidades && db.unidades.length > 0) {
-                dbValid = true;
-            }
-        } catch (e) {
-            dbValid = false;
-        }
-    }
-    
-    if (!isSeeded || !dbValid) {
-        // 1. Seed Units (Filiais)
-        db.unidades = [
-            { 
-                id: 1, 
-                nome: "Certive Matriz — São José", 
-                endereco: "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700",
-                razao_social: "Certive Vistorias Automotivas Ltda",
-                cnpj: "45.890.122/0001-08",
-                credenciamento: "ECV-2023-091",
-                cidade: "São José",
-                uf: "SC",
-                canal_ouvidoria: "ouvidoria@certive.com.br"
-            },
-            { 
-                id: 2, 
-                nome: "Certive Filial — Palhoça", 
-                endereco: "Avenida Atílio Pagani, 850, Palhoça - SC",
-                razao_social: "Certive Vistorias Automotivas Ltda",
-                cnpj: "45.890.122/0002-99",
-                credenciamento: "ECV-2023-142",
-                cidade: "Palhoça",
-                uf: "SC",
-                canal_ouvidoria: "ouvidoria@certive.com.br"
-            }
-        ];
-
-        // Seed Portarias lookup by UF
-        db.portarias_uf = {
-            "SC": "Portaria DETRAN-SC nº 465/2023",
-            "SP": "Portaria DETRAN-SP nº 123/2023",
-            "PR": "Portaria DETRAN-PR nº 789/2023"
-        };
-
-        // 2. Seed Services
-        db.servicos = [
-            { id: 1, categoria: "Transferência", nome: "Vistoria de Transferência — Pequeno Porte", porte: "Pequeno", precoBalcao: 150.00 },
-            { id: 2, categoria: "Transferência", nome: "Vistoria de Transferência — Médio Porte", porte: "Médio", precoBalcao: 200.00 },
-            { id: 3, categoria: "Transferência", nome: "Vistoria de Transferência — Grande Porte", porte: "Grande", precoBalcao: 280.00 },
-            { id: 4, categoria: "Cautelar", nome: "Vistoria Cautelar", porte: "N/A", precoBalcao: 180.00 },
-            { id: 5, categoria: "Pesquisa", nome: "Pesquisa Veicular", porte: "N/A", precoBalcao: 120.00 },
-            { id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 }
-        ];
-
-        // 3. Seed Reference Tax / Fees (DETRAN-SC / Custos de Terceiros)
-        db.taxas_referencia = [
-            { servicoId: 1, taxa: 27.00, tax: 27.00 }, // Transferência Pequeno
-            { servicoId: 2, taxa: 27.00, tax: 27.00 }, // Transferência Médio
-            { servicoId: 3, taxa: 27.00, tax: 27.00 }, // Transferência Grande
-            { servicoId: 4, taxa: 10.00, tax: 10.00 }, // Cautelar
-            { servicoId: 5, taxa: 5.00, tax: 5.00 },  // Pesquisa
-            { servicoId: 6, taxa: 0.00, tax: 0.00 }   // Exótico
-        ];
-
-        // 4. Seed Operators (estrutura mínima para modo offline).
-        // ⚠️ As senhas NÃO ficam mais no código — o login é pelo Supabase Auth,
-        // que guarda as senhas criptografadas no servidor.
-        db.operadores = [
-            { id: 1, nome: "Ricardo Administrador", login: "admin", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 2, nome: "Ana Atendente", login: "atendente", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa", "registrar_cautelar", "finalizar_cautelar"], ativo: true },
-            { id: 3, nome: "Carlos Financeiro", login: "financeiro", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
-            { id: 4, nome: "Jonas Kroll", login: "Jkroll", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 6, nome: "Pedro Vistoriador Júnior", login: "vistoriador", funcao: "Vistoriador de Campo", unidadeId: 1, permissoes: ["registrar_cautelar"], ativo: true },
-            { id: 7, nome: "Silvio Vistoriador Sênior", login: "senior", funcao: "Vistoriador Sênior", unidadeId: 1, permissoes: ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true }
-        ];
-
-        // 5. Seed Partners (Parceiros Conveniados)
-        db.parceiros = [
-            { 
-                id: 1, 
-                nome: "Autocentro Veículos", 
-                cnpj: "12.345.678/0001-90", 
-                responsavel: "Marcos Almeida",
-                telefone: "(48) 3222-1111", 
-                usaFaturamento: true,
-                observacoes: "Parceiro prioritário da região de São José.",
-                tabelaPrecos: { 1: 130.00, 2: 180.00, 3: 250.00, 4: 150.00, 5: 100.00 } // Preços especiais
-            },
-            { 
-                id: 2, 
-                nome: "Despachante Silva", 
-                cnpj: "98.765.432/0001-10", 
-                responsavel: "Roberto Silva",
-                telefone: "(48) 3333-4444", 
-                usaFaturamento: true,
-                observacoes: "Pagamento faturado quinzenalmente.",
-                tabelaPrecos: { 1: 140.00, 2: 190.00, 3: 260.00, 4: 160.00, 5: 110.00 }
-            },
-            { 
-                id: 3, 
-                nome: "Giga Car Multimarcas", 
-                cnpj: "11.222.333/0001-44", 
-                responsavel: "Carlos Giga",
-                telefone: "(48) 3444-5555", 
-                usaFaturamento: false, // Só paga no balcão
-                observacoes: "Não aceita faturamento. Pagamentos somente à vista.",
-                tabelaPrecos: { 1: 135.00, 2: 185.00, 3: 255.00, 4: 155.00, 5: 105.00 }
-            }
-        ];
-
-        // Empty arrays for seed logic
-        db.ordens_servico = [];
-        db.caixa_diario = [];
-        db.caixa_movimentos = [];
-        db.contas_pagar = [];
-        db.faturas = [];
-        db.auditoria = [];
-        db.metas_despesas = {
-            1: {
-                "Aluguel": 3000.00,
-                "Água / Luz / Internet": 500.00,
-                "Impostos / Taxas": 1500.00,
-                "Material de Escritório": 300.00,
-                "Serviços de Terceiros": 2000.00,
-                "Outros": 600.00
-            },
-            2: {
-                "Aluguel": 2000.00,
-                "Água / Luz / Internet": 400.00,
-                "Impostos / Taxas": 1000.00,
-                "Material de Escritório": 200.00,
-                "Serviços de Terceiros": 1500.00,
-                "Outros": 400.00
-            }
-        };
-
-        // Run Historical Seed Generator
-        seedHistoricalData();
-
-        // Save to LocalStorage
-        saveDatabase();
-        localStorage.setItem('certive_db_seeded', 'true');
-    } else {
-        loadDatabase();
-        // Force update of Unit details and lookup portarias
-        if (!db.portarias_uf) {
-            db.portarias_uf = {
-                "SC": "Portaria DETRAN-SC nº 465/2023",
-                "SP": "Portaria DETRAN-SP nº 123/2023",
-                "PR": "Portaria DETRAN-PR nº 789/2023"
-            };
-        }
-        if (db.unidades) {
-            db.unidades.forEach(async u => {
-                if (u.id === 1) {
-                    u.nome = "Certive Matriz — São José";
-                    u.endereco = "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700";
-                    u.razao_social = "Certive Vistorias Automotivas Ltda";
-                    u.cnpj = "45.890.122/0001-08";
-                    u.credenciamento = "ECV-2023-091";
-                    u.cidade = "São José";
-                    u.uf = "SC";
-                    u.canal_ouvidoria = "ouvidoria@certive.com.br";
-                    if (window.useSupabase) {
-                        try {
-                            await sbUpdate('unidades', u.id, { endereco: u.endereco });
-                        } catch (e) {
-                            console.error("Erro ao atualizar endereço da matriz no Supabase:", e);
-                        }
-                    }
-                } else if (u.id === 2) {
-                    u.nome = "Certive Filial — Palhoça";
-                    u.endereco = "Avenida Atílio Pagani, 850, Palhoça - SC";
-                    u.razao_social = "Certive Vistorias Automotivas Ltda";
-                    u.cnpj = "45.890.122/0002-99";
-                    u.credenciamento = "ECV-2023-142";
-                    u.cidade = "Palhoça";
-                    u.uf = "SC";
-                    u.canal_ouvidoria = "ouvidoria@certive.com.br";
-                }
-            });
-        }
-        saveDatabase();
-        // Force migration check for partner fields
-        if (db.parceiros) {
-            db.parceiros.forEach(p => {
-                if (p.responsavel === undefined) p.responsavel = "NÃO CADASTRADO";
-                if (p.observacoes === undefined) p.observacoes = "";
-            });
-        }
-        // Force migration check for OS fields
-        if (db.ordens_servico) {
-            db.ordens_servico.forEach(o => {
-                if (o.observacoes === undefined) o.observacoes = "NÃO INFORMADA";
-                if (o.statusNfse === undefined) o.statusNfse = "Não solicitada";
-                if (o.numeroNfse === undefined) o.numeroNfse = null;
-                if (o.dataNfse === undefined) o.dataNfse = null;
-            });
-        }
-        // Force migration check for faturas fields
-        if (db.faturas) {
-            db.faturas.forEach(f => {
-                if (f.statusBoleto === undefined) f.statusBoleto = "Não gerado";
-                if (f.boletoVencimento === undefined) f.boletoVencimento = null;
-                if (f.boletoCodigoDeBarras === undefined) f.boletoCodigoDeBarras = null;
-            });
-        }
-        // Force migration check for accounts payable fields
-        if (db.contas_pagar) {
-            db.contas_pagar.forEach(c => {
-                if (c.observacoes === undefined) c.observacoes = "";
-                if (c.anexo === undefined) c.anexo = null;
-                if (c.comprovante === undefined) c.comprovante = null;
-
-                // Migrate category
-                if (c.categoria === undefined) {
-                    if (c.descricao.includes("Aluguel")) {
-                        c.categoria = "Aluguel";
-                    } else if (c.descricao.includes("Celesc") || c.descricao.includes("Energia") || c.descricao.includes("Luz") || c.descricao.includes("Água") || c.descricao.includes("Internet")) {
-                        c.categoria = "Água / Luz / Internet";
-                    } else if (c.descricao.includes("DETRAN") || c.descricao.includes("Taxa")) {
-                        c.categoria = "Impostos / Taxas";
-                    } else {
-                        c.categoria = "Outros";
-                    }
-                }
-
-                // Migrate provider
-                if (c.fornecedor === undefined) {
-                    if (c.descricao.includes("Aluguel")) {
-                        c.fornecedor = c.unidadeId === 1 ? "Imobiliária Matriz" : "Imobiliária Filial";
-                    } else if (c.descricao.includes("Celesc")) {
-                        c.fornecedor = "Celesc";
-                    } else if (c.descricao.includes("DETRAN")) {
-                        c.fornecedor = "DETRAN-SC";
-                    } else {
-                        c.fornecedor = "Outros";
-                    }
-                }
-            });
-        }
-        if (!db.metas_despesas) {
-            db.metas_despesas = {
-                1: {
-                    "Aluguel": 3000.00,
-                    "Água / Luz / Internet": 500.00,
-                    "Impostos / Taxas": 1500.00,
-                    "Material de Escritório": 300.00,
-                    "Serviços de Terceiros": 2000.00,
-                    "Outros": 600.00
-                },
-                2: {
-                    "Aluguel": 2000.00,
-                    "Água / Luz / Internet": 400.00,
-                    "Impostos / Taxas": 1000.00,
-                    "Material de Escritório": 200.00,
-                    "Serviços de Terceiros": 1500.00,
-                    "Outros": 400.00
-                }
-            };
-        }
-        // Force migration check for services (ID 6 - Carros exóticos)
-        if (db.servicos) {
-            const hasExotic = db.servicos.find(s => s.id === 6);
-            if (!hasExotic) {
-                db.servicos.push({ id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 });
-            }
-        }
-        // Force migration check for reference taxes (ID 6 - Carros exóticos)
-        if (db.taxas_referencia) {
-            const hasExoticTax = db.taxas_referencia.find(t => t.servicoId === 6);
-            if (!hasExoticTax) {
-                db.taxas_referencia.push({ servicoId: 6, taxa: 0.00 });
-            }
-        }
-        saveDatabase();
-    }
-}
-
-function saveDatabase() {
-    // Limpeza preventiva de Base64 de alta resolução para evitar QuotaExceededError
-    if (db && db.cautelares_fotos && db.cautelares_fotos.length > 0) {
-        db.cautelares_fotos.forEach(f => {
-            if (f.urlOriginal && f.urlOriginal.startsWith('data:image') && f.urlOriginal.length > 50000) {
-                f.urlOriginal = '';
-            }
-            if (f.url_original && f.url_original.startsWith('data:image') && f.url_original.length > 50000) {
-                f.url_original = '';
-            }
-            if (f.urlThumb && f.urlThumb.startsWith('data:image') && f.urlThumb.length > 50000) {
-                f.urlThumb = '';
-            }
-            if (f.url_thumb && f.url_thumb.startsWith('data:image') && f.url_thumb.length > 50000) {
-                f.url_thumb = '';
-            }
-        });
-    }
-
-    try {
-        localStorage.setItem('certive_db', JSON.stringify(db));
-    } catch (e) {
-        if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-            console.warn("localStorage quota exceeded! Starting database optimization...");
-            
-            // 1. Limpa auditoria antiga (mantém apenas as últimas 50 entradas)
-            if (db.auditoria && db.auditoria.length > 50) {
-                db.auditoria = db.auditoria.slice(-50);
-            }
-            
-            // 2. Otimização de fotos: remove Base64 local se a foto já tiver URL pública na nuvem (http/https)
-            if (db.cautelares_fotos && db.cautelares_fotos.length > 0) {
-                let cleanedCount = 0;
-                db.cautelares_fotos.forEach(f => {
-                    const isUploaded = (f.urlOriginal && f.urlOriginal.startsWith('http')) || (f.url_original && f.url_original.startsWith('http'));
-                    if (isUploaded) {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) {
-                            f.urlThumb = '';
-                            cleanedCount++;
-                        }
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) {
-                            f.urlOriginal = '';
-                        }
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) {
-                            f.url_thumb = '';
-                            cleanedCount++;
-                        }
-                        if (f.url_original && f.url_original.startsWith('data:image')) {
-                            f.url_original = '';
-                        }
-                    }
-                });
-                console.log(`Cleaned ${cleanedCount} Base64 thumbnails from cache.`);
-            }
-            
-            // 3. Limpa Base64 de fotos de vistorias finalizadas/concluídas
-            const activeCautelarIds = (db.cautelares || [])
-                .filter(c => c.status !== 'finalizado' && c.status !== 'concluido')
-                .map(c => c.id);
-            
-            if (db.cautelares_fotos) {
-                db.cautelares_fotos.forEach(f => {
-                    const secao = (db.cautelares_secoes || []).find(s => s.id === f.secaoId);
-                    const parentId = secao ? secao.cautelarId : null;
-                    
-                    if (parentId && !activeCautelarIds.includes(parentId)) {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
-                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
-                    }
-                });
-            }
-
-            // 4. Tenta salvar novamente após a otimização
-            try {
-                localStorage.setItem('certive_db', JSON.stringify(db));
-                console.log("Database saved successfully after optimization!");
-            } catch (retryErr) {
-                console.error("Soft cleanup failed, executing aggressive database truncation...", retryErr);
-                
-                // Limpeza agressiva: zera toda a auditoria e limpa TODOS os Base64 locais
-                db.auditoria = [];
-                if (db.cautelares_fotos) {
-                    db.cautelares_fotos.forEach(f => {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
-                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
-                    });
-                }
-                
-                // Remove vistorias finalizadas antigas do banco local
-                if (db.cautelares && db.cautelares.length > 5) {
-                    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-                    db.cautelares = db.cautelares.filter(c => {
-                        const date = new Date(c.criadoEm || c.criado_em).getTime();
-                        return c.status !== 'finalizado' || date > sevenDaysAgo;
-                    });
-                }
-
-                try {
-                    localStorage.setItem('certive_db', JSON.stringify(db));
-                    console.log("Database saved successfully after aggressive cleanup!");
-                } catch (aggErr) {
-                    console.error("Critical: LocalStorage database write failed even after aggressive truncation!", aggErr);
-                }
-            }
-        } else {
-            console.error("Error writing to localStorage:", e);
-        }
-    }
-}
-
-function loadDatabase() {
-    db = JSON.parse(localStorage.getItem('certive_db') || '{}');
-    db.unidades = db.unidades || [];
-    db.servicos = db.servicos || [];
-    db.taxas_referencia = db.taxas_referencia || [];
-    db.operadores = db.operadores || [];
-    db.parceiros = db.parceiros || [];
-    db.ordens_servico = db.ordens_servico || [];
-    db.caixa_diario = db.caixa_diario || [];
-    db.caixa_movimentos = db.caixa_movimentos || [];
-    db.contas_pagar = db.contas_pagar || [];
-    db.faturas = db.faturas || [];
-    db.auditoria = db.auditoria || [];
-    db.solicitantes_parceiros = db.solicitantes_parceiros || [];
-    db.cautelares = db.cautelares || [];
-    db.cautelares_secoes = db.cautelares_secoes || [];
-    db.cautelares_fotos = db.cautelares_fotos || [];
-    db.cautelares_pesquisas = db.cautelares_pesquisas || [];
-
-    // Garantir permissões das cautelares nos perfis locais (migração de LocalStorage/Supabase)
-    let dbUpdated = false;
-    db.operadores.forEach(op => {
-        op.permissoes = op.permissoes || [];
-        if (op.funcao === "Gerente Geral") {
-            const required = ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"];
-            required.forEach(p => {
-                if (!op.permissoes.includes(p)) {
-                    op.permissoes.push(p);
-                    dbUpdated = true;
-                }
-            });
-        } else if (op.funcao === "Atendente") {
-            const required = ["registrar_cautelar", "finalizar_cautelar"];
-            required.forEach(p => {
-                if (!op.permissoes.includes(p)) {
-                    op.permissoes.push(p);
-                    dbUpdated = true;
-                }
-            });
-        } else if (op.funcao === "Vistoriador de Campo" || op.funcao === "Vistoriador Sênior") {
-            if (!op.permissoes.includes("registrar_cautelar")) {
-                op.permissoes.push("registrar_cautelar");
-                dbUpdated = true;
-            }
-            if (op.funcao === "Vistoriador Sênior" && !op.permissoes.includes("finalizar_cautelar")) {
-                op.permissoes.push("finalizar_cautelar");
-                dbUpdated = true;
-            }
-        }
-    });
-
-    if (dbUpdated) {
-        saveDatabase();
-    }
-
-    // Complementary Cautelares seed for testing
-    if (db.cautelares.length === 0) {
-        setTimeout(() => {
-            if (typeof seedCautelares === 'function') seedCautelares();
-        }, 100);
-    }
-}
-
-// Seed 30 Days of realistic business data
-function seedHistoricalData() {
-    const totalDays = 30;
-    const today = new Date();
-    
-    // Generate dates starting from 30 days ago
-    let datePointer = new Date();
-    datePointer.setDate(today.getDate() - totalDays);
-
-    let osIdCounter = 1;
-    let movIdCounter = 1;
-    let fatIdCounter = 1;
-    let contaIdCounter = 1;
-
-    // Fixed expense templates
-    db.contas_pagar.push(
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Aluguel Comercial - Matriz", tipo: "fixo", vencimento: "2026-05-10", valor: 2500.00, pago: true, pagoEm: "2026-05-09", categoria: "Aluguel", fornecedor: "Imobiliária Matriz" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Aluguel Comercial - Filial", tipo: "fixo", vencimento: "2026-05-10", valor: 1800.00, pago: true, pagoEm: "2026-05-10", categoria: "Aluguel", fornecedor: "Imobiliária Filial" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Energia Elétrica Celesc - Matriz", tipo: "fixo", vencimento: "2026-05-15", valor: 450.00, pago: true, pagoEm: "2026-05-14", categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Energia Elétrica Celesc - Filial", tipo: "fixo", vencimento: "2026-05-15", valor: 310.00, pago: true, pagoEm: "2026-05-15", categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Aluguel Comercial - Matriz", tipo: "fixo", vencimento: "2026-06-10", valor: 2500.00, pago: true, pagoEm: "2026-06-09", categoria: "Aluguel", fornecedor: "Imobiliária Matriz" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Aluguel Comercial - Filial", tipo: "fixo", vencimento: "2026-06-10", valor: 1800.00, pago: false, pagoEm: null, categoria: "Aluguel", fornecedor: "Imobiliária Filial" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Energia Elétrica Celesc - Matriz", tipo: "fixo", vencimento: "2026-06-15", valor: 420.00, pago: false, pagoEm: null, categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Energia Elétrica Celesc - Filial", tipo: "fixo", vencimento: "2026-06-15", valor: 290.00, pago: false, pagoEm: null, categoria: "Água / Luz / Internet", fornecedor: "Celesc" }
-    );
-
-    // Track unbilled partner OSs for bulk invoicing
-    let pendingPartnerOSs = [];
-
-    // Loop through past days to create OSs and Cash Drawer movements
-    for (let d = 0; d < totalDays; d++) {
-        // Don't seed future data
-        if (datePointer > today) break;
-
-        const dateStr = datePointer.toISOString().split('T')[0];
-        
-        // Skip Sundays (non-working day)
-        if (datePointer.getDay() === 0) {
-            datePointer.setDate(datePointer.getDate() + 1);
-            continue;
-        }
-
-        // Daily Cash Drawer structure per unit active on that day
-        const units = [1, 2];
-        units.forEach(unitId => {
-            const caixaId = d * 10 + unitId;
-            let cashDrawer = {
-                id: caixaId,
-                unidadeId: unitId,
-                data: dateStr,
-                status: "fechado",
-                abertoPor: "Ana Atendente",
-                fechadoPor: "Carlos Financeiro",
-                saldoAbertura: 200.00,
-                saldoEspécieInformado: 0,
-                fechadoEm: dateStr + "T18:00:00.000Z"
-            };
-
-            // Seed 1 to 4 OSs per unit per day
-            const osCount = Math.floor(Math.random() * 3) + 1; // 1 to 3 OSs
-            let totalEntradas = 0;
-            let totalSaidas = 0;
-            let cashBalance = 200.00; // Starts with opening float
-
-            for (let i = 0; i < osCount; i++) {
-                const osId = osIdCounter++;
-                const isParticular = Math.random() < 0.6; // 60% Particular
-                const service = db.servicos[Math.floor(Math.random() * db.servicos.length)];
-                
-                let val = service.precoBalcao;
-                let clientNome = "";
-                let cpfCnpj = "";
-                let cel = "(48) 9" + Math.floor(10000000 + Math.random() * 90000000);
-                let partnerId = null;
-                let pagamento = "pix";
-
-                if (isParticular) {
-                    // Small price negotiation mock for particulars
-                    val = val - (Math.random() < 0.3 ? 10.00 : 0);
-                    clientNome = ["Marcos Souza", "Juliana Costa", "Renato Abreu", "Fabio Santos", "Carla Dias", "Fernando Lima"][Math.floor(Math.random() * 6)];
-                    cpfCnpj = Math.floor(10000000000 + Math.random() * 90000000000).toString();
-                    pagamento = ["pix", "debito", "credito", "especie"][Math.floor(Math.random() * 4)];
-                } else {
-                    // Partner client
-                    const partner = db.parceiros[Math.floor(Math.random() * db.parceiros.length)];
-                    partnerId = partner.id;
-                    val = partner.tabelaPrecos[service.id];
-                    clientNome = partner.nome;
-                    cpfCnpj = partner.cnpj;
-                    pagamento = partner.usaFaturamento && Math.random() < 0.85 ? "faturamento" : "pix";
-                }
-
-                // Random status (90% approved, 8% reproved, 2% cancelled)
-                let status = "concluida_aprovada";
-                const randStatus = Math.random();
-                if (randStatus < 0.08) {
-                    status = "concluida_reprovada";
-                } else if (randStatus < 0.10) {
-                    status = "cancelada";
-                }
-
-                const createdTime = dateStr + "T" + String(9 + i*2).padStart(2, '0') + ":30:00.000Z";
-                
-                let os = {
-                    id: osId,
-                    numero: "OS-" + String(osId).padStart(4, '0'),
-                    criadoEm: createdTime,
-                    criadoPor: "Ana Atendente",
-                    unidadeId: unitId,
-                    clienteTipo: isParticular ? "particular" : "parceiro",
-                    parceiroId: partnerId,
-                    clienteNome: clientNome,
-                    clienteCpfCnpj: cpfCnpj,
-                    clienteCelular: cel,
-                    placa: ["MCG", "OKD", "QJZ", "RAH", "BRA"][Math.floor(Math.random() * 5)] + String(Math.floor(1000 + Math.random() * 9000)),
-                    renavam: String(Math.floor(10000000000 + Math.random() * 90000000000)),
-                    servicoId: service.id,
-                    servicoNome: service.nome,
-                    valor: val,
-                    observacoes: ["FIAT UNO 2012 BRANCO", "RENAULT SANDERO 2015 PRATA", "VW GOL 2018 VERMELHO", "CHEVROLET ONIX 2021 PRETO", "HYUNDAI HB20 2019 CINZA"][Math.floor(Math.random() * 5)],
-                    pago: pagamento !== "faturamento" && status !== "cancelada",
-                    formaPagamento: pagamento,
-                    detranRegistrado: Math.random() < 0.9,
-                    docVeiculoApresentado: true,
-                    docIdentificacaoApresentado: true,
-                    status: status,
-                    finalizadoEm: status.startsWith("concluida") ? createdTime : null,
-                    finalizadoPor: status.startsWith("concluida") ? "Ana Atendente" : null,
-                    canceladoEm: status === "cancelada" ? createdTime : null,
-                    canceladoPor: status === "cancelada" ? "Ana Atendente" : null,
-                    reapresentacaoOrigemID: null
-                };
-
-                db.ordens_servico.push(os);
-
-                // Financial entry if paid immediately
-                if (os.pago && status !== "cancelada") {
-                    let mov = {
-                        id: movIdCounter++,
-                        caixaId: caixaId,
-                        tipo: "entrada",
-                        valor: val,
-                        descricao: `Serviço ${service.nome.split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: pagamento,
-                        data: createdTime,
-                        operador: "Ana Atendente",
-                        osId: osId,
-                        faturaId: null
-                    };
-                    db.caixa_movimentos.push(mov);
-                    totalEntradas += val;
-                    if (pagamento === "especie") cashBalance += val;
-                }
-
-                // If partner billed, save for billing simulation
-                if (pagamento === "faturamento" && status === "concluida_aprovada") {
-                    pendingPartnerOSs.push(os);
-                }
-
-                // Seed Transferência reproval re-inspection logic (within 30 days)
-                if (status === "concluida_reprovada" && service.categoria === "Transferência" && Math.random() < 0.7) {
-                    // Re-inspected 3 days later
-                    let reInspectDate = new Date(datePointer);
-                    reInspectDate.setDate(reInspectDate.getDate() + 3);
-                    
-                    if (reInspectDate <= today) {
-                        const reInspectDateStr = reInspectDate.toISOString().split('T')[0];
-                        const reId = osIdCounter++;
-                        let reOs = {
-                            id: reId,
-                            numero: "OS-" + String(reId).padStart(4, '0'),
-                            criadoEm: reInspectDateStr + "T14:15:00.000Z",
-                            criadoPor: "Ana Atendente",
-                            unidadeId: unitId,
-                            clienteTipo: os.clienteTipo,
-                            parceiroId: os.parceiroId,
-                            clienteNome: os.clienteNome,
-                            clienteCpfCnpj: os.clienteCpfCnpj,
-                            clienteCelular: os.clienteCelular,
-                            placa: os.placa,
-                            renavam: os.renavam,
-                            servicoId: os.servicoId,
-                            servicoNome: os.servicoNome,
-                            valor: 0.00, // Free
-                            pago: true,
-                            formaPagamento: "isento",
-                            detranRegistrado: true,
-                            docVeiculoApresentado: true,
-                            docIdentificacaoApresentado: true,
-                            status: "concluida_aprovada",
-                            finalizadoEm: reInspectDateStr + "T14:45:00.000Z",
-                            finalizadoPor: "Ana Atendente",
-                            canceladoEm: null,
-                            canceladoPor: null,
-                            reapresentacaoOrigemID: os.id
-                        };
-                        db.ordens_servico.push(reOs);
-                        
-                        // Update original OS status to "reapresentada"
-                        os.status = "concluida_reprovada"; // maintains historical reproval indicator
-                    }
-                }
-            }
-
-            // Seed manual daily small cash outflows (e.g. coffee, office cleaning) on some days
-            if (Math.random() < 0.25) {
-                const outflowVal = Math.floor(15 + Math.random() * 40);
-                let mov = {
-                    id: movIdCounter++,
-                    caixaId: caixaId,
-                    tipo: "saida",
-                    valor: outflowVal,
-                    descricao: "Despesas miúdas de limpeza / copa",
-                    formaPagamento: "especie",
-                    data: dateStr + "T16:00:00.000Z",
-                    operador: "Ana Atendente",
-                    osId: null,
-                    faturaId: null
-                };
-                db.caixa_movimentos.push(mov);
-                totalSaidas += outflowVal;
-                cashBalance -= outflowVal;
-            }
-
-            // Finalize daily cash drawer calculations
-            cashDrawer.saldoEspécieInformado = Math.round(cashBalance * 100) / 100;
-            db.caixa_diario.push(cashDrawer);
-        });
-
-        // Advance Date Pointer
-        datePointer.setDate(datePointer.getDate() + 1);
-    }
-
-    // Seed Billed Invoices (Faturas) for Partner 1 and 2 in late May
-    const mayOSsPartner1 = pendingPartnerOSs.filter(o => o.parceiroId === 1 && new Date(o.criadoEm) < new Date("2026-06-01"));
-    const mayOSsPartner2 = pendingPartnerOSs.filter(o => o.parceiroId === 2 && new Date(o.criadoEm) < new Date("2026-06-01"));
-
-    if (mayOSsPartner1.length > 0) {
-        const fatId = fatIdCounter++;
-        const totalVal = mayOSsPartner1.reduce((sum, o) => sum + o.valor, 0);
-        let fat = {
-            id: fatId,
-            codigo: "FAT-" + String(fatId).padStart(4, '0'),
-            parceiroId: 1,
-            unidadeId: 1,
-            periodoInicio: "2026-05-15",
-            periodoFim: "2026-05-31",
-            valorTotal: totalVal,
-            ordensIds: mayOSsPartner1.map(o => o.id),
-            pago: true,
-            pagoEm: "2026-06-02T10:00:00.000Z",
-            criadoEm: "2026-06-01T08:30:00.000Z",
-            criadoPor: "Carlos Financeiro"
-        };
-        db.faturas.push(fat);
-        mayOSsPartner1.forEach(o => o.faturaId = fatId);
-
-        // Inject payment of this May invoice as an inflow in June 2nd Cashier
-        const june2ndMatrizCaixa = db.caixa_diario.find(c => c.unidadeId === 1 && c.data === "2026-06-02");
-        if (june2ndMatrizCaixa) {
-            db.caixa_movimentos.push({
-                id: movIdCounter++,
-                caixaId: june2ndMatrizCaixa.id,
-                tipo: "entrada",
-                valor: totalVal,
-                descricao: `Recebimento Fatura ${fat.codigo} — Autocentro Veículos`,
-                formaPagamento: "pix",
-                data: "2026-06-02T10:00:00.000Z",
-                operador: "Carlos Financeiro",
-                osId: null,
-                faturaId: fatId
-            });
-        }
-    }
-
-    if (mayOSsPartner2.length > 0) {
-        const fatId = fatIdCounter++;
-        const totalVal = mayOSsPartner2.reduce((sum, o) => sum + o.valor, 0);
-        let fat = {
-            id: fatId,
-            codigo: "FAT-" + String(fatId).padStart(4, '0'),
-            parceiroId: 2,
-            unidadeId: 1,
-            periodoInicio: "2026-05-15",
-            periodoFim: "2026-05-31",
-            valorTotal: totalVal,
-            ordensIds: mayOSsPartner2.map(o => o.id),
-            pago: true,
-            pagoEm: "2026-06-03T14:30:00.000Z",
-            criadoEm: "2026-06-01T09:00:00.000Z",
-            criadoPor: "Carlos Financeiro"
-        };
-        db.faturas.push(fat);
-        mayOSsPartner2.forEach(o => o.faturaId = fatId);
-
-        // Inject payment into June 3rd Cashier
-        const june3rdMatrizCaixa = db.caixa_diario.find(c => c.unidadeId === 1 && c.data === "2026-06-03");
-        if (june3rdMatrizCaixa) {
-            db.caixa_movimentos.push({
-                id: movIdCounter++,
-                caixaId: june3rdMatrizCaixa.id,
-                tipo: "entrada",
-                valor: totalVal,
-                descricao: `Recebimento Fatura ${fat.codigo} — Despachante Silva`,
-                formaPagamento: "pix",
-                data: "2026-06-03T14:30:00.000Z",
-                operador: "Carlos Financeiro",
-                osId: null,
-                faturaId: fatId
-            });
-        }
-    }
-
-    // Seed May Variable Accounts Payable (DETRAN consolidated tax)
-    const mayOSCountUnit1 = db.ordens_servico.filter(o => o.unidadeId === 1 && new Date(o.criadoEm) < new Date("2026-06-01") && o.status.startsWith("concluida")).length;
-    const mayOSCountUnit2 = db.ordens_servico.filter(o => o.unidadeId === 2 && new Date(o.criadoEm) < new Date("2026-06-01") && o.status.startsWith("concluida")).length;
-
-    db.contas_pagar.push(
-        { id: contaIdCounter++, unidadeId: 1, descricao: `Taxas DETRAN-SC — Consolidação Maio/2026`, tipo: "variavel", vencimento: "2026-06-10", valor: mayOSCountUnit1 * 27.00, pago: true, pagoEm: "2026-06-08", categoria: "Impostos / Taxas", fornecedor: "DETRAN-SC" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: `Taxas DETRAN-SC — Consolidação Maio/2026`, tipo: "variavel", vencimento: "2026-06-10", valor: mayOSCountUnit2 * 27.00, pago: true, pagoEm: "2026-06-09", categoria: "Impostos / Taxas", fornecedor: "DETRAN-SC" }
-    );
-
-    // Auto-open today's cash drawer for testing if it's currently June 11, 2026 (based on meta)
-    const todayStr = "2026-06-11";
-    [1, 2].forEach(unitId => {
-        db.caixa_diario.push({
-            id: 1000 + unitId,
-            unidadeId: unitId,
-            data: todayStr,
-            status: "aberto",
-            abertoPor: "Ana Atendente",
-            fechadoPor: null,
-            saldoAbertura: 200.00,
-            saldoEspécieInformado: 0,
-            fechadoEm: null
-        });
+// Remove cópias locais deixadas por versões antigas (banco inteiro, dados de demonstração)
+function limparDadosLocaisAntigos() {
+    ['certive_db', 'certive_db_seeded', 'certive_simulado_reprovado', 'certive_reopened_v3'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) { /* modo privado */ }
     });
 }
+limparDadosLocaisAntigos();
 
 // Helper formatting functions
 function parseDividedPayment(obsText) {
@@ -949,13 +82,82 @@ function parseDividedPayment(obsText) {
     return result.length === 2 ? result : null;
 }
 
+// Divisão do pagamento de uma OS: a coluna pagamentoDividido é a fonte; a
+// marca [PAG_DIVIDIDO: ...] nas observações fica só para as OS antigas (se
+// alguém editasse as observações, a divisão se perdia).
+function divisaoPagamento(os) {
+    if (!os) return null;
+    const col = os.pagamentoDividido;
+    if (Array.isArray(col) && col.length === 2) return col.map(p => ({ forma: p.forma, valor: Number(p.valor) }));
+    return parseDividedPayment(os.observacoes);
+}
+
 function removeDividedPaymentTag(obsText) {
     if (!obsText) return '';
     return obsText.replace(/\[PAG_DIVIDIDO: [^\]]+\]/, '').trim();
 }
 
 function formatCurrency(val) {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const n = Number(val);
+    return (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// ---- Dinheiro em centavos ----
+// Somar reais em ponto flutuante acumula erro (0,1 + 0,2 = 0,30000000000000004)
+// e o total do caixa "não fecha" por um centavo. Toda soma de valores passa por
+// aqui: a conta é feita em centavos inteiros.
+function paraCentavos(valor) {
+    const n = Number(valor);
+    return isFinite(n) ? Math.round(n * 100) : 0;
+}
+function somaCentavos(a, b) {
+    return (paraCentavos(a) + paraCentavos(b)) / 100;
+}
+// Lê um valor digitado ("1.234,56", "1234.56", "R$ 150"). Devolve null quando
+// não é um valor válido, para quem chama recusar em vez de gravar R$ 0.
+function lerValorMonetario(texto) {
+    let t = String(texto == null ? '' : texto).trim().replace(/[R$\s]/g, '');
+    if (!t) return null;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+    return paraCentavos(t) / 100;
+}
+
+// ---- Datas: sempre no horário de Brasília ----
+// O banco guarda instantes em UTC. Cortar a string ISO ("2026-09-28T23:10Z")
+// ou usar toISOString() para saber "o dia" joga o que acontece depois das 21h
+// para o dia seguinte. Toda conversão instante -> dia passa por aqui.
+const FUSO_CERTIVE = 'America/Sao_Paulo';
+const _fmtDiaSP = new Intl.DateTimeFormat('en-CA', { timeZone: FUSO_CERTIVE, year: 'numeric', month: '2-digit', day: '2-digit' });
+const _fmtHoraSP = new Intl.DateTimeFormat('en-GB', { timeZone: FUSO_CERTIVE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+const RE_SO_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+// 'YYYY-MM-DD' do dia em Brasília. Uma data pura ('2026-09-01') volta como está:
+// new Date('2026-09-01') é meia-noite UTC, que em Brasília ainda é dia 31.
+function diaSP(entrada = new Date()) {
+    if (typeof entrada === 'string' && RE_SO_DATA.test(entrada)) return entrada;
+    const d = entrada instanceof Date ? entrada : new Date(entrada);
+    if (isNaN(d.getTime())) return '';
+    return _fmtDiaSP.format(d);
+}
+
+function horaSP(entrada = new Date()) {
+    const d = entrada instanceof Date ? entrada : new Date(entrada);
+    return _fmtHoraSP.format(d);
+}
+
+// Instante (ISO UTC) no dia dataStr com o horário atual de Brasília.
+// Brasília não tem horário de verão desde 2019: UTC-3 fixo.
+function instanteNoDiaSP(dataStr, agora = new Date()) {
+    if (!dataStr || !RE_SO_DATA.test(dataStr)) return agora.toISOString();
+    return new Date(`${dataStr}T${horaSP(agora)}-03:00`).toISOString();
+}
+
+// Soma dias a uma data 'YYYY-MM-DD' sem passar por fuso.
+function somarDiasData(dataStr, dias) {
+    const [a, m, d] = dataStr.split('-').map(Number);
+    const t = new Date(Date.UTC(a, m - 1, d + dias));
+    return t.toISOString().slice(0, 10);
 }
 
 function formatDateBr(isoString) {
@@ -965,27 +167,26 @@ function formatDateBr(isoString) {
         const parts = isoString.split('-');
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
-    const date = new Date(isoString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
+    const dia = diaSP(isoString);
+    if (!dia) return "—";
+    const [year, month, day] = dia.split('-');
     return `${day}/${month}/${year}`;
 }
 
 function formatDateTimeBr(isoString) {
     if (!isoString) return "—";
     const date = new Date(isoString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} ${hours}:${minutes}`;
+    if (isNaN(date.getTime())) return "—";
+    const [year, month, day] = diaSP(date).split('-');
+    return `${day}/${month}/${year} ${horaSP(date).slice(0, 5)}`;
 }
 
 function renderMarkdown(text) {
-    if (window.marked && (typeof window.marked.parse === 'function' || typeof window.marked === 'function')) {
-        return typeof window.marked.parse === 'function' ? window.marked.parse(text) : window.marked(text);
+    // O texto do contrato leva dados digitados (nome, endereço...): o HTML gerado
+    // passa pelo DOMPurify. Sem ele, usa o conversor simples abaixo, que escapa tudo.
+    if (window.DOMPurify && window.marked && (typeof window.marked.parse === 'function' || typeof window.marked === 'function')) {
+        const html = typeof window.marked.parse === 'function' ? window.marked.parse(text || '') : window.marked(text || '');
+        return window.DOMPurify.sanitize(html);
     }
     
     // Fallback simple markdown parser to support offline use without throwing errors
@@ -1055,6 +256,15 @@ function renderMarkdown(text) {
     html = html.replace(/^---$/gim, '<hr style="border: 0; border-top: 1px solid var(--border); margin: 24px 0;">');
     
     return html;
+}
+
+// Gravação feita em segundo plano que falhou: avisa quem está usando, em vez
+// de deixar só no console enquanto a tela mostra a alteração como feita.
+function avisarFalhaGravacao(contexto) {
+    return (erro) => {
+        console.error(`${contexto} não gravada:`, erro);
+        showToast(`${contexto} NÃO foi gravada no servidor${erro && erro.message ? ` (${erro.message})` : ''}. Verifique a conexão e refaça.`, "error");
+    };
 }
 
 function logAudit(acao, descricao) {
@@ -1225,8 +435,30 @@ async function handleLogin(event) {
     }
 }
 
-async function handleLogout() {
-    logAudit("Logout", `Efetuou logout do sistema.`);
+// Encerra a sessão após um período sem uso (computador de balcão compartilhado)
+const LOGOUT_INATIVIDADE_MIN = 45;
+(function vigiarInatividade() {
+    let ultimoUso = Date.now();
+    const marcar = () => { ultimoUso = Date.now(); };
+    ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev => document.addEventListener(ev, marcar, { passive: true, capture: true }));
+    setInterval(() => {
+        if (!currentSession) return;
+        // Não derruba no meio da captura de fotos (vistoria em andamento)
+        if (document.getElementById('cautelar-camera-overlay')) return;
+        if (Date.now() - ultimoUso > LOGOUT_INATIVIDADE_MIN * 60000) {
+            ultimoUso = Date.now();
+            showToast("Sessão encerrada por inatividade.", "warning");
+            handleLogout(true);
+        }
+    }, 60000);
+})();
+
+async function handleLogout(porInatividade = false) {
+    // Alterações ainda não enviadas ao servidor se perderiam ao sair
+    let pendentes = 0;
+    try { pendentes = (typeof getSyncQueue === 'function' ? getSyncQueue() : []).length; } catch (e) { /* ignora */ }
+    if (pendentes > 0 && !porInatividade && !confirm(`Há ${pendentes} alteração(ões) ainda não enviadas ao servidor. Se sair agora, elas podem se perder. Sair mesmo assim?`)) return;
+    logAudit("Logout", porInatividade ? `Sessão encerrada por inatividade.` : `Efetuou logout do sistema.`);
     try {
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             await supabaseClient.auth.signOut();
@@ -1234,9 +466,17 @@ async function handleLogout() {
     } catch (e) {
         console.warn("Erro ao encerrar sessão no servidor:", e);
     }
-    sessionStorage.removeItem('certive_session');
+    // Nada do usuário anterior fica no navegador
+    try {
+        sessionStorage.clear();
+        ['certive_modoDiaReaberto', 'certive_dataDiaReaberto', 'certive_caixaReabertoId'].forEach(k => localStorage.removeItem(k));
+    } catch (e) { /* modo privado */ }
+    window.modoDiaReaberto = false;
+    window.dataDiaReaberto = null;
+    window.caixaReabertoId = null;
     currentSession = null;
-    checkSession();
+    // Descarta da memória os dados carregados (recarrega a página limpa)
+    location.reload();
 }
 
 function enforceOperatorPermissions() {
@@ -1267,7 +507,7 @@ function enforceOperatorPermissions() {
 
 function renderUnitSelectorOptions() {
     const select = document.getElementById('topbar-unit-select');
-    select.innerHTML = db.unidades.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+    select.innerHTML = db.unidades.map(u => `<option value="${u.id}">${escHtml(u.nome)}</option>`).join('');
 }
 
 function changeActiveUnit(unitId) {
@@ -1592,13 +832,13 @@ function renderAtualizacoes() {
                 </span>
             </div>
             <div class="panel-card-body">
-                <h4 style="margin: 0 0 6px 0; font-size: 16px;">${rel.titulo}</h4>
+                <h4 style="margin: 0 0 6px 0; font-size: 16px;">${escHtml(rel.titulo)}</h4>
                 <p style="margin: 0 0 18px 0; color: var(--text-secondary); max-width: 70ch;">${rel.resumo}</p>
 
                 ${rel.mudancas.map(m => `
                 <div style="border-left: 3px solid var(--border); padding: 0 0 0 14px; margin-bottom: 18px;">
                     <div style="font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px;">${m.area}</div>
-                    <div style="font-weight: 700; margin-bottom: 6px;">${m.titulo}</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">${escHtml(m.titulo)}</div>
                     <div style="color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; max-width: 74ch;">
                         <div style="margin-bottom: 6px;"><strong style="color: var(--text-primary);">O que mudou:</strong> ${m.oQueMudou}</div>
                         <div><strong style="color: var(--text-primary);">Como usar:</strong> ${m.comoUsar}</div>
@@ -1622,7 +862,6 @@ function navigateTo(pageId) {
         'config': 'cadastros'
     };
 
-    // ChatGPT é liberado para todos os operadores logados (não exige permissão específica)
     if (navPermissions[pageId] && currentSession && !currentSession.permissoes.includes(navPermissions[pageId])) {
         showToast("Acesso Negado: Você não tem permissão para acessar este módulo.", "error");
         return;
@@ -1702,8 +941,6 @@ function navigateTo(pageId) {
         renderBIPage();
     } else if (pageId === 'config') {
         renderConfigPage();
-    } else if (pageId === 'chatgpt') {
-        renderChatGPTPage();
     }
 }
 
@@ -1728,7 +965,7 @@ function renderAtendimentoKPIs() {
     // Revenue generated from immediate payments today
     const totalRev = todayOSs
         .filter(o => o.pago && o.status !== 'cancelada')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     const kpiGrid = document.getElementById('atendimento-kpis');
     kpiGrid.innerHTML = `
@@ -1789,7 +1026,7 @@ function loadPartnersDropdown() {
     // Ordenação alfabética obrigatória (Item B)
     const list = [...db.parceiros].sort((a, b) => a.nome.localeCompare(b.nome));
     select.innerHTML = '<option value="">Selecione o parceiro...</option>' + 
-        list.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        list.map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 }
 
 function loadPartnerServices(partnerId) {
@@ -1841,7 +1078,7 @@ function loadPartnerRecurringSolicitors(partnerId) {
     list.sort((a, b) => a.nome.localeCompare(b.nome));
 
     select.innerHTML = '<option value="">SELECIONE UM SOLICITANTE RECORRENTE...</option>' +
-        list.map(s => `<option value="${s.id}">${s.nome.toUpperCase()} (CPF/CNPJ: ${s.cpf})</option>`).join('');
+        list.map(s => `<option value="${s.id}">${s.nome.toUpperCase()} (CPF/CNPJ: ${escHtml(s.cpf)})</option>`).join('');
 
     group.style.display = 'block';
     btnDelete.style.display = 'none';
@@ -2082,6 +1319,12 @@ function clearOSForm() {
     document.getElementById('os-salvar-recorrente').checked = false;
     document.getElementById('os-solicitante-recorrente-select').innerHTML = '<option value="">Selecione um solicitante recorrente...</option>';
     
+    // A reapresentação gratuita vale só para a OS em que foi ativada
+    window.activeRecheckOrigemId = null;
+    document.getElementById('os-valor').disabled = false;
+    restaurarOpcoesPagamentoOS();
+    document.getElementById('os-pagamento').value = 'pix';
+
     selectClientType('particular');
 }
 
@@ -2165,12 +1408,22 @@ function submitOSForm() {
             return;
         }
 
+        if (pagamento === 'isento' && !window.activeRecheckOrigemId) {
+            showToast("Pagamento isento só vale para reapresentação. Escolha a forma de pagamento.", "error");
+            return;
+        }
+        if (window.activeRecheckOrigemId && pagamento !== 'isento') {
+            // Trocou a forma de pagamento: deixou de ser a reapresentação gratuita
+            window.activeRecheckOrigemId = null;
+        }
+
         if (isNaN(valor) || (valor <= 0 && pagamento !== 'isento')) {
             showToast("Por favor, preencha o valor do serviço corretamente.", "error");
             return;
         }
 
         let finalObs = obs;
+        let pagamentoDividido = null;
         if (pagamento === 'dividido') {
             const f1 = document.getElementById('os-div-forma-1').value;
             const v1 = parseFloat(document.getElementById('os-div-valor-1').value) || 0;
@@ -2182,12 +1435,13 @@ function submitOSForm() {
                 return;
             }
             
-            if (Math.abs((v1 + v2) - valor) > 0.01) {
+            if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(valor)) {
                 showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
                 return;
             }
             
             finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+            pagamentoDividido = [{ forma: f1, valor: v1 }, { forma: f2, valor: v2 }];
         }
 
         if (!docVeiculo || !docIdentidade) {
@@ -2201,8 +1455,9 @@ function submitOSForm() {
             return;
         }
         
-        const osId = db.ordens_servico.length + 1;
-        const num = "OS-" + String(osId).padStart(4, '0');
+        // Número provisório só para a prévia do contrato; o definitivo vem do banco
+        const osId = null;
+        const num = "OS-(a gerar)";
 
         // Determinar o nome final do serviço de acordo com as regras de parceiro (Item A.2)
         let finalServiceName = service.nome.toUpperCase();
@@ -2221,7 +1476,7 @@ function submitOSForm() {
             id: osId,
             numero: num,
             criadoEm: window.modoDiaReaberto && window.dataDiaReaberto
-                ? window.dataDiaReaberto + "T" + new Date().toTimeString().split(' ')[0] + ".000Z"
+                ? instanteNoDiaSP(window.dataDiaReaberto)
                 : new Date().toISOString(),
             criadoPor: (currentSession ? currentSession.nome : 'Sistema'),
             unidadeId: activeUnitId,
@@ -2245,6 +1500,7 @@ function submitOSForm() {
             pago: pagamento !== 'faturamento',
             formaPagamento: pagamento,
             parcelas: parcelas,
+            pagamentoDividido,
             statusNfse: "Não solicitada",
             numeroNfse: null,
             dataNfse: null,
@@ -2332,15 +1588,15 @@ function renderOSPipeline() {
 
         return `
             <tr>
-                <td><strong style="color: var(--accent);">${os.numero}</strong></td>
+                <td><strong style="color: var(--accent);">${escHtml(os.numero)}</strong></td>
                 <td>${time}</td>
                 <td>
-                    <strong>${os.clienteNome}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${os.placa}</small>
+                    <strong>${escHtml(os.clienteNome)}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
-                <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase; font-size: 11px;">${escHtml(os.formaPagamento)}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
@@ -2407,9 +1663,9 @@ function openConcludeVistoriaModal(osId) {
     
     document.getElementById('detalhes-os-body').innerHTML = `
         <div style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
-            <h4 style="font-size: 14px; margin-bottom: 6px;">Veículo Placa: <strong>${os.placa}</strong></h4>
-            <p style="font-size: 12px; color: var(--text-secondary);">${os.servicoNome}</p>
-            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Cliente: ${os.clienteNome}</p>
+            <h4 style="font-size: 14px; margin-bottom: 6px;">Veículo Placa: <strong>${escHtml(os.placa)}</strong></h4>
+            <p style="font-size: 12px; color: var(--text-secondary);">${escHtml(os.servicoNome)}</p>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Cliente: ${escHtml(os.clienteNome)}</p>
         </div>
         
         ${questionHtml}
@@ -2466,15 +1722,9 @@ function submitConcludeVistoria(osId, approved) {
             const valorOriginal = os.valor;
             os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
             os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
-            
-            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
-            if (os.pago && os.formaPagamento !== 'faturamento') {
-                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
-                if (mov) {
-                    mov.valor = os.valor;
-                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
-                }
-            }
+            // O que já foi recebido não é reescrito (o caixa pode estar fechado):
+            // a diferença sai como devolução no caixa de hoje.
+            registrarDescontoReprovada(os, valorOriginal);
         }
     }
 
@@ -2527,7 +1777,7 @@ function openOSDetailsModal(id) {
         <div class="timeline">
             <div class="timeline-item done">
                 <div class="tl-title">Ficha Registrada</div>
-                <div class="tl-time">${formatDateTimeBr(os.criadoEm)} por ${os.criadoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.criadoEm)} por ${escHtml(os.criadoPor)}</div>
             </div>
     `;
 
@@ -2553,7 +1803,7 @@ function openOSDetailsModal(id) {
         timelineHtml += `
             <div class="timeline-item done">
                 <div class="tl-title">Laudo emitido: ${os.status === 'concluida_aprovada' ? 'APROVADO' : 'REPROVADO'}</div>
-                <div class="tl-time">${formatDateTimeBr(os.finalizadoEm)} por ${os.finalizadoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.finalizadoEm)} por ${escHtml(os.finalizadoPor)}</div>
             </div>
         `;
     }
@@ -2562,7 +1812,7 @@ function openOSDetailsModal(id) {
         timelineHtml += `
             <div class="timeline-item cancelled">
                 <div class="tl-title">O.S. Cancelada</div>
-                <div class="tl-time">${formatDateTimeBr(os.canceladoEm)} por ${os.canceladoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.canceladoEm)} por ${escHtml(os.canceladoPor)}</div>
             </div>
         `;
     }
@@ -2581,7 +1831,7 @@ function openOSDetailsModal(id) {
                 if (rechecked) {
                     recheckBannerHtml = `
                         <div style="background: var(--success-bg); border: 1px solid var(--success); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; color: var(--text-primary); font-size: 13px;">
-                            <i class="ri-checkbox-circle-line"></i> Reapresentação já efetuada na ordem <strong>${rechecked.numero}</strong>.
+                            <i class="ri-checkbox-circle-line"></i> Reapresentação já efetuada na ordem <strong>${escHtml(rechecked.numero)}</strong>.
                         </div>
                     `;
                 } else {
@@ -2605,7 +1855,7 @@ function openOSDetailsModal(id) {
     if (os.formaPagamento === 'credito_parcelado') {
         cobrancaLabel = `CRÉDITO PARCELADO (${os.parcelas}x)`;
     } else if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             cobrancaLabel = `DIVIDIDO (${splitData[0].forma.toUpperCase()}: R$ ${splitData[0].valor.toFixed(2)} / ${splitData[1].forma.toUpperCase()}: R$ ${splitData[1].valor.toFixed(2)})`;
         }
@@ -2614,19 +1864,19 @@ function openOSDetailsModal(id) {
     document.getElementById('detalhes-os-body').innerHTML = `
         ${recheckBannerHtml}
         <div class="detail-grid">
-            <div class="detail-item"><label>Número da OS</label><strong>${os.numero}</strong></div>
+            <div class="detail-item"><label>Número da OS</label><strong>${escHtml(os.numero)}</strong></div>
             <div class="detail-item"><label>Status Atual</label><span style="font-weight: 700; color: var(--accent);">${statusMap[os.status]}</span></div>
             <div class="detail-item"><label>Tipo de Cliente</label><span>${os.clienteTipo.toUpperCase()}</span></div>
-            <div class="detail-item"><label>Placa do Veículo</label><strong>${os.placa}</strong></div>
-            <div class="detail-item"><label>Renavam</label><span>${os.renavam}</span></div>
-            <div class="detail-item"><label>Solicitante</label><span>${os.clienteNome}</span></div>
-            <div class="detail-item"><label>CPF / CNPJ</label><span>${os.clienteCpfCnpj}</span></div>
-            <div class="detail-item"><label>Celular</label><span>${os.clienteCelular}</span></div>
-            <div class="detail-item"><label>Serviço Executado</label><span>${os.servicoNome}</span></div>
+            <div class="detail-item"><label>Placa do Veículo</label><strong>${escHtml(os.placa)}</strong></div>
+            <div class="detail-item"><label>Renavam</label><span>${escHtml(os.renavam)}</span></div>
+            <div class="detail-item"><label>Solicitante</label><span>${escHtml(os.clienteNome)}</span></div>
+            <div class="detail-item"><label>CPF / CNPJ</label><span>${escHtml(os.clienteCpfCnpj)}</span></div>
+            <div class="detail-item"><label>Celular</label><span>${escHtml(os.clienteCelular)}</span></div>
+            <div class="detail-item"><label>Serviço Executado</label><span>${escHtml(os.servicoNome)}</span></div>
             <div class="detail-item"><label>Valor Final</label><strong style="color: var(--success);">${formatCurrency(os.valor)}</strong></div>
             <div class="detail-item"><label>Cobrança</label><span>${cobrancaLabel}</span></div>
             <div class="detail-item"><label>DETRAN-SC Registrada</label><span>${os.detranRegistrado ? '🟢 Registrada' : '🔴 Não Registrada'}</span></div>
-            <div class="detail-item"><label>Status NFS-e</label><span style="font-weight: 700; color: ${os.statusNfse === 'Emitida' ? 'var(--success)' : (os.statusNfse === 'Pendente de emissão' ? 'var(--warning)' : 'var(--text-secondary)')};">${os.statusNfse || 'Não solicitada'}</span></div>
+            <div class="detail-item"><label>Status NFS-e</label><span style="font-weight: 700; color: ${os.statusNfse === 'Emitida' ? 'var(--success)' : (os.statusNfse === 'Pendente de emissão' ? 'var(--warning)' : 'var(--text-secondary)')};">${escHtml(os.statusNfse || 'Não solicitada')}</span></div>
             <div class="detail-item"><label>Detalhes NFS-e</label><span>${os.numeroNfse ? `Nº ${os.numeroNfse} (${formatDateBr(os.dataNfse)})` : '—'}</span></div>
             <div class="detail-item" style="grid-column: span 2;"><label>Observações do Veículo (Modelo, Ano, Cor)</label><span>${removeDividedPaymentTag(os.observacoes) || '—'}</span></div>
         </div>
@@ -2640,7 +1890,6 @@ function openOSDetailsModal(id) {
     `;
 
     if (os.status.startsWith('concluida') && (currentSession.permissoes.includes("faturamento") || currentSession.permissoes.includes("bi"))) {
-        footerHtml += `<button class="btn btn-warning" onclick="requestNfse(${os.id})"><i class="ri-file-text-line"></i> Emitir NFS-e</button>`;
         footerHtml += `<button class="btn btn-warning" onclick="openChangePaymentModal(${os.id})"><i class="ri-wallet-3-line"></i> Alterar Forma de Pagamento</button>`;
     }
 
@@ -2682,128 +1931,175 @@ function openOSDetailsModal(id) {
     modal.classList.add('active');
 }
 
-function closeOSModal() {
-    document.getElementById('modal-os-detalhes').classList.remove('active');
-}
 
 function closeOSModal(e) {
     if (e && e.target !== e.currentTarget) return;
     document.getElementById('modal-os-detalhes').classList.remove('active');
 }
 
-function changeOSStatus(id, newStatus) {
+// Devolução do desconto de 50% da vistoria reprovada de parceiro, quando o
+// dinheiro já tinha entrado (OS paga na abertura).
+function registrarDescontoReprovada(os, valorOriginal) {
+    const recebidos = db.caixa_movimentos.filter(m => m.osId === os.id && movEhRecebimento(m));
+    const recebido = recebidos.reduce((t, m) => somaCentavos(t, m.valor), 0)
+        - db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'saida').reduce((t, m) => somaCentavos(t, m.valor), 0);
+    const devolver = Math.round((Math.min(recebido, valorOriginal) - os.valor) * 100) / 100;
+    if (devolver <= 0) return;
+    const caixa = getTodayOpenCaixa();
+    if (!caixa) {
+        showToast(`Desconto aplicado, mas o caixa de hoje está fechado: lance a devolução de ${formatCurrency(devolver)} manualmente.`, "warning");
+        return;
+    }
+    const forma = recebidos.slice().sort((a, b) => b.valor - a.valor)[0].formaPagamento;
+    dbSave('caixa_movimentos', {
+        caixaId: caixa.id,
+        tipo: 'saida',
+        valor: devolver,
+        descricao: `Devolução desconto 50% (reprovada) OS ${os.numero}`,
+        formaPagamento: forma,
+        data: new Date().toISOString(),
+        operador: currentSession.nome,
+        osId: os.id,
+        faturaId: null
+    }, 'insert').then(() => {
+        showToast(`Devolução de ${formatCurrency(devolver)} lançada no caixa de hoje.`, "info");
+    }).catch(e => {
+        console.error("Erro ao lançar a devolução do desconto:", e);
+        showToast(`A devolução de ${formatCurrency(devolver)} NÃO foi lançada no caixa. Lance manualmente.`, "error");
+    });
+}
+
+async function changeOSStatus(id, newStatus) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
 
-    os.status = newStatus;
-    
-    // If transitioned to paga, create financial movement
-    if (newStatus === 'paga') {
-        os.pago = true;
-        const activeCaixa = getTodayOpenCaixa();
-        if (activeCaixa) {
-            const newMov = {
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: os.valor,
-                descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                formaPagamento: os.formaPagamento,
-                data: new Date().toISOString(),
-                operador: currentSession.nome,
-                osId: os.id,
-                faturaId: null
-            };
-            dbSave('caixa_movimentos', newMov, 'insert');
+    try {
+        // Ao virar "paga", lança a entrada no caixa, a não ser que ela já exista
+        // (a OS paga na abertura já entrou) ou que a OS seja faturada (o dinheiro
+        // dela entra só na baixa da fatura).
+        let pago = os.pago;
+        if (newStatus === 'paga') {
+            pago = true;
+            const activeCaixa = getTodayOpenCaixa();
+            const jaLancada = db.caixa_movimentos.some(m => m.osId === os.id && m.tipo === 'entrada');
+            if (!jaLancada && os.formaPagamento !== 'faturamento') {
+                if (!activeCaixa) { showToast("Abra o caixa de hoje para confirmar o pagamento.", "error"); return; }
+                await dbSave('caixa_movimentos', {
+                    caixaId: activeCaixa.id,
+                    tipo: "entrada",
+                    valor: os.valor,
+                    descricao: `Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
+                    formaPagamento: os.formaPagamento,
+                    data: new Date().toISOString(),
+                    operador: currentSession.nome,
+                    osId: os.id,
+                    faturaId: null
+                }, 'insert');
+            }
         }
+        await dbSave('ordens_servico', { status: newStatus, pago }, 'update', os.id);
+        os.status = newStatus;
+        os.pago = pago;
+    } catch (err) {
+        showToast(`A O.S. ${os.numero} não foi atualizada: ` + (err.message || err), "error");
+        return;
     }
 
-    dbSave('ordens_servico', {
-        status: newStatus,
-        pago: os.pago
-    }, 'update', os.id);
-    
     showToast(`O.S. ${os.numero} movida para ${newStatus.toUpperCase()}`, "success");
     logAudit("Atualização OS", `Alterou status da ${os.numero} para ${newStatus}.`);
     closeOSModal();
     renderAtendimentoPage();
 }
 
-function finalizeVistoria(id, approved) {
-    const os = db.ordens_servico.find(o => o.id === id);
-    if (!os) return;
 
-    // Se for de parceiro e reprovado (approved === false)
-    if (os.clienteTipo === 'parceiro' && !approved) {
-        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
-        if (aplicarDesconto) {
-            const valorOriginal = os.valor;
-            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
-            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% applied (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
-            
-            // Se a OS já estiver paga (Pix/Dinheiro), atualizar o valor no caixa diário
-            if (os.pago && os.formaPagamento !== 'faturamento') {
-                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
-                if (mov) {
-                    mov.valor = os.valor;
-                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
-                }
-            }
-        }
+// Tira a OS de uma fatura em aberto (cancela antes a cobrança do Asaas, cujo
+// valor deixaria de bater). Lança erro se não for possível.
+async function tirarOSDaFatura(os, fat) {
+    if (fat && fat.asaas_payment_id) {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-asaas-billing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+            body: JSON.stringify({ faturaId: fat.id })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (d.status === 'ja_recebida') throw new Error(`a cobrança da fatura ${fat.codigo} já consta paga no Asaas; dê baixa na fatura`);
+        if (!res.ok || !['cancelada', 'sem_cobranca'].includes(d.status)) throw new Error('não foi possível cancelar a cobrança no Asaas (' + (d.error || res.status) + ')');
+        fat.asaas_payment_id = null;
+        fat.asaas_url = null;
     }
-
-    os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
-    os.finalizadoEm = new Date().toISOString();
-    os.finalizadoPor = currentSession.nome;
-
-    dbSave('ordens_servico', {
-        status: os.status,
-        valor: os.valor,
-        observacoes: os.observacoes,
-        finalizadoEm: os.finalizadoEm,
-        finalizadoPor: os.finalizadoPor
-    }, 'update', os.id);
-    
-    showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
-    logAudit("Laudo Emissão", `Laudou a OS ${os.numero} como ${approved ? 'APROVADO' : 'REPROVADO'}.`);
-    closeOSModal();
-    renderAtendimentoPage();
+    const { data: r, error } = await supabaseClient.rpc('remover_os_da_fatura', { p_os_id: os.id, p_por: currentSession.nome });
+    if (error) throw error;
+    aplicarResultadoAlteracaoPagamento(os, r);
 }
 
-function cancelOS(id) {
+async function cancelOS(id) {
     const os = db.ordens_servico.find(o => o.id === id);
     if (!os) return;
+    if (os.status === 'cancelada') { showToast("Esta O.S. já está cancelada.", "info"); return; }
 
-    // Estorno do Caixa if paid
-    if (os.pago && os.formaPagamento !== 'faturamento') {
-        const activeCaixa = getTodayOpenCaixa();
-        if (activeCaixa) {
+    // OS numa fatura: sai dela junto com o cancelamento (fatura paga não muda)
+    const fatDaOS = os.faturaId ? db.faturas.find(f => f.id === os.faturaId) : null;
+    if (fatDaOS && fatDaOS.pago) {
+        showToast(`Esta O.S. está na fatura ${fatDaOS.codigo}, que já foi paga. Faça o acerto como crédito ao parceiro.`, "error");
+        return;
+    }
+
+    // O que de fato entrou de dinheiro por esta OS (cada forma do pagamento
+    // dividido separada), descontando estornos já feitos.
+    const recebidoPorForma = {};
+    db.caixa_movimentos.filter(m => m.osId === os.id).forEach(m => {
+        if (movEhRecebimento(m)) recebidoPorForma[m.formaPagamento] = (recebidoPorForma[m.formaPagamento] || 0) + Number(m.valor || 0);
+        else if (m.tipo === 'saida') recebidoPorForma[m.formaPagamento] = (recebidoPorForma[m.formaPagamento] || 0) - Number(m.valor || 0);
+    });
+    const estornos = Object.entries(recebidoPorForma).filter(([, v]) => v > 0.004);
+    const totalEstorno = estornos.reduce((s2, [, v]) => s2 + v, 0);
+
+    const activeCaixa = getTodayOpenCaixa();
+    if (estornos.length > 0 && !activeCaixa) {
+        showToast("Abra o caixa de hoje antes de cancelar: esta O.S. tem pagamento a estornar.", "error");
+        return;
+    }
+
+    const msg = `Cancelar a O.S. ${os.numero} (placa ${os.placa})?` +
+        (estornos.length ? `\n\nSerá lançado no caixa de hoje o estorno de ${formatCurrency(totalEstorno)} (${estornos.map(([f, v]) => `${f}: ${formatCurrency(v)}`).join(', ')}).` : '') +
+        (fatDaOS ? `\n\nA O.S. sai da fatura ${fatDaOS.codigo}${fatDaOS.asaas_payment_id ? ' e a cobrança do Asaas dela será cancelada (gere outra depois)' : ''}.` : '');
+    if (!confirm(msg)) return;
+
+    try {
+        if (fatDaOS) await tirarOSDaFatura(os, fatDaOS);
+        for (const [forma, valor] of estornos) {
             const newMov = {
                 caixaId: activeCaixa.id,
                 tipo: "saida",
-                valor: os.valor,
+                valor: Math.round(valor * 100) / 100,
                 descricao: `Estorno OS ${os.numero} (Venda Cancelada)`,
-                formaPagamento: os.formaPagamento,
+                formaPagamento: forma,
                 data: new Date().toISOString(),
                 operador: currentSession.nome,
                 osId: os.id,
                 faturaId: null
             };
-            dbSave('caixa_movimentos', newMov, 'insert');
+            await dbSave('caixa_movimentos', newMov, 'insert');
         }
+
+        const canceladoEm = new Date().toISOString();
+        await dbSave('ordens_servico', {
+            status: "cancelada",
+            canceladoEm,
+            canceladoPor: currentSession.nome
+        }, 'update', os.id);
+        os.status = "cancelada";
+        os.canceladoEm = canceladoEm;
+        os.canceladoPor = currentSession.nome;
+    } catch (err) {
+        console.error("Erro ao cancelar OS:", err);
+        showToast("Não foi possível cancelar a O.S.: " + (err.message || err), "error");
+        renderAtendimentoPage();
+        return;
     }
 
-    os.status = "cancelada";
-    os.canceladoEm = new Date().toISOString();
-    os.canceladoPor = currentSession.nome;
-
-    dbSave('ordens_servico', {
-        status: os.status,
-        canceladoEm: os.canceladoEm,
-        canceladoPor: os.canceladoPor
-    }, 'update', os.id);
-    
-    showToast(`O.S. ${os.numero} cancelada. Venda estornada do caixa.`, "error");
-    logAudit("Cancelamento OS", `Cancelou a OS ${os.numero} (placa ${os.placa}).`);
+    showToast(estornos.length ? `O.S. ${os.numero} cancelada. Estorno de ${formatCurrency(totalEstorno)} lançado no caixa.` : `O.S. ${os.numero} cancelada.`, "success");
+    logAudit("Cancelamento OS", `Cancelou a OS ${os.numero} (placa ${os.placa})${estornos.length ? `, estorno ${formatCurrency(totalEstorno)}` : ''}.`);
     closeOSModal();
     renderAtendimentoPage();
 }
@@ -2876,7 +2172,7 @@ function openEditOSModal(id) {
     }
 
     if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             document.getElementById('edit-os-div-forma-1').value = splitData[0].forma;
             document.getElementById('edit-os-div-valor-1').value = splitData[0].valor.toFixed(2);
@@ -2977,6 +2273,7 @@ async function submitEditOSForm(event) {
     }
 
     let finalObs = obs;
+    let pagamentoDividido = null;
     if (pagamento === 'dividido') {
         const f1 = document.getElementById('edit-os-div-forma-1').value;
         const v1 = parseFloat(document.getElementById('edit-os-div-valor-1').value) || 0;
@@ -2988,31 +2285,18 @@ async function submitEditOSForm(event) {
             return;
         }
         
-        if (Math.abs((v1 + v2) - valor) > 0.01) {
+        if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(valor)) {
             showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
             return;
         }
         
         finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+        pagamentoDividido = [{ forma: f1, valor: v1 }, { forma: f2, valor: v2 }];
     }
 
     const service = db.servicos.find(s => s.id === serviceId);
-    
-    os.clienteNome = nome;
-    os.clienteCpfCnpj = cpf;
-    os.clienteCellular = cel;
-    os.clienteCelular = cel;
-    os.osFinalidade = finalidade;
-    os.clienteEndereco = endereco;
-    os.placa = placa;
-    os.renavam = renavam;
-    os.veiculoChassi = chassi;
-    os.veiculoMarcaModelo = marcaModelo;
-    os.veiculoAno = ano;
-    os.veiculoTipo = veiculoTipo || null;
-    os.observacoes = finalObs;
-    os.servicoId = service.id;
-    
+    if (!service) { showToast("Serviço inválido.", "error"); return; }
+
     // Classificação dinâmica do serviço em CAPS LOCK na edição (Item A.2)
     let finalSvcName = service.nome.toUpperCase();
     if (os.clienteTipo === 'parceiro') {
@@ -3020,137 +2304,111 @@ async function submitEditOSForm(event) {
         else if (service.id === 7) finalSvcName = "VISTORIA COMBO";
         else if (service.id === 8) finalSvcName = "VISTORIA DE TRANSFERÊNCIA COMBO";
     }
-    os.servicoNome = finalSvcName;
-    
-    os.valor = valor;
-    os.formaPagamento = pagamento;
-    os.parcelas = parcelas;
-    os.detranRegistrado = detran;
 
-    // Regenerate contract text
-    os.contratoTexto = generateContractText(os);
-    if (os.contratoHash) {
-        // If it was already accepted, recalculate the hash with the new data
-        os.contratoHash = generateSignatureHash(os.contratoTexto);
-    }
+    // A comparação é feita ANTES de mexer na OS. Antes o sistema alterava o
+    // registro e depois o comparava com ele mesmo, então nunca via mudança e a
+    // trava de caixa fechado não funcionava.
+    const divisaoAntes = JSON.stringify(divisaoPagamento(os) || null);
+    const divisaoDepois = JSON.stringify(pagamentoDividido);
+    const mudouFinanceiro =
+        Math.abs(Number(os.valor) - valor) > 0.004 ||
+        os.formaPagamento !== pagamento ||
+        (os.parcelas || null) !== (parcelas || null) ||
+        divisaoAntes !== divisaoDepois;
 
-    os.pago = (pagamento !== 'faturamento');
-
-    // Sincronizar o Caixa Diário na Edição da OS
-    const activeCaixa = getTodayOpenCaixa();
-
-    // Verificar se algum movimento desta OS está em um caixa fechado
-    const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
-    const temCaixaFechado = existingMovs.some(m => {
+    const movsDaVenda = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
+    const temCaixaFechado = movsDaVenda.some(m => {
         const caixa = db.caixa_diario.find(c => c.id === m.caixaId);
         return caixa && caixa.status === 'fechado';
     });
-
-    if (temCaixaFechado) {
-        // Se tem caixa fechado, checar se houve mudança financeira
-        const originalOS = db.ordens_servico.find(o => o.id === os.id);
-        if (originalOS && (originalOS.valor !== os.valor || originalOS.formaPagamento !== os.formaPagamento || originalOS.servicoId !== os.servicoId)) {
-            showToast("Erro: Esta OS possui movimentações vinculadas a um Caixa Diário FECHADO. Não é permitido alterar valores ou formas de pagamento.", "error");
-            return;
-        }
-        console.log("OS vinculada a caixa fechado editada (apenas campos cadastrais). Ignorando sincronização de caixa.");
-    } else {
-        try {
-            // Deletar todas as movimentações de entrada do caixa associadas a esta OS e recriar
-            for (const m of existingMovs) {
-                if (window.useSupabase) {
-                    await sbDeleteWhere('caixa_movimentos', 'id', m.id);
-                }
-                db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
-            }
-
-            if (os.reapresentacaoOrigemID) {
-                // Se for reteste, não deve ter entrada no caixa diário.
-            } else if (activeCaixa && os.pago) {
-                if (os.formaPagamento === 'dividido') {
-                    const splitData = parseDividedPayment(os.observacoes);
-                    if (splitData) {
-                        for (let i = 0; i < splitData.length; i++) {
-                            const part = splitData[i];
-                            const newMov = {
-                                caixaId: activeCaixa.id,
-                                tipo: "entrada",
-                                valor: part.valor,
-                                descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
-                                formaPagamento: part.forma,
-                                data: new Date().toISOString(),
-                                operador: currentSession.nome,
-                                osId: os.id,
-                                faturaId: null
-                            };
-                            if (window.useSupabase) {
-                                const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                                db.caixa_movimentos.unshift(insertedMov);
-                            } else {
-                                newMov.id = db.caixa_movimentos.length + 1;
-                                db.caixa_movimentos.push(newMov);
-                            }
-                        }
-                    }
-                } else {
-                    const newMov = {
-                        caixaId: activeCaixa.id,
-                        tipo: "entrada",
-                        valor: os.valor,
-                        descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: os.formaPagamento,
-                        data: new Date().toISOString(),
-                        operador: currentSession.nome,
-                        osId: os.id,
-                        faturaId: null
-                    };
-                    if (window.useSupabase) {
-                        const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                        db.caixa_movimentos.unshift(insertedMov);
-                    } else {
-                        newMov.id = db.caixa_movimentos.length + 1;
-                        db.caixa_movimentos.push(newMov);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Erro ao sincronizar movimentação de caixa da OS editada:", err);
-        }
+    if (mudouFinanceiro && temCaixaFechado) {
+        showToast("Esta OS tem lançamento em Caixa Diário FECHADO: valor e forma de pagamento não podem ser alterados aqui. Use \"Alterar forma de pagamento\" com justificativa.", "error");
+        return;
+    }
+    const activeCaixa = getTodayOpenCaixa();
+    if (mudouFinanceiro && !activeCaixa && !os.reapresentacaoOrigemID) {
+        showToast("Abra o caixa de hoje para alterar valor ou forma de pagamento.", "error");
+        return;
     }
 
-    await dbSave('ordens_servico', {
-        clienteNome: os.clienteNome,
-        clienteCpfCnpj: os.clienteCpfCnpj,
-        clienteCelular: os.clienteCelular,
-        osFinalidade: os.osFinalidade,
-        clienteEndereco: os.clienteEndereco,
-        placa: os.placa,
-        renavam: os.renavam,
-        veiculoChassi: os.veiculoChassi,
-        veiculoMarcaModelo: os.veiculoMarcaModelo,
-        veiculoAno: os.veiculoAno,
-        veiculoTipo: os.veiculoTipo,
-        observacoes: os.observacoes,
-        servicoId: os.servicoId,
-        servicoNome: os.servicoNome,
-        valor: os.valor,
-        pago: os.pago,
-        formaPagamento: os.formaPagamento,
-        parcelas: os.parcelas,
-        detranRegistrado: os.detranRegistrado,
-        contratoTexto: os.contratoTexto,
-        contratoHash: os.contratoHash
-    }, 'update', os.id);
-    
+    const alteracoes = {
+        clienteNome: nome,
+        clienteCpfCnpj: cpf,
+        clienteCelular: cel,
+        osFinalidade: finalidade,
+        clienteEndereco: endereco,
+        placa,
+        renavam,
+        veiculoChassi: chassi,
+        veiculoMarcaModelo: marcaModelo,
+        veiculoAno: ano,
+        veiculoTipo: veiculoTipo || null,
+        observacoes: finalObs,
+        servicoId: service.id,
+        servicoNome: finalSvcName,
+        valor,
+        detranRegistrado: detran
+    };
+    // O contrato assinado não é reescrito: é o texto que o cliente aceitou.
+    // Só uma OS ainda sem assinatura tem o texto regenerado.
+    if (!os.contratoHash) {
+        alteracoes.contratoTexto = generateContractText({ ...os, ...alteracoes, formaPagamento: pagamento, parcelas });
+    }
+
+    try {
+        if (mudouFinanceiro) {
+            const osNova = { ...os, ...alteracoes, formaPagamento: pagamento, parcelas, pagamentoDividido, pago: pagamento !== 'faturamento' };
+            // Troca os lançamentos da venda e a forma de pagamento numa transação
+            const { data: r, error } = await supabaseClient.rpc('alterar_pagamento_os', {
+                p_os_id: os.id,
+                p_os: { formaPagamento: pagamento, pago: osNova.pago, parcelas, observacoes: finalObs, pagamentoDividido },
+                p_movimentos: activeCaixa ? movimentosDaVendaOS(osNova, activeCaixa) : [],
+                p_por: currentSession.nome
+            });
+            if (error) throw error;
+            aplicarResultadoAlteracaoPagamento(os, r);
+        }
+        await dbSave('ordens_servico', alteracoes, 'update', os.id);
+        Object.assign(os, alteracoes, { formaPagamento: pagamento, parcelas, pagamentoDividido, pago: pagamento !== 'faturamento' });
+    } catch (err) {
+        console.error("Erro ao salvar a edição da OS:", err);
+        showToast("A edição da OS não foi salva: " + (err.message || err), "error");
+        return;
+    }
+
     showToast("Ordem de Serviço editada com sucesso!", "success");
-    logAudit("Edição OS", `Editou os dados da OS ${os.numero} (Placa: ${os.placa}).`);
-    
+    logAudit("Edição OS", `Editou os dados da OS ${os.numero} (Placa: ${os.placa})${mudouFinanceiro ? ` — pagamento: ${pagamento}, valor ${formatCurrency(valor)}` : ''}.`);
+
     closeEditOSModal();
     closeOSModal();
     renderAtendimentoPage();
     if (document.getElementById('panel-historico').classList.contains('active')) {
         renderHistorico();
     }
+}
+
+// Aplica no cache local o resultado das funções alterar_pagamento_os /
+// remover_os_da_fatura do banco.
+function aplicarResultadoAlteracaoPagamento(os, r) {
+    if (!r) return;
+    const apagados = new Set((r.apagados || []).map(Number));
+    if (apagados.size) db.caixa_movimentos = db.caixa_movimentos.filter(m => !apagados.has(Number(m.id)));
+    (r.movimentos || []).forEach(m => db.caixa_movimentos.unshift(prepareRecordFromDb('caixa_movimentos', m)));
+    const f = r.fatura && r.fatura.fatura_id ? r.fatura : (r.fatura_id ? r : null);
+    if (f) {
+        if (f.fatura_apagada) db.faturas = db.faturas.filter(x => x.id !== f.fatura_id);
+        else {
+            const fat = db.faturas.find(x => x.id === f.fatura_id);
+            if (fat) { fat.ordensIds = (f.ordensIds || []).map(Number); fat.valorTotal = Number(f.valorTotal) || 0; }
+        }
+        if (f.credito_devolvido) {
+            if (!db.parceiros_creditos) db.parceiros_creditos = [];
+            db.parceiros_creditos.push(normalizeRecord('parceiros_creditos', f.credito_devolvido));
+        }
+        (db.parceiros_creditos || []).forEach(c => { if (f.fatura_apagada && c.faturaId === f.fatura_id) c.faturaId = null; });
+    }
+    if (r.os) Object.assign(os, prepareRecordFromDb('ordens_servico', r.os));
+    else os.faturaId = null;
 }
 
 
@@ -3170,6 +2428,19 @@ function renderHistoricoPage() {
     renderHistorico();
 }
 
+// A carga inicial traz só os últimos meses (ver JANELA_MESES em supabase-db.js).
+// Quando a tela precisa de período anterior (ou de busca em todo o histórico),
+// busca o restante uma vez e desenha de novo.
+function garantirHistoricoCompleto(precisa, redesenhar) {
+    if (!precisa || window.historicoCompleto || typeof carregarHistoricoCompleto !== 'function' || window.__carregandoHistorico) return;
+    window.__carregandoHistorico = true;
+    showToast("Buscando o histórico completo...", "info");
+    carregarHistoricoCompleto()
+        .then(() => { if (typeof redesenhar === 'function') redesenhar(); })
+        .catch(e => { console.error(e); showToast("Não foi possível buscar o histórico anterior: " + (e.message || e), "error"); })
+        .finally(() => { window.__carregandoHistorico = false; });
+}
+
 // Lista filtrada do Histórico Geral (mesma fonte da tela e do relatório).
 function getHistoricoFilteredList() {
     const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -3181,6 +2452,8 @@ function getHistoricoFilteredList() {
     const dataFimFilter = g('hist-filter-data-fim');
     const pagamentoFilter = g('hist-filter-pagamento');
     const statusFilter = g('hist-filter-status');
+    const corte = typeof inicioJanelaCarga === 'function' ? inicioJanelaCarga() : '';
+    garantirHistoricoCompleto(!!(placaFilter || clienteFilter || valorFilter || (dataIniFilter && dataIniFilter < corte)), renderHistorico);
 
     return db.ordens_servico.filter(o => {
         if (o.unidadeId !== activeUnitId) return false;
@@ -3192,7 +2465,7 @@ function getHistoricoFilteredList() {
         }
         if (servicoFilter && o.servicoId !== parseInt(servicoFilter)) return false;
         if (valorFilter && Math.abs(o.valor - parseFloat(valorFilter)) > 0.01) return false;
-        const osDate = o.criadoEm.split('T')[0];
+        const osDate = getLocalDateString(o.criadoEm);
         if (dataIniFilter && osDate < dataIniFilter) return false;
         if (dataFimFilter && osDate > dataFimFilter) return false;
         if (pagamentoFilter && o.formaPagamento !== pagamentoFilter) return false;
@@ -3231,15 +2504,15 @@ function renderHistorico() {
 
         return `
             <tr>
-                <td><strong style="color: var(--accent);">${os.numero}</strong></td>
+                <td><strong style="color: var(--accent);">${escHtml(os.numero)}</strong></td>
                 <td>${date} ${time}</td>
                 <td>
-                    <strong>${os.clienteNome}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${os.placa}</small>
+                    <strong>${escHtml(os.clienteNome)}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
-                <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase; font-size: 11px;">${escHtml(os.formaPagamento)}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
@@ -3314,7 +2587,7 @@ function gerarRelatorioHistorico() {
     if (g('hist-filter-pagamento')) filtros.push(`Pagamento: ${g('hist-filter-pagamento')}`);
     if (g('hist-filter-status')) filtros.push(`Status: ${g('hist-filter-status')}`);
 
-    const totalValor = list.reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const totalValor = list.reduce((s, o) => somaCentavos(s, o.valor), 0);
     const meta = [`Registros: ${list.length}    Valor total: ${formatCurrency(totalValor)}`];
     if (filtros.length) meta.push('Filtros: ' + filtros.join('   |   '));
 
@@ -3431,6 +2704,12 @@ async function deleteOS(osId) {
     const os = db.ordens_servico.find(o => o.id === osId);
     if (!os) {
         showToast("Ordem de Servico nao localizada.", "error");
+        return;
+    }
+
+    if (os.faturaId) {
+        const fat = db.faturas.find(f => f.id === os.faturaId);
+        showToast(`Esta OS está na fatura ${fat ? fat.codigo : '#' + os.faturaId}. Cancele a OS (ela sai da fatura) em vez de excluir.`, "error");
         return;
     }
 
@@ -3922,202 +3201,108 @@ function printContratoPreview() {
     window.print();
 }
 
-async function confirmContratoAndSaveOS() {
-    try {
-        if (!window.pendingOS) return;
-        
-        const activeCaixa = getTodayOpenCaixa();
-        if (!activeCaixa) {
-            showToast("Erro: O caixa foi fechado durante a operação.", "error");
-            return;
-        }
-        
-        const os = window.pendingOS;
-        let signatureHash = "";
-        
-        if (window.useSupabase) {
-            // Fluxo Banco de Dados Supabase (Garante IDs sequenciais únicos sem colisão)
-            const osToInsert = { ...os };
-            delete osToInsert.id;
-            osToInsert.numero = "OS-TEMP";
-            osToInsert.contratoHash = null;
-            osToInsert.contratoAceitoEm = null;
-            osToInsert.contratoTexto = "";
-            if (os.pago) {
-                osToInsert.status = "paga";
-            }
-            
-            // 1. Salvar no Supabase inicialmente para obter o ID incremental real
-            const inserted = await sbInsert('ordens_servico', osToInsert);
-            os.id = inserted.id;
-            os.numero = generateOSNumber(inserted.id);
-            os.status = osToInsert.status;
-            
-            // 2. Gerar hash de assinatura e texto com dados de assinatura e número reais
-            signatureHash = generateSignatureHash(os.contratoTexto);
-            os.contratoHash = signatureHash;
-            os.contratoAceitoEm = new Date().toISOString();
-            os.contratoTexto = generateContractText(os);
-            
-            // 3. Atualizar a OS com os dados do contrato assinado no Supabase
-            await sbUpdate('ordens_servico', os.id, {
-                numero: os.numero,
-                contratoHash: os.contratoHash,
-                contratoAceitoEm: os.contratoAceitoEm,
-                contratoTexto: os.contratoTexto
-            });
-            
-            // 4. Fluxo de Reapresentação
-            if (os.reapresentacaoOrigemID) {
-                const originalOS = db.ordens_servico.find(o => o.id === os.reapresentacaoOrigemID);
-                if (originalOS) {
-                    originalOS.reapresentadaData = new Date().toISOString();
-                    await sbUpdate('ordens_servico', originalOS.id, {
-                        reapresentadaData: originalOS.reapresentadaData
-                    });
-                }
-                
-                window.activeRecheckOrigemId = null;
-                
-                // Restaurar opções de pagamento padrão
-                const paymentSelect = document.getElementById('os-pagamento');
-                paymentSelect.innerHTML = `
-                    <option value="pix">Pix (Transferência Online)</option>
-                    <option value="debito">Cartão de Débito</option>
-                    <option value="credito">Cartão de Crédito à Vista</option>
-                    <option value="credito_parcelado">Crédito Parcelado</option>
-                    <option value="especie">Dinheiro (Espécie)</option>
-                    <option value="dividido">Dividido em 2 formas</option>
-                    <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
-                `;
-            } else {
-                // Fluxo padrão: Lançamento de Caixa (Tudo gera caixa, incluindo faturamento)
-                if (os.formaPagamento === 'dividido') {
-                    const splitData = parseDividedPayment(os.observacoes);
-                    if (splitData) {
-                        for (let i = 0; i < splitData.length; i++) {
-                            const part = splitData[i];
-                            const newMov = {
-                                caixaId: activeCaixa.id,
-                                tipo: "entrada",
-                                valor: part.valor,
-                                descricao: `[DIVIDIDO ${i+1}/2] Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
-                                formaPagamento: part.forma,
-                                data: new Date().toISOString(),
-                                operador: currentSession.nome,
-                                osId: os.id,
-                                faturaId: null
-                            };
-                            const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                            db.caixa_movimentos.unshift(insertedMov);
-                        }
-                    }
-                } else {
-                    const newMov = {
-                        caixaId: activeCaixa.id,
-                        tipo: "entrada",
-                        valor: os.valor,
-                        descricao: `Serviço ${(os.servicoNome || 'Vistoria').split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: os.formaPagamento,
-                        data: new Date().toISOString(),
-                        operador: currentSession.nome,
-                        osId: os.id,
-                        faturaId: null
-                    };
-                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                    db.caixa_movimentos.unshift(insertedMov);
-                }
-            }
-            
-            // Inserir no cache local
-            db.ordens_servico.unshift(os);
-            
-        } else {
-            // Fluxo Original LocalStorage (Fallback / Offline)
-            signatureHash = generateSignatureHash(os.contratoTexto);
-            os.contratoHash = signatureHash;
-            os.contratoAceitoEm = new Date().toISOString();
-            os.contratoTexto = generateContractText(os);
-            
-            if (os.reapresentacaoOrigemID) {
-                db.ordens_servico.unshift(os);
-                
-                const originalOS = db.ordens_servico.find(o => o.id === os.reapresentacaoOrigemID);
-                if (originalOS) {
-                    originalOS.reapresentadaData = new Date().toISOString();
-                }
-                
-                window.activeRecheckOrigemId = null;
-                
-                const paymentSelect = document.getElementById('os-pagamento');
-                paymentSelect.innerHTML = `
-                    <option value="pix">Pix (Transferência Online)</option>
-                    <option value="debito">Cartão de Débito</option>
-                    <option value="credito">Cartão de Crédito à Vista</option>
-                    <option value="credito_parcelado">Crédito Parcelado</option>
-                    <option value="especie">Dinheiro (Espécie)</option>
-                    <option value="dividido">Dividido em 2 formas</option>
-                    <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
-                `;
-            } else {
-                if (os.pago) {
-                    os.status = "paga";
-                    if (os.formaPagamento === 'dividido') {
-                        const splitData = parseDividedPayment(os.observacoes);
-                        if (splitData) {
-                            for (let i = 0; i < splitData.length; i++) {
-                                const part = splitData[i];
-                                const movId = db.caixa_movimentos.length + 1;
-                                db.caixa_movimentos.push({
-                                    id: movId,
-                                    caixaId: activeCaixa.id,
-                                    tipo: "entrada",
-                                    valor: part.valor,
-                                    descricao: `[DIVIDIDO ${i+1}/2] Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                                    formaPagamento: part.forma,
-                                    data: new Date().toISOString(),
-                                    operador: currentSession.nome,
-                                    osId: os.id,
-                                    faturaId: null
-                                });
-                            }
-                        }
-                    } else {
-                        const movId = db.caixa_movimentos.length + 1;
-                        db.caixa_movimentos.push({
-                            id: movId,
-                            caixaId: activeCaixa.id,
-                            tipo: "entrada",
-                            valor: os.valor,
-                            descricao: `Serviço ${os.servicoNome.split(' — ')[0]} (Placa: ${os.placa})`,
-                            formaPagamento: os.formaPagamento,
-                            data: new Date().toISOString(),
-                            operador: currentSession.nome,
-                            osId: os.id,
-                            faturaId: null
-                        });
-                    }
-                }
-                
-                db.ordens_servico.unshift(os);
-            }
-            saveDatabase();
-        }
-        
-        showToast(`O.S. registrada e contrato assinado! Código: ${os.numero}`, "success");
-        logAudit("Abertura OS", `Abriu a ordem ${os.numero} com contrato firmado (Hash: ${signatureHash}).`);
-        
-        closeContratoModal();
-        printContract(os);
-        
-        // Salvar Solicitante Recorrente (Item C)
-        saveOSRecurringSolicitor(os);
+// Opções de pagamento do formulário de OS (a reapresentação troca por "Isento")
+function restaurarOpcoesPagamentoOS() {
+    const paymentSelect = document.getElementById('os-pagamento');
+    if (!paymentSelect) return;
+    paymentSelect.innerHTML = `
+        <option value="pix">Pix (Transferência Online)</option>
+        <option value="debito">Cartão de Débito</option>
+        <option value="credito">Cartão de Crédito à Vista</option>
+        <option value="credito_parcelado">Crédito Parcelado</option>
+        <option value="especie">Dinheiro (Espécie)</option>
+        <option value="dividido">Dividido em 2 formas</option>
+        <option value="faturamento" id="opt-pagamento-faturamento" disabled>Faturamento Mensal (Apenas parceiros habilitados)</option>
+    `;
+}
 
+// Lançamentos de caixa da venda de uma OS nova (sem osId: o banco preenche)
+function movimentosDaVendaOS(os, caixa) {
+    if (os.reapresentacaoOrigemID || os.formaPagamento === 'isento') return [];
+    const base = {
+        caixaId: caixa.id,
+        tipo: "entrada",
+        data: new Date().toISOString(),
+        operador: currentSession.nome,
+        faturaId: null
+    };
+    const servico = (os.servicoNome || 'Vistoria').split(' — ')[0];
+    if (os.formaPagamento === 'dividido') {
+        const partes = divisaoPagamento(os) || [];
+        return partes.map((part, i) => ({
+            ...base,
+            valor: part.valor,
+            formaPagamento: part.forma,
+            descricao: `[DIVIDIDO ${i + 1}/2] Serviço ${servico} (Placa: ${os.placa})`
+        }));
+    }
+    // A OS faturada também é registrada no caixa do dia (conferência com o
+    // DETRAN), mas não conta como dinheiro recebido: ver movEhRecebimento.
+    return [{ ...base, valor: os.valor, formaPagamento: os.formaPagamento, descricao: `Serviço ${servico} (Placa: ${os.placa})` }];
+}
+
+async function confirmContratoAndSaveOS() {
+    if (!window.pendingOS) return;
+    // Trava contra clique duplo: cada clique criaria uma OS
+    if (window.__salvandoOS) return;
+    const btnConfirmar = document.getElementById('btn-confirmar-contrato');
+
+    const activeCaixa = getTodayOpenCaixa();
+    if (!activeCaixa) {
+        showToast("Erro: O caixa foi fechado durante a operação.", "error");
+        return;
+    }
+
+    window.__salvandoOS = true;
+    if (btnConfirmar) btnConfirmar.disabled = true;
+    const os = { ...window.pendingOS };
+    try {
+        // 1. O banco reserva o id; o contrato já sai com o número definitivo
+        const { data: idReservado, error: erroId } = await supabaseClient.rpc('reservar_id_os');
+        if (erroId) throw erroId;
+        os.id = Number(idReservado);
+        os.numero = generateOSNumber(os.id);
+        if (os.pago) os.status = "paga";
+        os.contratoAceitoEm = new Date().toISOString();
+        os.contratoTexto = generateContractText(os);
+        os.contratoHash = generateSignatureHash(os.contratoTexto);
+
+        // 2. OS, lançamentos de caixa e marca da reapresentação numa transação só
+        const { data: criado, error } = await supabaseClient.rpc('criar_os', {
+            p_os: prepareRecordForDb('ordens_servico', os),
+            p_movimentos: movimentosDaVendaOS(os, activeCaixa)
+        });
+        if (error) throw error;
+
+        const osSalva = prepareRecordFromDb('ordens_servico', criado.os);
+        (criado.movimentos || []).forEach(m => db.caixa_movimentos.unshift(prepareRecordFromDb('caixa_movimentos', m)));
+        if (osSalva.reapresentacaoOrigemID) {
+            const original = db.ordens_servico.find(o => o.id === osSalva.reapresentacaoOrigemID);
+            if (original) original.reapresentadaData = new Date().toISOString();
+        }
+        db.ordens_servico.unshift(osSalva);
+        window.pendingOS = null;
+
+        showToast(`O.S. registrada e contrato assinado! Código: ${osSalva.numero}`, "success");
+        logAudit("Abertura OS", `Abriu a ordem ${osSalva.numero} com contrato firmado (Hash: ${osSalva.contratoHash}).`);
+
+        closeContratoModal();
+        printContract(osSalva);
+        saveOSRecurringSolicitor(osSalva);
         clearOSForm();
         renderAtendimentoPage();
+        if (typeof window.syncDetranFloatingPayable === 'function') {
+            window.syncDetranFloatingPayable().catch(err => console.error("[DETRAN Sincronizador] Erro:", err));
+        }
     } catch (e) {
         console.error("Erro ao confirmar contrato e salvar O.S.:", e);
-        alert("Ocorreu um erro ao confirmar o contrato e salvar a O.S.:\n" + e.message + "\n" + e.stack);
+        const semRede = typeof erroDeRede === 'function' && erroDeRede(e);
+        showToast(semRede
+            ? "Sem conexão: a O.S. NÃO foi registrada. Verifique a internet e confirme de novo."
+            : "A O.S. não foi registrada: " + (e.message || e), "error");
+    } finally {
+        window.__salvandoOS = false;
+        if (btnConfirmar) btnConfirmar.disabled = false;
     }
 }
 
@@ -4210,13 +3395,16 @@ function switchCaixaTab(tab, btn) {
     if (tab === 'historico') renderCaixaHistorico();
 }
 
+// Entrada que é dinheiro recebido de fato. A OS faturada fica registrada no
+// caixa do dia do atendimento só para conferência com o DETRAN; o dinheiro dela
+// entra uma única vez, na baixa da fatura. Contar as duas dobrava a receita.
+function movEhRecebimento(m) {
+    return !!m && m.tipo === 'entrada' && m.formaPagamento !== 'faturamento' && m.formaPagamento !== 'isento';
+}
+
 // Retorna a data em formato YYYY-MM-DD considerando o fuso horário local do navegador
 function getLocalDateString(dateInput) {
-    const d = new Date(dateInput);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return diaSP(dateInput);
 }
 
 function getOperativeDate() {
@@ -4230,55 +3418,66 @@ function getTodayOpenCaixa() {
     if (window.modoDiaReaberto && window.dataDiaReaberto) {
         return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === window.dataDiaReaberto && c.status === "aberto");
     }
-    // Busca o caixa aberto da unidade ativa com a data mais recente para evitar conflito com caixas antigos esquecidos abertos
-    const openCaixas = db.caixa_diario.filter(c => c.unidadeId === activeUnitId && c.status === "aberto");
-    if (openCaixas.length === 0) return null;
-    return openCaixas.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
+    // Só o caixa de HOJE recebe as vendas de hoje. Um caixa de outro dia
+    // esquecido aberto recebia tudo e bagunçava os dois fechamentos; ele é
+    // avisado na tela do caixa (caixasAbertosAntigos) para ser fechado.
+    const hoje = getLocalDateString(new Date());
+    return db.caixa_diario.find(c => c.unidadeId === activeUnitId && c.data === hoje && c.status === "aberto") || null;
+}
+
+function caixasAbertosAntigos() {
+    const hoje = getLocalDateString(new Date());
+    return db.caixa_diario
+        .filter(c => c.unidadeId === activeUnitId && c.status === "aberto" && c.data < hoje)
+        .sort((a, b) => String(a.data).localeCompare(String(b.data)));
 }
 
 // Auto-sincronização retroativa de lançamentos de caixa pendentes (Item D)
 async function autoSyncMissingOSMovements() {
     const activeCaixa = getTodayOpenCaixa();
     if (!activeCaixa) return;
+    if (window.__autoSyncCaixa) return;   // uma rodada por vez
+    window.__autoSyncCaixa = true;
+    try {
+        const todayStr = getOperativeDate();
+        const candidatas = db.ordens_servico.filter(os =>
+            getLocalDateString(os.criadoEm) === todayStr &&
+            os.unidadeId === activeCaixa.unidadeId &&
+            os.status !== 'cancelada' &&
+            os.formaPagamento !== 'isento' &&
+            !os.reapresentacaoOrigemID &&
+            os.id > 0 &&
+            !db.caixa_movimentos.some(m => m.osId === os.id));
+        if (candidatas.length === 0) return;
 
-    const todayStr = getOperativeDate();
-    
-    // Filtrar OSs de hoje que não são canceladas (incluindo faturadas)
-    const todayOSList = db.ordens_servico.filter(os => {
-        const osDate = getLocalDateString(os.criadoEm);
-        return osDate === todayStr && os.status !== 'cancelada' && !os.reapresentacaoOrigemID;
-    });
+        // O cache deste aparelho pode estar atrasado: confere no banco quais
+        // OS já têm lançamento (feito por outro aparelho) antes de criar.
+        const { data: noBanco, error } = await supabaseClient.from('caixa_movimentos')
+            .select('*').in('osId', candidatas.map(o => o.id));
+        if (error) { console.warn('Auto-sincronização do caixa adiada:', error.message); return; }
+        (noBanco || []).forEach(m => {
+            if (!db.caixa_movimentos.some(x => x.id === m.id)) db.caixa_movimentos.unshift(prepareRecordFromDb('caixa_movimentos', m));
+        });
+        const comLancamento = new Set((noBanco || []).map(m => m.osId));
 
-    for (const os of todayOSList) {
-        // Verificar se já existe movimentação de caixa para esta OS
-        const hasMov = db.caixa_movimentos.some(m => m.osId === os.id);
-        if (!hasMov) {
+        for (const os of candidatas) {
+            if (comLancamento.has(os.id)) continue;
             console.log(`⚠️ OS ${os.numero} de hoje não possui lançamento no caixa. Sincronizando...`);
-            const newMov = {
-                caixaId: activeCaixa.id,
-                tipo: "entrada",
-                valor: os.valor,
-                descricao: `Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                formaPagamento: os.formaPagamento,
-                data: os.criadoEm, // Mantém a data original de criação da OS
-                operador: os.criadoPor || 'Sistema',
-                osId: os.id,
-                faturaId: null
-            };
-            try {
-                if (window.useSupabase) {
-                    const inserted = await sbInsert('caixa_movimentos', newMov);
-                    db.caixa_movimentos.unshift(inserted);
-                } else {
-                    newMov.id = db.caixa_movimentos.length + 1;
-                    db.caixa_movimentos.push(newMov);
-                    saveDatabase();
+            for (const mov of movimentosDaVendaOS(os, activeCaixa)) {
+                const { data: inserido, error: e2 } = await supabaseClient.from('caixa_movimentos')
+                    .insert({ ...mov, osId: os.id, data: os.criadoEm, operador: os.criadoPor || 'Sistema' }).select().single();
+                if (e2) {
+                    // 23505: outro aparelho lançou no mesmo instante (regra do banco)
+                    if (e2.code !== '23505') console.error(`Erro ao auto-sincronizar OS ${os.numero}:`, e2.message);
+                    continue;
                 }
-                console.log(`✅ OS ${os.numero} sincronizada com o caixa com sucesso!`);
-            } catch (err) {
-                console.error(`Erro ao auto-sincronizar OS ${os.numero}:`, err);
+                db.caixa_movimentos.unshift(prepareRecordFromDb('caixa_movimentos', inserido));
             }
         }
+    } catch (err) {
+        console.error('Erro na auto-sincronização do caixa:', err);
+    } finally {
+        window.__autoSyncCaixa = false;
     }
 }
 
@@ -4298,7 +3497,7 @@ async function renderCaixaPage() {
     // Populate Partner Dropdown in Cash Inflow
     const partnerSelect = document.getElementById('mov-parceiro-select');
     partnerSelect.innerHTML = '<option value="">Selecione...</option>' + 
-        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 
     if (activeCaixa) {
         statusBadgeContainer.innerHTML = `<span class="badge badge-done"><span class="badge-dot"></span> Caixa Aberto</span>`;
@@ -4326,6 +3525,16 @@ async function renderCaixaPage() {
                 </button>
             `;
         }
+    }
+
+    // Caixa de outro dia esquecido aberto: precisa ser fechado no dia dele
+    const antigos = window.modoDiaReaberto ? [] : caixasAbertosAntigos();
+    if (antigos.length) {
+        statusBadgeContainer.innerHTML += antigos.map(c => `
+            <div style="margin-top:8px; padding:8px 12px; border-radius:6px; background:rgba(239,68,68,.12); color:var(--danger); font-size:12px; font-weight:600;">
+                O caixa de ${formatDateBr(c.data)} ficou aberto. Ele não recebe as vendas de hoje; feche-o no dia dele.
+                <button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="enterReopenMode(${c.id})"><i class="ri-lock-line"></i> Ir fechar</button>
+            </div>`).join('');
     }
 
     renderCaixaKPIs(activeCaixa);
@@ -4372,8 +3581,8 @@ async function openTodayCaixaDrawer() {
     if (caixasAnteriores.length > 0) {
         const ultimoCaixa = caixasAnteriores[0];
         const movsUltimo = db.caixa_movimentos.filter(m => m.caixaId === ultimoCaixa.id);
-        const cashPayments = movsUltimo.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-        const cashSangrias = movsUltimo.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const cashPayments = movsUltimo.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const cashSangrias = movsUltimo.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         saldoAberturaEstimado = ultimoCaixa.saldoAbertura + cashPayments - cashSangrias;
     }
 
@@ -4414,12 +3623,12 @@ function renderCaixaKPIs(activeCaixa) {
 
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     
-    const totalEntradas = movs.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     
     // Physical cash balance (Float + cash payments - cash sangrias)
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const finalCashInDrawer = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
 
     const totalBalance = totalEntradas - totalSaidas;
@@ -4460,8 +3669,7 @@ function renderCaixaMovimentos(activeCaixa) {
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
         const osDateLocal = getLocalDateString(os.criadoEm);
-        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
-        const isSameDay = osDateLocal === activeCaixa.data || osDateUTC === activeCaixa.data;
+        const isSameDay = osDateLocal === activeCaixa.data;
         return isSameDay && 
                os.unidadeId === activeCaixa.unidadeId && 
                os.status !== 'cancelada' && 
@@ -4499,10 +3707,10 @@ function renderCaixaMovimentos(activeCaixa) {
             <tr>
                 <td>${time}</td>
                 <td>
-                    <strong>${m.descricao}</strong>
+                    <strong>${escHtml(m.descricao)}</strong>
                     ${isSystem ? `<br><small style="color: var(--accent);">Integrado pelo Sistema</small>` : ''}
                 </td>
-                <td><span style="text-transform: uppercase;">${m.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase;">${escHtml(m.formaPagamento)}</span></td>
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${valEntrada}</td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSaida}</td>
                 <td>
@@ -4535,7 +3743,7 @@ function totalPagoPorCaixa(contaId) {
                             // vínculo também tem contaPagarId nulo
     return (db.caixa_movimentos || [])
         .filter(m => m.tipo === 'saida' && m.contaPagarId === contaId)
-        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+        .reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 }
 
 // Mostra e preenche o seletor de conta quando a saída é pagamento de conta.
@@ -4560,7 +3768,7 @@ function adjustMovNatureza(natureza) {
         const falta = Number(c.valor) - jaPago;
         const venc = c.vencimento ? String(c.vencimento).substring(8, 10) + '/' + String(c.vencimento).substring(5, 7) : '';
         const parcial = jaPago > 0 ? ` — já pago ${formatCurrency(jaPago)}, falta ${formatCurrency(falta)}` : '';
-        return `<option value="${c.id}">${c.descricao} (venc. ${venc}) — ${formatCurrency(c.valor)}${parcial}</option>`;
+        return `<option value="${c.id}">${escHtml(c.descricao)} (venc. ${venc}) — ${formatCurrency(c.valor)}${parcial}</option>`;
     }).join('');
 
     if (abertas.length === 0) {
@@ -4574,7 +3782,7 @@ async function submitCaixaMov(event) {
     if (!activeCaixa) return;
 
     const tipo = document.getElementById('mov-tipo').value;
-    const valor = parseFloat(document.getElementById('mov-valor').value);
+    const valor = lerValorMonetario(document.getElementById('mov-valor').value);
     const desc = document.getElementById('mov-desc').value.trim();
     const forma = document.getElementById('mov-forma-pag').value;
     const partnerId = parseInt(document.getElementById('mov-parceiro-select').value);
@@ -4590,7 +3798,7 @@ async function submitCaixaMov(event) {
         return;
     }
 
-    if (valor <= 0) {
+    if (valor === null || valor <= 0) {
         showToast("Valor do movimento inválido.", "error");
         return;
     }
@@ -4625,7 +3833,7 @@ async function submitCaixaMov(event) {
         if (conta && !conta.pago) {
             const totalPago = totalPagoPorCaixa(contaPagarId);
             if (totalPago >= Number(conta.valor) - 0.005) {
-                const hoje = new Date().toISOString().substring(0, 10);
+                const hoje = diaSP();
                 dbSave('contas_pagar', { pago: true, pagoEm: hoje }, 'update', contaPagarId);
                 showToast(`Conta "${conta.descricao}" quitada e baixada automaticamente.`, "success");
                 logAudit("Baixa automática", `Conta ${conta.descricao} quitada por pagamentos do caixa (${formatCurrency(totalPago)}).`);
@@ -4648,13 +3856,24 @@ async function submitCaixaMov(event) {
     renderCaixaPage();
 }
 
-function deleteCaixaMov(id) {
+async function deleteCaixaMov(id) {
     const index = db.caixa_movimentos.findIndex(m => m.id === id);
     if (index === -1) return;
 
     const mov = db.caixa_movimentos[index];
-    dbSave('caixa_movimentos', null, 'delete', id);
-    
+    const caixa = db.caixa_diario.find(c => c.id === mov.caixaId);
+    if (caixa && caixa.status === 'fechado') {
+        showToast("Este lançamento é de um caixa fechado e não pode ser removido.", "error");
+        return;
+    }
+    if (!confirm(`Remover o lançamento "${mov.descricao}" (${formatCurrency(Number(mov.valor))})?`)) return;
+    try {
+        await dbSave('caixa_movimentos', null, 'delete', id);
+    } catch (err) {
+        showToast("O lançamento NÃO foi removido: " + (err.message || err), "error");
+        return;
+    }
+
     showToast("Lançamento manual removido.", "info");
     logAudit("Remoção Movimento", `Removeu lançamento: ${mov.descricao}`);
     renderCaixaPage();
@@ -4696,8 +3915,7 @@ function generateCashierPdfData(c) {
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
         const osDateLocal = getLocalDateString(os.criadoEm);
-        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
-        const isSameDay = osDateLocal === c.data || osDateUTC === c.data;
+        const isSameDay = osDateLocal === c.data;
         return isSameDay && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
@@ -4722,22 +3940,22 @@ function generateCashierPdfData(c) {
     const entries = allMovs.filter(m => m.tipo === 'entrada');
     const exits = allMovs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = exits.reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
     const diff = c.saldoEspécieInformado - estimatedCash;
 
-    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
-    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
+    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalFaturamento = db.ordens_servico
-        .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(18);
@@ -4864,7 +4082,7 @@ function generateCashierPdfData(c) {
 // e cada OS de serviço ECV precisa ter saído no relatório.
 // ==========================================================
 
-const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDFJS_WORKER = 'js/vendor/pdfjs-3.11.174.worker.min.js';
 
 // Linha do relatório: PLACA MARCA/MODELO DD/MM/AAAA HH:MM NOTA R$ VALOR [OBS] STATUS
 const RE_LAUDO = /([A-Z]{3}\d[A-Z0-9]\d{2})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+(\d+)\s+R\$\s*([\d.,]+)\s+(.*)$/;
@@ -5034,9 +4252,8 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
         if (!servicoGeraLaudoDetran(o.servicoId)) return false;
         if (o.status === 'cancelada' || osEhRetornoDetran(o)) return false;
         if (!iniISO || !fimISO) return true; // sem período legível, compara tudo
-        const d = o.criadoEm ? new Date(o.criadoEm) : null;
-        if (!d) return false;
-        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (!o.criadoEm) return false;
+        const iso = diaSP(o.criadoEm);
         return iso >= iniISO && iso <= fimISO;
     });
 
@@ -5087,9 +4304,7 @@ function auditarRelatorioDetran(laudos, periodo, unidadeId) {
     // compara o valor cobrado. Combos ficam de fora (ver servicoEhCombo). O
     // mesmo dia evita cruzar o mesmo carro vistoriado em datas diferentes.
     const diaLocalDeOS = o => {
-        const d = o.criadoEm ? new Date(o.criadoEm) : null;
-        if (!d) return null;
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return o.criadoEm ? diaSP(o.criadoEm) : null;
     };
     const osPorPlacaDia = new Map();
     osPeriodo.forEach(o => {
@@ -5315,7 +4530,7 @@ function renderPendencias() {
     if (lista.length === 0 && !verResolvidas) { card.style.display = 'none'; return; }
     card.style.display = 'block';
 
-    const taxaEmRisco = abertas.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+    const taxaEmRisco = abertas.reduce((sm, p) => somaCentavos(sm, p.valorTaxa), 0);
     if (contador) {
         contador.textContent = abertas.length > 0
             ? ` — ${abertas.length} em aberto${taxaEmRisco > 0 ? ` (${formatCurrency(taxaEmRisco)} de taxa)` : ''}`
@@ -5338,7 +4553,7 @@ function renderPendencias() {
             <td style="padding: 10px 14px; white-space: nowrap;">
                 <span style="font-size: 11px; font-weight: 700; color: ${cor};">${ROTULO_PENDENCIA[p.tipo] || p.tipo}</span>
             </td>
-            <td style="padding: 10px 14px;">${p.descricao || ''}</td>
+            <td style="padding: 10px 14px;">${escHtml(p.descricao || '')}</td>
             <td style="padding: 10px 14px; white-space: nowrap;">${det}</td>
             <td style="padding: 10px 14px; white-space: nowrap;">${p.detectadaPor || '—'}</td>
             <td style="padding: 10px 14px; text-align: center; font-weight: ${reincidente ? '800' : '400'}; color: ${reincidente ? 'var(--danger)' : 'inherit'};">
@@ -5456,15 +4671,19 @@ async function submitFecharCaixa(event) {
         logAudit("Fechamento com pendência", `Fechou o caixa com ${pendentes.length} OS em aberto: ${pendentes.map(o => o.numero).join(', ')}.`);
     }
 
-    const saldoFisico = parseFloat(document.getElementById('fechar-saldo-fisico').value);
+    const saldoFisico = lerValorMonetario(document.getElementById('fechar-saldo-fisico').value);
+    if (saldoFisico === null || saldoFisico < 0) {
+        showToast("Informe o saldo em dinheiro contado na gaveta (pode ser 0,00).", "error");
+        return;
+    }
     
     // Calculate estimated cash balance in box
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const estimatedCash = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const estimatedCash = (paraCentavos(activeCaixa.saldoAbertura) + paraCentavos(cashPayments) - paraCentavos(cashSangrias)) / 100;
 
-    const diff = saldoFisico - estimatedCash;
+    const diff = (paraCentavos(saldoFisico) - paraCentavos(estimatedCash)) / 100;
 
     // AUDITORIA: lê o PDF do DETRAN que o operador acabou de anexar e compara
     // com as OS registradas. Falha na leitura não impede o fechamento — o PDF
@@ -5525,7 +4744,7 @@ async function submitFecharCaixa(event) {
             const abertasAgora = osEmAbertoDaUnidade(activeCaixa.unidadeId);
             const itens = pendenciasDaAuditoria(auditoria, abertasAgora);
             const chavesHoje = new Set(itens.map(i => i.chave));
-            const hojeISO = new Date().toISOString().substring(0, 10);
+            const hojeISO = diaSP();
             const quem = currentSession ? currentSession.nome : 'Sistema';
 
             const resolvidas = await resolverPendenciasCorrigidas(activeCaixa.unidadeId, chavesHoje, quem);
@@ -5606,37 +4825,30 @@ async function submitFecharCaixa(event) {
                 return;
             }
 
-            activeCaixa.status = "fechado";
-            activeCaixa.saldoEspécieInformado = saldoFisico;
-            activeCaixa.fechadoPor = currentSession.nome;
-            activeCaixa.fechadoEm = new Date().toISOString();
-            activeCaixa.pdfConsolidado = base64Pdf;
-
+            // Grava primeiro; a tela só mostra o caixa fechado se o banco gravou
+            const fechadoEm = new Date().toISOString();
+            const fechamento = {
+                status: "fechado",
+                saldoEspécieInformado: saldoFisico,
+                fechadoPor: currentSession.nome,
+                fechadoEm,
+                pdfConsolidado: base64Pdf
+            };
             try {
-                // Tentativa de salvar o fechamento completo com o PDF no Supabase
-                await dbSave('caixa_diario', {
-                    status: "fechado",
-                    saldoEspécieInformado: saldoFisico,
-                    fechadoPor: currentSession.nome,
-                    fechadoEm: activeCaixa.fechadoEm,
-                    pdfConsolidado: base64Pdf
-                }, 'update', activeCaixa.id);
+                await dbSave('caixa_diario', fechamento, 'update', activeCaixa.id);
             } catch (dbErr) {
-                console.warn("⚠️ Erro ao salvar fechamento completo com PDF no Supabase (limite de payload ou rede). Tentando salvar sem o PDF para garantir o fechamento...", dbErr);
+                console.warn("⚠️ Erro ao salvar fechamento com PDF (limite de payload ou rede). Tentando sem o PDF...", dbErr);
                 try {
-                    // Contingência: salva o fechamento sem o PDF pesado para garantir o status 'fechado' no Supabase
-                    await dbSave('caixa_diario', {
-                        status: "fechado",
-                        saldoEspécieInformado: saldoFisico,
-                        fechadoPor: currentSession.nome,
-                        fechadoEm: activeCaixa.fechadoEm,
-                        pdfConsolidado: null
-                    }, 'update', activeCaixa.id);
-                    showToast("Caixa fechado (PDF salvo apenas no cache local por limite de tamanho).", "warning");
+                    await dbSave('caixa_diario', { ...fechamento, pdfConsolidado: null }, 'update', activeCaixa.id);
+                    fechamento.pdfConsolidado = base64Pdf;   // fica só neste aparelho
+                    showToast("Caixa fechado, mas o PDF consolidado não coube no banco: baixe-o agora pelo histórico deste aparelho.", "warning");
                 } catch (retryErr) {
-                    console.error("❌ Erro crítico ao salvar fechamento de caixa no Supabase:", retryErr);
+                    console.error("❌ Erro crítico ao salvar fechamento de caixa:", retryErr);
+                    showToast("O caixa NÃO foi fechado: o banco não gravou (" + (retryErr.message || retryErr) + "). Tente de novo.", "error");
+                    return;
                 }
             }
+            Object.assign(activeCaixa, fechamento);
 
             const estavaReaberto = window.modoDiaReaberto;
 
@@ -5651,8 +4863,8 @@ async function submitFecharCaixa(event) {
                     let saldoAnterior = 0.00;
                     
                     const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-                    const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                    const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                    const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                    const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                     saldoAnterior = activeCaixa.saldoAbertura + cashPaymentsReaberto - cashSangriasReaberto;
 
                     for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
@@ -5670,8 +4882,8 @@ async function submitFecharCaixa(event) {
                         }
 
                         const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
-                        const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                        const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                        const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                        const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                         saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
                     }
                 }
@@ -5706,15 +4918,15 @@ async function submitFecharCaixa(event) {
             const unidadeNomeFecha = (db.unidades.find(u => u.id === activeCaixa.unidadeId) || {}).nome || 'Unidade';
             const horaFecha = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const movsFecha = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-            const entradasTotaisFecha = movsFecha.filter(m => m.tipo === 'entrada').reduce((s, m) => s + (Number(m.valor) || 0), 0);
-            const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => s + (Number(m.valor) || 0), 0);
+            const entradasTotaisFecha = movsFecha.filter(movEhRecebimento).reduce((s, m) => somaCentavos(s, m.valor), 0);
+            const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => somaCentavos(s, m.valor), 0);
             const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
             // Aviso de inconsistência: repete TODO DIA enquanto não for corrigida,
             // e mostra há quantos fechamentos ela vem sendo arrastada.
             const emAberto = pendenciasAbertas(activeCaixa.unidadeId);
             let alertaPendentes = '';
             if (emAberto.length > 0) {
-                const taxaEmRisco = emAberto.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+                const taxaEmRisco = emAberto.reduce((sm, p) => somaCentavos(sm, p.valorTaxa), 0);
                 const antigas = emAberto.filter(p => (Number(p.vezesIgnorada) || 1) > 1);
                 const linhas = emAberto.slice(0, 8).map(p => {
                     const v = Number(p.vezesIgnorada) || 1;
@@ -5741,6 +4953,7 @@ async function submitFecharCaixa(event) {
 }
 
 function renderCaixaHistorico() {
+    garantirHistoricoCompleto(true, renderCaixaHistorico);
     const tbody = document.getElementById('caixa-historico-tbody');
     const today = getLocalDateString(new Date());
     const closedCaixas = db.caixa_diario
@@ -5754,15 +4967,15 @@ function renderCaixaHistorico() {
 
     tbody.innerHTML = closedCaixas.map(c => {
         const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-        const totalEntradas = movs.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.valor, 0);
-        const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
+        const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         
-        const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-        const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
         
         const diff = c.saldoEspécieInformado - estimatedCash;
-        const diffColor = diff === 0 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
+        const diffColor = Math.abs(diff) < 0.005 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
 
         const isClosed = c.status === "fechado";
         const statusBadge = isClosed 
@@ -5912,8 +5125,7 @@ function printCaixaById(caixaId) {
     // Injetar vistorias isentas do dia no caixa para correspondência física com o DETRAN
     const isentas = db.ordens_servico.filter(os => {
         const osDateLocal = getLocalDateString(os.criadoEm);
-        const osDateUTC = os.criadoEm ? os.criadoEm.substring(0, 10) : "";
-        const isSameDay = osDateLocal === c.data || osDateUTC === c.data;
+        const isSameDay = osDateLocal === c.data;
         return isSameDay && 
                os.unidadeId === c.unidadeId && 
                os.status !== 'cancelada' && 
@@ -5938,22 +5150,22 @@ function printCaixaById(caixaId) {
     const entries = allMovs.filter(m => m.tipo === 'entrada');
     const exits = allMovs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = exits.reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
     const diff = c.saldoEspécieInformado - estimatedCash;
 
     // Modalidades de Pagamento
-    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
-    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCredito = entries.filter(m => m.formaPagamento === 'credito' || m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
+    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito' || m.formaPagamento === 'credito_parcelado').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalFaturamento = db.ordens_servico
-        .filter(o => o.unidadeId === c.unidadeId && o.criadoEm.startsWith(c.data) && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     // Entries Rows mapping
     let entryRows = entries.map(m => {
@@ -5965,10 +5177,10 @@ function printCaixaById(caixaId) {
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
-                <td style="padding: 6px;">${m.descricao}${obsText}</td>
+                <td style="padding: 6px;">${escHtml(m.descricao)}${obsText}</td>
                 <td style="padding: 6px;"><strong>${plate}</strong></td>
                 <td style="padding: 6px;">${clientType}</td>
-                <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
+                <td style="padding: 6px; text-transform: uppercase;">${escHtml(m.formaPagamento)}</td>
                 <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(m.valor)}</td>
             </tr>
         `;
@@ -5984,8 +5196,8 @@ function printCaixaById(caixaId) {
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
-                <td style="padding: 6px;">${m.descricao}</td>
-                <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
+                <td style="padding: 6px;">${escHtml(m.descricao)}</td>
+                <td style="padding: 6px; text-transform: uppercase;">${escHtml(m.formaPagamento)}</td>
                 <td style="padding: 6px; text-align: right; color: #ef4444; font-weight: 600;">${formatCurrency(m.valor)}</td>
             </tr>
         `;
@@ -6007,8 +5219,8 @@ function printCaixaById(caixaId) {
 
         <div style="margin-bottom: 24px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; border-bottom: 1px solid #000; padding-bottom: 16px;">
             <div>
-                <strong>Unidade Operacional:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Unidade Operacional:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Data de Movimentação:</strong> ${formatDateBr(c.data)}
             </div>
             <div>
@@ -6086,7 +5298,7 @@ function printCaixaById(caixaId) {
                     <strong>Saldo Estimado:</strong> ${formatCurrency(estimatedCash)}<br>
                     <strong>Saldo Apurado:</strong> ${c.status === 'fechado' ? formatCurrency(c.saldoEspécieInformado) : 'AGUARDANDO FECHAMENTO'}<br>
                     <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
-                    <strong>Diferença de Caixa:</strong> <strong style="color: ${diff === 0 ? '#10b981' : '#ef4444'}">${c.status === 'fechado' ? formatCurrency(diff) : 'AGUARDANDO FECHAMENTO'}</strong>
+                    <strong>Diferença de Caixa:</strong> <strong style="color: ${Math.abs(diff) < 0.005 ? '#10b981' : '#ef4444'}">${c.status === 'fechado' ? formatCurrency(diff) : 'AGUARDANDO FECHAMENTO'}</strong>
                 </div>
             </div>
         </div>
@@ -6129,7 +5341,7 @@ function renderFaturamentoKPIs() {
     const openOSList = getUnbilledOSs();
     
     // 1. Valor total consolidado a receber de lotes não fechados
-    const totalAReceber = openOSList.reduce((sum, os) => sum + os.valor, 0);
+    const totalAReceber = openOSList.reduce((sum, os) => somaCentavos(sum, os.valor), 0);
     
     // 2. Quantidade total de OSs pendentes
     const totalOSs = openOSList.length;
@@ -6189,7 +5401,7 @@ function renderFaturamentoKPIs() {
 
     // Novo: Histórico de Faturas Emitidas
     const activeUnitFaturas = db.faturas.filter(f => f.unidadeId === activeUnitId);
-    const totalHistorico = activeUnitFaturas.reduce((sum, f) => sum + f.valorTotal, 0);
+    const totalHistorico = activeUnitFaturas.reduce((sum, f) => somaCentavos(sum, f.valorTotal), 0);
     const totalHistoricoQtd = activeUnitFaturas.length;
 
     const elHistorico = document.getElementById('fat-db-total-historico');
@@ -6208,7 +5420,7 @@ function renderFaturamentoPage() {
 function loadFatPartnersFilter() {
     const select = document.getElementById('fat-parceiro-filter');
     select.innerHTML = '<option value="">Todos os parceiros...</option>' + 
-        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 }
 
 function getUnbilledOSs() {
@@ -6251,16 +5463,16 @@ function renderFatPendentes() {
         return `
             <tr>
                 <td><input type="checkbox" name="fat-select-os" value="${o.id}" onchange="updateFatSelectedSummary()"></td>
-                <td><strong>${o.numero}</strong></td>
+                <td><strong>${escHtml(o.numero)}</strong></td>
                 <td>${formatDateTimeBr(o.criadoEm)}</td>
                 <td>${partner ? partner.nome : '—'}</td>
                 <td>
-                    <strong>${o.placa}</strong><br>
+                    <strong>${escHtml(o.placa)}</strong><br>
                     <small style="color: var(--text-secondary); font-weight: 500;">${removeDividedPaymentTag(o.observacoes) || '—'}</small>
                 </td>
                 <td>${o.servicoNome.split(' — ')[0]}</td>
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${formatCurrency(o.valor)}</td>
-                <td>${o.criadoPor}</td>
+                <td>${escHtml(o.criadoPor)}</td>
             </tr>
         `;
     }).join('');
@@ -6297,11 +5509,11 @@ function openGirarFaturaModal() {
     }
 
     const partner = db.parceiros.find(p => p.id === partnerIds[0]);
-    const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalVal = selectedOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     // Calcular créditos/cortesias disponíveis
     const creditosDisponiveis = (db.parceiros_creditos || []).filter(c => c.parceiroId === partner.id && !c.utilizado);
-    const totalCreditos = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
+    const totalCreditos = creditosDisponiveis.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     const liquidoVal = Math.max(0, totalVal - totalCreditos);
 
     // Populate modal
@@ -6320,8 +5532,8 @@ function openGirarFaturaModal() {
     
     // Autofill dates (oldest and newest of selected OSs)
     const dates = selectedOSs.map(o => new Date(o.criadoEm));
-    const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
-    const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+    const minDate = diaSP(new Date(Math.min(...dates)));
+    const maxDate = diaSP(new Date(Math.max(...dates)));
     document.getElementById('fat-modal-inicio').value = minDate;
     document.getElementById('fat-modal-fim').value = maxDate;
 
@@ -6331,9 +5543,6 @@ function openGirarFaturaModal() {
     document.getElementById('modal-faturamento-fechar').classList.add('active');
 }
 
-function closeFatModal() {
-    document.getElementById('modal-faturamento-fechar').classList.remove('active');
-}
 
 function closeFatModal(e) {
     if (e && e.target !== e.currentTarget) return;
@@ -6453,195 +5662,52 @@ async function submitGirarFatura(event) {
     try {
 
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
-    const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
 
-    // 1. Obter e ordenar créditos/cortesias disponíveis do parceiro (mais antigos primeiro)
-    const creditosDisponiveis = (db.parceiros_creditos || [])
-        .filter(c => c.parceiroId === partnerId && !c.utilizado)
-        .sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
-
-    let valorRestanteFatura = totalVal;
-    let creditosParaUsar = [];
-
-    creditosDisponiveis.forEach(c => {
-        if (valorRestanteFatura <= 0) return;
-
-        if (c.valor <= valorRestanteFatura) {
-            // Consome o crédito inteiro
-            creditosParaUsar.push({
-                credito: c,
-                valorUtilizado: c.valor,
-                sobra: 0
-            });
-            valorRestanteFatura -= c.valor;
-        } else {
-            // Consome parte do crédito (crédito maior que a fatura restante)
-            creditosParaUsar.push({
-                credito: c,
-                valorUtilizado: valorRestanteFatura,
-                sobra: c.valor - valorRestanteFatura
-            });
-            valorRestanteFatura = 0;
-        }
+    // Fatura, vínculo das OS e consumo dos créditos numa transação no banco,
+    // com as OS e os créditos travados: duas pessoas faturando ao mesmo tempo
+    // não pegam as mesmas OS nem o mesmo crédito.
+    const { data: r, error: erroFat } = await supabaseClient.rpc('faturar_os', {
+        p_parceiro: partnerId,
+        p_unidade: activeUnitId,
+        p_inicio: dateIni,
+        p_fim: dateFim,
+        p_os_ids: selectedIds,
+        p_criado_por: currentSession.nome
     });
+    if (erroFat) {
+        showToast("A fatura não foi gerada: " + erroFat.message, "error");
+        return;
+    }
 
-    const totalCreditosAbatidos = creditosParaUsar.reduce((sum, item) => sum + item.valorUtilizado, 0);
-    const liquidoVal = Math.max(0, totalVal - totalCreditosAbatidos);
-    const pagoIntegral = (liquidoVal === 0);
+    const finalInvoice = prepareRecordFromDb('faturas', r.fatura);
+    finalInvoice.ordensIds = (finalInvoice.ordensIds || []).map(Number);
+    const code = finalInvoice.codigo;
+    const totalCreditosAbatidos = Number(r.abatido) || 0;
+    selectedOSs.forEach(os => { os.faturaId = finalInvoice.id; });
+    const usados = new Set((r.creditos_usados || []).map(Number));
+    (db.parceiros_creditos || []).forEach(c => {
+        if (usados.has(Number(c.id))) { c.utilizado = true; c.faturaId = finalInvoice.id; }
+    });
+    if (r.sobra) {
+        if (!db.parceiros_creditos) db.parceiros_creditos = [];
+        db.parceiros_creditos.push(normalizeRecord('parceiros_creditos', r.sobra));
+    }
+    db.faturas.unshift(finalInvoice);
 
-    let finalInvoice;
-    let code = "";
-
-    if (window.useSupabase) {
-        // Fluxo Banco de Dados Supabase (Garante IDs sequenciais únicos sem colisão)
-        const invoiceToInsert = {
-            codigo: "FAT-TEMP",
-            parceiroId: partnerId,
-            unidadeId: activeUnitId,
-            periodoInicio: dateIni,
-            periodoFim: dateFim,
-            valorTotal: liquidoVal,
-            ordensIds: selectedIds,
-            pago: pagoIntegral,
-            pagoEm: pagoIntegral ? new Date().toISOString() : null,
-            criadoEm: new Date().toISOString(),
-            criadoPor: currentSession.nome
-        };
-
-        // 1. Salvar no Supabase inicialmente para obter o ID incremental real
-        const inserted = await sbInsert('faturas', invoiceToInsert);
-        code = generateFaturaCode(inserted.id);
-        
-        // 2. Atualizar a fatura com o código gerado real no Supabase
-        finalInvoice = await sbUpdate('faturas', inserted.id, {
-            codigo: code
-        });
-        
-        // 3. Vincular as OSs faturadas a essa faturaId no Supabase em lote
-        selectedOSs.forEach(os => {
-            os.faturaId = inserted.id;
-        });
-
-        if (window.useSupabase) {
-            const { error: batchError } = await supabaseClient
-                .from('ordens_servico')
-                .update({ faturaId: inserted.id })
-                .in('id', selectedIds);
-
-            if (batchError) {
-                console.error("Erro na vinculação de faturamento em lote no Supabase:", batchError.message);
-                throw batchError;
-            }
+    // --- Gerar PDF (a cobrança Asaas e o envio são ações separadas) ---
+    // Desde 09/2026 o FECHAMENTO do lote NÃO dispara mais Asaas nem WhatsApp:
+    // gerar cobrança, encaminhar e dar baixa são botões deliberados na aba
+    // Histórico (clientes que adiantavam o pagamento eram cobrados indevidamente).
+    try {
+        showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
+        const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
+        if (pdfUrl) {
+            finalInvoice.pdf_url = pdfUrl;
+            await sbUpdate('faturas', finalInvoice.id, { pdf_url: pdfUrl });
         }
-
-        // 4. Registrar baixa nos créditos consumidos e gerar sobras se aplicável
-        for (const item of creditosParaUsar) {
-            if (window.onlineTables['parceiros_creditos']) {
-                await sbUpdate('parceiros_creditos', item.credito.id, {
-                    utilizado: true,
-                    faturaId: inserted.id
-                });
-            }
-            item.credito.utilizado = true;
-            item.credito.faturaId = inserted.id;
-
-            if (item.sobra > 0) {
-                const sobraRecord = {
-                    parceiroId: partnerId,
-                    tipo: "credito",
-                    valor: item.sobra,
-                    descricao: `Saldo remanescente de crédito após faturamento ${code}`,
-                    faturaId: null,
-                    utilizado: false,
-                    criadoEm: new Date().toISOString(),
-                    criadoPor: currentSession.nome
-                };
-                let savedSobra;
-                if (window.onlineTables['parceiros_creditos']) {
-                    savedSobra = await sbInsert('parceiros_creditos', sobraRecord);
-                } else {
-                    const arr = db.parceiros_creditos || [];
-                    sobraRecord.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
-                    savedSobra = sobraRecord;
-                }
-                db.parceiros_creditos.push(savedSobra);
-                normalizeRecord('parceiros_creditos', savedSobra);
-            }
-        }
-        
-        // --- Gerar PDF (a cobrança Asaas e o envio viraram ações SEPARADAS) ---
-        // Desde 09/2026 o FECHAMENTO do lote NÃO dispara mais Asaas nem WhatsApp
-        // automaticamente. Fechar a fatura apenas corta o período (novas OS do
-        // parceiro já caem na próxima fatura por não terem faturaId) e gera o
-        // demonstrativo em PDF. Gerar cobrança automática (Asaas), encaminhar por
-        // e-mail/WhatsApp e dar baixa passaram a ser botões deliberados na aba
-        // Histórico. Motivo: clientes que adiantavam o pagamento por transferência
-        // eram cobrados indevidamente pela cobrança automática disparada no fechamento.
-        try {
-            showToast("Fatura salva! Gerando demonstrativo em PDF...", "info");
-            const pdfUrl = await generateAndUploadInvoicePDF(finalInvoice);
-            if (pdfUrl) {
-                finalInvoice.pdf_url = pdfUrl;
-                // Persiste a URL do PDF se a coluna existir (ignora se ainda não migrada).
-                if (window.onlineTables && window.onlineTables['faturas']) {
-                    try { await sbUpdate('faturas', inserted.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
-                }
-            }
-        } catch (e) {
-            console.error(e);
-            showToast("Fatura fechada, mas houve um erro ao gerar o PDF.", "warning");
-        }
-        
-        db.faturas.unshift(finalInvoice);
-    } else {
-        // Fluxo Original LocalStorage (Fallback / Offline)
-        const fatId = db.faturas.length + 1;
-        code = "FAT-" + String(fatId).padStart(4, '0');
-
-        finalInvoice = {
-            id: fatId,
-            codigo: code,
-            parceiroId: partnerId,
-            unidadeId: activeUnitId,
-            periodoInicio: dateIni,
-            periodoFim: dateFim,
-            valorTotal: liquidoVal,
-            ordensIds: selectedIds,
-            pago: pagoIntegral,
-            pagoEm: pagoIntegral ? new Date().toISOString() : null,
-            criadoEm: new Date().toISOString(),
-            criadoPor: currentSession.nome
-        };
-
-        db.faturas.push(finalInvoice);
-        
-        selectedOSs.forEach(o => {
-            o.faturaId = fatId;
-        });
-
-        // Dar baixa nos créditos locais
-        for (const item of creditosParaUsar) {
-            item.credito.utilizado = true;
-            item.credito.faturaId = fatId;
-
-            if (item.sobra > 0) {
-                const sobraRecord = {
-                    id: (db.parceiros_creditos || []).length + 1,
-                    parceiroId: partnerId,
-                    tipo: "credito",
-                    valor: item.sobra,
-                    descricao: `Saldo remanescente de crédito após faturamento ${code}`,
-                    faturaId: null,
-                    utilizado: false,
-                    criadoEm: new Date().toISOString(),
-                    criadoPor: currentSession.nome
-                };
-                if (!db.parceiros_creditos) db.parceiros_creditos = [];
-                db.parceiros_creditos.push(sobraRecord);
-            }
-        }
-
-        saveDatabase();
+    } catch (e) {
+        console.error(e);
+        showToast("Fatura fechada, mas houve um erro ao gerar o PDF.", "warning");
     }
 
     showToast(`Fatura ${code} gerada com sucesso!`, "success");
@@ -6675,9 +5741,8 @@ async function submitGirarFatura(event) {
 function mesDaFatura(f, criterio) {
     const mes = (v) => {
         if (!v) return null;
-        const d = new Date(v);
-        if (isNaN(d.getTime())) return String(v).substring(0, 7);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const dia = diaSP(v);
+        return dia ? dia.slice(0, 7) : String(v).substring(0, 7);
     };
     if (criterio === 'emissao')   return mes(f.criadoEm);
     if (criterio === 'pagamento') return f.pago ? mes(f.pagoEm) : null;
@@ -6701,7 +5766,7 @@ function renderResumoFaturas(lista, criterio, verTodas, mesSel) {
 
     const pagas   = lista.filter(f => f.pago);
     const abertas = lista.filter(f => !f.pago);
-    const soma = arr => arr.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const soma = arr => arr.reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
 
     // No critério "pagamento" não existe fatura em aberto: ela só entra no mês
     // quando foi paga. Mostrar "em aberto" ali seria sempre zero e confundiria.
@@ -6741,7 +5806,7 @@ function popularFiltroParceirosFaturas(faturasDaUnidade) {
         .sort((a, b) => a.nome.localeCompare(b.nome));
     const atual = el.value;
     const novo = '<option value="">Todos</option>' +
-        opcoes.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+        opcoes.map(o => `<option value="${o.id}">${escHtml(o.nome)}</option>`).join('');
     if (el.innerHTML !== novo) {
         el.innerHTML = novo;
         el.value = atual;   // preserva a escolha ao re-renderizar
@@ -6753,8 +5818,8 @@ function renderRodapeFaturas(lista) {
     const tfoot = document.getElementById('fat-faturas-tfoot');
     if (!tfoot) return;
     if (lista.length === 0) { tfoot.innerHTML = ''; return; }
-    const total = lista.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
-    const pago = lista.filter(f => f.pago).reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const total = lista.reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
+    const pago = lista.filter(f => f.pago).reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
     const aberto = total - pago;
     const os = lista.reduce((s, f) => s + ((f.ordensIds || []).length), 0);
     tfoot.innerHTML = `
@@ -6868,14 +5933,14 @@ function renderFatFaturas() {
 
         return `
             <tr>
-                <td><strong>${f.codigo}</strong></td>
+                <td><strong>${escHtml(f.codigo)}</strong></td>
                 <td>${partner ? partner.nome : '<span style="color:var(--text-muted);">Parceiro removido</span>'}</td>
                 <td style="white-space: nowrap;">
                     ${formatDateBr(f.periodoInicio)}${f.periodoInicio !== f.periodoFim ? ' a ' + formatDateBr(f.periodoFim) : ''}
                 </td>
                 <td style="white-space: nowrap;">
                     ${formatDateBr(f.criadoEm)}
-                    <div style="font-size: 11px; color: var(--text-muted);">${f.criadoPor || '—'}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">${escHtml(f.criadoPor || '—')}</div>
                 </td>
                 <td style="text-align: center; font-weight: 600;">${f.ordensIds.length}</td>
                 <td style="text-align: right; font-weight: 700; color: ${f.pago ? 'var(--success)' : 'var(--text-primary)'};">${formatCurrency(f.valorTotal)}</td>
@@ -7050,23 +6115,31 @@ async function submitBaixaFatura(event) {
             }
         }
 
-        // 2) Marcar fatura e OS como pagas.
-        const pagoEmISO = ehRetroativo ? new Date(dataPagStr + 'T12:00:00').toISOString() : new Date().toISOString();
-        invoice.pago = true;
-        invoice.pagoEm = pagoEmISO;
-        invoice.pagoPor = currentSession ? currentSession.nome : 'Sistema';
-        invoice.ordensIds.forEach(id => { const os = db.ordens_servico.find(o => o.id === id); if (os) os.pago = true; });
-
-        if (window.useSupabase) {
-            const faturaUpdate = { pago: true, pagoEm: invoice.pagoEm, pagoPor: invoice.pagoPor };
-            // Só toca nos campos Asaas quando a cobrança foi de fato cancelada acima.
-            if (temAsaas && !viaAsaas && invoice.asaas_payment_id === null) {
-                faturaUpdate.asaas_payment_id = null;
-                faturaUpdate.asaas_url = null;
-            }
-            await dbSave('faturas', faturaUpdate, 'update', invoice.id);
-            for (const osId of invoice.ordensIds) { await dbSave('ordens_servico', { pago: true }, 'update', osId); }
+        // 2) Marcar fatura e OS como pagas. Só marca se no BANCO ela ainda
+        //    estiver em aberto: o aviso do Asaas pode ter dado baixa (e lançado
+        //    no caixa) enquanto esta tela estava aberta.
+        const pagoEmISO = ehRetroativo ? instanteNoDiaSP(dataPagStr) : new Date().toISOString();
+        const pagoPor = currentSession ? currentSession.nome : 'Sistema';
+        const faturaUpdate = { pago: true, pagoEm: pagoEmISO, pagoPor };
+        // Só toca nos campos Asaas quando a cobrança foi de fato cancelada acima.
+        if (temAsaas && !viaAsaas && invoice.asaas_payment_id === null) {
+            faturaUpdate.asaas_payment_id = null;
+            faturaUpdate.asaas_url = null;
         }
+        const { data: virou, error: erroBaixa } = await supabaseClient.from('faturas')
+            .update(faturaUpdate).eq('id', invoice.id).eq('pago', false).select('id');
+        if (erroBaixa) throw erroBaixa;
+        if (!virou || virou.length === 0) {
+            invoice.pago = true;
+            showToast(`A fatura ${invoice.codigo} já consta paga no banco (provavelmente pelo aviso do Asaas). Nada foi lançado de novo.`, "warning");
+            closeBaixaModal();
+            renderFatFaturas();
+            return;
+        }
+        Object.assign(invoice, faturaUpdate);
+        const { error: erroOS } = await supabaseClient.from('ordens_servico').update({ pago: true }).in('id', invoice.ordensIds);
+        if (erroOS) throw erroOS;
+        invoice.ordensIds.forEach(id => { const os = db.ordens_servico.find(o => o.id === id); if (os) os.pago = true; });
 
         // 3) Lançamento no caixa.
         if (!ehRetroativo) {
@@ -7104,7 +6177,7 @@ async function submitBaixaFatura(event) {
         renderFatFaturas();
     } catch (err) {
         console.error("Erro ao dar baixa:", err);
-        showToast("Erro ao processar a baixa da fatura.", "error");
+        showToast("Erro ao processar a baixa da fatura: " + (err.message || err), "error");
     } finally {
         if (btn) { btn.disabled = false; btn.style.opacity = ''; }
     }
@@ -7159,7 +6232,7 @@ function renderBaixasPendentes() {
                 <td style="padding: 10px 14px;"><strong>${inv ? inv.codigo : ('#' + b.faturaId)}</strong></td>
                 <td style="padding: 10px 14px; white-space: nowrap;">${formatDateBr(b.dataPagamento)}</td>
                 <td style="padding: 10px 14px; text-align: right; font-weight: 600;">${formatCurrency(b.valor)}</td>
-                <td style="padding: 10px 14px;">${b.criadoPor || '—'}</td>
+                <td style="padding: 10px 14px;">${escHtml(b.criadoPor || '—')}</td>
                 <td style="padding: 10px 14px; text-align: right;">${acao}</td>
             </tr>
         `;
@@ -7176,14 +6249,34 @@ async function resolverBaixaPendente(pendId) {
     if (!pend || pend.resolvido) return;
     const invoice = db.faturas.find(f => f.id === pend.faturaId);
     const partner = invoice ? db.parceiros.find(p => p.id === invoice.parceiroId) : null;
-    const caixa = db.caixa_diario.find(c => c.id === pend.caixaId);
-    if (!caixa) { showToast("Caixa do dia da pendência não encontrado.", "error"); return; }
+    let caixa = db.caixa_diario.find(c => c.id === pend.caixaId);
+    if (!caixa) {
+        // Pagamento avisado pelo Asaas num dia sem caixa: entra no caixa de hoje
+        const hoje = getTodayOpenCaixa();
+        if (!hoje) { showToast("Não havia caixa no dia do pagamento. Abra o caixa de hoje para lançar esta entrada.", "error"); return; }
+        if (!confirm(`Não havia caixa em ${formatDateBr(pend.dataPagamento)}. Lançar ${formatCurrency(pend.valor)} (Fatura ${invoice ? invoice.codigo : ''}) no caixa de HOJE?`)) return;
+        try {
+            await injetarMovimentoBaixa(hoje, invoice || { id: pend.faturaId, codigo: '', valorTotal: pend.valor }, partner, new Date().toISOString(), pend.formaPagamento);
+            const resolvidoEm = new Date().toISOString();
+            const resolvidoPor = currentSession ? currentSession.nome : 'Master';
+            await sbUpdate('baixas_faturas_pendentes', pend.id, { resolvido: true, resolvidoEm, resolvidoPor, caixaId: hoje.id });
+            Object.assign(pend, { resolvido: true, resolvidoEm, resolvidoPor, caixaId: hoje.id });
+            atualizarBadgeCaixa();
+            logAudit("Baixa Pendente", `Lançou no caixa de hoje a baixa da fatura ${invoice ? invoice.codigo : pend.faturaId} (pagamento de ${formatDateBr(pend.dataPagamento)}).`);
+            showToast("Entrada lançada no caixa de hoje.", "success");
+            renderCaixaPage();
+        } catch (err) {
+            console.error("Erro ao resolver baixa pendente:", err);
+            showToast("Erro ao lançar a baixa: " + (err.message || err), "error");
+        }
+        return;
+    }
 
     if (!confirm(`Reabrir o caixa de ${formatDateBr(pend.dataPagamento)} e lançar ${formatCurrency(pend.valor)} (Fatura ${invoice ? invoice.codigo : ''})?\n\nApós lançar, o caixa ficará ABERTO no "Modo Dia Reaberto" para você conferir e re-fechar.`)) return;
 
     try {
         // 1) Lança a entrada no caixa daquele dia (back-dated).
-        const dataISO = new Date(pend.dataPagamento + 'T12:00:00').toISOString();
+        const dataISO = instanteNoDiaSP(pend.dataPagamento);
         await injetarMovimentoBaixa(caixa, invoice || { id: pend.faturaId, codigo: '', valorTotal: pend.valor }, partner, dataISO, pend.formaPagamento);
 
         // 2) Marca a pendência como resolvida.
@@ -7227,10 +6320,10 @@ function printInvoiceById(invoiceId) {
 
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
-            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
-            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
+            <td style="padding: 6px;"><strong>${escHtml(o.numero)}</strong></td>
+            <td style="padding: 6px;"><strong>${escHtml(o.placa)}</strong></td>
+            <td style="padding: 6px;">${escHtml(o.veiculoMarcaModelo || '—')}</td>
+            <td style="padding: 6px; text-align: center;">${escHtml(o.veiculoAno || '—')}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -7250,26 +6343,26 @@ function printInvoiceById(invoiceId) {
                     <p style="font-size: 10px; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
                 </div>
             </div>
-            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px; color:${CERTIVE_NAVY}; border-color:${CERTIVE_NAVY};">FATURA ${f.codigo}</div>
+            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px; color:${CERTIVE_NAVY}; border-color:${CERTIVE_NAVY};">FATURA ${escHtml(f.codigo)}</div>
         </div>
 
         <div style="margin-bottom: 24px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; border-bottom: 1px solid #000; padding-bottom: 16px;">
             <div>
-                <strong>Prestador:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Prestador:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
             </div>
             <div>
-                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
-                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
-                <strong>Responsável:</strong> ${partner.responsavel || '—'}<br>
-                <strong>Contato:</strong> ${partner.telefone}
+                <strong>Tomador (Parceiro):</strong> ${escHtml(partner.nome)}<br>
+                <strong>CPF/CNPJ:</strong> ${escHtml(partner.cnpj)}<br>
+                <strong>Responsável:</strong> ${escHtml(partner.responsavel || '—')}<br>
+                <strong>Contato:</strong> ${escHtml(partner.telefone)}
             </div>
         </div>
 
         <div style="margin-bottom: 20px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
-                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${escHtml(f.criadoPor)}<br>
                 <strong>Status de Pagamento:</strong> ${f.pago ? `PAGO EM ${formatDateBr(f.pagoEm)}` : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right;">
@@ -7384,8 +6477,7 @@ function competenciaDataConta(c) {
 
 // Hoje "YYYY-MM-DD" no fuso LOCAL (evita o bug de UTC do new Date('YYYY-MM-DD')).
 function hojeLocalStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return diaSP();
 }
 
 // Status derivado em runtime (mutuamente exclusivo). Comparação por string YYYY-MM-DD.
@@ -7461,7 +6553,7 @@ function renderContasBannerAtrasadas() {
         competenciaMes(c) && competenciaMes(c) < contasCompetenciaSel
     );
     if (antigas.length === 0) { box.innerHTML = ''; return; }
-    const total = antigas.reduce((s, c) => s + (Number(c.valor)||0), 0);
+    const total = antigas.reduce((s, c) => somaCentavos(s, c.valor), 0);
     const maisAntiga = antigas.slice().sort((a,b) => competenciaMes(a).localeCompare(competenciaMes(b)))[0];
     const mesAlvo = competenciaMes(maisAntiga);
     box.innerHTML = `
@@ -7551,8 +6643,8 @@ function renderContasGerais() {
 
         const obsHtml = c.observacoes
             ? `<br><small style="color: var(--text-secondary); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px;">
-                <i class="ri-barcode-line" style="font-size: 12px;"></i> ${c.observacoes}
-                <button onclick="copyToClipboard('${c.observacoes}')" title="Copiar código de barras" style="background: none; border: none; padding: 2px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; font-size: 11px;">
+                <i class="ri-barcode-line" style="font-size: 12px;"></i> ${escHtml(c.observacoes)}
+                <button onclick="copyToClipboard('${escHtml(c.observacoes)}')" title="Copiar código de barras" style="background: none; border: none; padding: 2px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; font-size: 11px;">
                     <i class="ri-file-copy-line"></i>
                 </button>
                </small>`
@@ -7576,12 +6668,12 @@ function renderContasGerais() {
                 <td><span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap;">${mesLabelPt(competenciaMes(c))}</span></td>
                 <td><strong>${formatDateBr(c.vencimento)}</strong></td>
                 <td>
-                    <strong>${c.descricao}</strong>
+                    <strong>${escHtml(c.descricao)}</strong>
                     ${obsHtml}
-                    ${(c.fornecedor || c.categoria) ? `<br><small style="color:var(--text-muted); font-size:11px;">${c.fornecedor || ''}${(c.fornecedor && c.categoria) ? ' · ' : ''}${c.categoria || ''}</small>` : ''}
+                    ${(c.fornecedor || c.categoria) ? `<br><small style="color:var(--text-muted); font-size:11px;">${escHtml(c.fornecedor || '')}${(c.fornecedor && c.categoria) ? ' · ' : ''}${escHtml(c.categoria || '')}</small>` : ''}
                 </td>
                 <td><span class="badge badge-progress">${(c.tipo || '').toUpperCase()}</span></td>
-                <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${c.criadoPor || 'Sistema'}</span></td>
+                <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${escHtml(c.criadoPor || 'Sistema')}</span></td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${formatCurrency(c.valor)}</td>
                 <td>${statusBadge}</td>
                 <td style="text-align: center;">${anexoHtml}</td>
@@ -7807,12 +6899,12 @@ function payExpense(id) {
     const modal = document.getElementById('modal-os-detalhes');
     document.getElementById('detalhes-os-title').textContent = `Liquidar Despesa — ${expense.descricao}`;
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = diaSP();
     
     document.getElementById('detalhes-os-body').innerHTML = `
         <div class="form-group" style="margin-bottom: 16px;">
             <label style="font-weight:600;">Descrição da Despesa</label>
-            <input type="text" value="${expense.descricao}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+            <input type="text" value="${escHtml(expense.descricao)}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
         </div>
         <div class="form-group" style="margin-bottom: 16px;">
             <label style="font-weight:600;">Valor</label>
@@ -8029,14 +7121,14 @@ function renderAssessorTab() {
     // 1. Render Comparative Table (Camada A)
     const tbodyCat = document.getElementById('assessor-categorias-tbody');
     tbodyCat.innerHTML = CATEGORIAS_DESPESAS.map(cat => {
-        const gastoAtual = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.valor, 0);
-        const gastoAnterior = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(prevMonthStr)).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAtual = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(currentMonthStr)).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+        const gastoAnterior = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(prevMonthStr)).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const meta = unitMetas[cat] || 0;
         
         // Historical average including all months in the DB for this unit
         const allMonths = [...new Set(unitExpenses.filter(c => c.categoria === cat).map(c => c.vencimento.substring(0, 7)))];
         const numMonths = allMonths.length || 1;
-        const totalCatGastos = unitExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
+        const totalCatGastos = unitExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const mediaHistorica = totalCatGastos / numMonths;
         
         let statusMetaBadge = '';
@@ -8151,8 +7243,8 @@ function renderAssessorTab() {
             
             return `
                 <tr>
-                    <td><strong>${v.fornecedor}</strong></td>
-                    <td><span class="badge badge-secondary" style="font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);">${v.categoria}</span></td>
+                    <td><strong>${escHtml(v.fornecedor)}</strong></td>
+                    <td><span class="badge badge-secondary" style="font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);">${escHtml(v.categoria)}</span></td>
                     <td style="text-align: right; font-weight: 600;">${formatCurrency(v.gastoAtual)}</td>
                     <td style="text-align: right; ${varStyle}">${varSign}${formatCurrency(v.diffNominal)}${pctText}</td>
                 </tr>
@@ -8230,8 +7322,8 @@ function renderAiInsights() {
     const unitMetas = (db.metas_despesas && db.metas_despesas[activeUnitId]) || {};
     
     CATEGORIAS_DESPESAS.forEach(cat => {
-        const gastoAtual = currentExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
-        const gastoAnterior = prevExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAtual = currentExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+        const gastoAnterior = prevExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const meta = unitMetas[cat] || 0;
         
         totalCurrent += gastoAtual;
@@ -8265,7 +7357,7 @@ function renderAiInsights() {
         <div style="color: var(--text-primary); font-size: 13px;">
             <p style="margin-bottom: 12px; font-weight: 500;">
                 <i class="ri-user-smile-line" style="color: var(--accent); font-size: 16px; margin-right: 6px; vertical-align: middle;"></i> 
-                Olá, Ricardo! Analisei os lançamentos de contas a pagar da unidade <strong>${db.unidades.find(u => u.id === activeUnitId)?.nome || 'Unidade'}</strong> e aqui estão as minhas observações inteligentes:
+                Olá, Ricardo! Analisei os lançamentos de contas a pagar da unidade <strong>${escHtml(db.unidades.find(u => u.id === activeUnitId)?.nome || 'Unidade')}</strong> e aqui estão as minhas observações inteligentes:
             </p>
             <ul style="list-style-type: none; padding-left: 0; display: flex; flex-direction: column; gap: 10px;">
     `;
@@ -8278,7 +7370,7 @@ function renderAiInsights() {
             insightsHtml += `
                 <li style="background: rgba(239, 68, 68, 0.05); border-left: 4px solid var(--danger); padding: 10px 14px; border-radius: 0 6px 6px 0;">
                     <strong style="color: var(--danger);"><i class="ri-error-warning-fill"></i> ALERTA DE ORÇAMENTO ESTOURADO:</strong> 
-                    A categoria <strong>${item.categoria}</strong> atingiu <strong>${formatCurrency(item.gasto)}</strong>, superando a meta definida de <strong>${formatCurrency(item.meta)}</strong> em <strong>${formatCurrency(item.excesso)}</strong> (+${((item.excesso/item.meta)*100).toFixed(1)}%). 
+                    A categoria <strong>${escHtml(item.categoria)}</strong> atingiu <strong>${formatCurrency(item.gasto)}</strong>, superando a meta definida de <strong>${formatCurrency(item.meta)}</strong> em <strong>${formatCurrency(item.excesso)}</strong> (+${((item.excesso/item.meta)*100).toFixed(1)}%). 
                     <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Revise os contratos de fornecedores ativos nessa categoria e verifique se houve lançamentos duplicados ou pontuais não planejados neste mês.</div>
                 </li>
             `;
@@ -8291,7 +7383,7 @@ function renderAiInsights() {
             insightsHtml += `
                 <li style="background: rgba(212, 160, 23, 0.05); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0;">
                     <strong style="color: var(--accent);"><i class="ri-pulse-line"></i> AUMENTO DE CUSTOS:</strong> 
-                    Os gastos na categoria <strong>${item.categoria}</strong> subiram <strong>${item.aumentoPct.toFixed(1)}%</strong> em relação ao mês anterior (de <strong>${formatCurrency(item.anterior)}</strong> para <strong>${formatCurrency(item.atual)}</strong>, uma alta de <strong>${formatCurrency(item.aumentoNominal)}</strong>).
+                    Os gastos na categoria <strong>${escHtml(item.categoria)}</strong> subiram <strong>${item.aumentoPct.toFixed(1)}%</strong> em relação ao mês anterior (de <strong>${formatCurrency(item.anterior)}</strong> para <strong>${formatCurrency(item.atual)}</strong>, uma alta de <strong>${formatCurrency(item.aumentoNominal)}</strong>).
                     <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Negocie prazos ou tarifas com fornecedores para mitigar essa escalada. Priorize auditoria de consumo caso envolva serviços de utilidades públicas (Água/Luz/Internet).</div>
                 </li>
             `;
@@ -8316,7 +7408,7 @@ function renderAiInsights() {
         insightsHtml += `
             <li style="background: rgba(59, 130, 246, 0.05); border-left: 4px solid #3b82f6; padding: 10px 14px; border-radius: 0 6px 6px 0;">
                 <strong style="color: #3b82f6;"><i class="ri-information-fill"></i> DETRAN-SC CONSOLIDAÇÃO:</strong> 
-                Identifiquei o lançamento de despesa variável <strong>${detranExpense.descricao}</strong> no valor de <strong>${formatCurrency(detranExpense.valor)}</strong>.
+                Identifiquei o lançamento de despesa variável <strong>${escHtml(detranExpense.descricao)}</strong> no valor de <strong>${formatCurrency(detranExpense.valor)}</strong>.
                 <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Nota: Esta despesa reflete as taxas cobradas pelo portal DETRAN-SC. Certifique-se de que os valores foram devidamente auditados contra o faturamento total antes do pagamento final.</div>
             </li>
         `;
@@ -8547,6 +7639,8 @@ function renderBI() {
 
     const period = periodSelect.value;
     const unitFilter = unitSelect.value;
+    const corteMes = typeof inicioJanelaCarga === 'function' ? inicioJanelaCarga().slice(0, 7) : '';
+    garantirHistoricoCompleto(period === 'todos' || (/^\d{4}-\d{2}$/.test(period) && period <= corteMes), renderBI);
     const capitalCustom = parseFloat(document.getElementById('bi-capital-investido').value) || null;
 
     let OSs = [];
@@ -8569,7 +7663,7 @@ function renderBI() {
         OSs = [...db.ordens_servico];
         Expenses = [...db.contas_pagar];
     } else {
-        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+        OSs = db.ordens_servico.filter(o => o.criadoEm && competenciaLocalDeOS(o.criadoEm) === period);
         Expenses = db.contas_pagar.filter(c => competenciaMes(c) === period);
     }
 
@@ -8590,7 +7684,7 @@ function renderBI() {
     } else if (period === 'todos') {
         periodMovs = [...db.caixa_movimentos];
     } else {
-        periodMovs = db.caixa_movimentos.filter(m => m.data && m.data.startsWith(period));
+        periodMovs = db.caixa_movimentos.filter(m => m.data && getLocalDateString(m.data).slice(0, 7) === period);
     }
 
     if (unitFilter !== 'todas') {
@@ -8607,12 +7701,12 @@ function renderBI() {
     // natureza gravada conta como despesa, que era o comportamento assumido.
     const caixaDespesasVal = periodMovs
         .filter(m => m.tipo === 'saida' && (!m.natureza || m.natureza === 'despesa'))
-        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+        .reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
 
     // Custos e Despesas (exclui lançamentos manuais do DETRAN para não duplicar com o cálculo de taxas das OSs)
-    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
+    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     
     // Taxas operacionais do DETRAN — mesma regra da guia (ver laudosDetranDoMes).
     // A versão anterior somava a taxa de toda OS com valor > 0, sem olhar o tipo
@@ -8625,13 +7719,13 @@ function renderBI() {
         return sum + taxaDetranDoServico(o.servicoId);
     }, 0);
 
-    const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalRevenue = nonCancelledOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
     const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal + caixaDespesasVal;
     const netProfit = totalRevenue - totalExpenses;
 
-    const cashInflows = periodMovs.filter(m => m.tipo === 'entrada');
-    const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => sum + m.valor, 0);
-    const directPaymentsReceived = cashInflows.filter(m => m.faturaId === null).reduce((sum, m) => sum + m.valor, 0);
+    const cashInflows = periodMovs.filter(movEhRecebimento);
+    const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const directPaymentsReceived = cashInflows.filter(m => m.faturaId === null).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalCashRevenue = directPaymentsReceived + fatPaymentsReceived;
     const netCashProfit = totalCashRevenue - totalExpenses;
 
@@ -8775,7 +7869,7 @@ function renderBI() {
             const partnerRentability = db.parceiros.map(p => {
                 const partnerOSs = nonCancelledOSs.filter(o => o.parceiroId === p.id);
                 const count = partnerOSs.length;
-                const revenue = partnerOSs.reduce((sum, o) => sum + o.valor, 0);
+                const revenue = partnerOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
                 const avgRevenue = count ? revenue / count : 0;
                 const margin = count ? avgRevenue - avgCostPerOS : 0;
                 return {
@@ -8798,7 +7892,7 @@ function renderBI() {
                     const badgeBg = ap.margin > 0.01 ? 'var(--success-bg)' : (ap.margin < -0.01 ? 'var(--danger-bg)' : 'var(--warning-bg)');
                     return `
                         <tr>
-                            <td><strong>${ap.partner.nome}</strong></td>
+                            <td><strong>${escHtml(ap.partner.nome)}</strong></td>
                             <td style="text-align: center;">${ap.count}</td>
                             <td style="text-align: right;">${formatCurrency(ap.avgRevenue)}</td>
                             <td style="text-align: right; color: var(--text-secondary);">${formatCurrency(avgCostPerOS)}</td>
@@ -8815,7 +7909,7 @@ function renderBI() {
             if (selectPartner) {
                 const activeList = db.parceiros.filter(p => nonCancelledOSs.some(o => o.parceiroId === p.id));
                 const currentSel = selectPartner.value;
-                selectPartner.innerHTML = activeList.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+                selectPartner.innerHTML = activeList.map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
                 if (activeList.length === 0) {
                     selectPartner.innerHTML = '<option value="">Sem parceiros ativos</option>';
                 } else {
@@ -8835,7 +7929,7 @@ function renderBI() {
             const serviceDetails = db.servicos.map(s => {
                 const svcOSs = nonCancelledOSs.filter(o => o.servicoId === s.id && o.servicoId !== 7 && o.servicoId !== 8);
                 const count = svcOSs.length;
-                const val = svcOSs.reduce((sum, o) => sum + o.valor, 0);
+                const val = svcOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
                 return {
                     id: s.id,
                     name: s.nome,
@@ -8854,7 +7948,7 @@ function renderBI() {
                 name: 'Vistoria Combo (Parceiros)',
                 cat: 'Cautelar',
                 count: comboOSs.length,
-                val: comboOSs.reduce((sum, o) => sum + o.valor, 0)
+                val: comboOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0)
             };
 
             const comboTransfDetail = {
@@ -8862,7 +7956,7 @@ function renderBI() {
                 name: 'Vistoria de Transferência Combo (Parceiros)',
                 cat: 'Transferência',
                 count: comboTransfOSs.length,
-                val: comboTransfOSs.reduce((sum, o) => sum + o.valor, 0)
+                val: comboTransfOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0)
             };
 
             const allServices = [...serviceDetails];
@@ -9087,7 +8181,7 @@ function renderBIPartnersDetail() {
     } else if (period === 'todos') {
         OSs = [...db.ordens_servico];
     } else {
-        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+        OSs = db.ordens_servico.filter(o => o.criadoEm && competenciaLocalDeOS(o.criadoEm) === period);
     }
 
     if (unitFilter !== 'todas') {
@@ -9152,7 +8246,7 @@ function renderBIWeeklyChart(OSs) {
     let weekRevenues = { "Semana 1": 0, "Semana 2": 0, "Semana 3": 0, "Semana 4": 0 };
     
     OSs.forEach(o => {
-        const day = new Date(o.criadoEm).getDate();
+        const day = Number(diaSP(o.criadoEm).slice(8, 10));
         if (day <= 7) weekRevenues["Semana 1"] += o.valor;
         else if (day <= 14) weekRevenues["Semana 2"] += o.valor;
         else if (day <= 21) weekRevenues["Semana 3"] += o.valor;
@@ -9183,8 +8277,8 @@ function renderBIShareChart(OSs, totalRevenue) {
         return;
     }
 
-    const particularRev = OSs.filter(o => o.clienteTipo === 'particular').reduce((sum, o) => sum + o.valor, 0);
-    const partnerRev = OSs.filter(o => o.clienteTipo === 'parceiro').reduce((sum, o) => sum + o.valor, 0);
+    const particularRev = OSs.filter(o => o.clienteTipo === 'particular').reduce((sum, o) => somaCentavos(sum, o.valor), 0);
+    const partnerRev = OSs.filter(o => o.clienteTipo === 'parceiro').reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     const particularPercent = (particularRev / totalRevenue) * 100;
     const partnerPercent = (partnerRev / totalRevenue) * 100;
@@ -9272,9 +8366,6 @@ function switchConfigTab(tab, btn) {
     const tabAuditoria = document.getElementById('tab-cfg-auditoria');
     if (tabAuditoria) tabAuditoria.style.display = tab === 'auditoria' ? 'block' : 'none';
 
-    const tabChatGPT = document.getElementById('tab-cfg-chatgpt');
-    if (tabChatGPT) tabChatGPT.style.display = tab === 'chatgpt' ? 'block' : 'none';
-
     const tabBackup = document.getElementById('tab-cfg-backup');
     if (tabBackup) tabBackup.style.display = tab === 'backup' ? 'block' : 'none';
 
@@ -9287,7 +8378,6 @@ function switchConfigTab(tab, btn) {
     if (tab === 'portarias') renderConfigPortarias();
     if (tab === 'whatsapp') renderConfigWhatsApp();
     if (tab === 'auditoria') runIntegrityAudit();
-    if (tab === 'chatgpt') renderConfigChatGPT();
     if (tab === 'faturamento') renderConfigFaturamento();
 }
 
@@ -9299,7 +8389,6 @@ function renderConfigPage() {
     else if (currentConfigTab === 'portarias') renderConfigPortarias();
     else if (currentConfigTab === 'whatsapp') renderConfigWhatsApp();
     else if (currentConfigTab === 'auditoria') runIntegrityAudit();
-    else if (currentConfigTab === 'chatgpt') renderConfigChatGPT();
     else if (currentConfigTab === 'faturamento') renderConfigFaturamento();
 }
 
@@ -9348,7 +8437,7 @@ function renderConfigPrecos() {
 
     precosContainer.innerHTML = db.servicos.map(s => `
         <div class="form-group">
-            <label>${s.nome}</label>
+            <label>${escHtml(s.nome)}</label>
             <input type="number" step="0.01" name="cfg-svc-${s.id}" value="${s.precoBalcao.toFixed(2)}" required>
         </div>
     `).join('');
@@ -9370,7 +8459,7 @@ async function submitConfigPrecos(event) {
         const val = parseFloat(document.querySelector(`input[name="cfg-svc-${s.id}"]`).value);
         s.precoBalcao = val;
         if (window.useSupabase) {
-            await sbUpdate('servicos', s.id, { precoBalcao: val }).catch(err => console.error(err));
+            await sbUpdate('servicos', s.id, { precoBalcao: val }).catch(avisarFalhaGravacao('Preço'));
         }
     }
 
@@ -9389,7 +8478,7 @@ async function submitConfigTaxas(event) {
         if (refTax) {
             refTax.tax = val;
             if (window.useSupabase) {
-                await sbUpdate('taxas_referencia', refTax.id, { taxa: val }).catch(err => console.error(err));
+                await sbUpdate('taxas_referencia', refTax.id, { taxa: val }).catch(avisarFalhaGravacao('Preço'));
             }
         }
     }
@@ -9499,13 +8588,13 @@ function renderConfigParceiros() {
         tbody.innerHTML = sortedPartners.map(p => `
             <tr>
                 <td>
-                    <strong>${p.nome}</strong>
+                    <strong>${escHtml(p.nome)}</strong>
                     ${p.parceiroShopping ? '<span class="badge badge-waiting" style="font-size: 10px; padding: 2px 6px; margin-left: 6px;">Shopping</span>' : ''}
                 </td>
-                <td>${p.cnpj}</td>
+                <td>${escHtml(p.cnpj)}</td>
                 <td>
-                    <strong>${p.responsavel || '—'}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">TEL: ${p.telefone}</small>
+                    <strong>${escHtml(p.responsavel || '—')}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">TEL: ${escHtml(p.telefone)}</small>
                 </td>
                 <td>${p.usaFaturamento ? '🟢 Sim (Mensal)' : '🔴 Não (Balcão)'}</td>
                 <td style="text-align: right; padding-right: 20px;">
@@ -9656,7 +8745,7 @@ function openEditPartnerMatrix(partnerId) {
         const currentPrice = partner.tabelaPrecos[s.id] || s.precoBalcao;
         return `
             <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 8px 0;">${s.nome}</td>
+                <td style="padding: 8px 0;">${escHtml(s.nome)}</td>
                 <td style="text-align: right; padding: 8px 0;">
                     <input type="number" step="0.01" id="edit-matrix-price-${s.id}" value="${currentPrice.toFixed(2)}" style="width: 100px; padding: 4px 8px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); text-align: right;">
                 </td>
@@ -9667,7 +8756,7 @@ function openEditPartnerMatrix(partnerId) {
     const bodyHtml = `
         <div class="form-group">
             <label>Parceiro Conveniado</label>
-            <strong>${partner.nome}</strong>
+            <strong>${escHtml(partner.nome)}</strong>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
@@ -9736,8 +8825,8 @@ function renderConfigOperadores() {
         const unit = db.unidades.find(u => u.id === o.unidadeId);
         return `
             <tr>
-                <td><strong>${o.login}</strong></td>
-                <td>${o.nome}</td>
+                <td><strong>${escHtml(o.login)}</strong></td>
+                <td>${escHtml(o.nome)}</td>
                 <td>${unit ? (unit.nome.split(' — ')[1] || unit.nome) : '—'}</td>
                 <td>${o.ativo ? '🟢 Ativo' : '🔴 Inativo'}</td>
                 <td style="text-align: center;">
@@ -9751,8 +8840,8 @@ function renderConfigOperadores() {
     const tbodyUnits = document.getElementById('cfg-units-tbody');
     tbodyUnits.innerHTML = db.unidades.map(u => `
         <tr>
-            <td><strong>${u.nome}</strong></td>
-            <td>${u.endereco}</td>
+            <td><strong>${escHtml(u.nome)}</strong></td>
+            <td>${escHtml(u.endereco)}</td>
             <td style="text-align: center;">
                 <button class="btn btn-secondary btn-sm" onclick="abrirEdicaoUnidade(${u.id})" style="padding: 2px 6px; font-size: 11px;"><i class="ri-edit-line"></i> Editar</button>
             </td>
@@ -10194,6 +9283,19 @@ function maskCelular(v) {
 // ==========================================
 // INITIALIZATION
 // ==========================================
+function mostrarFalhaCarregamento() {
+    const overlay = document.getElementById('app-loading-overlay') || document.body;
+    const caixa = document.createElement('div');
+    caixa.id = 'falha-carregamento';
+    caixa.style.cssText = 'position:fixed;inset:0;z-index:200000;background:#080d1a;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Outfit,Arial,sans-serif';
+    caixa.innerHTML = `<div style="max-width:440px;text-align:center;color:#cbd5e1">
+        <h2 style="color:#f8fafc;margin:0 0 12px">Não foi possível carregar o sistema</h2>
+        <p style="margin:0 0 20px;line-height:1.5">A conexão com o servidor falhou. Nada foi alterado. Verifique a internet e tente de novo.</p>
+        <button onclick="location.reload()" style="padding:12px 24px;background:#d4a017;color:#050811;border:none;border-radius:6px;font-weight:700;cursor:pointer">Tentar novamente</button></div>`;
+    document.body.appendChild(caixa);
+    if (overlay && overlay.id === 'app-loading-overlay') overlay.style.display = 'none';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize DB Schema & Seeds
     let dbLoaded = false;
@@ -10217,9 +9319,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     if (!dbLoaded) {
-        console.warn("⚠️ Supabase indisponível ou falhou ao carregar. Inicializando base offline local.");
-        window.useSupabase = false;
-        initDatabase();
+        // Sem os dados do banco o sistema NÃO segue: antes caía numa base local com
+        // dados fictícios, e o que se registrava nela nunca chegava ao servidor.
+        console.error("Não foi possível carregar os dados do sistema.");
+        mostrarFalhaCarregamento();
+        return;
     } else {
         console.log("🚀 Sistema carregado com sucesso via Supabase!");
     }
@@ -10266,163 +9370,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Hook especial para laudo teste de demonstração
-    // ⚠️ DESATIVADO POR SEGURANÇA: este bloco fazia auto-login como administrador
-    // (acesso total) apenas com ?test_laudo=true na URL, sem senha. Mantido inerte.
-    const urlParams = new URLSearchParams(window.location.search);
-    if (false && urlParams.get('test_laudo') === 'true') {
-        // Auto-login como Ricardo Administrador se não logado
-        sessionStorage.setItem('certive_session', JSON.stringify({
-            id: 1,
-            nome: "Ricardo Administrador (Teste)",
-            login: "admin",
-            funcao: "Gerente Geral",
-            unidadeId: 1,
-            permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"]
-        }));
-        currentSession = JSON.parse(sessionStorage.getItem('certive_session'));
-        const loginOv = document.getElementById('login-overlay');
-        if (loginOv) loginOv.classList.add('hidden');
-        
-        const usernameEl = document.getElementById('topbar-username');
-        if (usernameEl) usernameEl.textContent = currentSession.nome;
-        
-        const userroleEl = document.getElementById('topbar-userrole');
-        if (userroleEl) userroleEl.textContent = currentSession.funcao;
-        
-        // Criar laudo teste se não existir
-        const testCautelarId = 999;
-        const testOsId = 9999;
-        
-        // Remove antigo se existir para atualizar fotos/valores
-        db.ordens_servico = db.ordens_servico.filter(o => o.id !== testOsId);
-        db.cautelares = db.cautelares.filter(c => c.id !== testCautelarId);
-        db.cautelares_secoes = db.cautelares_secoes.filter(s => s.cautelarId !== testCautelarId);
-        db.cautelares_fotos = db.cautelares_fotos.filter(f => f.secaoId !== 10999 && f.secaoId !== 20999 && f.secaoId !== 30999 && f.secaoId !== 40999 && f.secaoId !== 50999 && f.secaoId !== 60999 && f.secaoId !== 70999 && f.secaoId !== 80999);
-
-        // Injeta OS Teste
-        db.ordens_servico.push({
-            id: testOsId,
-            numero: "OS-9999",
-            criadoEm: new Date().toISOString(),
-            criadoPor: "Ricardo Administrador",
-            unidadeId: 1,
-            clienteTipo: "parceiro",
-            parceiroId: 1,
-            clienteNome: "TOYOTA COROLLA XEI 2.0",
-            clienteCpfCnpj: "45.890.122/0001-08",
-            clienteCelular: "(48) 99999-9999",
-            placa: "ATO-0I28",
-            renavam: "9BRB03HE0L2567890",
-            servicoId: 4,
-            servicoNome: "VISTORIA CAUTELAR",
-            valor: 350.00,
-            observacoes: "Corolla Prata Teste",
-            pago: true,
-            formaPagamento: "pix",
-            docVeiculoApresentado: true,
-            docIdentificacaoApresentado: true,
-            status: "concluida_aprovada",
-            finalizadoEm: new Date().toISOString(),
-            finalizadoPor: "Ricardo Administrador"
-        });
-
-        // Injeta Cautelar Teste
-        db.cautelares.push({
-            id: testCautelarId,
-            osId: testOsId,
-            dossieNumero: "CV-2026-070201",
-            status: "concluida",
-            vistoriadorId: 1,
-            finalizadoPorId: 1,
-            dataHoraInicio: new Date().toISOString(),
-            dataHoraEnvio: new Date().toISOString(),
-            dataHoraFinalizacao: new Date().toISOString(),
-            parecerConsolidado: "conforme",
-            parecerTexto: "Laudo demonstrativo preenchido.",
-            hashLaudo: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-            parecerFinal: "conforme"
-        });
-
-        // Injeta Seções Teste
-        db.cautelares_secoes.push({ id: 10999, cautelarId: testCautelarId, numeroSecao: 1, status: "completa", dadosJson: { quilometragem: "79.424", estadoConservacao: "excelente", combustivel: "ALCOOL / GASOLINA" } });
-        db.cautelares_secoes.push({ id: 20999, cautelarId: testCautelarId, numeroSecao: 2, status: "completa", dadosJson: { chassiLido: "9BRB03HE0L2567890", motorLido: "3ZR-FAE L256789" } });
-        db.cautelares_secoes.push({ id: 30999, cautelarId: testCautelarId, numeroSecao: 3, status: "completa", dadosJson: { parecerEstrutural: "conforme", observacao: "Não foram identificados sinais de sinistro, corte estrutural ou soldas." } });
-        db.cautelares_secoes.push({ id: 40999, cautelarId: testCautelarId, numeroSecao: 4, status: "completa", dadosJson: { painel_0: "112", painel_1: "118", painel_2: "142", painel_3: "135", painel_4: "138", painel_5: "108", painel_6: "126", painel_7: "248", painel_8: "236", painel_9: "122", painel_10: "115" } });
-        db.cautelares_secoes.push({ id: 50999, cautelarId: testCautelarId, numeroSecao: 5, status: "completa", dadosJson: {} });
-        db.cautelares_secoes.push({ id: 60999, cautelarId: testCautelarId, numeroSecao: 6, status: "completa", dadosJson: { reparoMotor: "nao", corMotorOk: "sim" } });
-        db.cautelares_secoes.push({ id: 70999, cautelarId: testCautelarId, numeroSecao: 7, status: "completa", dadosJson: { intervencaoQuadros: "nao", conservacaoInterior: "excelente" } });
-        db.cautelares_secoes.push({ id: 80999, cautelarId: testCautelarId, numeroSecao: 8, status: "completa", dadosJson: { signatureBase64: "" } });
-
-        // Injeta Fotos Teste
-        db.cautelares_fotos.push({ id: 100099, secaoId: 10999, slotCodigo: "frente_45_dir", url_thumb: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100199, secaoId: 10999, slotCodigo: "traseira_45_esq", url_thumb: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100299, secaoId: 20999, slotCodigo: "chassi_gravado", url_thumb: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100399, secaoId: 30999, slotCodigo: "longarina_diant_esq", url_thumb: "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100499, secaoId: 30999, slotCodigo: "assoalho_porta_malas", url_thumb: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100599, secaoId: 40999, slotCodigo: "medidor_pintura_uso", url_thumb: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100699, secaoId: 50999, slotCodigo: "vidro_parabrisa", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100799, secaoId: 50999, slotCodigo: "vidro_porta_diant_esq", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100899, secaoId: 50999, slotCodigo: "vidro_traseiro", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100999, secaoId: 60999, slotCodigo: "motor_vista_geral", url_thumb: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-
-        saveDatabase();
-
-        // Injeta folha de estilos do visualizador tela cheia
-        const style = document.createElement('style');
-        style.id = 'demo-laudo-styles';
-        style.innerHTML = `
-            .sidebar, .topbar, #login-overlay {
-                display: none !important;
-            }
-            .main-content {
-                margin-left: 0 !important;
-                padding: 0 !important;
-                width: 100vw !important;
-                max-width: 100vw !important;
-                height: 100vh !important;
-                background: #1a1d22 !important;
-            }
-            #cautelar-finalizacao-view {
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                z-index: 99999 !important;
-                grid-template-columns: 1fr !important;
-                display: flex !important;
-                flex-direction: column !important;
-            }
-            #cautelar-finalizacao-view > div:first-child {
-                display: none !important;
-            }
-            #cautelar-finalizacao-view > div:last-child {
-                max-height: 100vh !important;
-                height: 100vh !important;
-                width: 100vw !important;
-                padding: 85px 20px 40px 20px !important;
-                background: #1a1d22 !important;
-                overflow-y: auto !important;
-                box-sizing: border-box !important;
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Adiciona barra flutuante de controle
-        const controls = document.createElement('div');
-        controls.style.cssText = "position: fixed; top: 15px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: rgba(10, 31, 61, 0.95); border: 1.5px solid #C9A961; padding: 10px 20px; border-radius: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100000; backdrop-filter: blur(10px); font-family: 'Outfit', sans-serif;";
-        controls.innerHTML = `
-            <span style="color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1.5px solid rgba(255,255,255,0.15); padding-right: 12px; margin-right: 4px;">📂 LAUDO TESTE COROLLA</span>
-            <button onclick="window.exibirPdfCautelar(999)" style="background: #C9A961; border: none; color: #050E1A; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: transform 0.2s;"><i class="ri-file-pdf-line" style="font-size:14px;"></i> BAIXAR PDF OFICIAL</button>
-            <button onclick="window.location.href='app.html'" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.2s;">VOLTAR PARA O ERP</button>
-        `;
-        document.body.appendChild(controls);
-
-        setTimeout(() => {
-            verResumoCautelar(testCautelarId);
-        }, 400);
-    }
 
     if (window.modoDiaReaberto && window.dataDiaReaberto) {
         const banner = document.getElementById('dia-reaberto-banner');
@@ -10523,224 +9470,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// ==========================================
-// INTEGRATIONS: NFS-e & BOLETOS (SIMULATED)
-// ==========================================
-function requestNfse(osId) {
-    const os = db.ordens_servico.find(o => o.id === osId);
-    if (!os) return;
-
-    const serviceName = os.servicoNome;
-    const clientName = os.clienteNome;
-    const clientDoc = os.clienteCpfCnpj;
-    const val = os.valor;
-
-    const modal = document.getElementById('modal-os-detalhes');
-    window.lastDetailsOsId = osId;
-
-    document.getElementById('detalhes-os-title').textContent = `Módulo de Integração NFS-e — OS ${os.numero}`;
-    document.getElementById('detalhes-os-body').innerHTML = `
-        <div style="background: var(--warning-bg); border: 1px solid var(--warning); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 20px; color: var(--text-primary);">
-            <h4 style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:8px; color: var(--warning);">
-                <i class="ri-alert-line"></i> Integração Pendente de Homologação
-            </h4>
-            <p style="font-size: 12px; line-height: 1.5;">
-                O módulo de emissão automática de NFS-e está modelado e pronto para comunicação com a Prefeitura. A integração de produção está aguardando ativação das chaves e certificados fiscais da prefeitura municipal.
-            </p>
-        </div>
-
-        <h4 style="font-size:13px; font-weight:600; margin-bottom:12px; text-transform:uppercase; color:var(--accent);">Dados Mapeados para Emissão:</h4>
-        <div class="detail-grid" style="margin-bottom: 20px;">
-            <div class="detail-item"><label>Tomador (Razão/Nome)</label><span>${clientName}</span></div>
-            <div class="detail-item"><label>CPF / CNPJ</label><span>${clientDoc}</span></div>
-            <div class="detail-item"><label>Descrição do Serviço</label><span>${serviceName} (PLACA: ${os.placa})</span></div>
-            <div class="detail-item"><label>Valor do Serviço</label><strong>${formatCurrency(val)}</strong></div>
-            <div class="detail-item"><label>Unidade Tributária</label><span>Código de Serviço Municipal (Vistoria Veicular)</span></div>
-        </div>
-
-        <div class="form-group">
-            <label>Alterar Status Fiscal para Teste:</label>
-            <select id="nfse-test-status" style="width:100%; padding:8px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
-                <option value="Não solicitada" ${os.statusNfse === 'Não solicitada' ? 'selected' : ''}>Não solicitada</option>
-                <option value="Pendente de emissão" ${os.statusNfse === 'Pendente de emissão' ? 'selected' : ''}>Pendente de emissão (Simular Solicitação)</option>
-                <option value="Emitida" ${os.statusNfse === 'Emitida' ? 'selected' : ''}>Emitida (Simular Emissão Bem Sucedida)</option>
-            </select>
-        </div>
-    `;
-
-    document.getElementById('detalhes-os-footer').innerHTML = `
-        <button class="btn btn-secondary btn-sm" onclick="openOSDetailsModal(${osId})">Voltar</button>
-        <button class="btn btn-primary btn-sm" onclick="saveNfseSimulatedStatus(${osId})">Confirmar</button>
-    `;
-}
-
-function saveNfseSimulatedStatus(osId) {
-    const os = db.ordens_servico.find(o => o.id === osId);
-    if (!os) return;
-
-    const status = document.getElementById('nfse-test-status').value;
-    os.statusNfse = status;
-    if (status === 'Emitida') {
-        os.numeroNfse = "NFS-" + String(Math.floor(100000 + Math.random() * 900000));
-        os.dataNfse = new Date().toISOString();
-    } else {
-        os.numeroNfse = null;
-        os.dataNfse = null;
-    }
-
-    saveDatabase();
-    showToast(`Status NFS-e da OS ${os.numero} atualizado para: ${status}`, "success");
-    logAudit("Simulação NFS-e", `Atualizou status NFS-e da OS ${os.numero} para ${status}.`);
-    openOSDetailsModal(osId);
-}
-
-function openBoletoModal(invoiceId) {
-    const f = db.faturas.find(x => x.id === invoiceId);
-    if (!f) return;
-
-    const partner = db.parceiros.find(p => p.id === f.parceiroId);
-    const modal = document.getElementById('modal-os-detalhes');
-
-    const statusBoleto = f.statusBoleto || "Não gerado";
-    let statusColor = "var(--text-secondary)";
-    if (statusBoleto === "Gerado") statusColor = "var(--info)";
-    if (statusBoleto === "Pago") statusColor = "var(--success)";
-    if (statusBoleto === "Vencido") statusColor = "var(--danger)";
-
-    let actionButton = "";
-    if (statusBoleto === "Não gerado") {
-        actionButton = `<button class="btn btn-primary btn-sm" onclick="simulateGenerateBoleto(${f.id})"><i class="ri-bank-card-line"></i> Simular Geração de Boleto</button>`;
-    } else if (statusBoleto === "Gerado") {
-        actionButton = `
-            <button class="btn btn-success btn-sm" onclick="simulatePayBoleto(${f.id})"><i class="ri-money-dollar-circle-line"></i> Simular Liquidação (Pagamento)</button>
-        `;
-    }
-
-    document.getElementById('detalhes-os-title').textContent = `Módulo de Boleto Bancário — Fatura ${f.codigo}`;
-    document.getElementById('detalhes-os-body').innerHTML = `
-        <div style="background: var(--warning-bg); border: 1px solid var(--warning); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 20px; color: var(--text-primary);">
-            <h4 style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:8px; color: var(--warning);">
-                <i class="ri-alert-line"></i> Integração de Boletos em Homologação
-            </h4>
-            <p style="font-size: 12px; line-height: 1.5;">
-                O sistema de registro automático de boletos com instrução de protesto está estruturado e homologado com a API bancária. A ativação está pendente de assinatura do contrato de cobrança com o banco parceiro.
-            </p>
-        </div>
-
-        <h4 style="font-size:13px; font-weight:600; margin-bottom:12px; text-transform:uppercase; color:var(--accent);">Dados Mapeados para Cobrança:</h4>
-        <div class="detail-grid" style="margin-bottom: 20px;">
-            <div class="detail-item"><label>Sacado / Parceiro</label><strong>${partner ? partner.nome : '—'}</strong></div>
-            <div class="detail-item"><label>CNPJ / CPF</label><span>${partner ? partner.cnpj : '—'}</span></div>
-            <div class="detail-item"><label>Valor de Vencimento</label><strong style="color: var(--success);">${formatCurrency(f.valorTotal)}</strong></div>
-            <div class="detail-item"><label>Referência de Fatura</label><span>${f.codigo}</span></div>
-            <div class="detail-item"><label>Vencimento Estimado</label><span>${formatDateBr(new Date(new Date().getTime() + 5*24*60*60*1000).toISOString())}</span></div>
-            <div class="detail-item"><label>Status do Boleto</label><span style="font-weight: 700; color: ${statusColor};">${statusBoleto.toUpperCase()}</span></div>
-        </div>
-
-        ${statusBoleto === 'Gerado' ? `
-            <div class="form-group" style="background: var(--bg-primary); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-sm); font-family: monospace; font-size: 11px; word-break: break-all; margin-bottom: 20px;">
-                <label style="font-family: 'Outfit'; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">LINHA DIGITÁVEL DO BOLETO</label>
-                34191.79001 01043.513184 91020.150008 7 982500000${Math.floor(f.valorTotal).toString().padStart(5, '0')}
-            </div>
-        ` : ''}
-    `;
-
-    document.getElementById('detalhes-os-footer').innerHTML = `
-        <button class="btn btn-secondary btn-sm" onclick="closeOSModal()">Fechar</button>
-        ${actionButton}
-    `;
-    modal.classList.add('active');
-}
-
-function simulateGenerateBoleto(invoiceId) {
-    const f = db.faturas.find(x => x.id === invoiceId);
-    if (!f) return;
-
-    f.statusBoleto = "Gerado";
-    f.boletoVencimento = new Date(new Date().getTime() + 5*24*60*60*1000).toISOString().split('T')[0];
-    saveDatabase();
-
-    showToast(`Boleto para fatura ${f.codigo} gerado com sucesso (modo simulação).`, "success");
-    logAudit("Simulação Boleto", `Gerou boleto para fatura ${f.codigo}.`);
-    
-    renderFatFaturas();
-    openBoletoModal(invoiceId);
-}
-
-function simulatePayBoleto(invoiceId) {
-    const f = db.faturas.find(x => x.id === invoiceId);
-    if (!f) return;
-
-    const activeCaixa = getTodayOpenCaixa();
-    if (!activeCaixa) {
-        showToast("Erro: É necessário que o caixa de hoje esteja ABERTO para liquidar o boleto da fatura.", "error");
-        return;
-    }
-
-    f.statusBoleto = "Pago";
-    saveDatabase();
-
-    showToast(`Boleto da fatura ${f.codigo} pago (modo simulação).`, "success");
-    logAudit("Simulação Boleto", `Liquidou boleto referente à fatura ${f.codigo}.`);
-
-    liquidateInvoiceDirect(invoiceId);
-
-    renderFatFaturas();
-    closeOSModal();
-}
-
-async function liquidateInvoiceDirect(invoiceId) {
-    const activeCaixa = getTodayOpenCaixa();
-    if (!activeCaixa) return;
-
-    const invoice = db.faturas.find(f => f.id === invoiceId);
-    if (!invoice || invoice.pago) return;
-
-    try {
-        invoice.pago = true;
-        invoice.pagoEm = new Date().toISOString();
-
-        invoice.ordensIds.forEach(id => {
-            const os = db.ordens_servico.find(o => o.id === id);
-            if (os) os.pago = true;
-        });
-
-        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
-        const newMov = {
-            caixaId: activeCaixa.id,
-            tipo: "entrada",
-            valor: invoice.valorTotal,
-            descricao: `Recebimento Fatura (Boleto) ${invoice.codigo} — ${partner.nome}`,
-            formaPagamento: "pix",
-            data: new Date().toISOString(),
-            operador: currentSession.nome,
-            osId: null,
-            faturaId: invoice.id
-        };
-
-        if (window.useSupabase) {
-            const insertedMov = await sbInsert('caixa_movimentos', newMov);
-            db.caixa_movimentos.unshift(insertedMov);
-
-            await dbSave('faturas', {
-                pago: true,
-                pagoEm: invoice.pagoEm,
-                pagoPor: currentSession ? currentSession.nome : 'Sistema'
-            }, 'update', invoice.id);
-
-            for (const osId of invoice.ordensIds) {
-                await dbSave('ordens_servico', { pago: true }, 'update', osId);
-            }
-        } else {
-            newMov.id = db.caixa_movimentos.length + 1;
-            db.caixa_movimentos.push(newMov);
-        }
-
-        saveDatabase();
-    } catch (err) {
-        console.error("Erro na liquidação direta da fatura:", err);
-    }
-}
+// NFS-e e boleto: a emissão simulada (número de nota e linha digitável
+// inventados) foi removida. Marcar uma nota como "Emitida" sem ela existir é
+// risco fiscal. A cobrança real é a do Asaas (aba Faturas).
 
 // Global mobile sidebar helper
 function toggleSidebarMobile() {
@@ -10788,7 +9520,7 @@ function openChangePaymentModal(id) {
     if (os.formaPagamento === 'credito_parcelado') {
         document.getElementById('alt-pag-parcelas').value = os.parcelas || "1";
     } else if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             document.getElementById('alt-pag-div-forma-1').value = splitData[0].forma;
             document.getElementById('alt-pag-div-valor-1').value = splitData[0].valor.toFixed(2);
@@ -10882,281 +9614,120 @@ async function submitChangePayment(event) {
         }
     }
 
-    // 2. Proteção para Caixa Fechado
-    const targetCaixa = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
-    if (targetCaixa && targetCaixa.status === 'fechado') {
-        const confirmAdjust = confirm(`Atenção: O caixa de destino da data ${formatDateBr(inputDataPagamento)} já está fechado.\nA alteração irá modificar o fechamento contábil histórico.\n\nDeseja prosseguir mesmo assim?`);
-        if (!confirmAdjust) return;
+    // 2. Pagamento dividido: confere os valores ANTES de mexer em qualquer coisa
+    let partesDivididas = null;
+    if (newForma === 'dividido') {
+        const f1 = document.getElementById('alt-pag-div-forma-1').value;
+        const v1 = parseFloat(document.getElementById('alt-pag-div-valor-1').value) || 0;
+        const f2 = document.getElementById('alt-pag-div-forma-2').value;
+        const v2 = parseFloat(document.getElementById('alt-pag-div-valor-2').value) || 0;
+        if (v1 <= 0 || v2 <= 0) {
+            showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
+            return;
+        }
+        if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(os.valor)) {
+            showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${os.valor.toFixed(2)}).`, "error");
+            return;
+        }
+        partesDivididas = [{ forma: f1, valor: v1 }, { forma: f2, valor: v2 }];
+    }
+
+    // 3. OS numa fatura: fatura paga não muda (o dinheiro já entrou)
+    const fatAtual = os.faturaId ? db.faturas.find(f => f.id == os.faturaId) : null;
+    if (fatAtual && fatAtual.pago) {
+        showToast(`A fatura ${fatAtual.codigo} já foi paga: a OS não pode sair dela. Faça o acerto como crédito ao parceiro.`, "error");
+        return;
+    }
+
+    // 4. Caixa de destino (pagamento direto): precisa existir na data informada
+    let caixaDestino = null;
+    if (newForma !== 'faturamento') {
+        caixaDestino = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
+        if (!caixaDestino) {
+            const { data: noBanco } = await supabaseClient.from('caixa_diario').select('*')
+                .eq('unidadeId', os.unidadeId).eq('data', inputDataPagamento).maybeSingle();
+            if (noBanco) { caixaDestino = prepareRecordFromDb('caixa_diario', noBanco); db.caixa_diario.push(caixaDestino); }
+        }
+        if (!caixaDestino) {
+            showToast(inputDataPagamento === getLocalDateString(new Date())
+                ? "Abra o caixa de hoje antes de lançar o pagamento."
+                : `Não há caixa em ${formatDateBr(inputDataPagamento)}. Confira a data do pagamento.`, "error");
+            return;
+        }
+        if (caixaDestino.status === 'fechado') {
+            const confirmAdjust = confirm(`Atenção: O caixa de destino da data ${formatDateBr(inputDataPagamento)} já está fechado.\nA alteração irá modificar o fechamento contábil histórico.\n\nDeseja prosseguir mesmo assim?`);
+            if (!confirmAdjust) return;
+        }
     }
 
     const oldForma = os.formaPagamento;
-    const oldFaturaId = os.faturaId;
+    const btn = event.target && event.target.querySelector ? event.target.querySelector('button[type="submit"]') : null;
+    if (btn) btn.disabled = true;
 
     try {
-
-        // TRANSITIONS LOGIC
-        
-        // Se a forma de pagamento antiga era Faturamento:
-        if (oldForma === 'faturamento' && oldFaturaId) {
-            const fat = db.faturas.find(f => f.id == oldFaturaId);
-            if (fat) {
-                // Remove a OS do array de faturas
-                fat.ordensIds = fat.ordensIds.filter(id => id !== os.id);
-                fat.valorTotal = fat.valorTotal - os.valor;
-
-                if (fat.ordensIds.length === 0) {
-                    // A fatura ficou vazia, deve ser deletada
-                    if (window.useSupabase) {
-                        await sbDeleteWhere('faturas', 'id', fat.id);
-                    }
-                    db.faturas = db.faturas.filter(f => f.id !== fat.id);
-
-                    // Se a fatura estava paga, existia uma entrada de caixa correspondente à baixa dessa fatura.
-                    // Vamos localizar e remover essa entrada de baixa de fatura para não ter duplicidade.
-                    const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId == fat.id && m.tipo === 'entrada');
-                    if (fatPaymentMov) {
-                        if (window.useSupabase) {
-                            await sbDeleteWhere('caixa_movimentos', 'id', fatPaymentMov.id);
-                        }
-                        db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== fatPaymentMov.id);
-                    }
-                } else {
-                    // Fatura ainda tem outras OSs
-                    if (window.useSupabase) {
-                        await sbUpdate('faturas', fat.id, {
-                            ordensIds: fat.ordensIds,
-                            valorTotal: fat.valorTotal
-                        });
-                    }
-                    
-                    // Se a fatura já estava paga, reduzir o valor da movimentação da baixa da fatura
-                    if (fat.pago) {
-                        const fatPaymentMov = db.caixa_movimentos.find(m => m.faturaId == fat.id && m.tipo === 'entrada');
-                        if (fatPaymentMov) {
-                            fatPaymentMov.valor = fat.valorTotal;
-                            if (window.useSupabase) {
-                                await sbUpdate('caixa_movimentos', fatPaymentMov.id, {
-                                    valor: fatPaymentMov.valor
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remover SEMPRE todas as movimentações de caixa originais existentes correspondentes a esta OS (tipo 'entrada' e sem faturaId)
-        // Isso evita duplicidade no caixa diário quando migramos ou alteramos o pagamento.
-        const existingMovs = db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'entrada' && !m.faturaId);
-        for (const m of existingMovs) {
-            if (window.useSupabase) {
-                await sbDeleteWhere('caixa_movimentos', 'id', m.id);
-            }
-            db.caixa_movimentos = db.caixa_movimentos.filter(x => x.id !== m.id);
-        }
-
-        // Agora, aplica o novo estado baseado na nova forma de pagamento:
-        if (newForma === 'faturamento') {
-            // Cria uma nova fatura em aberto (a receber) para o parceiro
-            let finalInvoice;
-            let code = "";
-            const selectedIds = [os.id];
-
-            if (window.useSupabase) {
-                const invoiceToInsert = {
-                    codigo: "FAT-TEMP",
-                    parceiroId: os.parceiroId,
-                    unidadeId: os.unidadeId,
-                    periodoInicio: inputDataPagamento,
-                    periodoFim: inputDataPagamento,
-                    valorTotal: os.valor,
-                    ordensIds: selectedIds,
-                    pago: false,
-                    pagoEm: null,
-                    criadoEm: new Date().toISOString(),
-                    criadoPor: currentSession.nome
-                };
-
-                const inserted = await sbInsert('faturas', invoiceToInsert);
-                code = generateFaturaCode(inserted.id);
-                
-                finalInvoice = await sbUpdate('faturas', inserted.id, {
-                    codigo: code
-                });
-                
-                os.faturaId = inserted.id;
-                db.faturas.unshift(finalInvoice);
-            } else {
-                const fatId = db.faturas.length + 1;
-                code = "FAT-" + String(fatId).padStart(4, '0');
-
-                finalInvoice = {
-                    id: fatId,
-                    codigo: code,
-                    parceiroId: os.parceiroId,
-                    unidadeId: os.unidadeId,
-                    periodoInicio: inputDataPagamento,
-                    periodoFim: inputDataPagamento,
-                    valorTotal: os.valor,
-                    ordensIds: selectedIds,
-                    pago: false,
-                    pagoEm: null,
-                    criadoEm: new Date().toISOString(),
-                    criadoPor: currentSession.nome
-                };
-
-                db.faturas.push(finalInvoice);
-                os.faturaId = fatId;
-            }
-
-            os.formaPagamento = 'faturamento';
-            os.pago = false;
-            os.parcelas = null;
-            os.observacoes = removeDividedPaymentTag(os.observacoes);
-
-        } else {
-            // O novo método de pagamento é Direto (Pix, Espécie, Débito, Crédito, Crédito Parcelado, Dividido)
-            
-            // Localiza ou abre um caixa para a data informada
-            let caixaDestino = db.caixa_diario.find(c => c.unidadeId === os.unidadeId && c.data === inputDataPagamento);
-            if (!caixaDestino && window.useSupabase) {
-                try {
-                    const checkUrl = `${SUPABASE_URL}/rest/v1/caixa_diario?unidadeId=eq.${os.unidadeId}&data=eq.${inputDataPagamento}&limit=1`;
-                    const checkResponse = await fetch(checkUrl, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${sbAuthToken()}`
-                        }
-                    });
-                    const existingDrawer = await checkResponse.json();
-                    if (existingDrawer && existingDrawer.length > 0) {
-                        caixaDestino = prepareRecordFromDb('caixa_diario', existingDrawer[0]);
-                        db.caixa_diario.push(caixaDestino);
-                    }
-                } catch (errCheck) {
-                    console.error("Falha ao validar caixa existente na alteração de pagamento:", errCheck);
-                }
-            }
-            if (!caixaDestino) {
-                const newDrawer = {
-                    unidadeId: os.unidadeId,
-                    data: inputDataPagamento,
-                    status: "aberto",
-                    abertoPor: currentSession.nome,
-                    fechadoPor: null,
-                    saldoAbertura: 0.00,
-                    saldoEspécieInformado: 0,
-                    fechadoEm: null
-                };
-                if (window.useSupabase) {
-                    caixaDestino = await sbInsert('caixa_diario', newDrawer);
-                    db.caixa_diario.push(caixaDestino);
-                } else {
-                    newDrawer.id = db.caixa_diario.length + 1;
-                    db.caixa_diario.push(newDrawer);
-                    caixaDestino = newDrawer;
-                }
-            }
-
-            // Cria o novo movimento de entrada no caixa correspondente
-            if (newForma === 'dividido') {
-                const f1 = document.getElementById('alt-pag-div-forma-1').value;
-                const v1 = parseFloat(document.getElementById('alt-pag-div-valor-1').value) || 0;
-                const f2 = document.getElementById('alt-pag-div-forma-2').value;
-                const v2 = parseFloat(document.getElementById('alt-pag-div-valor-2').value) || 0;
-                
-                if (v1 <= 0 || v2 <= 0) {
-                    showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
-                    return;
-                }
-                
-                if (Math.abs((v1 + v2) - os.valor) > 0.01) {
-                    showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${os.valor.toFixed(2)}).`, "error");
-                    return;
-                }
-                
-                const parts = [
-                    { forma: f1, valor: v1 },
-                    { forma: f2, valor: v2 }
-                ];
-                
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    const newMov = {
-                        caixaId: caixaDestino.id,
-                        tipo: "entrada",
-                        valor: part.valor,
-                        descricao: `[DIVIDIDO ${i+1}/2] Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: part.forma,
-                        data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
-                        operador: currentSession.nome,
-                        osId: os.id,
-                        faturaId: null
-                    };
-                    if (window.useSupabase) {
-                        const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                        db.caixa_movimentos.unshift(insertedMov);
-                    } else {
-                        newMov.id = db.caixa_movimentos.length + 1;
-                        db.caixa_movimentos.push(newMov);
-                    }
-                }
-                
-                let cleanObs = removeDividedPaymentTag(os.observacoes);
-                os.observacoes = cleanObs + `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
-            } else {
-                const newMov = {
-                    caixaId: caixaDestino.id,
-                    tipo: "entrada",
-                    valor: os.valor,
-                    descricao: `Pgto OS: Serviço ${(os.servicoNome || 'VISTORIA').split(' — ')[0]} (Placa: ${os.placa})`,
-                    formaPagamento: newForma,
-                    data: inputDataPagamento + "T" + new Date().toTimeString().split(' ')[0] + ".000Z",
-                    operador: currentSession.nome,
-                    osId: os.id,
-                    faturaId: null
-                };
-
-                if (window.useSupabase) {
-                    const insertedMov = await sbInsert('caixa_movimentos', newMov);
-                    db.caixa_movimentos.unshift(insertedMov);
-                } else {
-                    newMov.id = db.caixa_movimentos.length + 1;
-                    db.caixa_movimentos.push(newMov);
-                }
-                
-                os.observacoes = removeDividedPaymentTag(os.observacoes);
-            }
-
-            os.formaPagamento = newForma;
-            os.pago = true;
-            os.parcelas = newParcelas;
-            os.faturaId = null;
-        }
-
-        // Salvar OS
-        if (window.useSupabase) {
-            await sbUpdate('ordens_servico', os.id, {
-                formaPagamento: os.formaPagamento,
-                pago: os.pago,
-                parcelas: os.parcelas,
-                faturaId: os.faturaId,
-                observacoes: os.observacoes
+        // 5. Cobrança Asaas da fatura em aberto: o valor vai mudar, então ela é
+        //    cancelada antes (e a fatura precisa de cobrança nova depois).
+        if (fatAtual && fatAtual.asaas_payment_id) {
+            if (!confirm(`A fatura ${fatAtual.codigo} tem cobrança no Asaas. Ela será cancelada, porque o valor da fatura muda. Gere uma cobrança nova depois. Continuar?`)) return;
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-asaas-billing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+                body: JSON.stringify({ faturaId: fatAtual.id })
             });
+            const d = await res.json().catch(() => ({}));
+            if (d.status === 'ja_recebida') {
+                showToast(`A cobrança da fatura ${fatAtual.codigo} já consta PAGA no Asaas. Dê baixa na fatura; a OS não pode sair dela.`, "error");
+                return;
+            }
+            if (!res.ok || !['cancelada', 'sem_cobranca'].includes(d.status)) {
+                showToast("Não foi possível cancelar a cobrança no Asaas: " + (d.error || res.status) + ". Nada foi alterado.", "error");
+                return;
+            }
+            fatAtual.asaas_payment_id = null;
+            fatAtual.asaas_url = null;
         }
-        
-        saveDatabase();
 
-        // 3. Auditoria
-        const descAuditoria = `Alterou pgto da OS ${os.numero} (Placa: ${os.placa}) de '${oldForma.toUpperCase()}' para '${newForma.toUpperCase()}'. Justificativa: ${justificativa}`;
+        // 6. Novos lançamentos da venda
+        const dataMov = instanteNoDiaSP(inputDataPagamento);
+        const servico = (os.servicoNome || 'VISTORIA').split(' — ')[0];
+        let movimentos = [];
+        let observacoes = removeDividedPaymentTag(os.observacoes);
+        if (partesDivididas) {
+            movimentos = partesDivididas.map((part, i) => ({
+                caixaId: caixaDestino.id, tipo: "entrada", valor: part.valor, formaPagamento: part.forma,
+                descricao: `[DIVIDIDO ${i + 1}/2] Pgto OS: Serviço ${servico} (Placa: ${os.placa})`,
+                data: dataMov, operador: currentSession.nome, faturaId: null
+            }));
+            observacoes = observacoes + `\n[PAG_DIVIDIDO: ${partesDivididas[0].forma}=${partesDivididas[0].valor};${partesDivididas[1].forma}=${partesDivididas[1].valor}]`;
+        } else if (newForma !== 'faturamento') {
+            movimentos = [{
+                caixaId: caixaDestino.id, tipo: "entrada", valor: os.valor, formaPagamento: newForma,
+                descricao: `Pgto OS: Serviço ${servico} (Placa: ${os.placa})`,
+                data: dataMov, operador: currentSession.nome, faturaId: null
+            }];
+        }
+        // Passando a faturamento, a OS fica sem fatura e entra no próximo
+        // fechamento do parceiro (antes era criada uma fatura só para ela).
+
+        // 7. Tudo numa transação no banco: sai da fatura em aberto (devolvendo
+        //    o crédito abatido que não couber mais), troca os lançamentos e a OS.
+        const { data: r, error } = await supabaseClient.rpc('alterar_pagamento_os', {
+            p_os_id: os.id,
+            p_os: { formaPagamento: newForma, pago: newForma !== 'faturamento', parcelas: newParcelas, observacoes, pagamentoDividido: partesDivididas },
+            p_movimentos: movimentos,
+            p_por: currentSession.nome
+        });
+        if (error) throw error;
+        aplicarResultadoAlteracaoPagamento(os, r);
+
+        const descAuditoria = `Alterou pgto da OS ${os.numero} (Placa: ${os.placa}) de '${oldForma.toUpperCase()}' para '${newForma.toUpperCase()}'${fatAtual ? ` (saiu da fatura ${fatAtual.codigo})` : ''}. Justificativa: ${justificativa}`;
         logAudit("Alterar Pagamento OS", descAuditoria);
+        const credito = r && r.fatura && r.fatura.credito_devolvido;
+        showToast(credito
+            ? `Forma de pagamento atualizada. Crédito de ${formatCurrency(Number(credito.valor))} devolvido ao parceiro.`
+            : "Forma de pagamento atualizada com sucesso!", "success");
 
-        showToast("Forma de pagamento atualizada com sucesso!", "success");
-
-        // Fecha o modal de alteração e recarrega os dados em tela
         document.getElementById('modal-alterar-pagamento').classList.remove('active');
-        
-        // Re-renderiza views de forma reativa conforme a aba atualmente ativa
         if (document.getElementById('panel-caixa').classList.contains('active')) {
             await renderCaixaPage();
         } else if (document.getElementById('panel-faturamento').classList.contains('active')) {
@@ -11164,14 +9735,12 @@ async function submitChangePayment(event) {
         } else if (document.getElementById('panel-historico').classList.contains('active')) {
             renderHistorico();
         }
-        
-        // Atualiza a ficha de OS que está exibida por trás
         openOSDetailsModal(os.id);
-
     } catch (err) {
         console.error("Erro na alteração do pagamento:", err);
-        showToast("Erro ao processar a alteração contábil.", "error");
+        showToast("A alteração do pagamento não foi gravada: " + (err.message || err), "error");
     } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -11288,8 +9857,8 @@ async function closeAndExitReopenMode() {
                 
                 // Passo 1: Calcular o saldo final do dia reaberto
                 const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-                const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
-                const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                 saldoAnterior = parseFloat(c.saldoAbertura || 0) + cashPaymentsReaberto - cashSangriasReaberto;
 
                 // Passo 2: Propagar em cascata para todos os caixas subsequentes
@@ -11312,8 +9881,8 @@ async function closeAndExitReopenMode() {
 
                     // Calcula o saldo final deste dia subsequente para a próxima iteração
                     const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
-                    const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
-                    const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                    const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                    const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                     saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
                 }
             }
@@ -11360,190 +9929,6 @@ async function closeAndExitReopenMode() {
 // MÓDULO: REGISTRAR CAUTELAR (MILESTONE 1)
 // ============================================================================
 
-/**
- * Seed complementar de vistorias cautelares para testes locais.
- * Roda na inicialização se db.cautelares estiver vazio.
- */
-function seedCautelares() {
-    if (!db || !db.ordens_servico || (db.cautelares && db.cautelares.length > 0)) return;
-
-    let nextOsId = db.ordens_servico.reduce((max, o) => Math.max(max, o.id), 0) + 1;
-    let nextCautelarId = 1;
-
-    // OS 1: Placa QJB-7962 (Aguardando Início)
-    const os1 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(), // 2h atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "particular",
-        parceiroId: null,
-        clienteNome: "JOÃO SILVA MENDES",
-        clienteCpfCnpj: "123.456.789-00",
-        clienteCelular: "(48) 99999-1111",
-        placa: "QJB-7962",
-        renavam: "12345678901",
-        servicoId: 4,
-        servicoNome: "VISTORIA CAUTELAR",
-        valor: 350.00,
-        observacoes: "VW GOL 2020 BRANCO",
-        pago: true,
-        formaPagamento: "pix",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "paga",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os1);
-
-    // OS 2: Placa QHT-2C78 (Em Captura)
-    const os2 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 5).toISOString(), // 5h atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "parceiro",
-        parceiroId: 1,
-        clienteNome: "RICARDO ANTUNES",
-        clienteCpfCnpj: "987.654.321-99",
-        clienteCelular: "(48) 98888-2222",
-        placa: "QHT-2C78",
-        renavam: "98765432109",
-        servicoId: 7,
-        servicoNome: "VISTORIA COMBO",
-        valor: 150.00,
-        observacoes: "FIAT UNO 2018 CINZA",
-        pago: true,
-        formaPagamento: "faturamento",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "em_execucao",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os2);
-
-    const cautelar2 = {
-        id: nextCautelarId++,
-        osId: os2.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "em_captura",
-        vistoriadorId: 6, // Pedro Vistoriador Júnior
-        finalizadoPorId: null,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 4.5).toISOString(),
-        dataHoraEnvio: null,
-        dataHoraFinalizacao: null,
-        parecerConsolidado: null,
-        parecerTexto: ""
-    };
-    db.cautelares.push(cautelar2);
-
-    // OS 3: Placa MHX-9981 (Finalizada)
-    const os3 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 48).toISOString(), // 2 dias atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "particular",
-        parceiroId: null,
-        clienteNome: "MARIA MEDEIROS",
-        clienteCpfCnpj: "456.789.123-11",
-        clienteCelular: "(48) 97777-3333",
-        placa: "MHX-9981",
-        renavam: "45678912301",
-        servicoId: 4,
-        servicoNome: "VISTORIA CAUTELAR",
-        valor: 350.00,
-        observacoes: "TOYOTA COROLLA 2022 PRETO",
-        pago: true,
-        formaPagamento: "debito",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "concluida_aprovada",
-        finalizadoEm: new Date(Date.now() - 3600000 * 46).toISOString(),
-        finalizadoPor: "Silvio Vistoriador Sênior"
-    };
-    db.ordens_servico.push(os3);
-
-    const cautelar3 = {
-        id: nextCautelarId++,
-        osId: os3.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "finalizada",
-        vistoriadorId: 7, // Silvio Sênior
-        finalizadoPorId: 7,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 47.5).toISOString(),
-        dataHoraEnvio: new Date(Date.now() - 3600000 * 46.5).toISOString(),
-        dataHoraFinalizacao: new Date(Date.now() - 3600000 * 46).toISOString(),
-        parecerConsolidado: "conforme",
-        parecerTexto: "VEÍCULO EM EXCELENTE ESTADO ESTRUTURAL E DE PINTURA. LAUDO APROVADO.",
-        pdfUrl: "#",
-        pdfHash: "8f5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e2"
-    };
-    db.cautelares.push(cautelar3);
-
-    // OS 4: Placa BEE-4C99 (Aguardando Finalização)
-    const os4 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 dia atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "parceiro",
-        parceiroId: 2,
-        clienteNome: "JULIO CESAR DOS SANTOS",
-        clienteCpfCnpj: "789.123.456-22",
-        clienteCelular: "(48) 96666-4444",
-        placa: "BEE-4C99",
-        renavam: "78912345602",
-        servicoId: 7,
-        servicoNome: "VISTORIA COMBO",
-        valor: 160.00,
-        observacoes: "CHEVROLET ONIX 2021 PRATA",
-        pago: true,
-        formaPagamento: "faturamento",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "em_execucao",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os4);
-
-    const cautelar4 = {
-        id: nextCautelarId++,
-        osId: os4.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "aguardando_finalizacao",
-        vistoriadorId: 6, // Pedro Júnior
-        finalizadoPorId: null,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 23.5).toISOString(),
-        dataHoraEnvio: new Date(Date.now() - 3600000 * 23).toISOString(),
-        dataHoraFinalizacao: null,
-        parecerConsolidado: "nao_conforme",
-        parecerTexto: "ATENÇÃO: LONGARINA TRASEIRA ESQUERDA APRESENTA SINAIS DE REPARO POR SOLDA. ETIQUETAS ETA INCOMPATÍVEIS."
-    };
-    db.cautelares.push(cautelar4);
-
-    // Salvar no LocalStorage e sincronizar com Supabase se necessário
-    saveDatabase();
-    
-    if (window.useSupabase) {
-        Promise.all([
-            sbInsert('ordens_servico', os1),
-            sbInsert('ordens_servico', os2),
-            sbInsert('ordens_servico', os3),
-            sbInsert('ordens_servico', os4),
-            sbInsert('cautelares', cautelar2),
-            sbInsert('cautelares', cautelar3),
-            sbInsert('cautelares', cautelar4)
-        ]).catch(e => console.warn("Supabase seed warning:", e));
-    }
-}
 
 /**
  * Verifica se o serviço é do tipo Vistoria Cautelar.
@@ -11625,7 +10010,7 @@ function renderRegistrarCautelarPage() {
         );
 
         let options = '<option value="todos">Todos os Vistoriadores</option>';
-        options += vistoriadores.map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+        options += vistoriadores.map(op => `<option value="${op.id}">${escHtml(op.nome)}</option>`).join('');
         filterVistoriador.innerHTML = options;
     }
 
@@ -11776,9 +10161,9 @@ function filterCautelares() {
 
             return `
                 <tr>
-                    <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${item.os.placa}</td>
+                    <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${escHtml(item.os.placa)}</td>
                     <td>${removeDividedPaymentTag(item.os.observacoes)}</td>
-                    <td>${item.os.clienteNome}</td>
+                    <td>${escHtml(item.os.clienteNome)}</td>
                     <td>${statusBadge}</td>
                     <td><i class="ri-user-line" style="font-size: 12px; color: var(--text-secondary); margin-right: 4px;"></i>${item.vistoriador}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${item.iniciadoEm}</td>
@@ -11797,12 +10182,12 @@ function filterCautelares() {
             return `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 16px;">${item.os.placa}</span>
+                        <span style="font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 16px;">${escHtml(item.os.placa)}</span>
                         ${statusBadge}
                     </div>
                     <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
                         <span><strong>Veículo:</strong> ${removeDividedPaymentTag(item.os.observacoes)}</span>
-                        <span><strong>Cliente:</strong> ${item.os.clienteNome}</span>
+                        <span><strong>Cliente:</strong> ${escHtml(item.os.clienteNome)}</span>
                         <span><strong>Vistoriador:</strong> ${item.vistoriador}</span>
                         <span><strong>Iniciada em:</strong> ${item.iniciadoEm}</span>
                     </div>
@@ -12158,6 +10543,26 @@ const CautelarOfflineDB = {
         });
     },
 
+    // Apaga só se ainda for a MESMA foto (mesmo momento de gravação). Se o
+    // vistoriador refez a foto enquanto a anterior subia, a nova fica.
+    deleteFotoSeIgual(cautelarId, slotCodigo, timestamp) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readwrite');
+                const store = transaction.objectStore('fotos');
+                const id = `${cautelarId}_${slotCodigo}`;
+                const req = store.get(id);
+                req.onsuccess = (e) => {
+                    const atual = e.target.result;
+                    if (atual && timestamp && atual.timestamp !== timestamp) { resolve(false); return; }
+                    store.delete(id);
+                    resolve(true);
+                };
+                req.onerror = (e) => reject(e);
+            });
+        });
+    },
+
     getAllFotos(cautelarId) {
         return this.open().then((db) => {
             return new Promise((resolve, reject) => {
@@ -12304,7 +10709,7 @@ async function continuarCautelar(cautelarId) {
         saveDatabase();
         if (window.useSupabase) {
             cautelarSincronizarSecoes(secoesFaltando)
-                .catch(e => console.warn("Erro ao recriar seções da Cautelar no Supabase:", e));
+                .catch(avisarFalhaGravacao('Seções da vistoria'));
         }
     }
 
@@ -12462,7 +10867,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
             <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">AVALIAÇÃO ESTRUTURAL</label>
-                    <select id="status-foto-${slot.codigo}" onchange="salvarStatusFoto('${slot.codigo}', 'status', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px; width: 100%;">
+                    <select id="status-foto-${escHtml(slot.codigo)}" onchange="salvarStatusFoto('${escHtml(slot.codigo)}', 'status', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px; width: 100%;">
                         <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original</option>
                         <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Indícios de Reparo</option>
                         <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Indícios de Substituição</option>
@@ -12472,7 +10877,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">OBSERVAÇÕES DA PEÇA (OPCIONAL)</label>
-                    <input type="text" id="obs-foto-${slot.codigo}" value="${obsPeca}" placeholder="Ex: pequeno amassado, solda..." oninput="salvarStatusFoto('${slot.codigo}', 'observacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; width: 100%;">
+                    <input type="text" id="obs-foto-${escHtml(slot.codigo)}" value="${obsPeca}" placeholder="Ex: pequeno amassado, solda..." oninput="salvarStatusFoto('${escHtml(slot.codigo)}', 'observacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; width: 100%;">
                 </div>
             </div>
         `;
@@ -12484,21 +10889,21 @@ function getPhotoSlotCardHtml(slot, secaoId) {
             <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Indícios de Desbaste / Polimento na gravação?</label>
-                    <select id="desbaste-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'desbaste', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                    <select id="desbaste-foto-${escHtml(slot.codigo)}" onchange="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'desbaste', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
                         <option value="nao" ${!desbaste ? 'selected' : ''}>NÃO</option>
                         <option value="sim" ${desbaste ? 'selected' : ''}>SIM — há desbaste/polimento</option>
                     </select>
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Gravação Original?</label>
-                    <select id="original-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                    <select id="original-foto-${escHtml(slot.codigo)}" onchange="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
                         <option value="sim" ${isOriginal ? 'selected' : ''}>SIM</option>
                         <option value="nao" ${!isOriginal ? 'selected' : ''}>NÃO</option>
                     </select>
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Número Gravado</label>
-                    <input type="text" id="gravacao-foto-${slot.codigo}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${slot.codigo}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
+                    <input type="text" id="gravacao-foto-${escHtml(slot.codigo)}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
                 </div>
             </div>
         `;
@@ -12524,20 +10929,20 @@ function getPhotoSlotCardHtml(slot, secaoId) {
         const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
         const isLocalBlob = photo.pendenteEnvio || displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
         const statusFoto = photo.pendenteEnvio
-            ? `<span id="status-envio-${slot.codigo}" style="font-size: 9px; color: var(--warning, #f59e0b); display: block; margin-top: 2px;"><i class="ri-upload-cloud-2-line"></i> Salva no aparelho — aguardando envio</span>`
+            ? `<span id="status-envio-${escHtml(slot.codigo)}" style="font-size: 9px; color: var(--warning, #f59e0b); display: block; margin-top: 2px;"><i class="ri-upload-cloud-2-line"></i> Salva no aparelho — aguardando envio</span>`
             : `<span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada e enviada</span>`;
         // A miniatura base64 aparece na hora; o original do IndexedDB entra por cima depois
         const initialSrc = (displayUrl.startsWith('http') || displayUrl.startsWith('data:')) ? displayUrl : '';
         
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
-                <img id="img-preview-${slot.codigo}" src="${initialSrc}" onclick="abrirPreviewFotoCautelar('${slot.codigo}')" style="width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" alt="${slot.nome}">
+                <img id="img-preview-${escHtml(slot.codigo)}" src="${initialSrc}" onclick="abrirPreviewFotoCautelar('${escHtml(slot.codigo)}')" style="width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" alt="${escHtml(slot.nome)}">
                 <span style="position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 10px; pointer-events: none;"><i class="ri-zoom-in-line"></i> Toque para ampliar</span>
-                <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                <button onclick="deleteFotoCaptura('${escHtml(slot.codigo)}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
                     <i class="ri-delete-bin-line"></i>
                 </button>
             </div>
-            <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${slot.nome}</h5>
+            <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${escHtml(slot.nome)}</h5>
             ${statusFoto}
             ${extraControls}
         `;
@@ -12565,10 +10970,10 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     } else {
         // Exibe slot vazio para tirar a foto
         card.innerHTML = `
-            <input type="file" id="${inputId}" accept="image/*" style="display: none;" onchange="handleFotoUpload('${slot.codigo}', event)">
-            <div onclick="abrirCameraCautelar('${slot.codigo}')" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
+            <input type="file" id="${inputId}" accept="image/*" style="display: none;" onchange="handleFotoUpload('${escHtml(slot.codigo)}', event)">
+            <div onclick="abrirCameraCautelar('${escHtml(slot.codigo)}')" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
                 <i class="ri-camera-lens-line" style="font-size: 40px; color: var(--accent); margin-bottom: 10px; display: inline-block;"></i>
-                <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${slot.nome}</h5>
+                <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${escHtml(slot.nome)}</h5>
                 <span style="font-size: 11px; color: var(--text-secondary);">Tocar para capturar</span>
             </div>
             <button type="button" onclick="document.getElementById('${inputId}').click()" style="margin-top: 8px; background: none; border: none; color: var(--text-secondary); font-size: 11px; text-decoration: underline; cursor: pointer;">Escolher da galeria</button>
@@ -12677,7 +11082,7 @@ function cautelarEscolherChip(btn) {
         if (os && os.veiculoTipo !== valor) {
             os.veiculoTipo = valor;
             saveDatabase();
-            if (window.useSupabase) sbUpdate('ordens_servico', os.id, { veiculoTipo: valor }).catch(e => console.warn(e));
+            if (window.useSupabase) sbUpdate('ordens_servico', os.id, { veiculoTipo: valor }).catch(avisarFalhaGravacao('Alteração da vistoria'));
         }
     }
     if (window.activeSecaoNum === 4) cautelarAtualizarObsSec4();
@@ -12715,7 +11120,7 @@ function cautelarValidarChassi() {
         span.innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i> Confere com o chassi da O.S.`;
         span.style.color = 'var(--success)';
     } else {
-        span.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do chassi da O.S. (${os.veiculoChassi})`;
+        span.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do chassi da O.S. (${escHtml(os.veiculoChassi)})`;
         span.style.color = 'var(--danger)';
     }
 }
@@ -12753,7 +11158,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao1-obs">Observações (Opcional)</label>
-                        <textarea id="caut-secao1-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A IDENTIFICAÇÃO DO VEÍCULO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao1-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A IDENTIFICAÇÃO DO VEÍCULO..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12764,7 +11169,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 const atual = data[et.codigo] || '';
                 return `
                     <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
-                        <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">${et.nome} <span style="color:var(--danger)">*</span></div>
+                        <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">${escHtml(et.nome)} <span style="color:var(--danger)">*</span></div>
                         ${cautelarChipsHtml(et.codigo, atual, CAUTELAR_ETIQUETA_STATUS)}
                     </div>`;
             }).join('');
@@ -12772,12 +11177,12 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
                         <label for="caut-chassi">Chassi Lido <span style="color:var(--danger)">*</span></label>
-                        <input type="text" id="caut-chassi" value="${data.chassiLido || ''}" placeholder="DIGITE O CHASSI LIDO..." oninput="this.value = this.value.toUpperCase(); autoSaveCampo('chassiLido', this.value); cautelarValidarChassi();" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <input type="text" id="caut-chassi" value="${escHtml(data.chassiLido || '')}" placeholder="DIGITE O CHASSI LIDO..." oninput="this.value = this.value.toUpperCase(); autoSaveCampo('chassiLido', this.value); cautelarValidarChassi();" style="font-family: monospace; letter-spacing: 1px;" required>
                         <span id="caut-chassi-validation" style="font-size: 11px; margin-top: 4px; display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="caut-motor">Motor Lido <span style="color:var(--danger)">*</span></label>
-                        <input type="text" id="caut-motor" value="${data.motorLido || ''}" placeholder="DIGITE O MOTOR LIDO..." oninput="autoSaveCampo('motorLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <input type="text" id="caut-motor" value="${escHtml(data.motorLido || '')}" placeholder="DIGITE O MOTOR LIDO..." oninput="autoSaveCampo('motorLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
                     </div>
                     <div class="form-group">
                         <label>Conformidade de Originalidade <span style="color:var(--danger)">*</span></label>
@@ -12797,7 +11202,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao2-obs" id="caut-secao2-obs-label">Observações (Opcional)</label>
-                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI, MOTOR E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI, MOTOR E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12854,7 +11259,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group" id="caut-parecer-obs-container" style="display: ${showParecerObs ? 'block' : 'none'};">
                         <label for="caut-secao3-obs" id="caut-secao3-obs-label">Comentários e Justificativa do Parecer <span style="color:var(--danger)">*</span></label>
-                        <textarea id="caut-secao3-obs" placeholder="Justifique o parecer com ressalvas ou não conforme..." oninput="autoSaveCampo('observacao', this.value)" ${showParecerObs ? 'required' : ''}>${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao3-obs" placeholder="Justifique o parecer com ressalvas ou não conforme..." oninput="autoSaveCampo('observacao', this.value)" ${showParecerObs ? 'required' : ''}>${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12871,7 +11276,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 const medida = item.tipo === 'plastico' ? `
                     <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px;">Peça plástica — apenas classificação</div>` : `
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <input type="number" inputmode="decimal" value="${um}" placeholder="µm" oninput="autoSaveCampo('pint_${item.codigo}_um', this.value)" style="width: 100px; text-align: right; font-family: monospace; padding: 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
+                        <input type="number" inputmode="decimal" value="${um}" placeholder="µm" oninput="autoSaveCampo('pint_${escHtml(item.codigo)}_um', this.value)" style="width: 100px; text-align: right; font-family: monospace; padding: 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
                         <span style="font-size: 11px; color: var(--text-secondary);">µm medidos</span>
                     </div>`;
                 const reparo = item.tipo === 'coluna' ? `
@@ -12881,7 +11286,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>` : '';
                 return `
                     <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">${item.ordem}. ${item.nome}</div>
+                        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">${item.ordem}. ${escHtml(item.nome)}</div>
                         ${medida}
                         <div style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">${item.tipo === 'coluna' ? 'Estado geral' : 'Classificação'} <span style="color:var(--danger)">*</span></div>
                         ${cautelarChipsHtml(`pint_${item.codigo}_classe`, classe, opcoes)}
@@ -12896,7 +11301,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     ${linhas}
                     <div class="form-group" style="margin-top:20px;">
                         <label for="caut-secao4-obs" id="caut-secao4-obs-label">Observações do Vistoriador (Opcional)</label>
-                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA E AS COLUNAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA E AS COLUNAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12912,7 +11317,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </p>
                     <div class="form-group">
                         <label for="caut-secao5-obs">Observações Gerais (Opcional)</label>
-                        <textarea id="caut-secao5-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE OS VIDROS E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao5-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE OS VIDROS E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12937,7 +11342,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao6-obs">Observações (Opcional)</label>
-                        <textarea id="caut-secao6-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE COMPARTIMENTO DO MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao6-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE COMPARTIMENTO DO MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12966,7 +11371,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao7-obs" id="caut-secao7-obs-label">Observações</label>
-                        <textarea id="caut-secao7-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE O INTERIOR E QUADROS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao7-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE O INTERIOR E QUADROS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12988,7 +11393,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     
                     <div class="form-group">
                         <label for="caut-secao8-obs" id="caut-secao8-obs-label">Observações Finais e Geral</label>
-                        <textarea id="caut-secao8-obs" placeholder="DIGITE AS OBSERVAÇÕES FINAIS DO LAUDO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao8-obs" placeholder="DIGITE AS OBSERVAÇÕES FINAIS DO LAUDO..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
 
                     <!-- Canvas para Assinatura Digital -->
@@ -13133,7 +11538,7 @@ function salvarStatusFoto(slotCodigo, field, value) {
         }
         saveDatabase();
         if (window.useSupabase && !photo.pendenteEnvio) {
-            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
+            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(avisarFalhaGravacao('Alteração da vistoria'));
         }
     }
 }
@@ -13157,7 +11562,7 @@ function salvarEtiquetaVidro(slotCodigo, field, value) {
         }
         saveDatabase();
         if (window.useSupabase && !photo.pendenteEnvio) {
-            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn(e));
+            sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(avisarFalhaGravacao('Alteração da vistoria'));
         }
     }
 }
@@ -13329,7 +11734,7 @@ function validarSecaoCompleta() {
                 secao.dataHoraCompletada = new Date().toISOString();
                 saveDatabase();
                 if (window.useSupabase) {
-                    sbUpdate('cautelares_secoes', secao.id, { status: 'completa', dataHoraCompletada: secao.dataHoraCompletada }).catch(e => console.warn(e));
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'completa', dataHoraCompletada: secao.dataHoraCompletada }).catch(avisarFalhaGravacao('Alteração da vistoria'));
                 }
             }
         } else {
@@ -13348,7 +11753,7 @@ function validarSecaoCompleta() {
                 secao.dataHoraCompletada = null;
                 saveDatabase();
                 if (window.useSupabase) {
-                    sbUpdate('cautelares_secoes', secao.id, { status: 'em_andamento', dataHoraCompletada: null }).catch(e => console.warn(e));
+                    sbUpdate('cautelares_secoes', secao.id, { status: 'em_andamento', dataHoraCompletada: null }).catch(avisarFalhaGravacao('Alteração da vistoria'));
                 }
             }
         }
@@ -13410,7 +11815,7 @@ function avancarSecao() {
             nextSecao.status = 'em_andamento';
             saveDatabase();
             if (window.useSupabase) {
-                sbUpdate('cautelares_secoes', nextSecao.id, { status: 'em_andamento' }).catch(e => console.warn(e));
+                sbUpdate('cautelares_secoes', nextSecao.id, { status: 'em_andamento' }).catch(avisarFalhaGravacao('Alteração da vistoria'));
             }
         }
         irParaSecaoCaptura(proxima);
@@ -13435,7 +11840,7 @@ function avancarSecao() {
             Promise.all([
                 sbUpdate('cautelares', cautelar.id, { status: cautelar.status, dataHoraEnvio: cautelar.dataHoraEnvio }),
                 sbUpdate('ordens_servico', os.id, { status: os.status })
-            ]).catch(e => console.warn(e));
+            ]).catch(avisarFalhaGravacao('Alteração da vistoria'));
         }
 
         logAudit("Registrar Cautelar", `Finalizou captura mobile da cautelar placa ${os.placa} e enviou para mesa.`);
@@ -13495,7 +11900,21 @@ function salvarESairCaptura() {
  * permissão, cai para o seletor de arquivo.
  */
 const CAUTELAR_FOTO_LADO_MAX = 1600;
+// Fotos de números gravados (chassi, motor, etiquetas, vidros): resolução maior,
+// senão os caracteres pequenos ficam no limite da leitura.
+const CAUTELAR_FOTO_LADO_MAX_TEXTO = 2400;
 const CAUTELAR_FOTO_QUALIDADE = 0.82;
+
+// Pede ao navegador que não apague os dados do site (fotos ainda não enviadas
+// ficam no IndexedDB; o iPhone apaga dados de sites "não persistentes" quando
+// falta espaço ou após dias sem uso).
+function cautelarPedirArmazenamentoPersistente() {
+    if (window.__persistenciaPedida || !navigator.storage || !navigator.storage.persist) return;
+    window.__persistenciaPedida = true;
+    navigator.storage.persisted().then(ja => ja || navigator.storage.persist()).then(ok => {
+        if (!ok) console.warn('O navegador não garantiu o armazenamento persistente das fotos.');
+    }).catch(() => {});
+}
 
 /**
  * Posição do celular no momento da foto, pelo sensor de gravidade.
@@ -13603,7 +12022,10 @@ async function abrirCameraCautelar(slotCodigo) {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            // Pede a maior resolução que a câmera der (o navegador reduz se não suportar)
+            video: slotInfo && slotInfo.texto
+                ? { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }
+                : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
         });
     } catch (err) {
         console.warn("Câmera na página indisponível; usando a câmera do sistema.", err);
@@ -13629,7 +12051,8 @@ async function abrirCameraCautelar(slotCodigo) {
     overlay.querySelector('#cam-disparo').onclick = async () => {
         const w = video.videoWidth, h = video.videoHeight;
         if (!w || !h) return;
-        const escala = Math.min(1, CAUTELAR_FOTO_LADO_MAX / Math.max(w, h));
+        const ladoMax = slotInfo && slotInfo.texto ? CAUTELAR_FOTO_LADO_MAX_TEXTO : CAUTELAR_FOTO_LADO_MAX;
+        const escala = Math.min(1, ladoMax / Math.max(w, h));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(w * escala);
         canvas.height = Math.round(h * escala);
@@ -13697,7 +12120,7 @@ async function cautelarObterOriginal(cautelarId, slotCodigo) {
     const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
     const url = photo && (photo.url_original || photo.urlOriginal);
     if (!url || !url.startsWith('http')) return null;
-    const resp = await fetch(url, { cache: 'no-store' });
+    const resp = await fetch(await urlArmazenamento(url), { cache: 'no-store' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return { blob: await resp.blob(), metadados: photo.metadados_json || {} };
 }
@@ -13706,6 +12129,16 @@ async function cautelarObterOriginal(cautelarId, slotCodigo) {
  * Gira uma foto já registrada e a coloca de novo na fila de envio.
  */
 async function cautelarGirarFoto(cautelarId, slotCodigo, graus) {
+    const chave = `${cautelarId}_${slotCodigo}`;
+    if (window._cautelarEnviando.has(chave) || window._cautelarOrientando.has(chave)) {
+        throw new Error('A foto está sendo enviada ou conferida; tente girar em alguns segundos.');
+    }
+    window._cautelarOrientando.add(chave);
+    try { return await cautelarGirarFotoAgora(cautelarId, slotCodigo, graus); }
+    finally { window._cautelarOrientando.delete(chave); }
+}
+
+async function cautelarGirarFotoAgora(cautelarId, slotCodigo, graus) {
     const orig = await cautelarObterOriginal(cautelarId, slotCodigo);
     if (!orig) throw new Error('Foto original indisponível');
     const girada = await cautelarGirarBlob(orig.blob, graus);
@@ -13721,11 +12154,6 @@ async function cautelarGirarFoto(cautelarId, slotCodigo, graus) {
         saveDatabase();
     }
     return girada;
-}
-
-function cautelarConfigIA() {
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
-    return config && config.chaveOpenAi ? config : null;
 }
 
 function cautelarBlobParaDataUrl(blob) {
@@ -13801,6 +12229,8 @@ async function cautelarAutoOrientar(cautelarId, slotCodigo) {
         if (!rec || !rec.blob) return;
         const resultado = await cautelarGarantirOrientacao(rec.blob, slotCodigo);
         if (!resultado.conferida) return;
+        const agora = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo).catch(() => null);
+        if (!agora || agora.timestamp !== rec.timestamp) return;   // foto refeita no meio: a nova será conferida
         await cautelarSalvarFotoConferida(cautelarId, slotCodigo, resultado.blob, rec.metadados, resultado);
         const secaoNum = cautelarSecaoDoSlot(slotCodigo);
         if (resultado.rotacao && window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum && !document.getElementById('cautelar-preview-overlay')) {
@@ -13824,19 +12254,30 @@ async function cautelarConferirOrientacaoFotos(cautelarId, aoProgredir) {
     const alvo = db.cautelares_fotos.filter(f => secaoIds.includes(f.secaoId)).filter(f => {
         const info = cautelarSlotInfo(f.slotCodigo);
         const o = (f.metadados_json || f.metadados || {}).orientacaoIA;
-        return info && info.texto && (!o || o.incerta);
+        return info && info.texto && !o;
     });
-    const incertas = [];
+    // Já marcadas como incertas numa conferência anterior: não gasta outra análise,
+    // vão direto para a lista de conferência de quem emite
+    const incertas = db.cautelares_fotos.filter(f => secaoIds.includes(f.secaoId)).filter(f => {
+        const o = (f.metadados_json || f.metadados || {}).orientacaoIA;
+        return o && o.incerta;
+    }).map(f => (cautelarSlotInfo(f.slotCodigo) || {}).nome || f.slotCodigo);
     let feitas = 0, alterou = false, i = 0;
     const trabalhador = async () => {
         while (i < alvo.length) {
             const foto = alvo[i++];
             const info = cautelarSlotInfo(foto.slotCodigo);
+            const chave = `${cautelarId}_${foto.slotCodigo}`;
+            // Trava por foto: não confere a que está subindo, girando ou sendo conferida
+            if (window._cautelarEnviando.has(chave) || window._cautelarOrientando.has(chave)) { feitas++; continue; }
+            window._cautelarOrientando.add(chave);
             try {
                 const orig = await cautelarObterOriginal(cautelarId, foto.slotCodigo);
                 if (!orig) continue;
+                const urlAntes = foto.url_original;
                 const resultado = await cautelarGarantirOrientacao(orig.blob, foto.slotCodigo);
                 if (!resultado.conferida) { incertas.push(info.nome); continue; }
+                if (foto.url_original !== urlAntes) continue;   // foto trocada no meio
                 await cautelarSalvarFotoConferida(cautelarId, foto.slotCodigo, resultado.blob, orig.metadados, resultado);
                 if (resultado.rotacao) alterou = true;
                 if (resultado.incerta) incertas.push(info.nome);
@@ -13844,6 +12285,7 @@ async function cautelarConferirOrientacaoFotos(cautelarId, aoProgredir) {
                 console.warn('Checagem de orientação indisponível para', foto.slotCodigo, e);
                 incertas.push(info.nome);
             } finally {
+                window._cautelarOrientando.delete(chave);
                 feitas++;
                 if (typeof aoProgredir === 'function') aoProgredir(feitas, alvo.length);
             }
@@ -13971,7 +12413,7 @@ async function abrirPreviewFotoCautelar(slotCodigo, opcoes = {}) {
             cautelarEnviarPendentes(cautelarId);
         } catch (e) {
             console.warn(e);
-            showToast("Não foi possível girar a foto agora.", "error");
+            showToast(e && /enviada ou conferida/.test(e.message) ? e.message : "Não foi possível girar a foto agora.", "error");
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="ri-clockwise-line"></i> Girar';
@@ -14030,9 +12472,11 @@ async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
     cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`);
 
     try {
+        cautelarPedirArmazenamentoPersistente();
+        const infoSlot = cautelarSlotInfo(slotCodigo);
         const blobOriginal = opcoes.jaReduzida
             ? fonte
-            : await compressImage(fonte, CAUTELAR_FOTO_LADO_MAX, CAUTELAR_FOTO_QUALIDADE);
+            : await compressImage(fonte, infoSlot && infoSlot.texto ? CAUTELAR_FOTO_LADO_MAX_TEXTO : CAUTELAR_FOTO_LADO_MAX, CAUTELAR_FOTO_QUALIDADE);
         const blobThumb = await compressImage(blobOriginal, 400, 0.70);
 
         const metadados = {
@@ -14194,9 +12638,15 @@ async function cautelarEnviarFoto(cautelarId, rec) {
     photo.url_thumb = urlThumb;
     photo.urlOriginal = '';
     photo.urlThumb = '';
+    const apagou = await CautelarOfflineDB.deleteFotoSeIgual(cautelarId, slotCodigo, rec.timestamp);
+    if (!apagou) {
+        // Foto refeita durante o envio: a nova continua pendente e sobe em seguida
+        photo.pendenteEnvio = true;
+        setTimeout(() => cautelarEnviarPendentes(cautelarId), 500);
+        return;
+    }
     delete photo.pendenteEnvio;
     saveDatabase();
-    await CautelarOfflineDB.deleteFoto(cautelarId, slotCodigo);
 
     const st = document.getElementById(`status-envio-${slotCodigo}`);
     if (st && window.activeCautelarId === cautelarId) {
@@ -14233,10 +12683,10 @@ async function deleteFotoCaptura(slotCodigo) {
 
         // 2. Apaga da nuvem (só se já tinha sido enviada: id provisório é negativo)
         if (window.useSupabase && photo.id > 0) {
-            sbDelete('cautelares_fotos', photo.id).catch(e => console.warn(e));
+            sbDelete('cautelares_fotos', photo.id).catch(avisarFalhaGravacao('Alteração da vistoria'));
             const base = `cautelares/${cautelarId}/${slotCodigo}`;
             supabaseClient.storage.from('cautelares').remove([`${base}.jpg`, `${base}_thumb.jpg`])
-                .catch(e => console.warn(e));
+                .catch(avisarFalhaGravacao('Alteração da vistoria'));
         }
 
         // 3. Remove localmente
@@ -14428,12 +12878,6 @@ function saveSignatureCanvas(showAlert = true) {
 // STUBS E PLACEHOLDERS RESTANTES (MILESTONE 3)
 // ============================================================================
 
-/**
- * Abre a visualização resumida (modo leitura) da Cautelar.
- */
-function verResumoCautelar(cautelarId) {
-    showToast("Visualização de resumo em desenvolvimento (Milestone 2).", "info");
-}
 
 // Variável de controle do finalizador
 window.activeFinalizacaoCautelarId = null;
@@ -14610,660 +13054,6 @@ function confirmOperatorSignature(showAlert = true) {
     atualizarPreviewLaudo();
 }
 
-/**
- * Renderiza a pré-visualização real-time do Laudo A4 de 9 páginas.
- */
-function atualizarPreviewLaudo_old() {
-    const previewContainer = document.getElementById('laudo-preview-container');
-    if (!previewContainer) return;
-
-    const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
-    if (!cautelar) return;
-
-    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
-
-    // Resgata os dados preenchidos
-    const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
-    const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
-    const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
-    const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
-    const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
-    const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
-    const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
-    const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
-
-    const parecerFinal = document.getElementById('caut-final-parecer').value;
-    const obsFinal = document.getElementById('caut-final-obs').value;
-
-    const signatureVistoriador = dataSec8.signatureBase64 || '';
-    const signatureOperador = sessionStorage.getItem('certive_operator_signature') || '';
-
-    // Coleta as fotos
-    const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-
-    const getFotoUrl = (codigo) => {
-        const f = fotos.find(ph => ph.slotCodigo === codigo);
-        return f ? (f.url_thumb || f.url_original || '') : '';
-    };
-
-    // Estilo comum das folhas internas
-    const headerStyle = `
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(0, 0, 0, 0.08); padding-bottom: 8px; margin-bottom: 18px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 22px; height: 22px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #C9A961; font-weight: 900; font-size: 11px; font-family: 'Outfit', sans-serif;">C</div>
-                <div style="font-size: 11px; font-weight: 800; color: #0A1F3D; font-family: 'Outfit', sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Certive Vistorias</div>
-                <div style="font-size: 8px; color: #a3aab8; font-weight: 500; font-family: 'Outfit', sans-serif; text-transform: uppercase; margin-left: 5px;">ECV CREDENCIADA DETRAN-SC</div>
-            </div>
-            <div style="text-align: right; font-family: 'Outfit', sans-serif;">
-                <span style="font-size: 8px; color: #a3aab8; font-weight: 600; text-transform: uppercase;">DOSSIÊ</span><br>
-                <span style="font-family: monospace; font-size: 9px; color: #0A1F3D; font-weight: 700;">${cautelar.dossieNumero}</span>
-            </div>
-        </div>
-    `;
-
-    const getFooterStyle = (pageNum) => `
-        <div style="position: absolute; bottom: 30px; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 8px; font-size: 8px; color: #a3aab8; font-family: 'Outfit', sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">
-            <span>CERTIVE VISTORIAS — CAUTELAR</span>
-            <span>PÁG. 0${pageNum} DE 09</span>
-        </div>
-    `;
-
-    let html = '';
-
-    // ==========================================
-    // PÁGINA 1: CAPA DO LAUDO (ESTILO PREMIUM AZUL DO MODELO)
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 60px 50px; background: #050E1A; color: #fdfdfb; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Outfit', sans-serif;">
-            <!-- Linha Decorativa Dourada Topo -->
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: #C9A961;"></div>
-            
-            <div style="display: flex; flex-direction: column; align-items: center; margin-top: 40px;">
-                <!-- Logo Dourada Redonda -->
-                <div style="width: 75px; height: 75px; border: 2px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; box-shadow: 0 0 15px rgba(201, 169, 97, 0.2);">
-                    <div style="color: #C9A961; font-size: 32px; font-weight: 900; letter-spacing: -2px;">C</div>
-                </div>
-                <h2 style="font-size: 16px; font-weight: 800; color: #C9A961; letter-spacing: 2px; text-transform: uppercase; margin: 0;">CERTIVE VISTORIAS</h2>
-                <span style="font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px;">ECV Credenciada Detran-SC</span>
-            </div>
-
-            <div style="text-align: center; margin: 40px 0;">
-                <h1 style="font-size: 52px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; margin: 0 0 10px 0; text-transform: uppercase; font-family: 'Outfit', sans-serif; line-height: 1.1;">LAUDO<br>CAUTELAR</h1>
-                <div style="font-size: 18px; font-weight: 700; color: #C9A961; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 25px;">de Aquisição Veicular</div>
-                <div style="height: 1px; width: 60px; background: rgba(255,255,255,0.2); margin: 0 auto 25px auto;"></div>
-                <p style="font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 400; text-transform: uppercase; letter-spacing: 1.5px; margin: 0; line-height: 1.6;">Análise Físico-Estrutural<br>e Pesquisa Documental</p>
-            </div>
-
-            <!-- Selo Círculo Dourado Cautelar no centro inferior -->
-            <div style="display: flex; justify-content: center; margin: 20px 0;">
-                <div style="width: 130px; height: 130px; border: 1.5px dashed rgba(201, 169, 97, 0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative;">
-                    <div style="width: 112px; height: 112px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.02);">
-                        <div style="font-size: 18px; font-weight: 900; color: #C9A961;">C</div>
-                        <span style="font-size: 6px; font-weight: 800; color: #C9A961; letter-spacing: 0.8px; text-transform: uppercase; margin-top: 2px;">CERTIVE</span>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; font-size: 11px; color: rgba(255,255,255,0.7); font-family: 'Outfit', sans-serif;">
-                <div>
-                    <strong style="color: #C9A961;">SÃO JOSÉ / SC</strong><br>
-                    <span>${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')}</span>
-                </div>
-                <div style="text-align: right;">
-                    <strong style="color: #C9A961;">DOSSIÊ:</strong> <span style="font-family: monospace;">${cautelar.dossieNumero}</span>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 2: IDENTIFICAÇÃO DO VEÍCULO (FICHA COM DUAS FOTOS LATERAIS)
-    // ==========================================
-    const imgVeiculo1 = getFotoUrl('frente_45_dir');
-    const imgVeiculo2 = getFotoUrl('traseira_45_esq');
-    
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-top: 10px;">
-                <!-- Coluna de Títulos e Ficha Técnica -->
-                <div>
-                    <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px;">
-                        <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">I</span>
-                        <div>
-                            <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Identificação<br>do Veículo</h3>
-                        </div>
-                    </div>
-
-                    <!-- Ficha Técnica -->
-                    <div style="display: flex; flex-direction: column; gap: 10px; font-size: 11px;">
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Marca / Modelo</span>
-                            <span style="font-weight: 800; font-size: 12px; color: #0A1F3D; text-transform: uppercase;">${os.clienteNome || 'TOYOTA COROLLA XEI 2.0'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Ano Fabricação / Modelo</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${os.fabricacaoAno || '2019'} / ${os.modeloAno || '2020'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Cor</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${os.cor || 'PRATA'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Placa</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; font-size: 12px; text-transform: uppercase;">${os.placa}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Chassi</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${os.renavam || '9BRB03HE0L2567890'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Motor</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${os.chassi || '3ZR-FAE L256789'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Combustível</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${dataSec1.combustivel || 'FLEX'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">KM Informado</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${dataSec1.quilometragem || '68.932'} km</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Coluna de Imagens e Dados de Vistoria -->
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                    <!-- Foto 1 -->
-                    <div style="width: 100%; height: 160px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); overflow: hidden; background: #eef1f5;">
-                        ${imgVeiculo1 ? `<img src="${imgVeiculo1}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; color:#aaa;">FRENTE 45° LADO DIREITO</div>`}
-                    </div>
-                    <!-- Foto 2 -->
-                    <div style="width: 100%; height: 160px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); overflow: hidden; background: #eef1f5;">
-                        ${imgVeiculo2 ? `<img src="${imgVeiculo2}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; color:#aaa;">TRASEIRA 45° LADO ESQUERDO</div>`}
-                    </div>
-
-                    <!-- Dados da Vistoria Card -->
-                    <div style="background: rgba(10, 31, 61, 0.02); border: 1px solid rgba(10, 31, 61, 0.06); border-radius: 4px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 10px; margin-top: 10px;">
-                        <h4 style="font-size: 9px; font-weight: 800; color: #0A1F3D; text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.5px;">Dados da Vistoria</h4>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">DATA / HORA:</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">LOCAL:</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC'}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">VISTORIADOR:</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes'}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            ${getFooterStyle(2)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 3: RESUMO DA ANÁLISE (EVALUATION BLOCKS)
-    // ==========================================
-    let labelParecer = 'CONFORME';
-    let labelColor = '#3a663b';
-    let labelBg = 'rgba(58, 102, 59, 0.08)';
-    let labelBorder = 'rgba(58, 102, 59, 0.2)';
-    let labelTextDesc = 'Com base nas verificações realizadas, o veículo apresenta condições compatíveis com sua idade e uso, não havendo impedimentos para a aquisição.';
-
-    if (parecerFinal === 'com_ressalvas') {
-        labelParecer = 'CONFORME COM RESSALVAS';
-        labelColor = '#B8642B';
-        labelBg = 'rgba(184, 100, 43, 0.08)';
-        labelBorder = 'rgba(184, 100, 43, 0.2)';
-        labelTextDesc = 'Foram identificadas repinturas em painéis secundários, sem indícios de massa poliéster ou reparos estruturais.';
-    } else if (parecerFinal === 'nao_conforme') {
-        labelParecer = 'NÃO CONFORME';
-        labelColor = '#8B2635';
-        labelBg = 'rgba(139, 38, 53, 0.08)';
-        labelBorder = 'rgba(139, 38, 53, 0.2)';
-        labelTextDesc = 'Identificado dano ou solda em regiões de chassi / colunas estruturais, gerando reprovação por comprometimento de integridade física.';
-    }
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">II</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Resumo da Análise</h3>
-                </div>
-            </div>
-
-            <!-- Blocos de Avaliação de Módulos (Modelo Corolla) -->
-            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 30px;">
-                <!-- Bloco Estrutura -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: ${dataSec3.parecerEstrutural === 'nao_conforme' ? 'rgba(139, 38, 53, 0.08)' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? 'rgba(184, 100, 43, 0.08)' : 'rgba(58, 102, 59, 0.08)')}; display: flex; align-items: center; justify-content: center; color: ${dataSec3.parecerEstrutural === 'nao_conforme' ? '#8B2635' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? '#B8642B' : '#3a663b')}; font-size: 20px;">
-                        <i class="ri-shield-check-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">ESTRUTURA E CARROCERIA</strong>
-                        <span style="color: ${dataSec3.parecerEstrutural === 'nao_conforme' ? '#8B2635' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? '#B8642B' : '#3a663b')}; font-weight: 700; text-transform: uppercase; margin-right: 6px;">${dataSec3.parecerEstrutural === 'nao_conforme' ? 'NÃO CONFORME' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? 'COM RESSALVAS' : 'CONFORME')}</span>
-                        <span style="color: #a3aab8; font-weight: 400;">${dataSec3.observacao || 'Não foram identificados sinais de sinistro, corte estrutural, remarcação de chassi ou danos que comprometam a integridade do veículo.'}</span>
-                    </div>
-                </div>
-
-                <!-- Bloco Pintura -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: rgba(184, 100, 43, 0.08); display: flex; align-items: center; justify-content: center; color: #B8642B; font-size: 20px;">
-                        <i class="ri-palette-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">PINTURA E ACABAMENTO</strong>
-                        <span style="color: #B8642B; font-weight: 700; text-transform: uppercase; margin-right: 6px;">COM RESSALVAS</span>
-                        <span style="color: #a3aab8; font-weight: 400;">Foram identificadas repinturas em painéis secundários, sem indícios de massa poliéster ou reparos estruturais.</span>
-                    </div>
-                </div>
-
-                <!-- Bloco Documentação -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: rgba(58, 102, 59, 0.08); display: flex; align-items: center; justify-content: center; color: #3a663b; font-size: 20px;">
-                        <i class="ri-file-list-3-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">DOCUMENTAÇÃO E RESTRIÇÕES</strong>
-                        <span style="color: #3a663b; font-weight: 700; text-transform: uppercase; margin-right: 6px;">CONFORME</span>
-                        <span style="color: #a3aab8; font-weight: 400;">Veículo com situação cadastral regular. Sem restrições, débitos ou apontamentos nas bases consultadas.</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Parecer Técnico Card Base -->
-            <div style="background: ${labelBg}; border: 1.5px solid ${labelBorder}; border-radius: 6px; padding: 20px; font-size: 12px;">
-                <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px; letter-spacing: 0.5px;">PARECER TÉCNICO</span>
-                <h2 style="font-size: 26px; font-weight: 800; color: ${labelColor}; margin: 0 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase;">${labelParecer}</h2>
-                <p style="font-size: 11.5px; color: #0A1F3D; line-height: 1.6; margin: 0; font-weight: 500;">
-                    ${labelTextDesc}
-                </p>
-            </div>
-
-            ${getFooterStyle(3)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 4: ANÁLISE ESTRUTURAL — REGIÃO DO CHASSI
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">III</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Análise Estrutural<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Região do Chassi</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 18px; margin-top: 10px;">
-                <!-- Bloco 1 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('chassi_gravado') ? `<img src="${getFotoUrl('chassi_gravado')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Gravação de chassi</strong>
-                        <p style="color: #a3aab8; margin: 0;">Numeração original de fábrica, gravação dentro do padrão apresentado pelo fabricante. Sem sinais de alteração.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 2 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('longarina_diant_esq') ? `<img src="${getFotoUrl('longarina_diant_esq')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Longarina dianteira</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Solda e pontos de fábrica preservados. Sem sinais de reparo ou soldas corretivas.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 3 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('assoalho_porta_malas') ? `<img src="${getFotoUrl('assoalho_porta_malas')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Assoalho central</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Sem sinais de amassado, solda irregular ou reparos estruturais no habitáculo.</p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(4)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 5: PINTURA E ACABAMENTO (MICRÔMETRO & ESTRUTURA DO CARRO)
-    // ==========================================
-    const paintPanels = [
-        "Capô", "Para-lama Dianteiro Esq.", "Porta Dianteira Esq.", "Porta Traseira Esq.",
-        "Para-lama Traseiro Esq.", "Teto", "Para-lama Traseiro Dir.", "Porta Traseira Dir.",
-        "Porta Dianteira Dir.", "Para-lama Dianteiro Dir.", "Tampa Traseira"
-    ];
-
-    const paintRowsHtml = paintPanels.map((p, idx) => {
-        const val = parseFloat(dataSec4[`painel_${idx}`]) || 0;
-        const isRepaint = val > 150;
-        return `
-            <div style="display: flex; justify-content: space-between; font-size: 10.5px; border-bottom: 1px solid rgba(0,0,0,0.04); padding: 5px 0;">
-                <span style="font-weight: 600; color: #0A1F3D;">${p}</span>
-                <span style="font-family: monospace; font-weight: 700; color: ${isRepaint ? '#B8642B' : '#0A1F3D'}">${val ? val + ' µm' : '112 µm'}</span>
-            </div>
-        `;
-    }).join('');
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">IV</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Pintura e Acabamento<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Medição de Espessura</span></h3>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 260px 1fr; gap: 30px; margin-top: 15px;">
-                <!-- Esquema visual do carro -->
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 20px;">
-                    <!-- Vetor do carro simulado -->
-                    <div style="width: 130px; height: 320px; border: 1.5px solid #a3aab8; border-radius: 20px; position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 15px 0; background: #faf9f6;">
-                        <!-- Capo -->
-                        <div style="width: 70px; height: 55px; border: 1px solid #C9A961; border-radius: 8px; background: rgba(201, 169, 97, 0.05); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#C9A961;">CAPÔ</div>
-                        <!-- Teto -->
-                        <div style="width: 80px; height: 95px; border: 1px solid #0A1F3D; border-radius: 6px; background: rgba(10,31,61,0.02); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#0A1F3D;">TETO</div>
-                        <!-- Mala -->
-                        <div style="width: 70px; height: 40px; border: 1px solid #0A1F3D; border-radius: 4px; background: rgba(10,31,61,0.02); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#0A1F3D;">MALA</div>
-                    </div>
-                </div>
-
-                <!-- Tabela de Micragem -->
-                <div style="display: flex; flex-direction: column; justify-content: space-between;">
-                    <div style="display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #a3aab8; border-bottom: 1.5px solid #0A1F3D; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span>Painel</span>
-                            <span>Espessura</span>
-                        </div>
-                        <div style="display: flex; flex-direction: column; margin-top: 5px;">
-                            ${paintRowsHtml}
-                        </div>
-                    </div>
-
-                    <!-- Observação do Vistoriador -->
-                    <div style="border: 1px solid rgba(0,0,0,0.08); border-radius: 4px; padding: 12px; font-size: 10px; background: #ffffff; margin-top: 15px;">
-                        <strong style="font-size: 8px; color: #a3aab8; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Observação do Vistoriador</strong>
-                        <p style="margin: 0; color: #0A1F3D; font-weight: 500;">
-                            Repinturas identificadas no painel da lateral direita traseira e portas correspondentes. Não foi detectada presença de massa poliéster ou alterações estruturais.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(5)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 6: COMPARTIMENTO DO MOTOR E ESTRUTURAS
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">V</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Compartimento do Motor<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">e Estruturas</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 18px; margin-top: 10px;">
-                <!-- Bloco 1 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('torre_amort_diant_esq') ? `<img src="${getFotoUrl('torre_amort_diant_esq')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Torre do amortecedor lado esquerdo</strong>
-                        <p style="color: #a3aab8; margin: 0;">Ponto de solda de fábrica íntegro. Sem sinais de reparo, corte ou deformação.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 2 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('painel_corta_fogo') ? `<img src="${getFotoUrl('painel_corta_fogo')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Painel Corta-Fogo</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Soldas originais preservadas.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 3 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('torre_amort_diant_dir') ? `<img src="${getFotoUrl('torre_amort_diant_dir')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Torre do amortecedor lado direito</strong>
-                        <p style="color: #a3aab8; margin: 0;">Ponto de solda de fábrica íntegro. Sem sinais de reparo, corte ou deformação.</p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(6)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 7: PESQUISA DOCUMENTAL (RESUMO DAS CONSULTAS)
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">VI</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Pesquisa Documental<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Resumo das Consultas</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; margin-top: 10px;">
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">SITUAÇÃO CADASTRAL (SENATRAN)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">REGULAR</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">RESTRIÇÃO ADMINISTRATIVA (RENAJUD)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">RESTRIÇÃO JUDICIAL</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">ALIENAÇÃO FIDUCIÁRIA</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">DÉBITOS (IPVA / LICENCIAMENTO / MULTAS)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">HISTÓRICO DE ROUBO E FURTO</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">INDÍCIO DE SINISTRO (BASE SEGURADORAS)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">HISTÓRICO DE LEILÃO</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-            </div>
-
-            <!-- Fonte das Consultas Card -->
-            <div style="background: rgba(10, 31, 61, 0.02); border: 1px solid rgba(10, 31, 61, 0.06); border-radius: 4px; padding: 16px; margin-top: 30px; font-size: 10px; line-height: 1.5; color: #a3aab8;">
-                <strong style="color: #0A1F3D; font-size: 11px; display: block; margin-bottom: 6px; text-transform: uppercase;">Fonte das Consultas</strong>
-                <span>SENATRAN • DETRAN/SC • RENAJUD • BIN (BASE SEGURADORAS) • SINESP • INFOSEG • BASE PROPRIETÁRIA CERTIVE</span><br>
-                <span style="margin-top: 10px; display: block;">Data das consultas: ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às 08:52</span>
-            </div>
-
-            ${getFooterStyle(7)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 8: REGISTRO FOTOGRÁFICO VISTORIA GERAL (GRID DE FOTOS)
-    // ==========================================
-    const gridCodes = [
-        'frente_45_dir', 'traseira_45_esq', 'painel_hodometro',
-        'crlv_documento', 'placa_dianteira', 'motor_vista_geral'
-    ];
-
-    const gridPhotosHtml = gridCodes.map(code => {
-        const url = getFotoUrl(code);
-        return `
-            <div style="width: 100%; height: 115px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                ${url ? `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-            </div>
-        `;
-    }).join('');
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">VII</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Registro Fotográfico<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Vistoria Geral</span></h3>
-                </div>
-            </div>
-
-            <!-- Grid com 6 fotos principais -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px;">
-                ${gridPhotosHtml}
-            </div>
-
-            <!-- QR Code do Laudo -->
-            <div style="display: flex; justify-content: center; align-items: center; flex-direction: column; margin-top: 60px;">
-                <div style="width: 100px; height: 100px; border: 1.5px solid #C9A961; border-radius: 4px; padding: 6px; background: white; display: flex; align-items: center; justify-content: center;">
-                    <div id="laudo-preview-qrcode" style="width: 100%; height: 100%;"></div>
-                </div>
-                <span style="font-size: 7.5px; color: #a3aab8; font-weight: 600; text-transform: uppercase; margin-top: 10px; letter-spacing: 0.5px;">QR Code de Autenticidade do Laudo</span>
-            </div>
-
-            ${getFooterStyle(8)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 9: PARECER FINAL & ASSINATURAS (MODELO COROLLA)
-    // ==========================================
-    const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Outfit', sans-serif;">
-            <div>
-                ${headerStyle}
-                
-                <div style="text-align: center; margin-top: 15px; margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Parecer Final</h3>
-                </div>
-
-                <!-- Box de Parecer Final Premium Dourado/Escuro -->
-                <div style="background: #050E1A; color: white; padding: 30px; border-radius: 6px; border: 1.5px solid #C9A961; text-align: center; margin-bottom: 30px;">
-                    <!-- Logo interna pequena -->
-                    <div style="width: 32px; height: 32px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
-                        <span style="color:#C9A961; font-size:14px; font-weight:900;">C</span>
-                    </div>
-                    
-                    <p style="font-size: 11px; line-height: 1.6; color: rgba(255,255,255,0.7); max-width: 500px; margin: 0 auto 16px auto; font-weight: 400;">
-                        Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não havendo indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.
-                    </p>
-                    
-                    <h2 style="font-size: 32px; font-weight: 800; color: #C9A961; margin: 0; text-transform: uppercase; letter-spacing: 1px;">CONFORME</h2>
-                    <span style="font-size: 8.5px; font-weight: 600; color: #C9A961; letter-spacing: 1px; text-transform: uppercase;">PARA AQUISIÇÃO</span>
-                </div>
-
-                <!-- Rodapé de Localização e Data -->
-                <div style="text-align: center; font-size: 11px; font-weight: 700; color: #0a1f3d; margin-bottom: 40px;">
-                    São José/SC, ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.
-                </div>
-
-                <!-- Assinatura Vistoriador -->
-                <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-top: 10px;">
-                    <div style="width: 260px; height: 65px; border-bottom: 1.5px solid #0a1f3d; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                        ${signatureVistoriador ? `<img src="${signatureVistoriador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
-                    </div>
-                    <span style="font-size: 11px; font-weight: 800; color: #0a1f3d; margin-top: 6px; text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins'}</span>
-                    <span style="font-size: 8.5px; color: #a3aab8; font-weight: 700; text-transform: uppercase; margin-top: 2px;">VISTORIADOR</span>
-                    <span style="font-size: 8px; font-family: monospace; color: #a3aab8; margin-top: 2px;">REGISTRO ECV ${cautelar.vistoriadorId ? '417.734.562-9' + cautelar.vistoriadorId : '417.734.562-91'}</span>
-                </div>
-            </div>
-
-            <!-- Assinatura do Selo de Cautelar Rodapé -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1.5px solid #C9A961; padding-top: 15px; margin-top: 20px;">
-                <div style="max-width: 480px; font-family: 'Outfit', sans-serif; font-size: 9px; color: #a3aab8; font-weight: 500; line-height: 1.5;">
-                    <strong style="color: #0a1f3d; font-size: 9.5px; text-transform: uppercase;">Validação Criptográfica do Laudo:</strong><br>
-                    <span style="font-family: monospace; font-size: 8px; color: #a3aab8; word-break: break-all; font-weight: 400;">${hashLaudo}</span>
-                </div>
-                <!-- Selo Dourado Pequeno no Canto -->
-                <div style="width: 70px; height: 70px; border: 1px solid #C9A961; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
-                    <span style="color:#C9A961; font-size:13px; font-weight:900; line-height: 1;">C</span>
-                    <span style="font-size: 5px; font-weight: 800; color:#C9A961; text-transform: uppercase; margin-top: 1px;">CERTIVE</span>
-                </div>
-            </div>
-
-            ${getFooterStyle(9)}
-        </div>
-    `;
-
-    previewContainer.innerHTML = html;
-
-    // Gerar o QR Code no preview de forma assíncrona na página 8
-    setTimeout(() => {
-        const qrDiv = document.getElementById('laudo-preview-qrcode');
-        if (qrDiv) {
-            qrDiv.innerHTML = '';
-            const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
-            new QRCode(qrDiv, {
-                text: validationUrl,
-                width: 88,
-                height: 88,
-                colorDark : "#050e1a",
-                colorLight : "#faf9f6",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-        }
-    }, 100);
-}
 
 // Função auxiliar para converter imagens de vistoria em Base64 compactado para o GPT-4o Vision
 async function imageToAiBase64(url) {
@@ -15406,6 +13196,8 @@ async function solicitarLaudoAoServidor(cautelarId) {
         } catch (_) { /* resposta sem corpo JSON */ }
         throw new Error(detalhe || "Não foi possível gerar o laudo.");
     }
+    // Bloqueio por foto obrigatória ausente vem sem redação (não gasta a geração)
+    if (data && data.status === 'bloqueado' && !data.resposta) return data;
     if (!data || !data.resposta) throw new Error("O servidor retornou um laudo vazio.");
     return data;
 }
@@ -15546,7 +13338,7 @@ function avisarDadosVeiculoFaltando(os, faltando, aoCorrigir) {
     fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:520px;width:100%;border-radius:10px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
         <h3 style="margin:0 0 8px">Laudo bloqueado: faltam dados do veículo</h3>
-        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 8px">O laudo cautelar só pode ser finalizado com os dados do veículo completos no cadastro da O.S. ${os.numero}:</p>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 8px">O laudo cautelar só pode ser finalizado com os dados do veículo completos no cadastro da O.S. ${escHtml(os.numero)}:</p>
         <ul style="padding-left:22px;margin:0">${faltando.map(f => `<li style="margin:6px 0">${f}</li>`).join('')}</ul>
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
             <button class="btn btn-secondary" data-acao="fechar">Fechar</button>
@@ -15557,15 +13349,50 @@ function avisarDadosVeiculoFaltando(os, faltando, aoCorrigir) {
     fundo.querySelector('[data-acao="corrigir"]').onclick = () => { fundo.remove(); abrirCorrecaoDadosVeiculo(os.id, aoCorrigir); };
 }
 
+// Código de verificação do laudo (vai no QR e no rodapé). Aleatório e sem
+// letras ambíguas: não dá para adivinhar o de outro laudo.
+function gerarCodigoVerificacao() {
+    const alfabeto = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    return Array.from(bytes, b => alfabeto[b % alfabeto.length]).join('');
+}
+
+async function sha256Hex(bytes) {
+    const dig = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(dig), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Fotos obrigatórias conferidas no BANCO (não no cache deste aparelho): a mesa
+// não enxerga foto presa no celular do vistoriador.
+async function cautelarFotosObrigatoriasFaltando(cautelarId) {
+    const OBRIG = {
+        placa_dianteira: 'Placa dianteira', painel_hodometro: 'Painel com hodômetro', crlv_documento: 'Documento do veículo',
+        chassi_gravado: 'Número do chassi gravado', motor_gravado: 'Número do motor'
+    };
+    const { data: secoes, error: e1 } = await supabaseClient.from('cautelares_secoes').select('id').eq('cautelarId', cautelarId);
+    if (e1) throw e1;
+    const ids = (secoes || []).map(x => x.id);
+    if (!ids.length) return Object.values(OBRIG);
+    const { data: fotos, error: e2 } = await supabaseClient.from('cautelares_fotos').select('slotCodigo, url_original').in('secaoId', ids);
+    if (e2) throw e2;
+    const tem = new Set((fotos || []).filter(f => f.url_original).map(f => f.slotCodigo));
+    return Object.keys(OBRIG).filter(k => !tem.has(k)).map(k => OBRIG[k]);
+}
+
 /**
- * Emite o laudo finalizando o status da vistoria, gera o Hash SHA-256 e exporta para PDF.
+ * Emite o laudo. A vistoria só vira "concluída" DEPOIS que o PDF final foi
+ * gerado e guardado no servidor, com o SHA-256 do arquivo e o código de
+ * verificação. Se algo falhar no meio, nada muda e dá para tentar de novo.
  */
 async function gerarLaudoFinalPdf() {
     const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
     if (!cautelar) return;
+    if (window.__emitindoLaudo) { showToast("O laudo já está sendo emitido.", "info"); return; }
 
     const os = db.ordens_servico.find(o => o.id === cautelar.osId);
     const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+    const permissoes = (currentSession && currentSession.permissoes) || [];
+    const ehAdministrador = permissoes.includes('cautelar_administrar');
 
     // Dados do veículo completos no cadastro: sem eles o laudo não é finalizado
     const faltandoVeiculo = cautelarDadosVeiculoFaltando(os, cautelar.id);
@@ -15577,222 +13404,210 @@ async function gerarLaudoFinalPdf() {
         return;
     }
 
-    // Valida se o operador assinou
     if (!window.operatorSignatureConfirmed) {
         showToast("É obrigatório assinar e confirmar sua assinatura de operador antes de emitir o laudo.", "warning");
         return;
     }
-
-    const confirmMsg = "Deseja realmente gerar a versão final e selada deste laudo PDF? Esta ação registrará as assinaturas e o hash na blockchain interna.";
-    if (!confirm(confirmMsg)) return;
-
-    // Desabilitar o botão de emissão e mostrar loader
-    const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
-    const originalText = emitirBtn ? emitirBtn.innerHTML : "";
-    if (emitirBtn) {
-        emitirBtn.disabled = true;
-        emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
-    }
-
-    // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
-    const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
-    if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
-        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+    if (!window.useSupabase || navigator.onLine === false) {
+        showToast("A emissão do laudo precisa de conexão com o servidor.", "error");
         return;
     }
 
-    // 0.1 Fotos de identificação: conferência final da posição (checagem redundante)
-    if (window.useSupabase && navigator.onLine !== false) {
-        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS...`;
-        const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => {
-            if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS ${feitas}/${total}...`;
-        });
-        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
-        if (incertas.length && !confirm(`A posição destas fotos de identificação não pôde ser confirmada automaticamente:\n\n- ${incertas.join('\n- ')}\n\nConfira-as na pré-visualização (e gire, se preciso). Deseja emitir o laudo mesmo assim?`)) {
-            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-            return;
-        }
-    }
+    const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
+    const originalText = emitirBtn ? emitirBtn.innerHTML : "";
+    const etapa = texto => {
+        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> ${texto}`;
+    };
+    const liberar = () => {
+        window.__emitindoLaudo = false;
+        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+    };
+    window.__emitindoLaudo = true;
+    if (emitirBtn) emitirBtn.disabled = true;
+    etapa('ENVIANDO FOTOS...');
 
-    // 1. O servidor monta, valida e registra o pacote antes da geração do PDF.
-    showToast("O sistema está gerando o laudo…", "info");
-    let laudoServidor;
     try {
-        laudoServidor = await analisarLaudoComIAInvisivel();
-        const resposta = laudoServidor.resposta;
-        const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
-        // Bloqueio só quando faltam itens obrigatórios (status "bloqueado"): aí apenas
-        // o administrador pode forçar. Inconsistências são avisos: quem finaliza confere
-        // e emite.
-        const bloqueado = laudoServidor.status === 'bloqueado';
-        const temAvisos = (laudoServidor.inconsistencias || []).length > 0;
-        if (bloqueado || temAvisos) {
-            const permissoes = currentSession.permissoes || [];
-            const podeForcar = bloqueado
-                ? permissoes.includes('cautelar_administrar')
-                : (permissoes.includes('finalizar_cautelar') || permissoes.includes('cautelar_administrar'));
-            const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar, bloqueado);
-            if (!confirmou) {
-                if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-                return;
+        // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
+        // Os avisos das conferências vão juntos numa única confirmação
+        const avisos = [];
+        const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
+        if (pendentesAparelho > 0) avisos.push(`${pendentesAparelho} foto(s) ainda não enviadas deste aparelho ficarão fora do laudo.`);
+
+        // 0.1 Fotos obrigatórias conferidas no servidor
+        const obrigatoriasFaltando = await cautelarFotosObrigatoriasFaltando(cautelar.id);
+        if (obrigatoriasFaltando.length) {
+            if (!ehAdministrador) {
+                alert(`O laudo não pode ser emitido: estas fotos obrigatórias não estão no servidor:\n\n- ${obrigatoriasFaltando.join('\n- ')}\n\nPeça ao vistoriador para enviá-las (ou refazê-las).`);
+                return liberar();
             }
+            if (!confirm(`Fotos obrigatórias ausentes no servidor:\n\n- ${obrigatoriasFaltando.join('\n- ')}\n\nComo administrador, você pode emitir assim mesmo (fica registrado). Emitir?`)) return liberar();
+            logAudit("Laudo sem fotos obrigatórias", `Emitiu o laudo da placa ${os.placa} sem: ${obrigatoriasFaltando.join(', ')}.`);
         }
-        cautelar.dadosIaConfeccionado = resposta;
-        cautelar.laudoGeradoId = laudoServidor.laudoId;
-        // O texto final do laudo vem de resposta.campos; o campo de observações só é
-        // preenchido se o operador não tiver escrito nada.
-        const obsOperador = document.getElementById('caut-final-obs');
-        if (obsOperador && !obsOperador.value.trim() && resposta.campos && resposta.campos['final.opinion_text']) {
-            obsOperador.value = resposta.campos['final.opinion_text'];
+
+        // 0.2 Fotos de identificação: conferência final da posição
+        etapa('CONFERINDO FOTOS...');
+        const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => etapa(`CONFERINDO FOTOS ${feitas}/${total}...`));
+        if (incertas.length) avisos.push(`Posição não confirmada automaticamente (confira na pré-visualização): ${incertas.join(', ')}.`);
+
+        if (!confirm("Emitir a versão final deste laudo? O PDF será guardado no servidor com código de verificação e não poderá ser alterado." +
+            (avisos.length ? `\n\nAtenção:\n- ${avisos.join('\n- ')}` : ''))) {
+            return liberar();
         }
-        saveDatabase();
-    } catch (erro) {
-        console.error("Erro ao gerar laudo no servidor:", erro);
-        // Enquanto a geração no servidor não estiver publicada/configurada (ou se ela
-        // falhar), a mesa pode emitir com a redação padrão do sistema, como antes.
-        const usarPadrao = confirm(
-            "Não foi possível gerar a redação do laudo agora" +
-            (erro && erro.message ? ` (${erro.message})` : "") +
-            ".\n\nDeseja emitir o laudo com a redação padrão do sistema?"
-        );
-        if (!usarPadrao) {
-            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-            return;
-        }
-        cautelar.dadosIaConfeccionado = null;
-        cautelar.laudoGeradoId = null;
-    }
 
-    const parecerFinal = document.getElementById('caut-final-parecer').value;
-    const obsFinal = document.getElementById('caut-final-obs').value;
-
-    // 2. Gera Hash Único do laudo (SHA-256 simulado)
-    const seed = `${os.placa}_${cautelar.dossieNumero}_${new Date().toISOString()}`;
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-        hash = (hash << 5) - hash + seed.charCodeAt(i);
-        hash |= 0;
-    }
-    const hashLaudo = 'sha256_' + Math.abs(hash).toString(16).padStart(16, '0') + Math.random().toString(36).substring(2, 18);
-
-    cautelar.hashLaudo = hashLaudo;
-    cautelar.parecerFinal = parecerFinal;
-    cautelar.status = "concluida";
-    cautelar.finalizadoEm = new Date().toISOString();
-    cautelar.finalizadoPor = currentSession.nome;
-
-    const approved = parecerFinal !== 'nao_conforme';
-
-    // Se for de parceiro e reprovado
-    if (os.clienteTipo === 'parceiro' && !approved) {
-        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
-        if (aplicarDesconto) {
-            const valorOriginal = os.valor;
-            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
-            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
-            
-            if (os.pago && os.formaPagamento !== 'faturamento') {
-                const mov = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada');
-                if (mov) {
-                    mov.valor = os.valor;
-                    dbSave('caixa_movimentos', { valor: mov.valor }, 'update', mov.id).catch(e => console.error("Erro ao atualizar movimento de caixa:", e));
-                }
+        // 1. Redação do laudo no servidor (sempre nova para este pacote de dados)
+        etapa('GERANDO LAUDO...');
+        showToast("O sistema está gerando o laudo…", "info");
+        let resposta = null, laudoGeradoId = null;
+        try {
+            const laudoServidor = await analisarLaudoComIAInvisivel();
+            const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
+            const bloqueado = laudoServidor.status === 'bloqueado';
+            const temAvisos = (laudoServidor.inconsistencias || []).length > 0;
+            if (bloqueado || temAvisos) {
+                const podeForcar = bloqueado ? ehAdministrador : (permissoes.includes('finalizar_cautelar') || ehAdministrador);
+                const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar, bloqueado);
+                if (!confirmou) return liberar();
+                if (bloqueado) logAudit("Laudo bloqueado emitido", `Emitiu o laudo da placa ${os.placa} apesar do bloqueio: ${apontamentos.join(' | ').slice(0, 900)}`);
             }
+            resposta = laudoServidor.resposta || null;
+            laudoGeradoId = laudoServidor.resposta ? laudoServidor.laudoId : null;
+        } catch (erro) {
+            console.error("Erro ao gerar laudo no servidor:", erro);
+            // Sem a conferência do servidor, emitir com a redação padrão exige a
+            // mesma permissão de liberar um laudo bloqueado, e fica registrado.
+            if (!ehAdministrador) {
+                alert("Não foi possível gerar a redação do laudo agora" + (erro && erro.message ? ` (${erro.message})` : "") +
+                    ".\n\nTente de novo em instantes. A emissão com a redação padrão só pode ser feita por um administrador.");
+                return liberar();
+            }
+            if (!confirm("Não foi possível gerar a redação do laudo agora" + (erro && erro.message ? ` (${erro.message})` : "") +
+                ".\n\nEmitir com a redação padrão do sistema? (fica registrado)")) return liberar();
+            logAudit("Laudo com redação padrão", `Emitiu o laudo da placa ${os.placa} com a redação padrão (servidor indisponível: ${(erro && erro.message) || erro}).`);
         }
-    }
 
-    cautelar.hashLaudo = hashLaudo;
-    cautelar.parecerFinal = parecerFinal;
-    cautelar.status = "concluida";
-    cautelar.finalizadoEm = new Date().toISOString();
-    cautelar.finalizadoPor = currentSession.nome;
+        const parecerFinal = document.getElementById('caut-final-parecer').value;
+        const obsFinal = document.getElementById('caut-final-obs').value;
+        const approved = parecerFinal !== 'nao_conforme';
+        const agora = new Date().toISOString();
+        const codigo = gerarCodigoVerificacao();
 
-    // Atualiza a OS
-    os.status = approved ? 'concluida_aprovada' : 'concluida_reprovada';
-    os.finalizadoEm = cautelar.finalizadoEm;
-    os.finalizadoPor = currentSession.nome;
-
-    // Salva o parecer e observação final nos dados da seção 8
-    const secao8 = secoes.find(s => s.numeroSecao === 8);
-    if (secao8) {
-        secao8.dadosJson = secao8.dadosJson || {};
-        secao8.dadosJson.observacaoFinal = obsFinal;
-        secao8.dadosJson.parecerFinal = parecerFinal;
-        secao8.status = "completa";
-    }
-
-    saveDatabase();
-
-    // Sincroniza com o Supabase online
-    if (window.useSupabase) {
-        await Promise.all([
-            sbUpdate('cautelares', cautelar.id, {
-                status: cautelar.status,
-                "parecerConsolidado": cautelar.parecerFinal,
-                "pdfHash": cautelar.hashLaudo,
-                "dataHoraFinalizacao": cautelar.finalizadoEm,
-                "finalizadoPorId": currentSession.id || null
-            }),
-            sbUpdate('ordens_servico', os.id, {
-                status: os.status,
-                valor: os.valor,
-                observacoes: os.observacoes,
-                "finalizadoEm": os.finalizadoEm,
-                "finalizadoPor": os.finalizadoPor
-            }),
-            sbUpdate('cautelares_secoes', secao8.id, {
-                "dadosJson": secao8.dadosJson,
-                status: 'completa'
-            })
-        ]).catch(e => console.warn("Supabase final sync warning:", e));
-    }
-
-    logAudit("Finalizar Cautelar", `Finalizou laudo cautelar da placa ${os.placa} com parecer ${parecerFinal.toUpperCase()} e gerou PDF.`);
-
-    // Renderiza a visualização final e exporta para PDF usando pdf-lib AcroForm
-    atualizarPreviewLaudo();
-    showToast("Gerando PDF com template oficial...", "info");
-
-    generateInspectionReport(cautelar.id)
-        .then(async (pdfBytes) => {
-            const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const pdfUrl = URL.createObjectURL(pdfBlob);
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-            link.click();
-            
-            if (window.useSupabase) {
-                const storagePath = `laudos/${cautelar.id}/LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-                supabaseClient.storage.from('cautelares').upload(storagePath, pdfBlob, {
-                    contentType: 'application/pdf',
-                    upsert: true
-                }).then(({ data, error }) => {
-                    if (!error) {
-                        const { data: publicUrlData } = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath);
-                        sbUpdate('cautelares', cautelar.id, { pdfUrl: publicUrlData.publicUrl });
-                        cautelar.pdfUrl = publicUrlData.publicUrl;
-                        saveDatabase();
-                    }
-                }).catch(e => console.warn("Supabase PDF upload error:", e));
-            }
-
-            showToast("Laudo PDF exportado com sucesso!", "success");
-            fecharFinalizacaoDesktop();
-        })
-        .catch(err => {
-            // Sem "plano B" por captura de tela: ele gerava um PDF com os dados de
-            // exemplo das imagens de fundo. Melhor avisar e permitir tentar de novo.
-            console.error("Erro na geração do PDF do laudo:", err);
-            showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}. Tente novamente em "Laudo PDF".`, "error");
-            fecharFinalizacaoDesktop();
-        })
-        .finally(() => {
-            if (emitirBtn) {
-                emitirBtn.disabled = false;
-                emitirBtn.innerHTML = originalText;
-            }
+        // 2. Monta o PDF com os dados finais. Os campos ficam no cache só
+        //    durante a geração e voltam ao que eram se algo falhar.
+        const antes = {
+            cautelar: { ...cautelar },
+            secao8: (() => { const s8 = secoes.find(s => s.numeroSecao === 8); return s8 ? { dadosJson: s8.dadosJson ? { ...s8.dadosJson } : s8.dadosJson, status: s8.status } : null; })()
+        };
+        const secao8 = secoes.find(s => s.numeroSecao === 8);
+        Object.assign(cautelar, {
+            dadosIaConfeccionado: resposta, laudoGeradoId, codigoVerificacao: codigo,
+            parecerFinal, finalizadoEm: agora, dataHoraFinalizacao: agora, finalizadoPor: currentSession.nome
         });
+        if (secao8) {
+            secao8.dadosJson = { ...(secao8.dadosJson || {}), observacaoFinal: obsFinal, parecerFinal };
+            secao8.status = "completa";
+        }
+        const desfazer = () => {
+            Object.keys(cautelar).forEach(k => { if (!(k in antes.cautelar)) delete cautelar[k]; });
+            Object.assign(cautelar, antes.cautelar);
+            if (secao8 && antes.secao8) Object.assign(secao8, antes.secao8);
+        };
+
+        let pdfBytes, pdfHash, pdfUrl;
+        try {
+            etapa('MONTANDO PDF...');
+            pdfBytes = await generateInspectionReport(cautelar.id);
+            pdfHash = await sha256Hex(pdfBytes);
+
+            // 3. Guarda o PDF no servidor
+            etapa('GUARDANDO PDF...');
+            const storagePath = `laudos/${cautelar.id}/LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+            const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const { error: erroUpload } = await supabaseClient.storage.from('cautelares').upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
+            if (erroUpload) throw new Error('não foi possível guardar o PDF no servidor (' + erroUpload.message + ')');
+            pdfUrl = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath).data.publicUrl;
+
+            // 4. Só agora a vistoria vira concluída
+            etapa('FINALIZANDO...');
+            await sbUpdate('cautelares', cautelar.id, {
+                status: 'concluida',
+                parecerConsolidado: parecerFinal,
+                pdfHash, pdfUrl,
+                codigoVerificacao: codigo,
+                laudoGeradoId,
+                dataHoraFinalizacao: agora,
+                finalizadoPorId: currentSession.id || null
+            });
+        } catch (erro) {
+            desfazer();
+            console.error("Erro na emissão do laudo:", erro);
+            showToast(`O laudo NÃO foi emitido: ${erro && erro.message ? erro.message : erro}. Nada foi alterado; tente de novo.`, "error");
+            return liberar();
+        }
+
+        cautelar.status = 'concluida';
+        cautelar.pdfHash = pdfHash;
+        cautelar.hashLaudo = pdfHash;
+        cautelar.pdfUrl = pdfUrl;
+
+        // 5. OS e seção 8 (a vistoria já está concluída; falha aqui é avisada)
+        const osStatus = approved ? 'concluida_aprovada' : 'concluida_reprovada';
+        try {
+            await Promise.all([
+                sbUpdate('ordens_servico', os.id, { status: osStatus, finalizadoEm: agora, finalizadoPor: currentSession.nome }),
+                secao8 ? sbUpdate('cautelares_secoes', secao8.id, { dadosJson: secao8.dadosJson, status: 'completa' }) : Promise.resolve()
+            ]);
+            Object.assign(os, { status: osStatus, finalizadoEm: agora, finalizadoPor: currentSession.nome });
+        } catch (erro) {
+            showToast(`Laudo emitido, mas a O.S. não foi atualizada (${erro.message || erro}). Confira a O.S. ${os.numero}.`, "warning");
+        }
+
+        // Desconto de parceiro na reprovada (só depois do laudo emitido)
+        if (os.clienteTipo === 'parceiro' && !approved &&
+            confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?")) {
+            const valorOriginal = os.valor;
+            const valor = parseFloat((valorOriginal * 0.5).toFixed(2));
+            const observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
+            try {
+                await sbUpdate('ordens_servico', os.id, { valor, observacoes });
+                Object.assign(os, { valor, observacoes });
+                registrarDescontoReprovada(os, valorOriginal);
+            } catch (erro) {
+                showToast("O desconto NÃO foi aplicado: " + (erro.message || erro), "error");
+            }
+        }
+
+        logAudit("Finalizar Cautelar", `Emitiu o laudo cautelar da placa ${os.placa} (parecer ${parecerFinal.toUpperCase()}, código ${codigo}).`);
+
+        // 6. Entrega o arquivo guardado (o mesmo que foi registrado)
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+        link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+
+        showToast("Laudo emitido e guardado com sucesso!", "success");
+        liberar();
+        fecharFinalizacaoDesktop();
+    } catch (erro) {
+        console.error("Erro na emissão do laudo:", erro);
+        showToast("Erro na emissão do laudo: " + (erro.message || erro), "error");
+        liberar();
+    }
+}
+
+// Localiza a OS por id (número) ou pela placa EXATA. Com a placa, se houver
+// mais de uma OS, não escolhe sozinho: pede o id. Antes pegava a primeira que
+// encontrasse (e a exclusão aceitava parte da placa).
+function acharOSUnica(placaOuId) {
+    if (typeof placaOuId === 'number' || /^\d+$/.test(String(placaOuId).trim())) {
+        const os = db.ordens_servico.find(o => o.id === Number(placaOuId));
+        return os ? { os } : { erro: `O.S. #${placaOuId} não encontrada.` };
+    }
+    const alvo = String(placaOuId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const lista = db.ordens_servico.filter(o => String(o.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === alvo);
+    if (!lista.length) return { erro: `Nenhuma O.S. com a placa ${placaOuId}.` };
+    if (lista.length > 1) return { erro: `Há ${lista.length} O.S. com a placa ${placaOuId} (${lista.map(o => `${o.numero} = id ${o.id}`).join(', ')}). Informe o id da O.S.` };
+    return { os: lista[0] };
 }
 
 async function reabrirLaudo(placa) {
@@ -15802,11 +13617,15 @@ async function reabrirLaudo(placa) {
     }
     
     try {
-        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase() === placa.toUpperCase());
-        if (!os) {
-            showToast(`Ordem de serviço não encontrada para a placa ${placa}`, "error");
+        const achado = acharOSUnica(placa);
+        if (achado.erro) { showToast(achado.erro, "error"); return; }
+        const os = achado.os;
+        placa = os.placa;
+        if (!(currentSession && (currentSession.permissoes || []).includes('cautelar_administrar'))) {
+            showToast("Só um administrador de cautelar pode reabrir um laudo emitido.", "error");
             return;
         }
+        if (!confirm(`Reabrir o laudo da O.S. ${os.numero} (placa ${os.placa})? O laudo emitido deixa de valer (a consulta pelo código passa a dizer "não localizado") até ser emitido de novo.`)) return;
 
         // Bloquear reabertura de OS faturada
         if (os.faturaId) {
@@ -15851,6 +13670,8 @@ async function reabrirLaudo(placa) {
                     status: 'em_andamento',
                     pdfUrl: null,
                     pdfHash: null,
+                    codigoVerificacao: null,
+                    laudoGeradoId: null,
                     dataHoraFinalizacao: null,
                     finalizadoPorId: null
                 }),
@@ -15863,8 +13684,11 @@ async function reabrirLaudo(placa) {
                     dadosJson: secao8.dadosJson,
                     status: 'pendente'
                 }) : Promise.resolve()
-            ]).catch(err => console.error("Erro ao sincronizar reabertura com Supabase:", err));
+            ]);
         }
+        cautelar.codigoVerificacao = null;
+        cautelar.laudoGeradoId = null;
+        logAudit("Reabrir Laudo", `Reabriu o laudo cautelar da O.S. ${os.numero} (placa ${os.placa}).`);
 
         showToast(`Laudo da placa ${placa.toUpperCase()} reaberto com sucesso!`, "success");
         setTimeout(() => {
@@ -15872,7 +13696,7 @@ async function reabrirLaudo(placa) {
         }, 1000);
     } catch (err) {
         console.error("Erro ao reabrir laudo:", err);
-        showToast("Erro crítico ao reabrir laudo.", "error");
+        showToast("Erro ao reabrir o laudo: " + (err.message || err) + ". Recarregue a página e confira.", "error");
     }
 }
 window.reabrirLaudo = reabrirLaudo;
@@ -15884,11 +13708,10 @@ async function excluirVistoria(placa) {
     }
 
     try {
-        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase().includes(placa.toUpperCase()));
-        if (!os) {
-            showToast(`Ordem de serviço não encontrada para placa contendo: ${placa}`, "error");
-            return;
-        }
+        const achado = acharOSUnica(placa);
+        if (achado.erro) { showToast(achado.erro, "error"); return; }
+        const os = achado.os;
+        if (os.faturaId) { showToast(`A O.S. ${os.numero} está numa fatura; cancele-a em vez de excluir.`, "error"); return; }
 
         const confirmMsg = `ATENÇÃO: Deseja realmente EXCLUIR DEFINITIVAMENTE a OS Placa: ${os.placa} e todas as suas vistorias, seções, fotos e lançamentos financeiros? Esta ação não pode ser desfeita.`;
         if (!confirm(confirmMsg)) return;
@@ -15981,34 +13804,34 @@ async function verResumoCautelar(cautelarId) {
 }
 
 /**
- * Abre ou baixa o laudo PDF finalizado da Cautelar.
+ * Baixa o laudo PDF emitido: o arquivo guardado na emissão (o mesmo do SHA-256
+ * registrado). Gerar um PDF novo a cada clique produzia documentos diferentes
+ * com o mesmo código.
  */
 async function exibirPdfCautelar(cautelarId) {
-    await verResumoCautelar(cautelarId);
-    
-    showToast("Gerando cópia do Laudo PDF...", "info");
-    setTimeout(() => {
-        const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-        
-        generateInspectionReport(cautelar.id)
-            .then(async (pdfBytes) => {
-                const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                const link = document.createElement('a');
-                link.href = pdfUrl;
-                link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-                link.click();
-                
-                showToast("Laudo PDF exportado com sucesso!", "success");
-                fecharFinalizacaoDesktop();
-            })
-            .catch(err => {
-                console.error("Erro na geração do PDF do laudo:", err);
-                showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}`, "error");
-                fecharFinalizacaoDesktop();
-            });
-    }, 1000);
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) return;
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId) || {};
+    if (!cautelar.pdfUrl) {
+        showToast("Este laudo não tem PDF guardado no servidor. Um administrador pode reabrir e emitir de novo.", "error");
+        return;
+    }
+    try {
+        showToast("Baixando o laudo...", "info");
+        const url = await urlArmazenamento(cautelar.pdfUrl, 600);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `LAUDO_CAUTELAR_${os.placa || ''}_${cautelar.dossieNumero || cautelar.id}.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+        logAudit("Download Laudo", `Baixou o laudo cautelar da placa ${os.placa || '?'} (dossiê ${cautelar.dossieNumero || cautelar.id}).`);
+    } catch (err) {
+        console.error("Erro ao baixar o laudo:", err);
+        showToast("Não foi possível baixar o laudo: " + (err.message || err), "error");
+    }
 }
 
 // Config: Notificações WhatsApp
@@ -16095,10 +13918,10 @@ async function generateAndUploadInvoicePDF(f) {
 
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
-            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
-            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
+            <td style="padding: 6px;"><strong>${escHtml(o.numero)}</strong></td>
+            <td style="padding: 6px;"><strong>${escHtml(o.placa)}</strong></td>
+            <td style="padding: 6px;">${escHtml(o.veiculoMarcaModelo || '—')}</td>
+            <td style="padding: 6px; text-align: center;">${escHtml(o.veiculoAno || '—')}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -16110,14 +13933,14 @@ async function generateAndUploadInvoicePDF(f) {
 
     // Créditos e descontos aplicados nesta fatura
     const creditosAbatidos = (db.parceiros_creditos || []).filter(c => c.faturaId === f.id);
-    const totalCreditos = creditosAbatidos.reduce((sum, c) => sum + c.valor, 0);
-    const totalBruto = oss.reduce((sum, o) => sum + o.valor, 0);
+    const totalCreditos = creditosAbatidos.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+    const totalBruto = oss.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     let creditosHtml = '';
     if (creditosAbatidos.length > 0) {
         const creditosRows = creditosAbatidos.map(c => `
             <tr style="border-bottom: 1px dotted #ffcdd2; font-size: 11px; color: #b71c1c;">
-                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${c.descricao}</td>
+                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${escHtml(c.descricao)}</td>
                 <td style="padding: 6px; text-align: right; font-weight: 600;" colspan="2">- ${formatCurrency(c.valor)}</td>
             </tr>
         `).join('');
@@ -16153,26 +13976,26 @@ async function generateAndUploadInvoicePDF(f) {
                 </div>
             </div>
             <div style="border: 2px solid ${CERTIVE_NAVY}; color:${CERTIVE_NAVY}; padding: 8px 16px; font-weight: 800; font-size: 16px;">
-                FATURA ${f.codigo}
+                FATURA ${escHtml(f.codigo)}
             </div>
         </div>
 
         <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 30px;">
             <div>
-                <strong>Prestador:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Prestador:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
             </div>
             <div style="text-align: right;">
-                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
-                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
-                <strong>Contato:</strong> ${partner.telefone}
+                <strong>Tomador (Parceiro):</strong> ${escHtml(partner.nome)}<br>
+                <strong>CPF/CNPJ:</strong> ${escHtml(partner.cnpj)}<br>
+                <strong>Contato:</strong> ${escHtml(partner.telefone)}
             </div>
         </div>
 
         <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
             <div>
-                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${escHtml(f.criadoPor)}<br>
                 <strong>Status de Pagamento:</strong> ${f.pago ? 'PAGO / LIQUIDADO' : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right; font-size: 13px; line-height: 1.4;">
@@ -16311,7 +14134,7 @@ function runIntegrityAudit() {
             <div style="padding: 12px 16px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-family: 'JetBrains Mono', monospace;">
                 <div style="display: flex; align-items: center; gap: 8px; color: var(--text-primary);">
                     <i class="ri-error-warning-line" style="color: var(--warning); font-size: 16px;"></i>
-                    <span>${item.descricao}</span>
+                    <span>${escHtml(item.descricao)}</span>
                 </div>
                 <span style="font-size: 9px; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;">
                     ${item.tipo === 'movimento_orfan' ? 'ÓRFÃO' : 'INVÁLIDO'}
@@ -16438,7 +14261,8 @@ async function forwardInvoice(faturaId, btn) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-forward`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
-            body: JSON.stringify({ faturaId, pdfUrl, canais: ['email', 'whatsapp'], assunto, corpo })
+            // O PDF não é público: e-mail e WhatsApp recebem um link temporário (7 dias)
+            body: JSON.stringify({ faturaId, pdfUrl: pdfUrl ? await urlArmazenamento(pdfUrl, 7 * 24 * 3600) : null, canais: ['email', 'whatsapp'], assunto, corpo })
         });
 
         if (res.ok) {
@@ -16606,9 +14430,8 @@ async function generateAsaasBillingForInvoice(faturaId, btn) {
 // as OS lançadas após as 21h do último dia do mês para o mês seguinte.
 function competenciaLocalDeOS(criadoEm) {
     if (!criadoEm) return null;
-    const d = new Date(criadoEm);
-    if (isNaN(d.getTime())) return null;
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const dia = diaSP(criadoEm);
+    return dia ? dia.slice(0, 7) : null;
 }
 
 // true quando o serviço da OS gera laudo cobrado pelo DETRAN.
@@ -16665,6 +14488,18 @@ window.laudosDetranDoMes = laudosDetranDoMes;
 window.totalGuiaDetran = totalGuiaDetran;
 
 window.syncDetranFloatingPayable = async function() {
+    // Chamada após cada gravação de OS: duas execuções simultâneas criavam
+    // a provisão em dobro. Uma de cada vez (e o banco tem regra de unicidade).
+    if (window.__sincronizandoDetran) { window.__sincronizarDetranDeNovo = true; return; }
+    window.__sincronizandoDetran = true;
+    try { await sincronizarProvisaoDetran(); }
+    finally {
+        window.__sincronizandoDetran = false;
+        if (window.__sincronizarDetranDeNovo) { window.__sincronizarDetranDeNovo = false; setTimeout(() => window.syncDetranFloatingPayable(), 300); }
+    }
+};
+
+async function sincronizarProvisaoDetran() {
     if (typeof activeUnitId === 'undefined' || !activeUnitId) return;
     if (!db || !db.ordens_servico || !db.contas_pagar) return;
 
@@ -16689,277 +14524,82 @@ window.syncDetranFloatingPayable = async function() {
     }
 
     try {
-        // 1. Obter mês e ano de faturamento correntes
-        let now = new Date();
-        if (window.modoDiaReaberto && window.dataDiaReaberto) {
-            now = new Date(window.dataDiaReaberto);
-        }
-        const year = now.getFullYear().toString();
-        const monthNum = String(now.getMonth() + 1).padStart(2, '0');
-        
+        // 1. Mês de competência: o do dia operativo (dia reaberto ou hoje), lido
+        //    como texto. new Date('2026-09-01') é dia 31/08 no Brasil.
+        const diaOperativo = getOperativeDate();
+        const year = diaOperativo.slice(0, 4);
+        const monthNum = diaOperativo.slice(5, 7);
+
         const meses = {
             '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
             '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
             '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
         };
         const monthLabel = meses[monthNum];
-        const targetDesc = `Taxas DETRAN-SC — Provisão ${monthLabel}/${year}`;
+        const unidade = (db.unidades || []).find(u => u.id === activeUnitId) || {};
+        const uf = String(unidade.uf || 'SC').toUpperCase();
+        const targetDesc = `Taxas DETRAN-${uf} — Provisão ${monthLabel}/${year}`;
+        const competencia = `${year}-${monthNum}-01`;
 
         // 2. Calcular a guia: 1 laudo cobrado por OS de serviço ECV no mês,
         //    excluindo apenas canceladas e retornos (ver bloco de regras acima).
         const monthlyOSs = laudosDetranDoMes(year, monthNum, activeUnitId);
-        const totalTaxas = monthlyOSs.reduce((acc, o) => acc + taxaDetranDoServico(o.servicoId), 0);
+        const totalTaxas = Math.round(monthlyOSs.reduce((acc, o) => acc + taxaDetranDoServico(o.servicoId), 0) * 100) / 100;
 
-        // 3. Buscar se já existe uma provisão para este mês/ano e unidade
-        const existingPayable = db.contas_pagar.find(c => 
-            c.unidadeId === activeUnitId && 
-            c.descricao === targetDesc
-        );
+        // 3. Provisão já existente deste mês e unidade (de qualquer UF, para não
+        //    duplicar as antigas "DETRAN-SC" se a unidade mudar de estado)
+        const ehProvisao = c => c.unidadeId === activeUnitId &&
+            /^Taxas DETRAN-\S+ — Provisão /.test(String(c.descricao || '')) &&
+            (String(c.competencia || '').slice(0, 7) === `${year}-${monthNum}` || c.descricao === targetDesc);
+        let existingPayable = db.contas_pagar.find(ehProvisao);
 
-        // O vencimento é o 5º dia útil do mês seguinte
-        let nextMonth = now.getMonth() + 1;
-        let nextYear = now.getFullYear();
-        if (nextMonth > 11) {
-            nextMonth = 0;
-            nextYear++;
-        }
+        // Vencimento: 5º dia útil do mês seguinte
+        const [nextYear, nextMonth] = monthNum === '12' ? [Number(year) + 1, 0] : [Number(year), Number(monthNum)];
         const dueDate = getFifthWorkingDay(nextYear, nextMonth);
 
-        if (existingPayable) {
-            // Se existir e não estiver paga, atualiza se o valor mudou
-            if (!existingPayable.pago) {
-                if (existingPayable.valor !== totalTaxas) {
-                    console.log(`[DETRAN Sincronizador] Atualizando valor da conta de provisão para: ${totalTaxas}`);
-                    existingPayable.valor = totalTaxas;
-                    
-                    if (window.useSupabase) {
-                        try {
-                            const { error } = await supabaseClient.from('contas_pagar')
-                                .update({ valor: totalTaxas })
-                                .eq('id', existingPayable.id);
-                            if (error) throw error;
-                        } catch (err) {
-                            console.error('[DETRAN Sincronizador] Erro Supabase:', err);
-                        }
-                    }
-                    cacheUpdate('contas_pagar', existingPayable.id, { valor: totalTaxas });
-                }
+        if (!existingPayable && totalTaxas > 0) {
+            const newPayable = {
+                unidadeId: activeUnitId,
+                descricao: targetDesc,
+                tipo: "variavel",
+                vencimento: dueDate,
+                competencia, // competência = mês das OS que geraram as taxas
+                valor: totalTaxas,
+                pago: false,
+                pagoEm: null,
+                categoria: "Impostos / Taxas",
+                fornecedor: `DETRAN-${uf}`,
+                comprovante: null,
+                criadoPor: "Sistema (Automático)"
+            };
+            const { data, error } = await supabaseClient.from('contas_pagar').insert(newPayable).select().single();
+            if (!error && data) {
+                cacheInsert('contas_pagar', normalizeRecord('contas_pagar', data));
+                return;
             }
-        } else {
-            // Se não existir e o valor acumulado for maior que zero, cria a provisão
-            if (totalTaxas > 0) {
-                console.log(`[DETRAN Sincronizador] Criando nova conta de provisão no valor de: ${totalTaxas}`);
-                const newPayable = {
-                    unidadeId: activeUnitId,
-                    descricao: targetDesc,
-                    tipo: "variavel",
-                    vencimento: dueDate,
-                    competencia: `${year}-${monthNum}-01`, // competência = mês das OS que geraram as taxas
-                    valor: totalTaxas,
-                    pago: false,
-                    pagoEm: null,
-                    categoria: "Impostos / Taxas",
-                    fornecedor: "DETRAN-SC",
-                    comprovante: null,
-                    criadoPor: "Sistema (Automático)"
-                };
+            if (error && error.code === '23505') {
+                // Outro aparelho criou ao mesmo tempo: usa a que ficou no banco
+                const { data: jaExiste } = await supabaseClient.from('contas_pagar').select('*')
+                    .eq('unidadeId', activeUnitId).eq('competencia', competencia).like('descricao', 'Taxas DETRAN-% — Provisão %').maybeSingle();
+                if (jaExiste) {
+                    existingPayable = normalizeRecord('contas_pagar', jaExiste);
+                    if (!db.contas_pagar.some(c => c.id === existingPayable.id)) cacheInsert('contas_pagar', existingPayable);
+                }
+            } else {
+                console.error('[DETRAN Sincronizador] Erro de inserção:', error);
+                return;
+            }
+        }
 
-                if (window.useSupabase) {
-                    const { data, error } = await supabaseClient.from('contas_pagar')
-                        .insert(newPayable)
-                        .select()
-                        .single();
-                    if (!error && data) {
-                        const normalized = normalizeRecord('contas_pagar', data);
-                        cacheInsert('contas_pagar', normalized);
-                    } else {
-                        console.error('[DETRAN Sincronizador] Erro de inserção Supabase:', error);
-                    }
-                } else {
-                    const arr = db.contas_pagar || [];
-                    newPayable.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
-                    cacheInsert('contas_pagar', newPayable);
-                    if (typeof saveDatabase === 'function') saveDatabase();
-                }
-            }
+        // 4. Existe e não está paga: acompanha o valor da guia
+        if (existingPayable && !existingPayable.pago && Math.abs(Number(existingPayable.valor) - totalTaxas) > 0.004) {
+            console.log(`[DETRAN Sincronizador] Atualizando valor da conta de provisão para: ${totalTaxas}`);
+            const { error } = await supabaseClient.from('contas_pagar').update({ valor: totalTaxas }).eq('id', existingPayable.id);
+            if (error) { console.error('[DETRAN Sincronizador] Erro ao atualizar:', error); return; }
+            cacheUpdate('contas_pagar', existingPayable.id, { valor: totalTaxas });
         }
     } catch (e) {
         console.error("[DETRAN Sincronizador] Falha crítica na execução:", e);
-    }
-};
-
-// ==========================================================
-// MÓDULO DE INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (CHATGPT)
-// ==========================================================
-
-// O laudo é do sistema Certive: o cliente não deve ver menção à ferramenta usada na redação
-const LAUDO_SEM_MENCAO_IA = "\n\nREGRA OBRIGATÓRIA: nunca mencione inteligência artificial, IA, ChatGPT, OpenAI ou modelo de linguagem em nenhum texto do laudo. O laudo é emitido pelo sistema Certive e assinado pelo vistoriador.";
-
-function getDefaultOpenAIPrompt() {
-    return `Você é o Perito Técnico e Designer Gráfico Oficial da Certive Vistorias.
-Sua função é confeccionar o laudo cautelar veicular final a partir das informações de vistoria e fotos fornecidas.
-Você deve analisar minuciosamente o checklist e as fotos reais anexadas para formular a decisão técnica de conformidade do veículo, redigir o laudo de forma extremamente formal e profissional (em letras maiúsculas), e indicar a posição correta de cada foto.
-
-Você deve responder estritamente no formato JSON, onde cada chave corresponde ao nome do campo no formulário AcroForm do PDF do laudo.
-
-CAMPOS TEXTUAIS DO PDF QUE VOCÊ DEVE PREENCHER NO JSON (Valores em MAIÚSCULAS):
-- "inspection.city_state": Cidade e UF da vistoria (ex: "SÃO JOSÉ / SC").
-- "inspection.date_long": Data por extenso (ex: "28 DE JULHO DE 2026").
-- "inspection.dossier_number", "inspection.dossier_number_p3", "inspection.dossier_number_p4", "inspection.dossier_number_p5", "inspection.dossier_number_p6", "inspection.dossier_number_p7", "inspection.dossier_number_p8", "inspection.dossier_number_p9", "inspection.dossier_number_p10": Número do dossiê fornecido.
-- "vehicle.brand_model": Marca e Modelo do veículo (ex: "FIAT / UNO").
-- "vehicle.year": Ano fabricação/modelo (ex: "2018 / 2019").
-- "vehicle.color": Cor do veículo.
-- "vehicle.plate": Placa do veículo.
-- "vehicle.chassis": Número do Chassi.
-- "vehicle.engine_number": Número do Motor.
-- "vehicle.fuel": Combustível.
-- "vehicle.renavam": Código Renavam.
-- "vehicle.odometer": Quilometragem formatada (ex: "123.456,00 KM").
-- "inspection.date_time": Data e hora da vistoria (ex: "28/07/2026 ÀS 14:51").
-- "inspection.location": Nome da unidade de vistoria.
-- "inspector.name", "inspector.full_name": Nome do vistoriador responsável.
-- "inspector.role_document": Cargo/registro do vistoriador (ex: "VISTORIADOR TÉCNICO - REGISTRO ECV CERTIVE").
-
-PARECERES E STATUS DAS SEÇÕES:
-- "structure.status": Parecer consolidado da estrutura (Valores permitidos: "CONFORME", "RESSALVAS", "RESTRIÇÃO").
-- "identification.status": Parecer dos identificadores/vidros (Valores permitidos: "CONFORME", "RESSALVAS", "RESTRIÇÃO").
-- "paint.status": Parecer da pintura/lataria (Valores permitidos: "CONFORME", "RESSALVAS").
-- "engine.status": Parecer do motor/mecânica (Valores permitidos: "CONFORME", "RESSALVAS", "RESTRIÇÃO").
-- "chassis.status": Parecer do chassi (Valores permitidos: "CONFORME", "RESSALVAS", "RESTRIÇÃO").
-
-TABELA OPERACIONAL DE PEÇAS E DETALHES (Preencher com "CONFORME", "RESSALVAS" ou "RESTRIÇÃO"):
-- "structure.front_right": Longarina dianteira direita.
-- "structure.front_left": Longarina dianteira esquerda.
-- "structure.firewall": Painel corta-fogo.
-- "structure.roof": Estrutura do teto.
-- "structure.rear_panel": Painel traseiro.
-- "structure.spare_wheel_box": Caixa do estepe.
-- "structure.floor_trunk": Assoalho do porta-malas.
-- "structure.final_status": Resultado estrutural final.
-- "labels.engine_bay_status": Etiquetas do motor ("ORIGINAL" ou "RESSALVAS").
-- "labels.column_status": Etiquetas das colunas ("ORIGINAL" ou "RESSALVAS").
-- "identification.engine_status": Numeração do motor ("CONFORME", "RESSALVAS" ou "RESTRIÇÃO").
-- "identification.chassis_status": Numeração do chassi ("CONFORME", "RESSALVAS" ou "RESTRIÇÃO").
-
-RESUMOS E PARECERES TÉCNICOS POR EXTENSO (Redija de forma pericial e refinada):
-- "summary.approved_items": Lista de pontos analisados que estão conformes (exiba em tópicos com •).
-- "summary.alert_items": Lista de apontamentos ou ressalvas técnicas identificadas (exiba em tópicos com •).
-- "paint.table_items": Lista de medições micrométricas e condição da pintura de cada uma das 17 partes do veículo (ex: "CAPÔ: ORIGINAL (110 MICRAS)", "TETO: REPINTURA (220 MICRAS)", etc.).
-- "glass.table": Lista de originalidade e gravação de chassi em cada um dos 6 vidros (ex: "PARA-BRISA: ORIGINAL (GRAVADO)", etc.).
-- "vehicle.complementary_data": Dados de ficha e histórico agregados do veículo para a pág 8.
-- "technical.opinion_status": Parecer técnico do chassi/motor ("CONFORME", "CONFORME COM RESSALVA", "NÃO CONFORME").
-- "technical.observation": Observação pericial da análise do motor/chassi.
-- "document.consultation_data": Dados cadastrais consultados para a pág 9.
-- "document.approved_items": Pesquisas documentais limpas (tópicos com •).
-- "document.alert_items": Apontamentos e restrições documentais leves/alertas (tópicos com •).
-- "document.restriction_items": Restrições graves ou impeditivos de transferência (tópicos com •).
-- "final.opinion_text": Texto detalhado e formal do laudo pericial final do veículo, resumindo o estado geral, conformidades e justificando tecnicamente eventuais ressalvas/reprovações de forma clara e imparcial para o encerramento do laudo.
-- "final.status": Decisão final do laudo (Valores permitidos: "CONFORME", "CONFORME COM RESSALVAS", "NÃO CONFORME").
-
-CAMPOS DE FOTOS (CLASSIFICAÇÃO):
-Associe cada um dos seguintes campos de foto ao identificador temporário da foto (ex: "foto_1", "foto_2") que melhor representa a imagem solicitada:
-- "photos.vehicle_front_45": Foto da dianteira do veículo em 45 graus.
-- "photos.vehicle_rear_45": Foto da traseira do veículo em 45 graus.
-- "photos.engine_bay": Foto geral do cofre do motor.
-- "photos.trunk_floor": Foto do assoalho do porta-malas / caixa do estepe.
-- "photos.odometer": Foto do painel de instrumentos exibindo a quilometragem.
-- "photos.front_45_right": Foto frontal direita em 45 graus.
-- "photos.rear_45_left": Foto traseira esquerda in 45 graus.
-- "photos.rear_longeron_right": Foto da longarina ou área estrutural com foco de análise.
-- "photos.engine_label": Foto da etiqueta ETA do compartimento do motor.
-- "photos.column_label": Foto da etiqueta ETA da coluna da porta.
-- "photos.chassis_number": Foto macro da gravação do chassi.
-- "photos.engine_number": Foto macro da gravação do número do motor.
-- "photos.plate_rear": Foto da placa traseira ou dianteira do veículo.
-- "photos.engine_compartment": Foto do cofre do motor geral (página 8).
-- "photos.engine_number_p8": Foto macro do número do motor (página 8).
-- "photos.chassis_number_p8": Foto macro do número do chassi (página 8).
-
-ESTRUTURA DO JSON DE RETORNO:
-{
-  "status": "sucesso" | "erro",
-  "erros": [],
-  "fields": {
-     "inspection.city_state": "SÃO JOSÉ / SC",
-     ...
-  },
-  "photo_assignments": {
-     "photos.vehicle_front_45": "foto_2",
-     ...
-  }
-}`;
-}
-
-function renderConfigChatGPT() {
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
-    const keyInput = document.getElementById('cfg-openai-key');
-    const modelSelect = document.getElementById('cfg-openai-model');
-    const promptTextarea = document.getElementById('cfg-openai-prompt');
-
-    if (config) {
-        if (keyInput) keyInput.value = config.chaveOpenAi || '';
-        if (modelSelect) modelSelect.value = config.modeloOpenAi || 'gpt-4o-mini';
-        if (promptTextarea) promptTextarea.value = config.promptInstrucoes || '';
-    } else {
-        if (keyInput) keyInput.value = '';
-        if (modelSelect) modelSelect.value = 'gpt-4o-mini';
-        if (promptTextarea) promptTextarea.value = getDefaultOpenAIPrompt();
-    }
-}
-
-async function submitConfigChatGPT(event) {
-    event.preventDefault();
-    if (!currentSession) return;
-
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
-    const keyInput = document.getElementById('cfg-openai-key');
-    const key = keyInput ? keyInput.value.trim() : (config.chaveOpenAi || '');
-    const model = document.getElementById('cfg-openai-model').value;
-    const prompt = document.getElementById('cfg-openai-prompt').value.trim();
-    const oldId = config.id || null;
-
-    const payload = {
-        chaveOpenAi: key,
-        modeloOpenAi: model,
-        promptInstrucoes: prompt,
-        atualizadoEm: new Date().toISOString(),
-        atualizadoPor: currentSession.nome || 'Admin'
-    };
-
-    try {
-        showToast("Salvando configurações da OpenAI...", "info");
-
-        if (window.useSupabase) {
-            if (oldId) {
-                const { error } = await supabaseClient.from('configuracoes_gerais')
-                    .update(payload)
-                    .eq('id', oldId);
-                if (error) throw error;
-                payload.id = oldId;
-            } else {
-                const { data, error } = await supabaseClient.from('configuracoes_gerais')
-                    .insert(payload)
-                    .select()
-                    .single();
-                if (error) throw error;
-                payload.id = data.id;
-            }
-        } else {
-            if (oldId) {
-                payload.id = oldId;
-            } else {
-                payload.id = db.configuracoes_gerais && db.configuracoes_gerais.length > 0 ? Math.max(...db.configuracoes_gerais.map(r => r.id || 0)) + 1 : 1;
-            }
-        }
-
-        db.configuracoes_gerais = [payload];
-        if (!window.useSupabase && typeof saveDatabase === 'function') saveDatabase();
-
-        showToast("Configurações da OpenAI salvas com sucesso!", "success");
-        renderConfigChatGPT();
-    } catch (err) {
-        console.error("Erro ao salvar integração ChatGPT:", err);
-        showToast("Erro ao salvar configurações da OpenAI.", "error");
     }
 }
 
@@ -16967,7 +14607,7 @@ async function submitConfigChatGPT(event) {
 // CONFIGURAÇÃO DE FATURAMENTO — dados bancários + texto do e-mail
 // ----------------------------------------------------------
 // Guardados na mesma linha única de configuracoes_gerais (merge para não
-// sobrescrever campos de outras integrações, ex.: ChatGPT).
+// sobrescrever campos de outras integrações).
 // ==========================================================
 
 const DEFAULT_FAT_EMAIL_ASSUNTO = "Fatura {CODIGO} — Certive Vistorias";
@@ -17124,7 +14764,7 @@ function buildPaymentInstructionsHtml(f) {
                 <table style="border-collapse: collapse; flex:1;">
                     <tbody>
                         <tr><td style="padding: 3px 0; width: 120px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
-                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${c.cnpj}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${escHtml(c.cnpj)}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Banco</td><td style="padding: 3px 0; font-weight: 700;">${c.banco}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Agência</td><td style="padding: 3px 0; font-weight: 700;">${c.agencia}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Conta</td><td style="padding: 3px 0; font-weight: 700;">${c.conta} ${c.tipoConta ? '(' + c.tipoConta + ')' : ''}</td></tr>
@@ -17157,7 +14797,7 @@ async function submitConfigFaturamento(event) {
 
     const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
 
-    // Merge: preserva o que já existe na linha única (ChatGPT, WhatsApp, etc.)
+    // Merge: preserva o que já existe na linha única (WhatsApp, etc.)
     const existing = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : {};
     const oldId = existing.id || null;
 
@@ -17328,681 +14968,6 @@ async function notificarAdmins(titulo, corpo) {
         await supabaseClient.functions.invoke('send-push', { body: { titulo, corpo, url: '/app.html' } });
     } catch (e) {
         console.warn('Falha ao notificar admins (push):', e.message || e);
-    }
-}
-
-// ==========================================================
-// ASSISTENTE CHATGPT — Chat conversacional para operadores
-// ==========================================================
-
-const chatgptState = {
-    conversaAtual: null,   // objeto conversa ou null (nova/não salva)
-    conversas: [],         // lista de conversas do operador
-    mensagens: [],         // mensagens da conversa atual [{papel, conteudo}]
-    enviando: false,
-    modoImagem: false,     // quando true, a próxima mensagem gera uma imagem
-    modoWeb: false         // quando true, usa busca na web na resposta
-};
-
-// Alterna o modo de busca na web
-function chatgptToggleWeb() {
-    chatgptState.modoWeb = !chatgptState.modoWeb;
-    const btn = document.getElementById('chatgpt-web-btn');
-    if (btn) btn.classList.toggle('active', chatgptState.modoWeb);
-    const input = document.getElementById('chatgpt-input');
-    if (input) input.focus();
-    showToast(chatgptState.modoWeb ? 'Busca na web ATIVADA — o assistente vai pesquisar informações atuais.' : 'Busca na web desativada.', 'info');
-}
-
-// Detecta intenção de informação atual/em tempo real (aciona a busca automaticamente)
-function chatgptDetectaWeb(texto) {
-    const t = (texto || '').toLowerCase();
-    return /\b(cota[çc][ãa]o|d[óo]lar|euro|bitcoin|pre[çc]o de|quanto (custa|est[áa]|vale)|hoje|agora|atual|atualizad[ao]|neste momento|not[íi]cia|not[íi]cias|[úu]ltim[ao]s?|clima|tempo (em|hoje)|previs[ãa]o do tempo|resultado d[oa]|placar|quem ganhou|ta(xa|xas) de juros|selic|ibovespa|d[óo]lar hoje|2024|2025|2026)\b/.test(t)
-        || /^\/web\b/.test(t);
-}
-
-// Alterna o modo de geração de imagem
-function chatgptToggleImagem() {
-    chatgptState.modoImagem = !chatgptState.modoImagem;
-    const btn = document.getElementById('chatgpt-img-btn');
-    const input = document.getElementById('chatgpt-input');
-    if (btn) btn.classList.toggle('active', chatgptState.modoImagem);
-    if (input) {
-        input.placeholder = chatgptState.modoImagem
-            ? 'Descreva a imagem que deseja gerar...'
-            : 'Envie uma mensagem para o ChatGPT...';
-        input.focus();
-    }
-}
-
-// Detecta intenção de gerar imagem pelo texto (para funcionar mesmo sem ativar o botão)
-function chatgptDetectaImagem(texto) {
-    const t = (texto || '').toLowerCase().trim();
-    return /^(crie|cria|criar|gere|gera|gerar|desenhe|desenha|desenhar|faça|faca|fazer|monte|montar|ilustre|ilustrar|imagine)\b[^.?!]*\b(imagem|imagens|figura|desenho|ilustração|ilustracao|logo|logotipo|arte|foto|banner|cartaz|poster|ícone|icone)\b/.test(t)
-        || /^\/imagem\b/.test(t);
-}
-
-// Verifica se é possível persistir no Supabase
-function chatgptPodePersistir() {
-    return !!(window.useSupabase && window.onlineTables && window.onlineTables['chatgpt_conversas']);
-}
-
-// Recupera a chave/config da OpenAI (reaproveita a integração já existente)
-function chatgptGetConfig() {
-    const config = (db.configuracoes_gerais && db.configuracoes_gerais.length > 0) ? db.configuracoes_gerais[0] : null;
-    return config || {};
-}
-
-// Sistema base do assistente (comportamento tipo ChatGPT, em português)
-function chatgptSystemPrompt() {
-    const nome = (currentSession && currentSession.nome) ? currentSession.nome : 'operador';
-    return `Você é o assistente de inteligência artificial da Certive Vistorias, integrado ao sistema interno. ` +
-        `Você conversa com ${nome}, um operador da empresa. Responda de forma clara, útil e objetiva, ` +
-        `em português do Brasil, com a mesma qualidade e naturalidade do ChatGPT. Use formatação Markdown quando ajudar ` +
-        `(listas, tabelas, negrito, blocos de código). Ajude com dúvidas gerais, redação de textos, cálculos, ` +
-        `organização de ideias e questões do dia a dia operacional.`;
-}
-
-// Escapa HTML (para mensagens do usuário)
-function chatgptEscapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str == null ? '' : String(str);
-    return div.innerHTML;
-}
-
-// Sanitização leve do HTML gerado a partir do Markdown do assistente
-function chatgptSanitize(html) {
-    if (!html) return '';
-    let out = html
-        .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
-        .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
-        .replace(/<\s*style[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, '')
-        .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-        .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-        .replace(/javascript:/gi, '');
-    return out;
-}
-
-// Renderiza Markdown do assistente com segurança
-function chatgptRenderMarkdown(text) {
-    try {
-        if (typeof marked !== 'undefined') {
-            const raw = marked.parse(text || '', { breaks: true });
-            return chatgptSanitize(raw);
-        }
-    } catch (e) { console.warn('Falha ao renderizar markdown:', e); }
-    return chatgptEscapeHtml(text).replace(/\n/g, '<br>');
-}
-
-// Ponto de entrada ao navegar para o painel ChatGPT
-async function renderChatGPTPage() {
-    await chatgptCarregarConversas();
-    if (chatgptState.conversaAtual) {
-        chatgptRenderMensagens();
-    } else {
-        chatgptRenderWelcome();
-    }
-}
-
-// Carrega as conversas do operador atual
-async function chatgptCarregarConversas() {
-    if (!chatgptPodePersistir() || !currentSession) {
-        chatgptRenderConversasList();
-        return;
-    }
-    try {
-        const { data, error } = await supabaseClient
-            .from('chatgpt_conversas')
-            .select('*')
-            .eq('operadorId', currentSession.id)
-            .order('atualizadoEm', { ascending: false });
-        if (error) throw error;
-        chatgptState.conversas = data || [];
-    } catch (e) {
-        console.warn('Erro ao carregar conversas do ChatGPT:', e.message);
-        chatgptState.conversas = [];
-    }
-    chatgptRenderConversasList();
-}
-
-function chatgptRenderConversasList() {
-    const list = document.getElementById('chatgpt-conversas-list');
-    if (!list) return;
-    if (!chatgptState.conversas || chatgptState.conversas.length === 0) {
-        list.innerHTML = `<div class="chatgpt-conversas-empty">Nenhuma conversa ainda.<br>Clique em "Nova conversa" para começar.</div>`;
-        return;
-    }
-    list.innerHTML = chatgptState.conversas.map(c => {
-        const ativo = chatgptState.conversaAtual && chatgptState.conversaAtual.id === c.id ? 'active' : '';
-        return `<div class="chatgpt-conversa-item ${ativo}" onclick="chatgptAbrirConversa(${c.id})">
-            <i class="ri-chat-3-line"></i>
-            <span class="conversa-titulo">${chatgptEscapeHtml(c.titulo || 'Conversa')}</span>
-            <button class="conversa-del" title="Excluir" onclick="chatgptExcluirConversa(${c.id}, event)"><i class="ri-delete-bin-line"></i></button>
-        </div>`;
-    }).join('');
-}
-
-// Estado de boas-vindas (conversa vazia)
-function chatgptRenderWelcome() {
-    const box = document.getElementById('chatgpt-messages');
-    const titulo = document.getElementById('chatgpt-titulo-atual');
-    if (titulo) titulo.textContent = 'Assistente ChatGPT';
-    if (!box) return;
-    const sugestoes = [
-        'Escreva um e-mail formal para um cliente',
-        'Qual a cotação do dólar hoje?',
-        'Crie uma imagem de um carro sedan prata',
-        'Resuma este texto em tópicos'
-    ];
-    box.innerHTML = `
-        <div class="chatgpt-welcome">
-            <i class="ri-robot-2-line"></i>
-            <h3>Como posso ajudar hoje?</h3>
-            <p>Converse normalmente. É só pedir: eu respondo dúvidas, escrevo textos, <strong>busco informações atuais na internet</strong> e <strong>crio imagens</strong> — tudo automaticamente, sem precisar ativar nada.</p>
-            <div class="chatgpt-suggestions">
-                ${sugestoes.map(s => `<button class="chatgpt-suggestion" onclick="chatgptUsarSugestao(this)">${s}</button>`).join('')}
-            </div>
-        </div>`;
-}
-
-function chatgptUsarSugestao(el) {
-    const input = document.getElementById('chatgpt-input');
-    if (input) {
-        input.value = el.textContent.trim();
-        input.focus();
-        chatgptAutoGrow(input);
-    }
-}
-
-function chatgptNovaConversa() {
-    chatgptState.conversaAtual = null;
-    chatgptState.mensagens = [];
-    chatgptRenderConversasList();
-    chatgptRenderWelcome();
-    const input = document.getElementById('chatgpt-input');
-    if (input) { input.value = ''; chatgptAutoGrow(input); input.focus(); }
-    // Fecha a barra no mobile
-    const sb = document.getElementById('chatgpt-sidebar');
-    if (sb) sb.classList.remove('open');
-}
-
-async function chatgptAbrirConversa(id) {
-    const conversa = chatgptState.conversas.find(c => c.id === id);
-    if (!conversa) return;
-    chatgptState.conversaAtual = conversa;
-
-    // Ajusta o seletor de modelo conforme a conversa
-    const modeloSelect = document.getElementById('chatgpt-modelo');
-    if (modeloSelect && conversa.modelo) modeloSelect.value = conversa.modelo;
-
-    // Carrega as mensagens
-    chatgptState.mensagens = [];
-    if (chatgptPodePersistir()) {
-        try {
-            const { data, error } = await supabaseClient
-                .from('chatgpt_mensagens')
-                .select('*')
-                .eq('conversaId', id)
-                .order('id', { ascending: true });
-            if (error) throw error;
-            chatgptState.mensagens = (data || []).map(m => ({ papel: m.papel, conteudo: m.conteudo }));
-        } catch (e) {
-            console.warn('Erro ao carregar mensagens:', e.message);
-        }
-    }
-    chatgptRenderConversasList();
-    chatgptRenderMensagens();
-    const sb = document.getElementById('chatgpt-sidebar');
-    if (sb) sb.classList.remove('open');
-}
-
-async function chatgptExcluirConversa(id, event) {
-    if (event) event.stopPropagation();
-    if (!confirm('Excluir esta conversa? Esta ação não pode ser desfeita.')) return;
-    if (chatgptPodePersistir()) {
-        try {
-            const { error } = await supabaseClient.from('chatgpt_conversas').delete().eq('id', id);
-            if (error) throw error;
-        } catch (e) {
-            console.error('Erro ao excluir conversa:', e.message);
-            showToast('Erro ao excluir conversa.', 'error');
-            return;
-        }
-    }
-    chatgptState.conversas = chatgptState.conversas.filter(c => c.id !== id);
-    if (chatgptState.conversaAtual && chatgptState.conversaAtual.id === id) {
-        chatgptNovaConversa();
-    } else {
-        chatgptRenderConversasList();
-    }
-    showToast('Conversa excluída.', 'success');
-}
-
-function chatgptRenderMensagens() {
-    const box = document.getElementById('chatgpt-messages');
-    const titulo = document.getElementById('chatgpt-titulo-atual');
-    if (titulo && chatgptState.conversaAtual) titulo.textContent = chatgptState.conversaAtual.titulo || 'Conversa';
-    if (!box) return;
-    box.innerHTML = chatgptState.mensagens.map(m => chatgptMensagemHtml(m)).join('');
-    chatgptScrollBottom();
-}
-
-function chatgptMensagemHtml(m) {
-    const isUser = m.papel === 'user';
-    const avatar = isUser ? '<i class="ri-user-3-line"></i>' : '<i class="ri-robot-2-line"></i>';
-    const nome = isUser ? ((currentSession && currentSession.nome) ? currentSession.nome : 'Você') : 'ChatGPT';
-    const conteudo = isUser
-        ? chatgptEscapeHtml(m.conteudo).replace(/\n/g, '<br>')
-        : chatgptRenderMarkdown(m.conteudo);
-    return `<div class="chatgpt-msg ${isUser ? 'user' : 'assistant'}">
-        <div class="chatgpt-msg-avatar">${avatar}</div>
-        <div class="chatgpt-msg-body">
-            <div class="chatgpt-msg-role">${chatgptEscapeHtml(nome)}</div>
-            <div class="chatgpt-msg-content">${conteudo}</div>
-        </div>
-    </div>`;
-}
-
-function chatgptScrollBottom() {
-    const box = document.getElementById('chatgpt-messages');
-    if (box) box.scrollTop = box.scrollHeight;
-}
-
-function chatgptAutoGrow(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-}
-
-function chatgptInputKeydown(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        chatgptEnviarMensagem(event);
-    }
-}
-
-function chatgptToggleSidebar() {
-    const sb = document.getElementById('chatgpt-sidebar');
-    if (sb) sb.classList.toggle('open');
-}
-
-// Cria a conversa no banco (na primeira mensagem)
-async function chatgptCriarConversa(primeiraMensagem, modelo) {
-    const titulo = (primeiraMensagem || 'Nova conversa').replace(/\s+/g, ' ').trim().slice(0, 60);
-    const registro = {
-        operadorId: currentSession ? currentSession.id : null,
-        operadorNome: currentSession ? currentSession.nome : null,
-        unidadeId: (typeof activeUnitId !== 'undefined') ? activeUnitId : (currentSession ? currentSession.unidadeId : null),
-        titulo: titulo,
-        modelo: modelo,
-        atualizadoEm: new Date().toISOString()
-    };
-    if (chatgptPodePersistir()) {
-        const { data, error } = await supabaseClient.from('chatgpt_conversas').insert(registro).select().single();
-        if (error) throw error;
-        return data;
-    }
-    // Fallback em memória (sessão)
-    registro.id = Date.now();
-    return registro;
-}
-
-async function chatgptSalvarMensagem(conversaId, papel, conteudo) {
-    if (!chatgptPodePersistir()) return;
-    try {
-        await supabaseClient.from('chatgpt_mensagens').insert({
-            conversaId: conversaId,
-            papel: papel,
-            conteudo: conteudo
-        });
-        await supabaseClient.from('chatgpt_conversas')
-            .update({ atualizadoEm: new Date().toISOString() })
-            .eq('id', conversaId);
-    } catch (e) {
-        console.warn('Erro ao salvar mensagem do ChatGPT:', e.message);
-    }
-}
-
-// Decide automaticamente a ação da mensagem: 'conversa', 'imagem' ou 'web'.
-// Usa um modelo rápido/barato como roteador; se falhar, cai numa heurística simples.
-async function chatgptDecidirAcao(texto) {
-    const config = chatgptGetConfig();
-    try {
-        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.chaveOpenAi}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                temperature: 0,
-                response_format: { type: 'json_object' },
-                messages: [
-                    { role: 'system', content: 'Você é um roteador de intenções de um assistente. Analise APENAS a mensagem do usuário e responda somente com um JSON no formato {"acao":"conversa"|"imagem"|"web"}. Regras: use "imagem" quando o usuário pede para criar/gerar/desenhar/ilustrar uma imagem, foto, logotipo, arte, ícone, banner ou figura. Use "web" quando responder corretamente exige informação atual ou da internet: cotações, preços, câmbio, notícias, clima/tempo, resultados, eventos recentes, ou qualquer dado que muda com o tempo ou seja posterior a 2023. Nos demais casos use "conversa".' },
-                    { role: 'user', content: texto }
-                ]
-            })
-        });
-        if (!resp.ok) throw new Error('roteador indisponível');
-        const data = await resp.json();
-        const txt = (data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : '{}';
-        const obj = JSON.parse(txt);
-        const acao = (obj.acao || '').toLowerCase();
-        if (acao === 'imagem' || acao === 'web' || acao === 'conversa') return acao;
-        return 'conversa';
-    } catch (e) {
-        console.warn('Roteador falhou, usando heurística:', e.message);
-        if (chatgptDetectaImagem(texto)) return 'imagem';
-        if (chatgptDetectaWeb(texto)) return 'web';
-        return 'conversa';
-    }
-}
-
-// Gera uma imagem via API da OpenAI, exibe no chat e salva no histórico
-async function chatgptGerarImagem(prompt, respostaId, config) {
-    const respEl = document.getElementById(respostaId);
-    const contentEl = respEl ? respEl.querySelector('.chatgpt-msg-content') : null;
-    if (contentEl) {
-        contentEl.innerHTML = `<div style="color: var(--text-secondary); font-size:13px; margin-bottom:8px;">🎨 Gerando imagem, aguarde...</div>
-            <span class="chatgpt-typing"><span></span><span></span><span></span></span>`;
-    }
-    chatgptScrollBottom();
-
-    // Faz uma tentativa de geração com um corpo específico
-    async function tentarGerar(corpo) {
-        const resp = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.chaveOpenAi}`
-            },
-            body: JSON.stringify(corpo)
-        });
-        if (!resp.ok) {
-            const t = await resp.text();
-            const err = new Error(`(${resp.status}) ${t}`);
-            err.status = resp.status;
-            throw err;
-        }
-        return resp.json();
-    }
-
-    try {
-        // A API de imagens da OpenAI variou ao longo do tempo: tentamos o modelo
-        // novo (gpt-image-1, retorna base64) e caímos para o dall-e-3 (retorna URL).
-        const tentativas = [
-            { model: 'gpt-image-1', prompt: prompt, n: 1, size: '1024x1024' },
-            { model: 'dall-e-3', prompt: prompt, n: 1, size: '1024x1024' }
-        ];
-        let data = null, ultimoErro = null;
-        for (const corpo of tentativas) {
-            try { data = await tentarGerar(corpo); break; }
-            catch (e) { ultimoErro = e; console.warn('Tentativa de imagem falhou (' + corpo.model + '):', e.message); }
-        }
-        if (!data) throw ultimoErro || new Error('Falha ao gerar a imagem.');
-
-        const item = (data.data && data.data[0]) ? data.data[0] : {};
-        const b64 = item.b64_json || null;
-        const urlDireta = item.url || null;
-        if (!b64 && !urlDireta) throw new Error('Nenhuma imagem foi retornada pela API.');
-
-        // Obtém um Blob para salvar (de base64, ou baixando a URL temporária)
-        let blob = null;
-        if (b64) {
-            const bytes = atob(b64);
-            const arr = new Uint8Array(bytes.length);
-            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-            blob = new Blob([arr], { type: 'image/png' });
-        } else if (urlDireta) {
-            try { blob = await (await fetch(urlDireta)).blob(); }
-            catch (e) { console.warn('Não foi possível baixar a imagem para salvar:', e.message); }
-        }
-
-        // Salva no Storage do Supabase quando temos o arquivo; senão usa a URL/base64 direta
-        let urlImagem = '';
-        if (blob) {
-            try {
-                if (window.useSupabase) {
-                    const fileName = `img_${(currentSession ? currentSession.id : 'op')}_${Date.now()}.png`;
-                    const { error: upErr } = await supabaseClient.storage.from('chatgpt-imagens').upload(fileName, blob, {
-                        contentType: 'image/png',
-                        upsert: true
-                    });
-                    if (!upErr) {
-                        const { data: urlData } = supabaseClient.storage.from('chatgpt-imagens').getPublicUrl(fileName);
-                        urlImagem = urlData.publicUrl;
-                    }
-                }
-            } catch (e) {
-                console.warn('Falha ao subir a imagem ao Storage:', e.message);
-            }
-        }
-        if (!urlImagem) {
-            urlImagem = b64 ? ('data:image/png;base64,' + b64) : urlDireta;
-        }
-
-        // Conteúdo persistido (markdown de imagem, re-renderizável ao reabrir a conversa)
-        const conteudo = `![Imagem gerada](${urlImagem})`;
-
-        if (contentEl) {
-            contentEl.innerHTML = chatgptRenderMarkdown(conteudo) +
-                `<div class="chatgpt-img-actions">
-                    <a href="${urlImagem}" target="_blank" rel="noopener"><i class="ri-external-link-line"></i> Abrir</a>
-                    <a href="${urlImagem}" download="imagem-certive.png"><i class="ri-download-line"></i> Baixar</a>
-                </div>`;
-        }
-
-        chatgptState.mensagens.push({ papel: 'assistant', conteudo: conteudo });
-        if (chatgptState.conversaAtual) {
-            chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'assistant', conteudo);
-        }
-    } catch (err) {
-        console.error('Erro ao gerar imagem:', err);
-        if (contentEl) {
-            contentEl.innerHTML = `<span style="color: var(--danger, #ef4444);">⚠️ Não foi possível gerar a imagem: ${chatgptEscapeHtml(err.message)}</span>`;
-        }
-        showToast('Erro ao gerar a imagem. Verifique a chave e o saldo da conta OpenAI.', 'error');
-    }
-}
-
-// Envia a mensagem e recebe a resposta com streaming
-async function chatgptEnviarMensagem(event) {
-    if (event) event.preventDefault();
-    if (chatgptState.enviando) return;
-
-    const input = document.getElementById('chatgpt-input');
-    let texto = input ? input.value.trim() : '';
-    if (!texto) return;
-
-    // Atalhos de comando: /imagem e /web (removidos do texto exibido/enviado)
-    let forcaImagem = false, forcaWeb = false;
-    if (/^\/imagem\b/i.test(texto)) { forcaImagem = true; texto = texto.replace(/^\/imagem\b\s*/i, '').trim(); }
-    else if (/^\/web\b/i.test(texto)) { forcaWeb = true; texto = texto.replace(/^\/web\b\s*/i, '').trim(); }
-    if (!texto) return;
-
-    const config = chatgptGetConfig();
-    if (!config.chaveOpenAi) {
-        showToast('Chave da OpenAI não configurada. Vá em Configurações → Integração IA (ChatGPT) e cadastre a chave.', 'error');
-        return;
-    }
-
-    const modeloSelect = document.getElementById('chatgpt-modelo');
-    const modelo = (modeloSelect && modeloSelect.value) ? modeloSelect.value : 'gpt-4o';
-
-    // Limpa o input
-    if (input) { input.value = ''; chatgptAutoGrow(input); }
-
-    // Se ainda não há mensagens (estava no welcome), limpa a tela
-    if (chatgptState.mensagens.length === 0) {
-        const box = document.getElementById('chatgpt-messages');
-        if (box) box.innerHTML = '';
-    }
-
-    // Adiciona a mensagem do usuário
-    chatgptState.mensagens.push({ papel: 'user', conteudo: texto });
-    const box = document.getElementById('chatgpt-messages');
-    if (box) box.insertAdjacentHTML('beforeend', chatgptMensagemHtml({ papel: 'user', conteudo: texto }));
-
-    // Cria placeholder da resposta do assistente
-    const respostaId = 'chatgpt-resp-' + Date.now();
-    if (box) {
-        box.insertAdjacentHTML('beforeend', `<div class="chatgpt-msg assistant" id="${respostaId}">
-            <div class="chatgpt-msg-avatar"><i class="ri-robot-2-line"></i></div>
-            <div class="chatgpt-msg-body">
-                <div class="chatgpt-msg-role">ChatGPT</div>
-                <div class="chatgpt-msg-content"><span class="chatgpt-typing"><span></span><span></span><span></span></span></div>
-            </div>
-        </div>`);
-    }
-    chatgptScrollBottom();
-
-    chatgptState.enviando = true;
-    const sendBtn = document.getElementById('chatgpt-send-btn');
-    if (sendBtn) sendBtn.disabled = true;
-
-    // Garante a existência da conversa (primeira mensagem)
-    let novaConversaCriada = false;
-    try {
-        if (!chatgptState.conversaAtual) {
-            chatgptState.conversaAtual = await chatgptCriarConversa(texto, modelo);
-            chatgptState.conversas.unshift(chatgptState.conversaAtual);
-            novaConversaCriada = true;
-            chatgptRenderConversasList();
-            const titulo = document.getElementById('chatgpt-titulo-atual');
-            if (titulo) titulo.textContent = chatgptState.conversaAtual.titulo;
-        }
-    } catch (e) {
-        console.error('Erro ao criar conversa:', e.message);
-    }
-
-    // Persiste a mensagem do usuário
-    if (chatgptState.conversaAtual) {
-        chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'user', texto);
-    }
-
-    // DECISÃO AUTOMÁTICA: a própria IA decide se conversa, gera imagem ou busca na web.
-    // O operador não precisa ativar nada — funciona igual ao ChatGPT.
-    let acao;
-    if (forcaImagem) acao = 'imagem';
-    else if (forcaWeb) acao = 'web';
-    else acao = await chatgptDecidirAcao(texto);
-
-    if (acao === 'imagem') {
-        try {
-            await chatgptGerarImagem(texto, respostaId, config);
-        } finally {
-            chatgptState.enviando = false;
-            if (sendBtn) sendBtn.disabled = false;
-            chatgptScrollBottom();
-            if (input) input.focus();
-        }
-        return;
-    }
-
-    // Monta o histórico para a API (substitui imagens por um marcador curto)
-    const mensagensApi = [{ role: 'system', content: chatgptSystemPrompt() }];
-    chatgptState.mensagens.forEach(m => {
-        let content = m.conteudo;
-        if (m.papel === 'assistant' && /^!\[/.test(content)) content = '[imagem gerada anteriormente]';
-        mensagensApi.push({ role: m.papel === 'assistant' ? 'assistant' : 'user', content: content });
-    });
-
-    // Busca na web quando a decisão automática (ou o atalho) indicou "web"
-    const usarWeb = (acao === 'web');
-    let modeloFinal = modelo;
-    if (usarWeb) {
-        modeloFinal = (modelo && modelo.indexOf('mini') !== -1) ? 'gpt-4o-mini-search-preview' : 'gpt-4o-search-preview';
-    }
-    const ehModeloBusca = modeloFinal.indexOf('search') !== -1;
-
-    if (ehModeloBusca && mensagensApi[0] && mensagensApi[0].role === 'system') {
-        mensagensApi[0].content += ' Você tem acesso à internet para buscar informações atuais; use a busca para responder com dados recentes e cite as fontes quando relevante.';
-    }
-
-    if (usarWeb) {
-        const respElBusca = document.getElementById(respostaId);
-        const contentBusca = respElBusca ? respElBusca.querySelector('.chatgpt-msg-content') : null;
-        if (contentBusca) {
-            contentBusca.innerHTML = `<div style="color: var(--text-secondary); font-size:13px; margin-bottom:8px;">🌐 Pesquisando na web...</div>
-                <span class="chatgpt-typing"><span></span><span></span><span></span></span>`;
-        }
-    }
-
-    let respostaTexto = '';
-    const respEl = document.getElementById(respostaId);
-    const contentEl = respEl ? respEl.querySelector('.chatgpt-msg-content') : null;
-
-    try {
-        const corpoReq = {
-            model: modeloFinal,
-            messages: mensagensApi,
-            stream: true
-        };
-        // Modelos de busca não aceitam temperature
-        if (!ehModeloBusca) corpoReq.temperature = 0.7;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.chaveOpenAi}`
-            },
-            body: JSON.stringify(corpoReq)
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`API OpenAI (${response.status}): ${errText}`);
-        }
-
-        // Leitura do streaming (SSE)
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const linhas = buffer.split('\n');
-            buffer = linhas.pop();
-            for (const linha of linhas) {
-                const trimmed = linha.trim();
-                if (!trimmed || !trimmed.startsWith('data:')) continue;
-                const payload = trimmed.replace(/^data:\s*/, '');
-                if (payload === '[DONE]') continue;
-                try {
-                    const json = JSON.parse(payload);
-                    const delta = json.choices && json.choices[0] && json.choices[0].delta ? json.choices[0].delta.content : '';
-                    if (delta) {
-                        respostaTexto += delta;
-                        if (contentEl) contentEl.innerHTML = chatgptRenderMarkdown(respostaTexto);
-                        chatgptScrollBottom();
-                    }
-                } catch (e) { /* fragmento incompleto, ignora */ }
-            }
-        }
-
-        if (!respostaTexto) respostaTexto = '(Sem resposta do modelo.)';
-        if (contentEl) contentEl.innerHTML = chatgptRenderMarkdown(respostaTexto);
-
-        // Salva no estado e no banco
-        chatgptState.mensagens.push({ papel: 'assistant', conteudo: respostaTexto });
-        if (chatgptState.conversaAtual) {
-            chatgptSalvarMensagem(chatgptState.conversaAtual.id, 'assistant', respostaTexto);
-        }
-
-    } catch (err) {
-        console.error('Erro no ChatGPT:', err);
-        if (contentEl) {
-            contentEl.innerHTML = `<span style="color: var(--danger, #ef4444);">⚠️ Erro ao obter resposta: ${chatgptEscapeHtml(err.message)}</span>`;
-        }
-        showToast('Erro ao comunicar com a OpenAI. Verifique a chave e o saldo da conta.', 'error');
-    } finally {
-        chatgptState.enviando = false;
-        if (sendBtn) sendBtn.disabled = false;
-        chatgptScrollBottom();
-        if (input) input.focus();
     }
 }
 

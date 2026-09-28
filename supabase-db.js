@@ -179,7 +179,12 @@ async function sbUpdate(table, id, updates) {
     // data is an array; return first element (or null if 0 rows matched)
     const result = data && data.length > 0 ? data[0] : null;
     if (!result) {
-        console.warn(`⚠️ sbUpdate(${table}, ${id}): nenhuma linha encontrada com esse ID.`);
+        // Nada foi gravado: o registro não existe mais (ou não é visível).
+        console.error(`❌ sbUpdate(${table}, ${id}): nenhuma linha encontrada com esse ID.`);
+        const erro = new Error(`Registro ${table} #${id} não encontrado no banco; a alteração não foi gravada.`);
+        erro.code = 'PGRST116';
+        showToast(erro.message, 'error');
+        throw erro;
     } else {
         console.log(`✅ sbUpdate(${table}): ID ${id}`);
     }
@@ -248,7 +253,7 @@ const CAMPOS_PESADOS = {
 
 const COLUNAS_LEVES = {
     contas_pagar: 'id,unidadeId,descricao,tipo,vencimento,valor,observacoes,pago,pagoEm,recorrente,frequencia,recorrenciaGrupoId,codigoBarras,categoria,fornecedor,criadoPor,competencia,"temAnexo","temComprovante"',
-    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,veiculoTipo,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato"',
+    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,veiculoTipo,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato","pagamentoDividido"',
     caixa_diario: 'id,unidadeId,data,status,abertoPor,fechadoPor,fechadoEm,saldoAbertura,"saldoEspécieInformado","temRelatorioDetran"'
 };
 
@@ -294,7 +299,7 @@ async function comRetentativa(fn, descricao, tentativas = 3) {
 // resto em silêncio; por isso a leitura é feita em páginas.
 const SB_PAGINA = 1000;
 
-async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Infinity) {
+async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Infinity, filtro = null) {
     const colunas = COLUNAS_LEVES[table] || '*';
     return comRetentativa(async () => {
         const todos = [];
@@ -303,6 +308,7 @@ async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Inf
                 .from(table)
                 .select(colunas)
                 .order(orderBy, { ascending });
+            if (filtro) q = filtro(q);
             // Desempate estável para a paginação não pular nem repetir linhas
             if (orderBy !== 'id' && table !== 'portarias_uf') q = q.order('id', { ascending: true });
             const { data, error } = await q.range(de, Math.min(de + SB_PAGINA, limite) - 1);
@@ -402,6 +408,63 @@ async function sbSelectWhere(table, filters) {
 
 // ---- DATABASE LOADER ----
 
+// ---- JANELA DE CARGA ----
+// A carga inicial traz os últimos JANELA_MESES meses de OS, caixa e faturas,
+// mais tudo o que ainda está em aberto (OS não concluídas ou sem fatura, faturas
+// não pagas, caixas abertos). Sem isso a carga crescia sem limite a cada mês.
+// O histórico completo é buscado sob demanda (carregarHistoricoCompleto).
+const JANELA_MESES = 13;
+window.historicoCompleto = false;
+
+function inicioJanelaCarga() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - JANELA_MESES);
+    return d.toISOString().slice(0, 10);
+}
+window.inicioJanelaCarga = inicioJanelaCarga;
+
+function juntarPorId(...listas) {
+    const mapa = new Map();
+    listas.forEach(l => (l || []).forEach(r => mapa.set(r.id, r)));
+    return [...mapa.values()].sort((a, b) => a.id - b.id);
+}
+
+async function carregarTabelasComJanela(completo) {
+    const corte = inicioJanelaCarga();
+    if (completo) {
+        return Promise.all([
+            sbSelectAll('ordens_servico', 'id', true),
+            sbSelectAll('caixa_diario', 'id', true),
+            sbSelectAll('caixa_movimentos', 'id', true),
+            sbSelectAll('faturas', 'id', true)
+        ]);
+    }
+    const [osRecentes, osAbertas, osSemFatura, cxRecentes, cxAbertos, movRecentes, fatRecentes, fatAbertas] = await Promise.all([
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.gte('criadoEm', corte)),
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.lt('criadoEm', corte).in('status', ['aberta', 'em_execucao', 'paga'])),
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.lt('criadoEm', corte).eq('formaPagamento', 'faturamento').is('faturaId', null)),
+        sbSelectAll('caixa_diario', 'id', true, Infinity, q => q.gte('data', corte)),
+        sbSelectAll('caixa_diario', 'id', true, Infinity, q => q.lt('data', corte).eq('status', 'aberto')),
+        sbSelectAll('caixa_movimentos', 'id', true, Infinity, q => q.gte('data', corte)),
+        sbSelectAll('faturas', 'id', true, Infinity, q => q.gte('criadoEm', corte)),
+        sbSelectAll('faturas', 'id', true, Infinity, q => q.lt('criadoEm', corte).eq('pago', false))
+    ]);
+    return [juntarPorId(osRecentes, osAbertas, osSemFatura), juntarPorId(cxRecentes, cxAbertos), movRecentes, juntarPorId(fatRecentes, fatAbertas)];
+}
+
+// Traz o histórico anterior à janela (BI, histórico e relatórios de períodos antigos)
+async function carregarHistoricoCompleto() {
+    if (window.historicoCompleto) return false;
+    const [os, cx, mov, fat] = await carregarTabelasComJanela(true);
+    db.ordens_servico = juntarPorId(db.ordens_servico, os.map(r => normalizeRecord('ordens_servico', r)));
+    db.caixa_diario = juntarPorId(db.caixa_diario, cx.map(r => normalizeRecord('caixa_diario', r)));
+    db.caixa_movimentos = juntarPorId(db.caixa_movimentos, mov.map(r => normalizeRecord('caixa_movimentos', r)));
+    db.faturas = juntarPorId(db.faturas, fat.map(r => normalizeRecord('faturas', r)));
+    window.historicoCompleto = true;
+    return true;
+}
+window.carregarHistoricoCompleto = carregarHistoricoCompleto;
+
 /**
  * Load ALL tables from Supabase into the global `db` object.
  * This replaces the old loadDatabase() that read from localStorage.
@@ -435,11 +498,8 @@ async function loadAllFromSupabase() {
             taxas_referencia,
             operadores,
             parceiros,
-            ordens_servico,
-            caixa_diario,
-            caixa_movimentos,
+            [ordens_servico, caixa_diario, caixa_movimentos, faturas],
             contas_pagar,
-            faturas,
             auditoria,
             portarias_uf,
             metas_despesas,
@@ -451,11 +511,8 @@ async function loadAllFromSupabase() {
             sbSelectAll('taxas_referencia'),
             sbSelectAll('operadores'),
             sbSelectAll('parceiros'),
-            sbSelectAll('ordens_servico', 'id', true),
-            sbSelectAll('caixa_diario', 'id', true),
-            sbSelectAll('caixa_movimentos', 'id', true),
+            carregarTabelasComJanela(false),
             sbSelectAll('contas_pagar', 'id', true),
-            sbSelectAll('faturas', 'id', true),
             sbSelectAll('auditoria', 'id', false, 1000), // Most recent first
             sbSelectAll('portarias_uf', 'uf'),
             sbSelectAll('metas_despesas'),
@@ -465,38 +522,9 @@ async function loadAllFromSupabase() {
 
         db.unidades = unidades;
         
-        // Forçar atualização histórica dos endereços oficiais das filiais
-        const matriz = db.unidades.find(u => u.id === 1);
-        if (matriz) {
-            matriz.nome = "Certive Matriz — São José";
-            matriz.endereco = "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700";
-            matriz.razao_social = "Certive Vistorias Automotivas Ltda";
-            matriz.cnpj = "45.890.122/0001-08";
-            matriz.credenciamento = "ECV-2023-091";
-            matriz.cidade = "São José";
-            matriz.uf = "SC";
-            matriz.canal_ouvidoria = "ouvidoria@certive.com.br";
-            
-            // Tenta atualizar no Supabase de forma assíncrona
-            supabaseClient.from('unidades').update({ endereco: matriz.endereco, nome: matriz.nome }).eq('id', 1).then(({error}) => {
-                if (error) console.warn("Aviso: RLS impediu update de unidades no Supabase (esperado para leitores).", error.message);
-            });
-        }
-        const filial = db.unidades.find(u => u.id === 2);
-        if (filial) {
-            filial.nome = "Certive Filial — Palhoça";
-            filial.endereco = "Avenida Atílio Pagani, 850, Palhoça - SC";
-            filial.razao_social = "Certive Vistorias Automotivas Ltda";
-            filial.cnpj = "45.890.122/0002-99";
-            filial.credenciamento = "ECV-2023-142";
-            filial.cidade = "Palhoça";
-            filial.uf = "SC";
-            filial.canal_ouvidoria = "ouvidoria@certive.com.br";
-            
-            supabaseClient.from('unidades').update({ endereco: filial.endereco, nome: filial.nome }).eq('id', 2).then(({error}) => {
-                if (error) console.warn("Aviso: RLS impediu update de unidades no Supabase.", error.message);
-            });
-        }
+        // Os dados das unidades (nome, endereço, CNPJ, credenciamento) vêm só do
+        // banco. Antes o login os sobrescrevia com valores fixos no código e
+        // gravava no banco a cada acesso, desfazendo qualquer correção feita lá.
         db.servicos = servicos;
         db.taxas_referencia = taxas_referencia;
         db.operadores = operadores;
@@ -580,18 +608,6 @@ async function loadAllFromSupabase() {
         }
         db.configuracoes_gerais = configuracoes_gerais || [];
 
-        // Tabelas do Assistente ChatGPT - registro defensivo (as conversas são carregadas sob demanda)
-        try {
-            const { error: cgErr } = await supabaseClient.from('chatgpt_conversas').select('id').limit(1);
-            if (!cgErr) {
-                window.onlineTables['chatgpt_conversas'] = true;
-                window.onlineTables['chatgpt_mensagens'] = true;
-            } else {
-                console.warn("⚠️ Tabelas do ChatGPT indisponíveis no Supabase. Rode supabase-chatgpt.sql.", cgErr.message);
-            }
-        } catch (e) {
-            console.warn("⚠️ Tabelas do ChatGPT indisponíveis no Supabase.", e.message);
-        }
 
         // Process Portarias UF
         db.portarias_uf = {};
@@ -638,6 +654,7 @@ async function loadAllFromSupabase() {
 
         // Aplicar localmente quaisquer pendências de sincronização que ainda residam na fila local
         if (typeof applyPendingQueueToLocalCache === 'function') {
+            await carregarFilaSync();
             applyPendingQueueToLocalCache();
         }
 
@@ -830,7 +847,19 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
                 console.warn(`dbSave ${action} em ${table} sem id — ignorado, não enfileirado.`);
                 return null;
             }
-            showToast("Falha no banco online. Salvando localmente...", "warning");
+            if (!erroDeRede(error)) {
+                // O banco recusou (regra, registro inexistente...): repetir não
+                // adianta e fingir sucesso esconderia a perda. Sobe o erro.
+                throw error;
+            }
+            showToast("Sem conexão com o banco. A alteração fica guardada e será enviada quando a rede voltar.", "warning");
+            if (action === 'insert' || action === 'insert_unshift') {
+                const tempId = idProvisorio();
+                enqueueSyncItem(table, action, recordOrUpdates, id, tempId);
+                const record = { ...recordOrUpdates, id: tempId };
+                if (action === 'insert_unshift') cacheUnshift(table, record); else cacheInsert(table, record);
+                return record;
+            }
             enqueueSyncItem(table, action, recordOrUpdates, id);
         }
     }
@@ -838,10 +867,7 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
     // Fallback: LocalStorage / Offline
     if (action === 'insert' || action === 'insert_unshift') {
         const record = { ...recordOrUpdates };
-        if (!record.id) {
-            const arr = db[table] || [];
-            record.id = arr.length > 0 ? Math.max(...arr.map(r => r.id || 0)) + 1 : 1;
-        }
+        if (!record.id) record.id = idProvisorio();
         if (action === 'insert_unshift') {
             cacheUnshift(table, record);
         } else {
@@ -880,31 +906,100 @@ async function dbSave(table, recordOrUpdates, action = 'insert', id = null) {
 }
 
 // ==========================================
-// ---- SYNC QUEUE SYSTEM (Fase 3) ----
+// ---- FILA DE SINCRONIZAÇÃO (queda de rede) ----
 // ==========================================
+// Só falha de REDE vai para a fila. Erro do banco (regra violada, registro
+// inexistente) é mostrado na hora e sobe para quem chamou: antes ele também ia
+// para a fila e a tela mostrava sucesso de algo que nunca foi gravado.
+//
+// A fila fica no IndexedDB (o localStorage lota com poucos MB e a fila se
+// perdia em silêncio), com cópia em memória para leitura síncrona. Registros
+// criados sem rede recebem id NEGATIVO provisório, que nunca colide com um id
+// real; ao sincronizar, o id real substitui o provisório no cache e nos itens
+// seguintes da fila (osId, cautelarId etc.).
+
+const FILA_LS = 'certive_sync_queue';
+const FILA_IDB = { nome: 'certive', versao: 1, store: 'fila_sync', chave: 'fila' };
+let _filaSync = null;
+let _filaGravando = Promise.resolve();
+
+function erroDeRede(err) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+    const msg = String((err && (err.message || err.details)) || err || '');
+    return /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_network|err_internet|timed? ?out|aborted|socket|ECONN/i.test(msg);
+}
+
+function idProvisorio() {
+    return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+}
+
+function abrirIdbFila() {
+    return new Promise((resolve, reject) => {
+        if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB indisponível'));
+        const req = indexedDB.open(FILA_IDB.nome, FILA_IDB.versao);
+        req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains(FILA_IDB.store)) req.result.createObjectStore(FILA_IDB.store);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function idbFila(modo, valor) {
+    const banco = await abrirIdbFila();
+    try {
+        return await new Promise((resolve, reject) => {
+            const tx = banco.transaction(FILA_IDB.store, modo === 'ler' ? 'readonly' : 'readwrite');
+            const st = tx.objectStore(FILA_IDB.store);
+            const req = modo === 'ler' ? st.get(FILA_IDB.chave) : st.put(valor, FILA_IDB.chave);
+            tx.oncomplete = () => resolve(req.result);
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+    } finally {
+        banco.close();
+    }
+}
+
+function lerFilaLocalStorage() {
+    try { return JSON.parse(localStorage.getItem(FILA_LS) || '[]') || []; } catch (e) { return []; }
+}
+
+// Carrega a fila do IndexedDB (e migra a fila antiga do localStorage).
+async function carregarFilaSync() {
+    const antiga = lerFilaLocalStorage();
+    try {
+        const salva = (await idbFila('ler')) || [];
+        const ids = new Set(salva.map(x => x.id));
+        _filaSync = salva.concat(antiga.filter(x => !ids.has(x.id)));
+        if (antiga.length) { await idbFila('gravar', _filaSync); localStorage.removeItem(FILA_LS); }
+    } catch (e) {
+        console.warn('Fila de sincronização no localStorage (IndexedDB indisponível):', e);
+        _filaSync = antiga;
+    }
+    return _filaSync.slice();
+}
 
 function getSyncQueue() {
-    try {
-        const queueStr = localStorage.getItem('certive_sync_queue');
-        return queueStr ? JSON.parse(queueStr) : [];
-    } catch (e) {
-        console.error("Erro ao ler fila de sincronização:", e);
-        return [];
-    }
+    if (_filaSync === null) _filaSync = lerFilaLocalStorage();
+    return _filaSync.slice();
 }
 
 function saveSyncQueue(queue) {
-    try {
-        localStorage.setItem('certive_sync_queue', JSON.stringify(queue));
-        if (typeof updateSyncIndicatorUI === 'function') {
-            updateSyncIndicatorUI();
+    _filaSync = queue.slice();
+    const copia = _filaSync.slice();
+    _filaGravando = _filaGravando.then(() => idbFila('gravar', copia)).catch(e => {
+        console.warn('IndexedDB falhou; gravando a fila no localStorage:', e);
+        try { localStorage.setItem(FILA_LS, JSON.stringify(copia)); }
+        catch (e2) {
+            console.error('Fila de sincronização não pôde ser gravada:', e2);
+            if (typeof showToast === 'function') showToast('Atenção: o navegador está sem espaço e as alterações sem rede podem se perder. Reconecte à internet.', 'error');
         }
-    } catch (e) {
-        console.error("Erro ao salvar fila de sincronização:", e);
-    }
+    });
+    if (typeof updateSyncIndicatorUI === 'function') updateSyncIndicatorUI();
 }
 
-function enqueueSyncItem(table, action, recordOrUpdates, id = null) {
+function enqueueSyncItem(table, action, recordOrUpdates, id = null, tempId = null) {
     const queue = getSyncQueue();
     const queueId = 'sync_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     queue.push({
@@ -913,125 +1008,166 @@ function enqueueSyncItem(table, action, recordOrUpdates, id = null) {
         action,
         recordOrUpdates,
         recordId: id,
+        tempId,
         timestamp: new Date().toISOString()
     });
     saveSyncQueue(queue);
     console.log(`📥 Item enfileirado para sincronização offline: ${table} (${action})`);
 }
 
+// Campos que apontam para outras tabelas: quando um id provisório vira real,
+// os itens seguintes da fila precisam apontar para o id novo.
+const REFERENCIAS_FILA = {
+    ordens_servico: ['osId', 'reapresentacaoOrigemID'],
+    cautelares: ['cautelarId'],
+    cautelares_secoes: ['secaoId'],
+    caixa_diario: ['caixaId'],
+    faturas: ['faturaId'],
+    parceiros: ['parceiroId'],
+    contas_pagar: ['contaPagarId']
+};
+
+function trocarIdNaFila(fila, table, tempId, realId) {
+    const campos = REFERENCIAS_FILA[table] || [];
+    fila.forEach(item => {
+        if (item.table === table && item.recordId === tempId) item.recordId = realId;
+        const r = item.recordOrUpdates;
+        if (r && typeof r === 'object') campos.forEach(c => { if (r[c] === tempId) r[c] = realId; });
+    });
+}
+
 let isProcessingSyncQueue = false;
 
 async function processSyncQueue() {
+    // Duas abas abertas enviariam a mesma fila duas vezes: só uma processa.
+    if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request) {
+        return navigator.locks.request('certive-fila-sync', { ifAvailable: true }, async (lock) => {
+            if (!lock) return;
+            await carregarFilaSync();   // outra aba pode ter mexido na fila
+            return processarFilaSync();
+        });
+    }
+    return processarFilaSync();
+}
+
+async function processarFilaSync() {
     if (isProcessingSyncQueue) return;
-    const queue = getSyncQueue();
-    if (queue.length === 0) {
-        if (typeof updateSyncIndicatorUI === 'function') {
-            updateSyncIndicatorUI();
-        }
+    const fila = getSyncQueue();
+    if (fila.length === 0) {
+        if (typeof updateSyncIndicatorUI === 'function') updateSyncIndicatorUI();
         return;
     }
-    
+
     isProcessingSyncQueue = true;
-    if (typeof updateSyncIndicatorUI === 'function') {
-        updateSyncIndicatorUI(true);
-    }
-    console.log(`⏳ Iniciando processamento de ${queue.length} pendências offline...`);
-    
-    const failedItems = [];
-    
-    for (const item of queue) {
-        try {
-            if (item.action === 'insert' || item.action === 'insert_unshift') {
-                const inserted = await sbInsert(item.table, item.recordOrUpdates);
-                if (item.recordOrUpdates.id && inserted.id !== item.recordOrUpdates.id) {
-                    updateLocalReferences(item.table, item.recordOrUpdates.id, inserted.id);
+    if (typeof updateSyncIndicatorUI === 'function') updateSyncIndicatorUI(true);
+    console.log(`⏳ Iniciando processamento de ${fila.length} pendências offline...`);
+
+    const pendentes = [];
+    const rejeitados = [];
+    let parouPorRede = false;
+
+    try {
+        for (let k = 0; k < fila.length; k++) {
+            const item = fila[k];
+            if (parouPorRede) { pendentes.push(item); continue; }
+            try {
+                if (item.action === 'insert' || item.action === 'insert_unshift') {
+                    const { id: _ignorado, ...registro } = item.recordOrUpdates || {};
+                    const inserted = await sbInsert(item.table, registro);
+                    const tempId = item.tempId != null ? item.tempId : (item.recordOrUpdates && item.recordOrUpdates.id);
+                    if (tempId != null && inserted && inserted.id !== tempId) {
+                        updateLocalReferences(item.table, tempId, inserted.id);
+                        trocarIdNaFila(fila.slice(k + 1), item.table, tempId, inserted.id);
+                    }
+                } else if (item.action === 'update') {
+                    if (item.recordId < 0) throw Object.assign(new Error('registro ainda não criado no servidor'), { code: 'PENDENTE' });
+                    await sbUpdate(item.table, item.recordId, item.recordOrUpdates);
+                } else if (item.action === 'delete') {
+                    if (item.recordId < 0) continue;   // criado e apagado sem rede: nada a fazer
+                    await sbDelete(item.table, item.recordId);
+                } else if (item.action === 'upsert_portaria') {
+                    await sbUpsertPortaria(item.recordOrUpdates.uf, item.recordOrUpdates.portaria);
+                } else if (item.action === 'delete_portaria') {
+                    await sbDeletePortaria(item.recordId);
+                } else if (item.action === 'upsert_metas') {
+                    await sbUpsertMetas(item.recordOrUpdates.unidadeId, item.recordOrUpdates.metas);
                 }
-            } else if (item.action === 'update') {
-                await sbUpdate(item.table, item.recordId, item.recordOrUpdates);
-            } else if (item.action === 'delete') {
-                await sbDelete(item.table, item.recordId);
-            } else if (item.action === 'upsert_portaria') {
-                await sbUpsertPortaria(item.recordOrUpdates.uf, item.recordOrUpdates.portaria);
-            } else if (item.action === 'delete_portaria') {
-                await sbDeletePortaria(item.recordId);
-            } else if (item.action === 'upsert_metas') {
-                await sbUpsertMetas(item.recordOrUpdates.unidadeId, item.recordOrUpdates.metas);
-            }
-        } catch (err) {
-            const code = err && err.code;
-            const msg = String((err && err.message) || '');
-            // Erro PERMANENTE: repetir não adianta. Ou o registro já existe
-            // (chave duplicada = já aplicado), ou é impossível de aplicar (id
-            // nulo/ inválido, viola constraint). Descarta para não entupir a
-            // fila e inundar a tela de erros. Só erro transitório (rede) volta.
-            const permanente =
-                ['23505', '22P02', '23514', '23502', '23503'].includes(code) ||
-                /duplicate key|invalid input syntax|violates .* constraint|already exists/i.test(msg);
-            if (permanente) {
-                console.warn(`⚠️ Item ${item.id} (${item.table}/${item.action}) descartado da fila — erro permanente, não adianta repetir: ${msg}`);
-            } else {
-                console.error(`❌ Falha ao sincronizar item ${item.id} (${item.table}):`, err);
-                failedItems.push(item);
+            } catch (err) {
+                const code = err && err.code;
+                const msg = String((err && err.message) || '');
+                if (erroDeRede(err)) {
+                    // Sem rede: para aqui e mantém a ordem da fila
+                    parouPorRede = true;
+                    pendentes.push(item);
+                } else if (code === '23505' || /duplicate key|already exists/i.test(msg)) {
+                    // Já aplicado antes (a resposta se perdeu): pode sair da fila
+                    console.warn(`Item ${item.id} (${item.table}/${item.action}) já estava no servidor.`);
+                } else if (code === '23503' || code === 'PENDENTE') {
+                    // Depende de um registro que ainda não subiu: tenta de novo depois
+                    pendentes.push(item);
+                } else {
+                    // O banco recusou: guarda à parte e avisa, em vez de descartar
+                    console.error(`❌ Item ${item.id} (${item.table}/${item.action}) recusado pelo banco:`, err);
+                    rejeitados.push({ ...item, erro: msg || String(code || 'erro'), recusadoEm: new Date().toISOString() });
+                }
             }
         }
+    } finally {
+        saveSyncQueue(pendentes);
+        if (rejeitados.length) {
+            try {
+                const antigos = JSON.parse(localStorage.getItem('certive_sync_recusados') || '[]');
+                localStorage.setItem('certive_sync_recusados', JSON.stringify(antigos.concat(rejeitados).slice(-200)));
+            } catch (e) { console.error('Não foi possível guardar os itens recusados:', e); }
+        }
+        isProcessingSyncQueue = false;
     }
 
-    saveSyncQueue(failedItems);
-    isProcessingSyncQueue = false;
-    
-    if (failedItems.length === 0) {
+    if (rejeitados.length) {
+        showToast(`${rejeitados.length} alteração(ões) feitas sem rede foram recusadas pelo banco e NÃO foram gravadas. Confira os registros e refaça.`, "error");
+    } else if (pendentes.length === 0) {
         showToast("Todas as pendências offline foram sincronizadas com sucesso!", "success");
     } else {
-        showToast(`Conexão instável: ${failedItems.length} pendências salvas para posterior sincronização.`, "warning");
+        showToast(`Conexão instável: ${pendentes.length} pendências salvas para posterior sincronização.`, "warning");
     }
-    if (typeof updateSyncIndicatorUI === 'function') {
-        updateSyncIndicatorUI();
-    }
+    if (typeof updateSyncIndicatorUI === 'function') updateSyncIndicatorUI();
 }
 
 function updateLocalReferences(table, tempId, realId) {
     console.log(`🔄 Atualizando referências locais de ID temporário: ${table} (ID antigo: ${tempId} -> ID novo: ${realId})`);
-    
+
     const record = (db[table] || []).find(r => r.id === tempId);
-    if (record) {
-        record.id = realId;
-    }
-    
+    if (record) record.id = realId;
+
+    const campos = REFERENCIAS_FILA[table] || [];
+    Object.keys(db).forEach(t => {
+        if (!Array.isArray(db[t])) return;
+        db[t].forEach(r => { if (r && typeof r === 'object') campos.forEach(c => { if (r[c] === tempId) r[c] = realId; }); });
+    });
     if (table === 'ordens_servico') {
-        (db.caixa_movimentos || []).forEach(m => {
-            if (m.osId === tempId) m.osId = realId;
-        });
-        (db.cautelares || []).forEach(c => {
-            if (c.osId === tempId) c.osId = realId;
+        (db.faturas || []).forEach(f => {
+            if (Array.isArray(f.ordensIds)) f.ordensIds = f.ordensIds.map(x => x === tempId ? realId : x);
         });
     }
-    if (table === 'cautelares') {
-        (db.cautelares_secoes || []).forEach(s => {
-            if (s.cautelarId === tempId) s.cautelarId = realId;
-        });
-    }
-    
-    if (typeof saveDatabase === 'function') saveDatabase();
 }
 
 function applyPendingQueueToLocalCache() {
     const queue = getSyncQueue();
     if (queue.length === 0) return;
-    
+
     console.log(`⚙️ Aplicando ${queue.length} pendências locais da fila sobre o cache do banco...`);
-    
+
     queue.forEach(item => {
         const table = item.table;
         if (!db[table]) db[table] = [];
-        
+
         if (item.action === 'insert' || item.action === 'insert_unshift') {
-            const exists = db[table].some(r => r.id === item.recordOrUpdates.id);
+            const registro = { ...item.recordOrUpdates };
+            if (item.tempId != null) registro.id = item.tempId;
+            const exists = registro.id != null && db[table].some(r => r.id === registro.id);
             if (!exists) {
-                if (item.action === 'insert_unshift') {
-                    db[table].unshift(item.recordOrUpdates);
-                } else {
-                    db[table].push(item.recordOrUpdates);
-                }
+                if (item.action === 'insert_unshift') db[table].unshift(registro);
+                else db[table].push(registro);
             }
         } else if (item.action === 'update') {
             const record = db[table].find(r => r.id === item.recordId);
@@ -1071,3 +1207,67 @@ window.addEventListener('offline', () => {
     updateSyncIndicatorUI();
 });
 
+
+// ==========================================
+// ARQUIVOS PRIVADOS (fotos das cautelares, PDFs de faturas)
+// Os buckets não são públicos: o banco guarda o endereço "público" do arquivo
+// (formato antigo), e aqui ele é trocado por um link temporário assinado.
+// ==========================================
+const _linksAssinados = new Map();
+const RE_ARQUIVO_STORAGE = /\/storage\/v1\/object\/(?:public|sign)\/([^/?#]+)\/([^?#]+)/;
+
+/**
+ * Link temporário para um arquivo do Storage. Aceita o endereço guardado no banco
+ * (público, com ?v=...) e devolve um link assinado válido por `validadeSeg` segundos.
+ * Endereços de fora do Storage voltam sem alteração.
+ */
+async function urlArmazenamento(url, validadeSeg = 3600) {
+    if (!url || typeof url !== 'string') return url;
+    const m = url.match(RE_ARQUIVO_STORAGE);
+    if (!m || typeof supabaseClient === 'undefined' || !supabaseClient) return url;
+    const bucket = m[1];
+    const caminho = decodeURIComponent(m[2]);
+    const chave = `${bucket}/${caminho}|${validadeSeg}`;
+    const guardado = _linksAssinados.get(chave);
+    if (guardado && guardado.expira > Date.now() + 120000) return guardado.url;
+    const { data, error } = await supabaseClient.storage.from(bucket).createSignedUrl(caminho, validadeSeg);
+    if (error || !data || !data.signedUrl) {
+        console.warn('Link temporário indisponível:', caminho, error);
+        return url;
+    }
+    _linksAssinados.set(chave, { url: data.signedUrl, expira: Date.now() + validadeSeg * 1000 });
+    return data.signedUrl;
+}
+window.urlArmazenamento = urlArmazenamento;
+
+// Toda <img>, <iframe> ou <a> que aparecer na tela apontando para um arquivo do
+// Storage recebe o link temporário (as telas continuam usando o endereço guardado).
+(function iniciarLinksTemporarios() {
+    const ATRIBUTOS = { IMG: 'src', IFRAME: 'src', A: 'href', EMBED: 'src', OBJECT: 'data' };
+    const trocar = (el) => {
+        const attr = ATRIBUTOS[el.tagName];
+        if (!attr) return;
+        const valor = el.getAttribute(attr);
+        if (!valor || !/\/storage\/v1\/object\/public\//.test(valor)) return;
+        if (el.dataset.arquivoOriginal === valor) return;
+        el.dataset.arquivoOriginal = valor;
+        urlArmazenamento(valor).then(assinado => {
+            if (assinado && assinado !== valor && el.getAttribute(attr) === valor) el.setAttribute(attr, assinado);
+        });
+    };
+    const varrer = (raiz) => {
+        if (!raiz || raiz.nodeType !== 1) return;
+        trocar(raiz);
+        raiz.querySelectorAll && raiz.querySelectorAll('img[src*="/storage/v1/object/public/"],iframe[src*="/storage/v1/object/public/"],a[href*="/storage/v1/object/public/"],embed[src*="/storage/v1/object/public/"]').forEach(trocar);
+    };
+    const observar = () => {
+        varrer(document.body);
+        new MutationObserver(mudancas => {
+            for (const m of mudancas) {
+                if (m.type === 'attributes') trocar(m.target);
+                else m.addedNodes.forEach(varrer);
+            }
+        }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'href', 'data'] });
+    };
+    if (document.body) observar(); else document.addEventListener('DOMContentLoaded', observar);
+})();

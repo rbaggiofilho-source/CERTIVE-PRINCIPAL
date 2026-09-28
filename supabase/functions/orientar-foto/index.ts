@@ -1,6 +1,8 @@
 // Orientação das fotos de identificação (chassi, motor, etiquetas, vidros, placa, painel, documento).
-// O celular já grava a foto em pé pelo sensor de posição; esta função é a checagem redundante:
-// duas análises independentes da imagem, e a rotação só é indicada quando as duas concordam.
+// O celular já grava a foto em pé pelo sensor de posição; esta função é a checagem redundante.
+// Uma análise em alta resolução; a redundância está no cliente, que gira a foto e confere de
+// novo antes de aceitar a rotação. (A segunda análise em baixa resolução discordava com
+// frequência, deixava fotos "incertas" à toa e dobrava o custo.)
 // A chave da OpenAI fica só no servidor.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -95,16 +97,9 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) return json({ erro: "Chave do serviço de análise não configurada no servidor." }, 500);
 
-    // Duas análises independentes (resolução alta e baixa): só indica rotação se concordarem
-    const [a, b] = await Promise.all([
-      analisar(apiKey, imagem, String(slot || ""), "high"),
-      analisar(apiKey, imagem, String(slot || ""), "low").catch(() => null),
-    ]);
-    const concordam = !!b && a.rotacao === b.rotacao;
-    const confiavel = a.confianca !== "baixa" && (!b || b.confianca !== "baixa");
-    const rotacao = concordam && confiavel ? a.rotacao : 0;
-    const incerta = !concordam || !confiavel;
-    return json({ rotacao, incerta, analises: [a, b], texto_lido: a.texto_lido });
+    const a = await analisar(apiKey, imagem, String(slot || ""), "high");
+    const incerta = a.confianca === "baixa";
+    return json({ rotacao: incerta ? 0 : a.rotacao, incerta, analises: [a], texto_lido: a.texto_lido });
   } catch (erro) {
     console.error(erro);
     return json({ erro: erro instanceof Error ? erro.message : String(erro) }, 500);

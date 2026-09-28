@@ -173,6 +173,10 @@
         ];
 
         const pior = lista => lista.includes('nao_conforme') ? 'nao_conforme' : (lista.includes('com_ressalvas') ? 'com_ressalvas' : 'conforme');
+        // O status da redação automática só pode AGRAVAR o que o vistoriador
+        // constatou: se ela disser "conforme" e o vistoriador marcou o chassi como
+        // não original, vale o do vistoriador.
+        const piorComIa = (campoIa, doVistoriador) => pior([deCampo(campoIa) || 'conforme', doVistoriador]);
         const deCampo = v => {
             const t = String(v || '').toUpperCase();
             if (t.startsWith('NÃO') || t.startsWith('NAO')) return 'nao_conforme';
@@ -180,25 +184,25 @@
             if (t.startsWith('CONFORME')) return 'conforme';
             return null;
         };
-        const stEstrutura = deCampo(campos['structure.status']) || pior([
+        const stEstrutura = piorComIa(campos['structure.status'], pior([
             d3.parecerEstrutural || 'conforme',
             d3.deformacaoEstrutural === 'sim' ? 'nao_conforme' : 'conforme',
             estrutura.some(e => e.status === 'substituicao') ? 'nao_conforme' : 'conforme',
             estrutura.some(e => e.status === 'reparo_aparente' || e.status === 'indicio_avaria') ? 'com_ressalvas' : 'conforme',
             itensPintura.some(i => i.reparo === 'sim') ? 'com_ressalvas' : 'conforme'
-        ]);
-        const stIdent = deCampo(campos['identification.status']) || pior([
+        ]));
+        const stIdent = piorComIa(campos['identification.status'], pior([
             etiquetas.some(e => e.status === 'ausente' || e.status === 'danificada') ? 'com_ressalvas' : 'conforme',
             vidros.some(v => !v.original || v.desbaste) ? 'com_ressalvas' : 'conforme'
-        ]);
-        const stPintura = deCampo(campos['paint.status']) || (
-            itensPintura.some(i => ['AVARIADO', 'REPINTURA COM MASSA', 'REPINTURA'].includes(i.classe)) ? 'com_ressalvas' : 'conforme');
-        const stMotor = deCampo(campos['engine.status']) || (
-            d2.motorOriginal === false ? 'nao_conforme' : (d6.reparoMotor === 'sim' || d6.corMotorOk === 'nao' ? 'com_ressalvas' : 'conforme'));
-        const stChassi = deCampo(campos['chassis.status']) || pior([
+        ]));
+        const stPintura = piorComIa(campos['paint.status'], (
+            itensPintura.some(i => ['AVARIADO', 'REPINTURA COM MASSA', 'REPINTURA'].includes(i.classe)) ? 'com_ressalvas' : 'conforme'));
+        const stMotor = piorComIa(campos['engine.status'], (
+            d2.motorOriginal === false ? 'nao_conforme' : (d6.reparoMotor === 'sim' || d6.corMotorOk === 'nao' ? 'com_ressalvas' : 'conforme')));
+        const stChassi = piorComIa(campos['chassis.status'], pior([
             d2.chassiOriginal === false ? 'nao_conforme' : 'conforme',
             chassiConfere === false ? 'com_ressalvas' : 'conforme'
-        ]);
+        ]));
 
         return {
             cautelar, os, unidade, vistoriador, ia, campos, fotos, foto, meta,
@@ -213,7 +217,7 @@
             cidade: unidade.cidade ? `${unidade.cidade}/${unidade.uf || ''}` : 'São José/SC',
             dataVistoria: cautelar.dataHoraInicio || cautelar.criadoEm,
             dataEmissao: cautelar.finalizadoEm || cautelar.dataHoraFinalizacao || new Date().toISOString(),
-            hash: cautelar.hashLaudo || cautelar.pdfHash || ''
+            codigo: cautelar.codigoVerificacao || ''
         };
     }
 
@@ -226,6 +230,19 @@
         if (D.campos['summary.approved_items'] || D.campos['summary.alert_items']) {
             ok.push(...linhas(D.campos['summary.approved_items']));
             alerta.push(...linhas(D.campos['summary.alert_items']));
+            // A redação automática não apaga o que o vistoriador constatou: os
+            // apontamentos graves dele entram sempre, e o item "ok" que os
+            // contradiz sai da lista.
+            const graves = [];
+            if (D.d2.chassiOriginal === false) graves.push([/chassi/i, 'Gravação do chassi com características não originais']);
+            if (D.d2.motorOriginal === false) graves.push([/motor/i, 'Gravação do motor com características não originais']);
+            if (D.chassiConfere === false) graves.push([/chassi/i, `Chassi lido diverge do cadastro da O.S. (${D.chassiCadastro})`]);
+            if (D.d3.indicioEnchente === 'sim') graves.push([/enchente/i, 'Indícios de enchente constatados']);
+            if (D.d3.deformacaoEstrutural === 'sim') graves.push([/deforma|estrutur|batida/i, 'Indícios de batida com deformação estrutural']);
+            graves.forEach(([assunto, texto]) => {
+                for (let i = ok.length - 1; i >= 0; i--) if (assunto.test(ok[i])) ok.splice(i, 1);
+                if (!alerta.some(t => t === texto)) alerta.push(texto);
+            });
         } else {
             if (D.d2.chassiOriginal !== false) ok.push('Gravação do chassi com características originais');
             else alerta.push('Gravação do chassi com características não originais');
@@ -312,7 +329,8 @@
         if (cacheFotos.has(chave)) return cacheFotos.get(chave);
         const tarefa = (async () => {
             try {
-                const resp = await fetch(url, { cache: 'force-cache' });
+                const endereco = typeof global.urlArmazenamento === 'function' ? await global.urlArmazenamento(url) : url;
+                const resp = await fetch(endereco, { cache: 'force-cache' });
                 if (!resp.ok) return null;
                 const bmp = await createImageBitmap(await resp.blob());
                 const escala = Math.min(1, maxLado / Math.max(bmp.width, bmp.height));
@@ -370,9 +388,10 @@
         });
     }
 
-    function urlConsulta(hash) {
-        const origem = (global.location && /^https?:/.test(global.location.protocol)) ? global.location.origin : 'https://certive.com.br';
-        return `${origem}/consulta-laudo.html?hash=${encodeURIComponent(hash)}`;
+    // Endereço fixo: o QR impresso precisa continuar válido seja qual for o
+    // endereço em que o sistema estava aberto na emissão.
+    function urlConsulta(codigo) {
+        return `https://certive.com.br/consulta-laudo.html?codigo=${encodeURIComponent(codigo)}`;
     }
 
     // ------------------------------------------------------------------
@@ -848,7 +867,7 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
     function pagina(D, numeral, titulo, subtitulo, corpo) {
         return `<section class="pg">${cabecalho(D, numeral, titulo, subtitulo)}
 <div class="corpo${numeral ? '' : ' cont'}">${corpo}</div>
-<div class="rodape"><span>CERTIVE VISTORIAS &nbsp;·&nbsp; LAUDO CAUTELAR &nbsp;·&nbsp; ${MODELO}</span>${D.hash ? `<span class="hash">Autenticação ${esc(String(D.hash).slice(0, 32))}</span>` : ''}<span class="pagnum">PÁG. 00 DE 00</span></div></section>`;
+<div class="rodape"><span>CERTIVE VISTORIAS &nbsp;·&nbsp; LAUDO CAUTELAR &nbsp;·&nbsp; ${MODELO}</span>${D.codigo ? `<span class="hash">Código de verificação ${esc(D.codigo)}</span>` : ''}<span class="pagnum">PÁG. 00 DE 00</span></div></section>`;
     }
 
     // Linhas [rótulo, valor, html?]: valor em HTML só quando o terceiro item é true
@@ -1120,7 +1139,7 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
     <div class="c">VISTORIADOR TÉCNICO${D.unidade.credenciamento ? ' &nbsp;·&nbsp; ' + esc(D.unidade.credenciamento) : ''}</div>
     ${D.unidade.razao_social ? `<div class="c">${esc(D.unidade.razao_social)}${D.unidade.cnpj ? ' — CNPJ ' + esc(D.unidade.cnpj) : ''}</div>` : ''}</div>
   <div class="card qr">${extras.qr ? `<div class="q" style="background-image:url('${extras.qr}')"></div>` : ''}
-    <div class="t"><b>CÓDIGO DE AUTENTICAÇÃO</b>${esc(D.hash || 'Gerado na emissão do laudo')}<span class="url">Confira a autenticidade em<br>certive.com.br/consulta-laudo</span></div></div>
+    <div class="t"><b>CÓDIGO DE VERIFICAÇÃO</b>${esc(D.codigo || 'Gerado na emissão do laudo')}<span class="url">Confira a autenticidade em<br>certive.com.br/consulta-laudo</span></div></div>
 </div>
 <div class="alcance" style="margin-top:auto"><b>ALCANCE DO LAUDO</b>Este laudo tem caráter técnico e informativo e retrata as condições constatadas no veículo na data e hora da vistoria, pelo método visual e de medição descrito. Não substitui avaliações mecânicas especializadas, não abrange vícios ocultos nem eventos posteriores à inspeção${D.campos['document.approved_items'] ? '' : ' e não inclui pesquisa documental em bases externas'}.</div>`);
     }
@@ -1212,11 +1231,14 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
     async function prepararLaudo(cautelarId, opcoes = {}) {
         if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
         const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        // Texto redigido no servidor, quando este aparelho ainda não o tem
-        if (cautelar && !cautelar.dadosIaConfeccionado && global.useSupabase && typeof supabaseClient !== 'undefined' && supabaseClient) {
+        // Texto redigido no servidor: só o que foi USADO na emissão (laudoGeradoId).
+        // Pegar "o último gerado" trazia texto de uma tentativa anterior, bloqueada
+        // ou feita antes de uma correção. Laudo emitido com a redação padrão tem
+        // laudoGeradoId nulo e fica sem texto do gerador.
+        if (cautelar && !cautelar.dadosIaConfeccionado && cautelar.laudoGeradoId && global.useSupabase && typeof supabaseClient !== 'undefined' && supabaseClient) {
             try {
                 const { data } = await supabaseClient.from('laudos_gerados').select('id, resposta')
-                    .eq('cautelarId', cautelarId).order('criadoEm', { ascending: false }).limit(1);
+                    .eq('id', cautelar.laudoGeradoId).limit(1);
                 if (data && data[0] && data[0].resposta) cautelar.dadosIaConfeccionado = data[0].resposta;
             } catch (e) { console.warn('Laudo gerado no servidor indisponível:', e); }
         }
@@ -1225,7 +1247,7 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
         if (opcoes.obsFinal !== undefined) D.d8 = Object.assign({}, D.d8, { observacaoFinal: opcoes.obsFinal });
         const [F, qr, carroCapa] = await Promise.all([
             carregarFotos(D),
-            D.hash ? gerarQrDataUrl(urlConsulta(D.hash)) : Promise.resolve(null),
+            D.codigo ? gerarQrDataUrl(urlConsulta(D.codigo)) : Promise.resolve(null),
             carregarArteCapa()
         ]);
         return { D, F, qr, html: montarHtml(D, F, { qr, carroCapa, modo: opcoes.modo }) };
@@ -1279,8 +1301,14 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
             const doc = await carregarIframe(iframe, html);
             await carregarScriptNoIframe(iframe, 'js/vendor/html2canvas.min.js');
             const win = iframe.contentWindow;
-            const movel = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-            const escala = opcoes.escala || (movel ? 2.2 : 2.8);
+            // No iPhone o Safari derruba a aba quando a memória de canvas estoura:
+            // escala menor no iOS, um pouco maior nos demais celulares.
+            const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const movel = ios || /Android|Mobile/i.test(navigator.userAgent);
+            const escala = opcoes.escala || (ios ? 1.8 : (movel ? 2.2 : 2.8));
+            // A pré-visualização (outro iframe com o laudo inteiro) sai da memória
+            const preview = document.getElementById('laudo-preview-container');
+            if (preview && movel) preview.innerHTML = '';
 
             const pdf = await PDFLib.PDFDocument.create();
             pdf.setTitle(`Laudo Cautelar ${D.os.placa} — ${D.cautelar.dossieNumero || ''}`);
@@ -1308,6 +1336,8 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
             return await pdf.save();
         } finally {
             iframe.remove();
+            // As fotos em base64 ocupam dezenas de MB: libera depois de cada laudo
+            cacheFotos.clear();
         }
     }
 

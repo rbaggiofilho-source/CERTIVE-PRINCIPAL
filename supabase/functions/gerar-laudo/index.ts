@@ -33,15 +33,37 @@ const SLOTS_ESTRUTURA = [
 const SLOTS_VIDROS = [
   "vidro_parabrisa", "vidro_porta_diant_esq", "vidro_porta_tras_esq", "vidro_traseiro", "vidro_porta_tras_dir", "vidro_porta_diant_dir",
 ];
-// Fotos em que o agente precisa LER números/etiquetas vão em alta resolução; as demais em baixa
+// Fotos em que o agente precisa LER números/etiquetas. Só as de identificação vão em
+// alta resolução (custo e tempo); a gravação dos vidros já vem lida pelo vistoriador.
 const SLOTS_LEITURA = new Set([
   "placa_dianteira", "painel_hodometro", "crlv_documento", "chassi_gravado", "chassi_secundario", "motor_gravado", "etiqueta_eta",
   ...SLOTS_VIDROS,
 ]);
+const SLOTS_ALTA = new Set(["placa_dianteira", "painel_hodometro", "crlv_documento", "chassi_gravado", "chassi_secundario", "motor_gravado", "etiqueta_eta"]);
+// Sem estas o laudo não pode sair: a conferência do servidor bloqueia a emissão
+const SLOTS_OBRIGATORIOS: Record<string, string> = {
+  placa_dianteira: "placa dianteira", painel_hodometro: "painel com hodômetro", crlv_documento: "documento do veículo",
+  chassi_gravado: "número do chassi gravado", motor_gravado: "número do motor",
+};
 
-// Limite de duração da Edge Function (~150 s no plano gratuito): uma tentativa longa
-// e a segunda só se ainda houver tempo de sobra.
-const PRAZO_TOTAL_MS = 140_000;
+async function sha256(texto: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Limite de duração da Edge Function (~150 s no plano gratuito). O prazo vale para a
+// requisição inteira (inclusive a troca de prompt salvo para o local), não por chamada.
+const PRAZO_TOTAL_MS = 135_000;
+
+// Os arquivos não são públicos: a OpenAI recebe um link temporário de cada foto
+const RE_STORAGE = /\/storage\/v1\/object\/(?:public|sign)\/([^/?#]+)\/([^?#]+)/;
+// deno-lint-ignore no-explicit-any
+async function linkTemporario(db: any, url: string): Promise<string> {
+  const m = url.match(RE_STORAGE);
+  if (!m) return url;
+  const { data } = await db.storage.from(m[1]).createSignedUrl(decodeURIComponent(m[2]), 3600);
+  return data?.signedUrl || url;
+}
 const MIN_PARA_REPETIR_MS = 45_000;
 
 function json(body: unknown, status = 200) {
@@ -75,12 +97,14 @@ function validarResposta(valor: unknown): string[] {
   return [...new Set(erros)];
 }
 
-async function chamarOpenAI(apiKey: string, body: unknown) {
+async function chamarOpenAI(apiKey: string, body: unknown, prazoFinal: number) {
   let ultimoErro = "";
-  const inicio = Date.now();
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
-    const restante = PRAZO_TOTAL_MS - (Date.now() - inicio);
-    if (tentativa > 1 && restante < MIN_PARA_REPETIR_MS) break;
+    const restante = prazoFinal - Date.now();
+    if (restante < 5_000 || (tentativa > 1 && restante < MIN_PARA_REPETIR_MS)) {
+      ultimoErro = ultimoErro || "Tempo limite excedido na geração do laudo. Tente novamente.";
+      break;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), restante);
     try {
@@ -104,6 +128,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ erro: "Método não permitido." }, 405);
 
+  const prazoFinal = Date.now() + PRAZO_TOTAL_MS;
   try {
     const auth = req.headers.get("Authorization") || "";
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -169,7 +194,26 @@ Deno.serve(async (req) => {
     const conteudo: Record<string, unknown>[] = [{ type: "input_text", text: `Gere o laudo cautelar conforme o prompt. Pacote completo da vistoria:\n${JSON.stringify(pacote)}` }];
     for (const foto of fotosPacote.filter((f) => /^https?:\/\//.test(f.url_original || ""))) {
       conteudo.push({ type: "input_text", text: `FOTO ${foto.id} — SLOT ${foto.slotCodigo}` });
-      conteudo.push({ type: "input_image", image_url: foto.url_original, detail: SLOTS_LEITURA.has(foto.slotCodigo) ? "high" : "low" });
+      conteudo.push({ type: "input_image", image_url: await linkTemporario(db, foto.url_original), detail: SLOTS_ALTA.has(foto.slotCodigo) ? "high" : "low" });
+    }
+
+    // Fotos obrigatórias ausentes no servidor (presas no aparelho ou não tiradas):
+    // bloqueia sem gastar a chamada ao gerador.
+    const faltando = Object.keys(SLOTS_OBRIGATORIOS).filter((slot) => !fotosPacote.some((f) => f.slotCodigo === slot && /^https?:\/\//.test(f.url_original || "")));
+    if (faltando.length) {
+      const pendencias = faltando.map((slot) => `Foto obrigatória não está no servidor: ${SLOTS_OBRIGATORIOS[slot]}.`);
+      return json({ status: "bloqueado", pendencias, inconsistencias: [], laudoId: null, resposta: null, fotos_faltando: faltando });
+    }
+
+    // Mesmo pacote de dados já gerado antes: devolve o registro existente em vez de
+    // cobrar de novo (clique repetido, nova tentativa após a tela fechar).
+    const impressao = await sha256(JSON.stringify({ pacote, fotos: fotosPacote.map((f) => [f.slotCodigo, f.url_original]) }));
+    const { data: anterior } = await db.from("laudos_gerados").select("id, status, resposta")
+      .eq("cautelarId", cautelarId).eq("pacoteEnviado->>impressao", impressao).order("id", { ascending: false }).limit(1);
+    if (anterior && anterior.length && anterior[0].resposta) {
+      const r = anterior[0].resposta as Record<string, unknown>;
+      r.fotos_urls = Object.fromEntries(fotosPacote.map((f) => [f.id, f.url_original]));
+      return json({ status: anterior[0].status, pendencias: r.pendencias, inconsistencias: r.inconsistencias, laudoId: anterior[0].id, resposta: r, reaproveitado: true });
     }
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) throw new Error("Segredos do gerador de laudos não configurados no servidor.");
@@ -184,13 +228,13 @@ Deno.serve(async (req) => {
       text: { format: { type: "json_schema", name: FORMATO_RESPOSTA.name, strict: FORMATO_RESPOSTA.strict, schema: FORMATO_RESPOSTA.schema } },
       reasoning: { effort: "low" },
       input: entrada,
-    });
+    }, prazoFinal);
     let promptId = "local:agente.ts";
     let promptVersion = "repositorio";
     let respostaApi: Record<string, any>;
     if (promptSalvoId && promptSalvoVersao) {
       try {
-        respostaApi = await chamarOpenAI(apiKey, { prompt: { id: promptSalvoId, version: promptSalvoVersao }, input: entrada });
+        respostaApi = await chamarOpenAI(apiKey, { prompt: { id: promptSalvoId, version: promptSalvoVersao }, input: entrada }, prazoFinal);
         promptId = promptSalvoId;
         promptVersion = promptSalvoVersao;
       } catch (erro) {
@@ -212,7 +256,7 @@ Deno.serve(async (req) => {
     const fotosPorId = Object.fromEntries(fotosPacote.map((f) => [f.id, f.url_original]));
     // Guarda junto as URLs das fotos: a reemissão do PDF em outro aparelho usa esta resposta
     resposta.fotos_urls = fotosPorId;
-    const pacoteSemImagens = { ...pacote, fotos: pacote.fotos };
+    const pacoteSemImagens = { ...pacote, fotos: pacote.fotos, impressao };
     const { data: registro, error: registroErro } = await db.from("laudos_gerados").insert({
       cautelarId, criadoPor: user.id, promptId, promptVersion,
       modelo: respostaApi.model || null, status: resposta.status,
