@@ -375,30 +375,36 @@
     // ------------------------------------------------------------------
     // Emblema oficial: escudo dourado com a frente do carro e o "visto" cruzando o escudo
     let seqSvg = 0;
+    // Brasão Certive (mesmo desenho do selo de procedência): escudo de borda dupla,
+    // frente do carro em contorno e o visto atravessando a borda direita. Traço em relevo.
     function svgLogo(tam = 44, fundo = COR.navy) {
         const id = `lgOuro${++seqSvg}`;
-        return `<svg width="${tam}" height="${Math.round(tam * 1.08)}" viewBox="0 0 120 130" xmlns="http://www.w3.org/2000/svg">
-<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3A0"/><stop offset=".35" stop-color="#E8B650"/><stop offset=".65" stop-color="#C98E2A"/><stop offset="1" stop-color="#8F621C"/></linearGradient></defs>
-<path d="M60 5 C74 11 90 14 107 14 V60 C107 93 86 114 60 125 C34 114 13 93 13 60 V14 C30 14 46 11 60 5 Z" fill="none" stroke="url(#${id})" stroke-width="7.5" stroke-linejoin="round"/>
-<path d="M60 15 C71 20 84 22 97 22 V60 C97 86 81 103 60 112 C39 103 23 86 23 60 V22 C36 22 49 20 60 15 Z" fill="none" stroke="url(#${id})" stroke-width="1.6" opacity=".8"/>
-<g fill="url(#${id})">
-<path d="M38 53 L43.5 40 C44.8 37 47.3 35.4 50.6 35.4 H69.4 C72.7 35.4 75.2 37 76.5 40 L82 53 Z"/>
-<path d="M30 70 C30 61 34.5 55 41 53 H79 C85.5 55 90 61 90 70 V80 C90 82.5 88.5 84 86 84 H34 C31.5 84 30 82.5 30 80 Z"/>
-<ellipse cx="29.5" cy="54" rx="5" ry="3.2"/><ellipse cx="90.5" cy="54" rx="5" ry="3.2"/>
-<rect x="32" y="83" width="11" height="8" rx="2.4"/><rect x="77" y="83" width="11" height="8" rx="2.4"/>
-</g>
-<g fill="${fundo}">
-<path d="M45 51 L49 42 C49.8 40.2 51 39.4 53 39.4 H67 C69 39.4 70.2 40.2 71 42 L75 51 Z"/>
-<path d="M34.5 63 L47 65.5 L46 70.5 L34.5 69 Z"/><path d="M85.5 63 L73 65.5 L74 70.5 L85.5 69 Z"/>
-<rect x="51" y="67" width="18" height="6" rx="1.6"/><rect x="45" y="77" width="30" height="2.6" rx="1.3"/>
-</g>
-<path d="M44 98 L57 111 L113 45" fill="none" stroke="${fundo}" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M44 98 L57 111 L113 45" fill="none" stroke="url(#${id})" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        const tracos = [
+            // [caminho, espessura]
+            ['M160 366 C92 336 16 272 16 180 V27 Q16 12 31 12 H289 Q304 12 304 27 V180 C304 272 228 336 160 366 Z', 17],
+            ['M292 58 H82 Q60 58 60 80 V150', 12],
+            ['M100 142 C114 120 134 112 160 112 C186 112 206 120 220 142', 9],
+            ['M38 170 C40 154 56 144 78 142 H242 C264 144 280 154 282 170 L280 188 C279 196 272 202 262 202 H58 C48 202 41 196 40 188 Z', 9],
+            ['M52 162 L102 174 M268 162 L218 174', 8],
+            ['M130 186 H190', 7],
+            ['M72 202 V214 M248 202 V214', 9]
+        ];
+        const visto = 'M104 262 L162 334 L336 72';
+        const relevo = (d, w) => `<path d="${d}" fill="none" stroke="#6b4a12" stroke-width="${w + 3}" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 3)"/>`;
+        const ouro = (d, w) => `<path d="${d}" fill="none" stroke="url(#${id})" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const brilho = (d, w) => `<path d="${d}" fill="none" stroke="#FFF1C4" stroke-opacity=".45" stroke-width="${Math.max(1.2, w * .18)}" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1 -1.5)"/>`;
+        return `<svg width="${tam}" height="${Math.round(tam * 380 / 340)}" viewBox="0 0 340 380" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCE7A8"/><stop offset=".3" stop-color="#EBC061"/><stop offset=".6" stop-color="#CD9534"/><stop offset=".85" stop-color="#A9761F"/><stop offset="1" stop-color="#E3B458"/></linearGradient></defs>
+${tracos.map(([d, w]) => relevo(d, w)).join('')}
+${tracos.map(([d, w]) => ouro(d, w)).join('')}
+${tracos.map(([d, w]) => brilho(d, w)).join('')}
+<path d="${visto}" fill="none" stroke="${fundo}" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+${relevo(visto, 22)}${ouro(visto, 22)}${brilho(visto, 22)}
 </svg>`;
     }
 
     function logoHtml(escala = 1) {
-        return `<div class="logo" style="--e:${escala}">${svgLogo(38 * escala)}
+        return `<div class="logo" style="--e:${escala}">${svgLogo(46 * escala)}
 <div class="logo-txt"><div class="logo-nome">CERTIVE</div><div class="logo-sub">VISTORIAS</div></div></div>`;
     }
 
@@ -462,7 +468,7 @@ ${dentro}</svg>`;
 <text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.2" letter-spacing=".9" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
 <text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.5" letter-spacing="1.4" fill="url(#${id})"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
 <circle cx="24" cy="100" r="2.6" fill="#E8B650"/><circle cx="176" cy="100" r="2.6" fill="#E8B650"/>
-<g transform="translate(64 58) scale(.6)">${svgLogo(120, '#0d1f3b').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+<g transform="translate(56 50) scale(.26)">${svgLogo(340, '#0f2442').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
 </svg>`;
     }
 
@@ -823,7 +829,7 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
 <div class="lema">SEGURANÇA<br>INFORMAÇÃO<br>PROCEDÊNCIA</div>
 <div class="num-laudo"><div class="r">LAUDO Nº</div><div class="v">${esc(D.cautelar.dossieNumero || '—')}</div>
   <div class="r" style="margin-top:10px">PLACA</div><div class="v">${esc(D.os.placa)}</div></div>
-<div class="marca">${svgLogo(150, '#0f213f')}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
+<div class="marca">${svgLogo(134, '#0f213f')}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
 <h1>LAUDO<br>CAUTELAR</h1>
 <div class="h2">DE AQUISIÇÃO VEICULAR</div>
 <div class="desc">ANÁLISE FÍSICO-ESTRUTURAL<br>E DE IDENTIFICAÇÃO VEICULAR</div>
