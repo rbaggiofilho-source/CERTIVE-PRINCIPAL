@@ -850,7 +850,18 @@ async function slicePageFromGrid(pageIndex) {
  * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
  * Preenchimento nativo do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib AcroForm.
  */
+// O laudo oficial é SEMPRE o modelo padrão desenhado por js/laudo_certive.js
+// (gerarLaudoCertive, modelo LCAV). Se ele não carregou, a emissão para com erro:
+// nunca cai em outro modelo. A versão abaixo, que preenchia o PDF modelo antigo,
+// fica só como referência e não é chamada.
 async function generateInspectionReport(cautelarId) {
+    if (typeof gerarLaudoCertive !== 'function') {
+        throw new Error('O modelo oficial do laudo não carregou. Verifique a conexão e recarregue a página antes de emitir.');
+    }
+    return gerarLaudoCertive(cautelarId);
+}
+
+async function generateInspectionReportModeloAntigo(cautelarId) {
     // Cautelares encerradas não vêm na carga inicial: busca seções e fotos
     if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
@@ -897,33 +908,39 @@ async function generateInspectionReport(cautelarId) {
         return parseFloat(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' km';
     };
 
+    // Marca/modelo vêm do cadastro do veículo na O.S. (antes eram lidos do nome do
+    // cliente e nem chegavam ao contexto, o que derrubava a geração do PDF)
     let marca = 'Não informado';
     let modelo = 'Não informado';
-    if (os.clienteNome) {
-        if (os.clienteNome.includes('/')) {
-            const parts = os.clienteNome.split('/');
+    const marcaModelo = String(os.veiculoMarcaModelo || '').trim();
+    if (marcaModelo) {
+        const parts = marcaModelo.split('/');
+        if (parts.length > 1) {
             marca = parts[0].trim();
-            modelo = parts[1].trim();
+            modelo = parts.slice(1).join('/').trim();
         } else {
-            modelo = os.clienteNome.trim();
+            modelo = marcaModelo;
         }
     }
+    const inicioVistoria = cautelar.dataHoraInicio || cautelar.criadoEm || cautelar.data_hora_inicio || new Date().toISOString();
 
     const context = {
         dossie: String(cautelar.dossieNumero || cautelar.dossie_numero || 'Não informado'),
-        dataVistoria: new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleDateString('pt-BR'),
-        horaVistoria: new Date(cautelar.criadoEm || cautelar.data_hora_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
-        dataVistoriaRaw: cautelar.criadoEm || cautelar.data_hora_inicio,
+        dataVistoria: new Date(inicioVistoria).toLocaleDateString('pt-BR'),
+        horaVistoria: new Date(inicioVistoria).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+        dataVistoriaRaw: inicioVistoria,
+        marca,
+        modelo,
         vistoriador: db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Não informado',
         placa: String(os.placa || 'Não informado').toUpperCase(),
         cor: String(os.cor || 'Não informado').toUpperCase(),
         renavam: String(os.renavam || 'Não informado'),
-        chassi: String(os.chassi || dataSec2.chassiLido || 'Não informado').toUpperCase(),
+        chassi: String(dataSec2.chassiLido || os.veiculoChassi || os.chassi || 'Não informado').toUpperCase(),
         motor: String(os.motor || dataSec2.motorLido || 'Não informado').toUpperCase(),
         quilometragem: formatQuilometragem(dataSec1.quilometragem),
         combustivel: String(dataSec1.combustivel || os.combustivel || 'Não informado').toUpperCase(),
-        anoFab: String(os.fabricacaoAno || os.ano_fabricacao || 'Não informado'),
-        anoMod: String(os.modeloAno || os.ano_modelo || 'Não informado'),
+        anoFab: String(os.fabricacaoAno || String(os.veiculoAno || '').split('/')[0] || 'Não informado'),
+        anoMod: String(os.modeloAno || String(os.veiculoAno || '').split('/')[1] || String(os.veiculoAno || '').split('/')[0] || 'Não informado'),
         unidadeNome: db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC',
         parecerFinal,
         obsFinal,
@@ -1050,7 +1067,9 @@ async function generateInspectionReport(cautelarId) {
             try {
                 const pdfField = form.getTextField(field.name);
                 if (pdfField) {
-                    pdfField.setText(String(value));
+                    // O modelo limita alguns campos a 100 caracteres; as listas do laudo são maiores
+                    if (pdfField.getMaxLength() !== undefined) pdfField.setMaxLength(undefined);
+                    pdfField.setText(String(value ?? ''));
                 }
             } catch (err) {
                 console.warn(`Erro ao preencher campo de texto "${field.name}":`, err);

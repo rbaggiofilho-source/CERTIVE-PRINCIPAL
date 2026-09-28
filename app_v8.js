@@ -12230,6 +12230,8 @@ const CAUTELAR_SLOTS = {
 // numeração (II) → compartimento do motor (VI) → estrutura, que começa pela
 // dianteira e termina no porta-malas (III). Depois as voltas de 360°: pintura (IV),
 // vidros (V) e quadros de porta/interior (VII). Por fim o fechamento (VIII).
+window.CAUTELAR_SLOTS = CAUTELAR_SLOTS;
+
 const CAUTELAR_ORDEM_SECOES = [1, 2, 6, 3, 4, 5, 7, 8];
 
 function cautelarPosicaoSecao(secaoNum) {
@@ -15274,7 +15276,9 @@ FECHAMENTO
 }
 
 async function solicitarLaudoAoServidor(cautelarId) {
-    if (!window.useSupabase || !window.supabaseClient) {
+    // supabaseClient é declarado com "let" em supabase-config.js: não fica em window.
+    // Checar window.supabaseClient fazia o laudo nunca chegar ao servidor.
+    if (!window.useSupabase || typeof supabaseClient === 'undefined' || !supabaseClient) {
         throw new Error("A emissão do laudo requer conexão com o servidor.");
     }
     const { data, error } = await supabaseClient.functions.invoke('gerar-laudo', {
@@ -15540,26 +15544,11 @@ async function gerarLaudoFinalPdf() {
             fecharFinalizacaoDesktop();
         })
         .catch(err => {
-            console.error("Erro na geração do PDF via pdf-lib, usando fallback:", err);
-            // Fallback usando html2pdf.js
-            const element = document.getElementById('laudo-preview-container');
-            const opt = {
-                margin: 0,
-                filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            html2pdf().from(element).set(opt).save()
-                .then(() => {
-                    showToast("Laudo PDF exportado via visualizador!", "success");
-                    fecharFinalizacaoDesktop();
-                })
-                .catch(e => {
-                    console.error("Erro no fallback do PDF:", e);
-                    showToast("Erro ao exportar PDF.", "error");
-                    fecharFinalizacaoDesktop();
-                });
+            // Sem "plano B" por captura de tela: ele gerava um PDF com os dados de
+            // exemplo das imagens de fundo. Melhor avisar e permitir tentar de novo.
+            console.error("Erro na geração do PDF do laudo:", err);
+            showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}. Tente novamente em "Laudo PDF".`, "error");
+            fecharFinalizacaoDesktop();
         })
         .finally(() => {
             if (emitirBtn) {
@@ -15778,23 +15767,9 @@ async function exibirPdfCautelar(cautelarId) {
                 fecharFinalizacaoDesktop();
             })
             .catch(err => {
-                console.error("Erro na geração do PDF via pdf-lib, usando fallback:", err);
-                const element = document.getElementById('laudo-preview-container');
-                const opt = {
-                    margin: 0,
-                    filename: `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-                html2pdf().from(element).set(opt).save()
-                    .then(() => {
-                        fecharFinalizacaoDesktop();
-                    })
-                    .catch(e => {
-                        console.error("Erro no fallback do PDF:", e);
-                        fecharFinalizacaoDesktop();
-                    });
+                console.error("Erro na geração do PDF do laudo:", err);
+                showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}`, "error");
+                fecharFinalizacaoDesktop();
             });
     }, 1000);
 }
