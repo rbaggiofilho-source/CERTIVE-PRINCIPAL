@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { FORMATO_RESPOSTA, INSTRUCOES_AGENTE } from "./agente.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -170,12 +171,37 @@ Deno.serve(async (req) => {
       conteudo.push({ type: "input_text", text: `FOTO ${foto.id} — SLOT ${foto.slotCodigo}` });
       conteudo.push({ type: "input_image", image_url: foto.url_original, detail: SLOTS_LEITURA.has(foto.slotCodigo) ? "high" : "low" });
     }
-    const promptId = Deno.env.get("OPENAI_PROMPT_ID");
-    const promptVersion = Deno.env.get("OPENAI_PROMPT_VERSION");
     const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!promptId || !promptVersion || !apiKey) throw new Error("Segredos do gerador de laudos não configurados no servidor.");
-
-    const respostaApi = await chamarOpenAI(apiKey, { prompt: { id: promptId, version: promptVersion }, input: [{ role: "user", content: conteudo }] });
+    if (!apiKey) throw new Error("Segredos do gerador de laudos não configurados no servidor.");
+    const promptSalvoId = Deno.env.get("OPENAI_PROMPT_ID");
+    const promptSalvoVersao = Deno.env.get("OPENAI_PROMPT_VERSION");
+    const entrada = [{ role: "user", content: conteudo }];
+    // Sem prompt salvo (ou se ele deixar de existir na OpenAI), usa a cópia das
+    // instruções e do formato que está no próprio sistema (agente.ts).
+    const chamadaLocal = () => chamarOpenAI(apiKey, {
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-6-luna",
+      instructions: INSTRUCOES_AGENTE,
+      text: { format: { type: "json_schema", name: FORMATO_RESPOSTA.name, strict: FORMATO_RESPOSTA.strict, schema: FORMATO_RESPOSTA.schema } },
+      reasoning: { effort: "low" },
+      input: entrada,
+    });
+    let promptId = "local:agente.ts";
+    let promptVersion = "repositorio";
+    let respostaApi: Record<string, any>;
+    if (promptSalvoId && promptSalvoVersao) {
+      try {
+        respostaApi = await chamarOpenAI(apiKey, { prompt: { id: promptSalvoId, version: promptSalvoVersao }, input: entrada });
+        promptId = promptSalvoId;
+        promptVersion = promptSalvoVersao;
+      } catch (erro) {
+        const msg = erro instanceof Error ? erro.message : String(erro);
+        if (!/HTTP 4\d\d/.test(msg) || !/prompt/i.test(msg)) throw erro;
+        console.warn("Prompt salvo indisponível; usando as instruções do sistema.", msg);
+        respostaApi = await chamadaLocal();
+      }
+    } else {
+      respostaApi = await chamadaLocal();
+    }
     const texto = respostaApi.output_text || respostaApi.output?.flatMap((o: Record<string, unknown>) => Array.isArray(o.content) ? o.content : []).find((c: Record<string, unknown>) => c.type === "output_text")?.text;
     if (!texto) throw new Error("O serviço retornou uma resposta vazia.");
     let resposta: Record<string, unknown>;
