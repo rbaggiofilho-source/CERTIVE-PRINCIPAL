@@ -310,43 +310,6 @@
         return r;
     }
 
-    // Foto da capa mesclada ao azul do fundo (bordas esfumadas desenhadas no próprio arquivo)
-    async function comporFotoCapa(foto) {
-        if (!foto) return null;
-        try {
-            const img = new Image();
-            img.src = foto.url;
-            await img.decode();
-            const W = 800, H = 864;
-            const canvas = document.createElement('canvas');
-            canvas.width = W; canvas.height = H;
-            const ctx = canvas.getContext('2d');
-            // Escurece a foto para o tom da capa
-            const esc = Math.max(W / img.width, H / img.height);
-            ctx.drawImage(img, (W - img.width * esc) / 2, (H - img.height * esc) / 2, img.width * esc, img.height * esc);
-            ctx.fillStyle = 'rgba(10,31,61,.28)'; ctx.fillRect(0, 0, W, H);
-            // Máscara: bordas somem por transparência (sem "caixa" visível sobre o fundo)
-            const mascara = document.createElement('canvas');
-            mascara.width = W; mascara.height = H;
-            const m = mascara.getContext('2d');
-            // elipse inscrita no quadro: chega a transparência total antes das bordas
-            const r = m.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
-            r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.5, 'rgba(0,0,0,.95)'); r.addColorStop(.97, 'rgba(0,0,0,0)');
-            m.fillStyle = r;
-            m.save(); m.translate(W / 2, H / 2); m.scale(1, H / W); m.translate(-W / 2, -H / 2);
-            m.fillRect(-W, -H, W * 3, H * 3); m.restore();
-            ctx.globalCompositeOperation = 'destination-in';
-            ctx.drawImage(mascara, 0, 0);
-            mascara.width = 0; mascara.height = 0;
-            const url = canvas.toDataURL('image/png');
-            canvas.width = 0; canvas.height = 0;
-            return { url, w: W, h: H };
-        } catch (e) {
-            console.warn('Foto da capa indisponível:', e);
-            return null;
-        }
-    }
-
     async function carregarFotos(D) {
         const mapa = {};
         const fila = D.fotos.filter(f => f.url_original || f.url_thumb);
@@ -360,8 +323,6 @@
             }
         };
         await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
-        const capa = await comporFotoCapa(mapa.frente_45_dir || mapa.traseira_45_esq);
-        if (capa) Object.defineProperty(mapa, '__capa', { value: capa, enumerable: false });
         return mapa;
     }
 
@@ -392,16 +353,22 @@
     // ------------------------------------------------------------------
     // Vetores (logo, ícones, selo, silhueta)
     // ------------------------------------------------------------------
-    function svgLogo(tam = 44, corCarro = COR.navy) {
-        return `<svg width="${tam}" height="${Math.round(tam * 1.12)}" viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg">
-<defs><linearGradient id="lgOuro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F1DC9E"/><stop offset=".45" stop-color="#C9A961"/><stop offset="1" stop-color="#8E6F2E"/></linearGradient></defs>
-<path d="M32 3 L59 12.5 V34 C59 52 46.5 64.5 32 70 C17.5 64.5 5 52 5 34 V12.5 Z" fill="none" stroke="url(#lgOuro)" stroke-width="4.2" stroke-linejoin="round"/>
-<path d="M32 10 L52.5 17.2 V34 C52.5 48 43 58 32 62.6 C21 58 11.5 48 11.5 34 V17.2 Z" fill="none" stroke="url(#lgOuro)" stroke-width="1.4" opacity=".75"/>
-<path d="M17.5 45 L20.5 36.2 C21.3 34 23 32.8 25.2 32.8 H38.8 C41 32.8 42.7 34 43.5 36.2 L46.5 45 V51.5 H42 V48.6 H22 V51.5 H17.5 Z" fill="url(#lgOuro)"/>
-<path d="M23 38.5 L24.3 35.8 C24.6 35.2 25.1 34.9 25.8 34.9 H38.2 C38.9 34.9 39.4 35.2 39.7 35.8 L41 38.5 Z" fill="${corCarro}"/>
-<rect x="20.5" y="41.3" width="5.2" height="2.6" rx="1.2" fill="${corCarro}"/><rect x="38.3" y="41.3" width="5.2" height="2.6" rx="1.2" fill="${corCarro}"/>
-<rect x="28.2" y="42.2" width="7.6" height="1.6" rx=".8" fill="${corCarro}"/>
-<path d="M22 26 L32 21.5 L42 26" fill="none" stroke="url(#lgOuro)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    // Emblema oficial: escudo dourado com a frente do carro e o "visto" cruzando o escudo
+    let seqSvg = 0;
+    function svgLogo(tam = 44, fundo = COR.navy) {
+        const id = `lgOuro${++seqSvg}`;
+        return `<svg width="${tam}" height="${Math.round(tam * 1.1)}" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4E1A6"/><stop offset=".42" stop-color="#D4B46A"/><stop offset=".7" stop-color="#B8934A"/><stop offset="1" stop-color="#8A6A2C"/></linearGradient></defs>
+<path d="M50 5 L89 18 V49 C89 76 72 95 50 104 C28 95 11 76 11 49 V18 Z" fill="none" stroke="url(#${id})" stroke-width="5.5" stroke-linejoin="round"/>
+<path d="M50 14 L80 24 V49 C80 70 67 85 50 93 C33 85 20 70 20 49 V24 Z" fill="none" stroke="url(#${id})" stroke-width="2" stroke-linejoin="round"/>
+<g fill="none" stroke="url(#${id})" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+<path d="M33 46 L37.5 37.5 C38.6 35.4 40.4 34.3 42.8 34.3 H57.2 C59.6 34.3 61.4 35.4 62.5 37.5 L67 46"/>
+<path d="M29 58 V50.5 C29 47.8 30.8 46 33.5 46 H66.5 C69.2 46 71 47.8 71 50.5 V58 C71 59.7 69.7 61 68 61 H32 C30.3 61 29 59.7 29 58 Z"/>
+<path d="M33.5 51.5 H40 M60 51.5 H66.5 M44 55.5 H56"/>
+<path d="M32 61 V65.5 H38.5 V61 M61.5 61 V65.5 H68 V61"/>
+</g>
+<path d="M38.5 71 L49 81.5 L95 26" fill="none" stroke="${fundo}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M38.5 71 L49 81.5 L95 26" fill="none" stroke="url(#${id})" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
     }
 
@@ -452,29 +419,49 @@
 ${dentro}</svg>`;
     }
 
-    function svgSelo(cidade, ano, tam = 176) {
-        const topo = 'CERTIVE VISTORIAS';
-        const base = `${String(cidade || '').toUpperCase()} • ${ano}`;
+    // Selo circular: "CERTIVE VISTORIAS • CAUTELAR" em cima, cidade e data embaixo, emblema no centro
+    function svgSelo(cidade, data, tam = 190) {
+        const id = `lgSelo${++seqSvg}`;
+        const topo = 'CERTIVE VISTORIAS • CAUTELAR';
+        const base = `${String(cidade || '').toUpperCase()} • ${data}`;
         return `<svg width="${tam}" height="${tam}" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
 <defs>
-<linearGradient id="lgSelo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3DFA4"/><stop offset=".5" stop-color="#C9A961"/><stop offset="1" stop-color="#8C6C2B"/></linearGradient>
-<radialGradient id="rgSelo" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#16345F"/><stop offset="1" stop-color="#081830"/></radialGradient>
-<path id="arcoTopo" d="M 28 100 A 72 72 0 0 1 172 100"/>
-<path id="arcoBase" d="M 22 100 A 78 78 0 0 0 178 100"/>
+<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4E1A6"/><stop offset=".45" stop-color="#D4B46A"/><stop offset="1" stop-color="#8A6A2C"/></linearGradient>
+<path id="${id}t" d="M 100 176 A 76 76 0 1 1 100.01 176"/>
+<path id="${id}b" d="M 14 100 A 86 86 0 0 0 186 100"/>
 </defs>
-<circle cx="100" cy="100" r="96" fill="url(#rgSelo)" stroke="url(#lgSelo)" stroke-width="3"/>
-<circle cx="100" cy="100" r="89" fill="none" stroke="url(#lgSelo)" stroke-width="1"/>
-<circle cx="100" cy="100" r="58" fill="none" stroke="url(#lgSelo)" stroke-width="1.6"/>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="13" letter-spacing="3" fill="#E3C986"><textPath href="#arcoTopo" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.5" letter-spacing="2" fill="#E3C986" dominant-baseline="hanging"><textPath href="#arcoBase" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
-<text x="100" y="129" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="7.4" letter-spacing="1.6" fill="#E3C986" text-anchor="middle">LAUDO CAUTELAR</text>
-<g transform="translate(75 49) scale(.78)">
-<path d="M32 3 L59 12.5 V34 C59 52 46.5 64.5 32 70 C17.5 64.5 5 52 5 34 V12.5 Z" fill="none" stroke="url(#lgSelo)" stroke-width="3.6" stroke-linejoin="round"/>
-<path d="M17.5 45 L20.5 36.2 C21.3 34 23 32.8 25.2 32.8 H38.8 C41 32.8 42.7 34 43.5 36.2 L46.5 45 V51.5 H42 V48.6 H22 V51.5 H17.5 Z" fill="url(#lgSelo)"/>
-<path d="M23 38.5 L24.3 35.8 C24.6 35.2 25.1 34.9 25.8 34.9 H38.2 C38.9 34.9 39.4 35.2 39.7 35.8 L41 38.5 Z" fill="#0A1F3D"/>
-<path d="M22 26 L32 21.5 L42 26" fill="none" stroke="url(#lgSelo)" stroke-width="2.2" stroke-linecap="round"/>
+<circle cx="100" cy="100" r="97" fill="#0B2143" stroke="url(#${id})" stroke-width="3"/>
+<circle cx="100" cy="100" r="90" fill="none" stroke="url(#${id})" stroke-width="1"/>
+<circle cx="100" cy="100" r="69" fill="none" stroke="url(#${id})" stroke-width="1.6"/>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="10.5" letter-spacing="1.3" fill="#E4C87F"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="10" letter-spacing="1.2" fill="#E4C87F"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
+<g transform="translate(62 56) scale(.76)">${svgLogo(100, '#0B2143').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+</svg>`;
+    }
+
+    // Desenho de carro premium em traço dourado, com linha de base ("sublinhado")
+    function svgCarroTraco(largura = 560) {
+        const id = `lgCarro${++seqSvg}`;
+        return `<svg width="${largura}" height="${Math.round(largura * .36)}" viewBox="0 0 1000 360" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#C9A961" stop-opacity=".35"/><stop offset=".35" stop-color="#E9D08F"/><stop offset=".7" stop-color="#C9A961"/><stop offset="1" stop-color="#C9A961" stop-opacity=".4"/></linearGradient>
+<linearGradient id="${id}l" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0"><stop offset="0" stop-color="#C9A961" stop-opacity="0"/><stop offset=".2" stop-color="#C9A961" stop-opacity=".9"/><stop offset=".8" stop-color="#E9D08F" stop-opacity=".9"/><stop offset="1" stop-color="#C9A961" stop-opacity="0"/></linearGradient>
+</defs>
+<g fill="none" stroke="url(#${id})" stroke-linecap="round" stroke-linejoin="round">
+<path stroke-width="3.51" d="M 58 262 C 50 236 62 214 104 205 C 190 190 300 176 392 164 C 448 124 520 92 604 86 C 690 81 772 94 836 134 C 884 144 934 154 958 176 C 972 198 968 234 952 258 L 910 262 C 904 196 752 196 746 262 L 288 262 C 282 196 130 196 124 262 Z"/>
+<path stroke-width="2.43" d="M 424 164 C 478 128 540 104 604 100 C 672 97 742 106 792 138 L 782 152 C 690 154 520 160 424 164 Z"/>
+<path stroke-width="2.16" d="M 622 99 L 628 156"/>
+<path stroke-width="1.89" d="M 110 222 C 330 206 640 196 958 196"/>
+<path stroke-width="1.76" d="M 404 172 L 396 256 M 646 160 L 650 256"/>
+<path stroke-width="2.7" d="M 104 214 C 140 206 182 199 226 194"/>
+<path stroke-width="2.7" d="M 930 172 C 944 180 952 190 956 202"/>
+<path stroke-width="1.62" d="M 470 214 H 500 M 700 208 H 730"/>
+<circle stroke-width="3.24" cx="206" cy="262" r="58"/><circle stroke-width="1.89" cx="206" cy="262" r="38"/><circle stroke-width="1.89" cx="206" cy="262" r="9"/>
+<circle stroke-width="3.24" cx="828" cy="262" r="58"/><circle stroke-width="1.89" cx="828" cy="262" r="38"/><circle stroke-width="1.89" cx="828" cy="262" r="9"/>
+${[0, 72, 144, 216, 288].map(g => { const r = g * Math.PI / 180; return `<path stroke-width="1.62" d="M ${(206 + 11 * Math.cos(r)).toFixed(1)} ${(262 + 11 * Math.sin(r)).toFixed(1)} L ${(206 + 36 * Math.cos(r)).toFixed(1)} ${(262 + 36 * Math.sin(r)).toFixed(1)} M ${(828 + 11 * Math.cos(r)).toFixed(1)} ${(262 + 11 * Math.sin(r)).toFixed(1)} L ${(828 + 36 * Math.cos(r)).toFixed(1)} ${(262 + 36 * Math.sin(r)).toFixed(1)}"/>`; }).join('')}
 </g>
-<circle cx="14" cy="100" r="2.4" fill="#E3C986"/><circle cx="186" cy="100" r="2.4" fill="#E3C986"/>
+<path d="M 0 322 H 1000" stroke="url(#${id}l)" stroke-width="4.05"/>
+<path d="M 120 338 H 880" stroke="url(#${id}l)" stroke-width="1.62" opacity=".55"/>
 </svg>`;
     }
 
@@ -659,10 +646,9 @@ table{border-collapse:collapse;width:100%}
 .destaque .leg{font-size:10px}.destaque .leg small{font-size:8.6px;color:#5b6270}
 
 /* Capa */
-.capa{background:radial-gradient(ellipse at 78% 62%,#173a68 0%,#0c2447 38%,#07172e 75%,#050f20 100%)}
+.capa{background:radial-gradient(ellipse at 72% 70%,#15335e 0%,#0c2447 40%,#081a36 72%,#050f20 100%)}
 .capa .moldura{position:absolute;left:16px;top:16px;right:16px;bottom:16px;border:1px solid rgba(201,169,97,.55)}
 .capa .moldura2{position:absolute;left:22px;top:22px;right:22px;bottom:22px;border:1px solid rgba(201,169,97,.16)}
-.capa .foto-capa{position:absolute;right:17px;top:318px;width:500px;height:540px;background-size:100% 100%}
 .capa .lema{position:absolute;left:52px;top:52px;font-size:8.5px;letter-spacing:3.6px;color:#c9d0db;line-height:1.9;font-weight:500}
 .capa .num-laudo{position:absolute;right:52px;top:52px;text-align:right}
 .capa .num-laudo .r{font-size:8px;letter-spacing:2.4px;color:#C9A961;font-weight:600}
@@ -673,14 +659,12 @@ table{border-collapse:collapse;width:100%}
 .capa h1{position:absolute;left:52px;top:348px;font-size:66px;font-weight:800;color:#fff;line-height:1;letter-spacing:1px}
 .capa .h2{position:absolute;left:54px;top:488px;font-size:22px;font-weight:700;color:#D9BD74;letter-spacing:1.4px}
 .capa .desc{position:absolute;left:54px;top:534px;width:330px;font-size:9.5px;letter-spacing:2.6px;color:#d6dce6;line-height:1.75;font-weight:500}
-.capa .itens{position:absolute;left:54px;top:604px;display:flex;flex-direction:column;gap:12px}
+.capa .itens{position:absolute;left:54px;top:600px;display:flex;flex-direction:column;gap:11px}
 .capa .item{display:flex;align-items:center;gap:14px;font-size:8.6px;letter-spacing:2.2px;color:#cfd6e1;font-weight:600;line-height:1.35}
 .capa .item .ic{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,97,.45);border-radius:50%}
-.capa .veic{position:absolute;left:54px;top:935px;display:flex;gap:28px}
-.capa .veic .r{font-size:7.5px;letter-spacing:2px;color:#C9A961;font-weight:600}
-.capa .veic .v{font-size:12px;color:#fff;font-weight:700;letter-spacing:.8px;margin-top:4px}
-.capa .local{position:absolute;left:54px;top:1010px;font-size:9px;letter-spacing:1.8px;color:#d6dce6;font-weight:600;line-height:1.7}
-.capa .selo{position:absolute;right:46px;top:895px}
+.capa .local{position:absolute;left:54px;top:1036px;font-size:9px;letter-spacing:1.8px;color:#d6dce6;font-weight:600;line-height:1.7}
+.capa .selo{position:absolute;right:58px;top:452px}
+.capa .carro{position:absolute;right:40px;top:846px}
 
 /* Resumo */
 .areas{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
@@ -804,26 +788,25 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
     // ------------------------------------------------------------------
     // Páginas
     // ------------------------------------------------------------------
-    function paginaCapa(D, F) {
+    function paginaCapa(D) {
         const itens = [
             ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>VEICULAR'], ['rolo', 'PINTURA E<br>ACABAMENTO'],
             ['motor', 'MOTOR E<br>CHASSI'], ['vidro', 'VIDROS E<br>GRAVAÇÕES'], ['banco', 'INTERIOR E<br>QUADROS DE PORTA']
         ];
-        const fotoCapa = F.__capa;
-        const ano = new Date(D.dataEmissao || Date.now()).getFullYear();
         return `<section class="pg capa">
-${fotoCapa ? `<div class="foto-capa" style="background-image:url('${fotoCapa.url}')"></div>` : ''}
 <div class="moldura"></div><div class="moldura2"></div>
 <div class="lema">SEGURANÇA<br>INFORMAÇÃO<br>PROCEDÊNCIA</div>
-<div class="num-laudo"><div class="r">LAUDO Nº</div><div class="v">${esc(D.cautelar.dossieNumero || '—')}</div></div>
-<div class="marca">${svgLogo(118)}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
+<div class="num-laudo"><div class="r">LAUDO Nº</div><div class="v">${esc(D.cautelar.dossieNumero || '—')}</div>
+  <div class="r" style="margin-top:14px">PLACA</div><div class="v">${esc(D.os.placa)}</div>
+  ${D.marcaModelo !== 'Não informado' ? `<div class="r" style="margin-top:14px">VEÍCULO</div><div class="v" style="font-size:11px">${esc(D.marcaModelo)}</div>` : ''}</div>
+<div class="marca">${svgLogo(120, '#0a1f3f')}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
 <h1>LAUDO<br>CAUTELAR</h1>
 <div class="h2">DE AQUISIÇÃO VEICULAR</div>
 <div class="desc">ANÁLISE FÍSICO-ESTRUTURAL E DE IDENTIFICAÇÃO VEICULAR</div>
 <div class="itens">${itens.map(([ic, t]) => `<div class="item"><span class="ic">${icone(ic, '#C9A961', 17, 1.6)}</span><span>${t}</span></div>`).join('')}</div>
-<div class="veic"><div><div class="r">PLACA</div><div class="v">${esc(D.os.placa)}</div></div>${D.marcaModelo !== 'Não informado' ? `<div><div class="r">VEÍCULO</div><div class="v">${esc(D.marcaModelo)}</div></div>` : ''}<div><div class="r">VISTORIA</div><div class="v">${esc(dataBR(D.dataVistoria))}</div></div></div>
+<div class="selo">${svgSelo(D.cidade, dataBR(D.dataEmissao))}</div>
+<div class="carro">${svgCarroTraco(540)}</div>
 <div class="local">${esc(D.cidade.toUpperCase())}<br>${esc(dataExtenso(D.dataEmissao).toUpperCase())}</div>
-<div class="selo">${svgSelo(D.cidade, ano)}</div>
 </section>`;
     }
 
@@ -1127,7 +1110,7 @@ ${obs ? `<div>${rotulo('Observações do vistoriador')}<div class="card fund"><d
 
     function montarHtml(D, F, extras = {}) {
         const paginas = [
-            paginaCapa(D, F), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
+            paginaCapa(D), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
             paginaPintura(D, F), paginaVidros(D, F), paginaMotorChassi(D, F), paginaQuadros(D, F),
             paginaParecer(D, extras), ...paginasRegistro(D, F)
         ];
