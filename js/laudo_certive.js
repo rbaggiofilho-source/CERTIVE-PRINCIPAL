@@ -377,18 +377,23 @@
     let seqSvg = 0;
     function svgLogo(tam = 44, fundo = COR.navy) {
         const id = `lgOuro${++seqSvg}`;
-        return `<svg width="${tam}" height="${Math.round(tam * 1.1)}" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
-<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4E1A6"/><stop offset=".42" stop-color="#D4B46A"/><stop offset=".7" stop-color="#B8934A"/><stop offset="1" stop-color="#8A6A2C"/></linearGradient></defs>
-<path d="M50 5 L89 18 V49 C89 76 72 95 50 104 C28 95 11 76 11 49 V18 Z" fill="none" stroke="url(#${id})" stroke-width="5.5" stroke-linejoin="round"/>
-<path d="M50 14 L80 24 V49 C80 70 67 85 50 93 C33 85 20 70 20 49 V24 Z" fill="none" stroke="url(#${id})" stroke-width="2" stroke-linejoin="round"/>
-<g fill="none" stroke="url(#${id})" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-<path d="M33 46 L37.5 37.5 C38.6 35.4 40.4 34.3 42.8 34.3 H57.2 C59.6 34.3 61.4 35.4 62.5 37.5 L67 46"/>
-<path d="M29 58 V50.5 C29 47.8 30.8 46 33.5 46 H66.5 C69.2 46 71 47.8 71 50.5 V58 C71 59.7 69.7 61 68 61 H32 C30.3 61 29 59.7 29 58 Z"/>
-<path d="M33.5 51.5 H40 M60 51.5 H66.5 M44 55.5 H56"/>
-<path d="M32 61 V65.5 H38.5 V61 M61.5 61 V65.5 H68 V61"/>
+        return `<svg width="${tam}" height="${Math.round(tam * 1.08)}" viewBox="0 0 120 130" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3A0"/><stop offset=".35" stop-color="#E8B650"/><stop offset=".65" stop-color="#C98E2A"/><stop offset="1" stop-color="#8F621C"/></linearGradient></defs>
+<path d="M60 5 C74 11 90 14 107 14 V60 C107 93 86 114 60 125 C34 114 13 93 13 60 V14 C30 14 46 11 60 5 Z" fill="none" stroke="url(#${id})" stroke-width="7.5" stroke-linejoin="round"/>
+<path d="M60 15 C71 20 84 22 97 22 V60 C97 86 81 103 60 112 C39 103 23 86 23 60 V22 C36 22 49 20 60 15 Z" fill="none" stroke="url(#${id})" stroke-width="1.6" opacity=".8"/>
+<g fill="url(#${id})">
+<path d="M38 53 L43.5 40 C44.8 37 47.3 35.4 50.6 35.4 H69.4 C72.7 35.4 75.2 37 76.5 40 L82 53 Z"/>
+<path d="M30 70 C30 61 34.5 55 41 53 H79 C85.5 55 90 61 90 70 V80 C90 82.5 88.5 84 86 84 H34 C31.5 84 30 82.5 30 80 Z"/>
+<ellipse cx="29.5" cy="54" rx="5" ry="3.2"/><ellipse cx="90.5" cy="54" rx="5" ry="3.2"/>
+<rect x="32" y="83" width="11" height="8" rx="2.4"/><rect x="77" y="83" width="11" height="8" rx="2.4"/>
 </g>
-<path d="M38.5 71 L49 81.5 L95 26" fill="none" stroke="${fundo}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M38.5 71 L49 81.5 L95 26" fill="none" stroke="url(#${id})" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="${fundo}">
+<path d="M45 51 L49 42 C49.8 40.2 51 39.4 53 39.4 H67 C69 39.4 70.2 40.2 71 42 L75 51 Z"/>
+<path d="M34.5 63 L47 65.5 L46 70.5 L34.5 69 Z"/><path d="M85.5 63 L73 65.5 L74 70.5 L85.5 69 Z"/>
+<rect x="51" y="67" width="18" height="6" rx="1.6"/><rect x="45" y="77" width="30" height="2.6" rx="1.3"/>
+</g>
+<path d="M44 98 L57 111 L113 45" fill="none" stroke="${fundo}" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M44 98 L57 111 L113 45" fill="none" stroke="url(#${id})" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
     }
 
@@ -400,6 +405,7 @@
     const ICONES = {
         escudo: '<path d="M12 2.6l7.6 2.9v5.9c0 4.9-3.2 8.6-7.6 10-4.4-1.4-7.6-5.1-7.6-10V5.5z"/><path d="M8.4 12.1l2.5 2.5 4.8-5"/>',
         lupa: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.2 5.2"/><path d="M8 10.5h5M10.5 8v5"/>',
+        documento: '<path d="M6 2.8h8.2L18.4 7v14.2H6z"/><path d="M14 2.8V7h4.4"/><path d="M8.8 11.2h6.8M8.8 14.3h6.8M8.8 17.4h4"/>',
         identificacao: '<path d="M5.5 2.8h8.7L18.5 7v14.2h-13z"/><path d="M14 2.8V7h4.5"/><circle cx="11" cy="13.3" r="3"/><path d="M13.2 15.5l3 3"/>',
         rolo: '<rect x="3.5" y="3.5" width="13.5" height="5.5" rx="1.2"/><path d="M17 6.2h2.8v5.6h-8.4v3"/><rect x="10" y="14.8" width="2.8" height="6.4" rx="1"/>',
         motor: '<path d="M3 10.5h2.2V8.2h3.2V6.3h6.3v1.9h2.1l2.3 2.3H21v6.1h-1.9l-2.3 2.3H8.1l-2.1-2.1H3z"/><path d="M10 11.5l-1.2 2.6h2.6l-1.2 2.6"/>',
@@ -440,48 +446,46 @@ ${dentro}</svg>`;
     }
 
     // Selo circular: "CERTIVE VISTORIAS • CAUTELAR" em cima, cidade e data embaixo, emblema no centro
-    function svgSelo(cidade, data, tam = 190) {
+    function svgSelo(cidade, ano, tam = 200) {
         const id = `lgSelo${++seqSvg}`;
-        const topo = 'CERTIVE VISTORIAS • CAUTELAR';
-        const base = `${String(cidade || '').toUpperCase()} • ${data}`;
+        const topo = 'CERTIVE VISTORIAS • LAUDO CAUTELAR';
+        const base = `${String(cidade || '').toUpperCase()} • ${ano}`;
         return `<svg width="${tam}" height="${tam}" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
 <defs>
-<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4E1A6"/><stop offset=".45" stop-color="#D4B46A"/><stop offset="1" stop-color="#8A6A2C"/></linearGradient>
-<path id="${id}t" d="M 100 176 A 76 76 0 1 1 100.01 176"/>
-<path id="${id}b" d="M 14 100 A 86 86 0 0 0 186 100"/>
+<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3A0"/><stop offset=".4" stop-color="#E8B650"/><stop offset=".7" stop-color="#C98E2A"/><stop offset="1" stop-color="#8F621C"/></linearGradient>
+<radialGradient id="${id}r" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#132a4d"/><stop offset="1" stop-color="#070f1f"/></radialGradient>
+<path id="${id}t" d="M 100 178 A 78 78 0 1 1 100.01 178"/>
+<path id="${id}b" d="M 12 100 A 88 88 0 0 0 188 100"/>
 </defs>
-<circle cx="100" cy="100" r="97" fill="#0B2143" stroke="url(#${id})" stroke-width="3"/>
-<circle cx="100" cy="100" r="90" fill="none" stroke="url(#${id})" stroke-width="1"/>
-<circle cx="100" cy="100" r="69" fill="none" stroke="url(#${id})" stroke-width="1.6"/>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="10.5" letter-spacing="1.3" fill="#E4C87F"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="10" letter-spacing="1.2" fill="#E4C87F"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
-<g transform="translate(62 56) scale(.76)">${svgLogo(100, '#0B2143').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+<circle cx="100" cy="100" r="95" fill="url(#${id}r)" stroke="url(#${id})" stroke-width="7"/>
+<circle cx="100" cy="100" r="66" fill="none" stroke="url(#${id})" stroke-width="3.2"/>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.2" letter-spacing=".9" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.5" letter-spacing="1.4" fill="url(#${id})"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
+<circle cx="24" cy="100" r="2.6" fill="#E8B650"/><circle cx="176" cy="100" r="2.6" fill="#E8B650"/>
+<g transform="translate(64 58) scale(.6)">${svgLogo(120, '#0d1f3b').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
 </svg>`;
     }
 
-    // Desenho de carro premium em traço dourado, com linha de base ("sublinhado")
-    function svgCarroTraco(largura = 560) {
-        const id = `lgCarro${++seqSvg}`;
-        return `<svg width="${largura}" height="${Math.round(largura * .36)}" viewBox="0 0 1000 360" xmlns="http://www.w3.org/2000/svg">
+    // Fundo da capa: painéis diagonais em azul, textura de linhas e filetes dourados
+    function svgFundoCapa() {
+        const id = `fc${++seqSvg}`;
+        return `<svg width="${PAG.w}" height="${PAG.h}" viewBox="0 0 ${PAG.w} ${PAG.h}" xmlns="http://www.w3.org/2000/svg">
 <defs>
-<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#C9A961" stop-opacity=".35"/><stop offset=".35" stop-color="#E9D08F"/><stop offset=".7" stop-color="#C9A961"/><stop offset="1" stop-color="#C9A961" stop-opacity=".4"/></linearGradient>
-<linearGradient id="${id}l" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0"><stop offset="0" stop-color="#C9A961" stop-opacity="0"/><stop offset=".2" stop-color="#C9A961" stop-opacity=".9"/><stop offset=".8" stop-color="#E9D08F" stop-opacity=".9"/><stop offset="1" stop-color="#C9A961" stop-opacity="0"/></linearGradient>
+<linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0e1f3b"/><stop offset=".5" stop-color="#0a172d"/><stop offset="1" stop-color="#070f1f"/></linearGradient>
+<linearGradient id="${id}o" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${PAG.w}" y2="0"><stop offset="0" stop-color="#E8B650" stop-opacity="0"/><stop offset=".5" stop-color="#F3CD72"/><stop offset="1" stop-color="#E8B650" stop-opacity=".2"/></linearGradient>
+<pattern id="${id}p" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M 3.5 0 V 7" stroke="#ffffff" stroke-opacity=".045" stroke-width="1"/></pattern>
 </defs>
-<g fill="none" stroke="url(#${id})" stroke-linecap="round" stroke-linejoin="round">
-<path stroke-width="3.51" d="M 58 262 C 50 236 62 214 104 205 C 190 190 300 176 392 164 C 448 124 520 92 604 86 C 690 81 772 94 836 134 C 884 144 934 154 958 176 C 972 198 968 234 952 258 L 910 262 C 904 196 752 196 746 262 L 288 262 C 282 196 130 196 124 262 Z"/>
-<path stroke-width="2.43" d="M 424 164 C 478 128 540 104 604 100 C 672 97 742 106 792 138 L 782 152 C 690 154 520 160 424 164 Z"/>
-<path stroke-width="2.16" d="M 622 99 L 628 156"/>
-<path stroke-width="1.89" d="M 110 222 C 330 206 640 196 958 196"/>
-<path stroke-width="1.76" d="M 404 172 L 396 256 M 646 160 L 650 256"/>
-<path stroke-width="2.7" d="M 104 214 C 140 206 182 199 226 194"/>
-<path stroke-width="2.7" d="M 930 172 C 944 180 952 190 956 202"/>
-<path stroke-width="1.62" d="M 470 214 H 500 M 700 208 H 730"/>
-<circle stroke-width="3.24" cx="206" cy="262" r="58"/><circle stroke-width="1.89" cx="206" cy="262" r="38"/><circle stroke-width="1.89" cx="206" cy="262" r="9"/>
-<circle stroke-width="3.24" cx="828" cy="262" r="58"/><circle stroke-width="1.89" cx="828" cy="262" r="38"/><circle stroke-width="1.89" cx="828" cy="262" r="9"/>
-${[0, 72, 144, 216, 288].map(g => { const r = g * Math.PI / 180; return `<path stroke-width="1.62" d="M ${(206 + 11 * Math.cos(r)).toFixed(1)} ${(262 + 11 * Math.sin(r)).toFixed(1)} L ${(206 + 36 * Math.cos(r)).toFixed(1)} ${(262 + 36 * Math.sin(r)).toFixed(1)} M ${(828 + 11 * Math.cos(r)).toFixed(1)} ${(262 + 11 * Math.sin(r)).toFixed(1)} L ${(828 + 36 * Math.cos(r)).toFixed(1)} ${(262 + 36 * Math.sin(r)).toFixed(1)}"/>`; }).join('')}
-</g>
-<path d="M 0 322 H 1000" stroke="url(#${id}l)" stroke-width="4.05"/>
-<path d="M 120 338 H 880" stroke="url(#${id}l)" stroke-width="1.62" opacity=".55"/>
+<rect width="${PAG.w}" height="${PAG.h}" fill="url(#${id}g)"/>
+<polygon points="0,0 470,0 0,470" fill="#16305a" fill-opacity=".45"/>
+<polygon points="0,0 300,0 0,300" fill="url(#${id}p)"/>
+<polygon points="470,0 ${PAG.w},0 ${PAG.w},330" fill="#1a3866" fill-opacity=".35"/>
+<polygon points="0,470 330,${PAG.h} 0,${PAG.h}" fill="#05101f" fill-opacity=".55"/>
+<polygon points="${PAG.w},560 ${PAG.w},${PAG.h} 420,${PAG.h}" fill="#10264a" fill-opacity=".35"/>
+<path d="M 790 0 L 530 200" stroke="url(#${id}o)" stroke-width="1.4"/>
+<path d="M ${PAG.w} 150 L 470 420" stroke="url(#${id}o)" stroke-width="1.1"/>
+<path d="M ${PAG.w} 205 L 560 400" stroke="url(#${id}o)" stroke-width=".7" opacity=".7"/>
+<path d="M 0 900 L 260 ${PAG.h}" stroke="url(#${id}o)" stroke-width=".9" opacity=".6"/>
+<rect x="7" y="7" width="${PAG.w - 14}" height="${PAG.h - 14}" fill="none" stroke="#E8B650" stroke-opacity=".75" stroke-width="1.2"/>
 </svg>`;
     }
 
@@ -666,25 +670,24 @@ table{border-collapse:collapse;width:100%}
 .destaque .leg{font-size:10px}.destaque .leg small{font-size:8.6px;color:#5b6270}
 
 /* Capa */
-.capa{background:radial-gradient(ellipse at 72% 70%,#15335e 0%,#0c2447 40%,#081a36 72%,#050f20 100%)}
-.capa .moldura{position:absolute;left:16px;top:16px;right:16px;bottom:16px;border:1px solid rgba(201,169,97,.55)}
-.capa .moldura2{position:absolute;left:22px;top:22px;right:22px;bottom:22px;border:1px solid rgba(201,169,97,.16)}
-.capa .lema{position:absolute;left:52px;top:52px;font-size:8.5px;letter-spacing:3.6px;color:#c9d0db;line-height:1.9;font-weight:500}
-.capa .num-laudo{position:absolute;right:52px;top:52px;text-align:right}
-.capa .num-laudo .r{font-size:8px;letter-spacing:2.4px;color:#C9A961;font-weight:600}
-.capa .num-laudo .v{font-size:13px;letter-spacing:1px;color:#fff;font-weight:700;margin-top:4px}
-.capa .marca{position:absolute;left:52px;top:112px;width:310px;display:flex;flex-direction:column;align-items:center}
-.capa .marca .n{font-size:40px;font-weight:800;color:#fff;letter-spacing:5px;margin-top:14px;line-height:1}
-.capa .marca .s{font-size:12px;font-weight:600;color:#C9A961;letter-spacing:10px;margin-top:8px;padding-left:10px}
-.capa h1{position:absolute;left:52px;top:348px;font-size:66px;font-weight:800;color:#fff;line-height:1;letter-spacing:1px}
-.capa .h2{position:absolute;left:54px;top:488px;font-size:22px;font-weight:700;color:#D9BD74;letter-spacing:1.4px}
-.capa .desc{position:absolute;left:54px;top:534px;width:330px;font-size:9.5px;letter-spacing:2.6px;color:#d6dce6;line-height:1.75;font-weight:500}
-.capa .itens{position:absolute;left:54px;top:600px;display:flex;flex-direction:column;gap:11px}
-.capa .item{display:flex;align-items:center;gap:14px;font-size:8.6px;letter-spacing:2.2px;color:#cfd6e1;font-weight:600;line-height:1.35}
-.capa .item .ic{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,97,.45);border-radius:50%}
-.capa .local{position:absolute;left:54px;top:1036px;font-size:9px;letter-spacing:1.8px;color:#d6dce6;font-weight:600;line-height:1.7}
-.capa .selo{position:absolute;right:58px;top:452px}
-.capa .carro{position:absolute;right:40px;top:846px}
+.capa{background:#0a172d}
+.capa .fundo{position:absolute;left:0;top:0}
+.capa .carro{position:absolute;right:8px;top:500px;width:412px;height:468px;background-size:100% 100%}
+.capa .lema{position:absolute;left:58px;top:46px;font-size:9.5px;letter-spacing:3.4px;color:#c8d0dd;line-height:1.95;font-weight:600;border-left:1.5px solid rgba(232,182,80,.8);padding-left:14px}
+.capa .num-laudo{position:absolute;right:50px;top:50px;text-align:right}
+.capa .num-laudo .r{font-size:8px;letter-spacing:2px;color:#d8dde6;font-weight:600}
+.capa .num-laudo .v{font-size:13px;letter-spacing:.8px;color:#fff;font-weight:700;margin-top:3px}
+.capa .marca{position:absolute;left:0;right:0;top:92px;display:flex;flex-direction:column;align-items:center}
+.capa .marca .n{font-size:50px;font-weight:700;color:#fff;letter-spacing:2.5px;margin-top:10px;line-height:1}
+.capa .marca .s{font-size:19px;font-weight:600;color:#dfe4ec;letter-spacing:5px;margin-top:8px;padding-left:5px}
+.capa h1{position:absolute;left:88px;top:358px;font-size:72px;font-weight:800;color:#fff;line-height:.98;letter-spacing:.5px}
+.capa .h2{position:absolute;left:90px;top:508px;font-size:31px;font-weight:700;color:#EBB445;letter-spacing:.6px}
+.capa .desc{position:absolute;left:92px;top:560px;font-size:13px;letter-spacing:2.2px;color:#e3e7ee;line-height:1.6;font-weight:600}
+.capa .itens{position:absolute;left:92px;top:630px;display:flex;flex-direction:column;gap:17px}
+.capa .item{display:flex;align-items:center;gap:22px;font-size:11px;letter-spacing:1.6px;color:#cdd4df;font-weight:600;line-height:1.4}
+.capa .item .ic{width:34px;display:flex;justify-content:center}
+.capa .selo{position:absolute;left:514px;top:872px}
+.capa .local{position:absolute;left:56px;top:1044px;font-size:10.5px;letter-spacing:1.2px;color:#e3e7ee;font-weight:700;line-height:1.6}
 
 /* Resumo */
 .areas{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
@@ -808,24 +811,24 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
     // ------------------------------------------------------------------
     // Páginas
     // ------------------------------------------------------------------
-    function paginaCapa(D) {
+    function paginaCapa(D, extras = {}) {
         const itens = [
-            ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>VEICULAR'], ['rolo', 'PINTURA E<br>ACABAMENTO'],
-            ['motor', 'MOTOR E<br>CHASSI'], ['vidro', 'VIDROS E<br>GRAVAÇÕES'], ['banco', 'INTERIOR E<br>QUADROS DE PORTA']
+            ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>E PROCEDÊNCIA'], ['rolo', 'PINTURA E<br>ACABAMENTO'],
+            ['motor', 'MOTOR E<br>COMPONENTES'], ['documento', 'VIDROS E<br>GRAVAÇÕES'], ['carro', 'INTERIOR E<br>QUADROS DE PORTA']
         ];
+        const ano = new Date(D.dataEmissao || Date.now()).getFullYear();
         return `<section class="pg capa">
-<div class="moldura"></div><div class="moldura2"></div>
+<div class="fundo">${svgFundoCapa()}</div>
+${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.carroCapa}')"></div>` : ''}
 <div class="lema">SEGURANÇA<br>INFORMAÇÃO<br>PROCEDÊNCIA</div>
 <div class="num-laudo"><div class="r">LAUDO Nº</div><div class="v">${esc(D.cautelar.dossieNumero || '—')}</div>
-  <div class="r" style="margin-top:14px">PLACA</div><div class="v">${esc(D.os.placa)}</div>
-  ${D.marcaModelo !== 'Não informado' ? `<div class="r" style="margin-top:14px">VEÍCULO</div><div class="v" style="font-size:11px">${esc(D.marcaModelo)}</div>` : ''}</div>
-<div class="marca">${svgLogo(120, '#0a1f3f')}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
+  <div class="r" style="margin-top:10px">PLACA</div><div class="v">${esc(D.os.placa)}</div></div>
+<div class="marca">${svgLogo(150, '#0f213f')}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
 <h1>LAUDO<br>CAUTELAR</h1>
 <div class="h2">DE AQUISIÇÃO VEICULAR</div>
-<div class="desc">ANÁLISE FÍSICO-ESTRUTURAL E DE IDENTIFICAÇÃO VEICULAR</div>
-<div class="itens">${itens.map(([ic, t]) => `<div class="item"><span class="ic">${icone(ic, '#C9A961', 17, 1.6)}</span><span>${t}</span></div>`).join('')}</div>
-<div class="selo">${svgSelo(D.cidade, dataBR(D.dataEmissao))}</div>
-<div class="carro">${svgCarroTraco(540)}</div>
+<div class="desc">ANÁLISE FÍSICO-ESTRUTURAL<br>E DE IDENTIFICAÇÃO VEICULAR</div>
+<div class="itens">${itens.map(([ic, t]) => `<div class="item"><span class="ic">${icone(ic, '#E8B650', 30, 1.5)}</span><span>${t}</span></div>`).join('')}</div>
+<div class="selo">${svgSelo(D.cidade, ano, 212)}</div>
 <div class="local">${esc(D.cidade.toUpperCase())}<br>${esc(dataExtenso(D.dataEmissao).toUpperCase())}</div>
 </section>`;
     }
@@ -1133,7 +1136,7 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
 
     function montarHtml(D, F, extras = {}) {
         const paginas = [
-            paginaCapa(D), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
+            paginaCapa(D, extras), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
             paginaPintura(D, F), paginaVidros(D, F), paginaMotorChassi(D, F), paginaQuadros(D, F),
             paginaParecer(D, extras), ...paginasRegistro(D, F)
         ];
@@ -1169,6 +1172,18 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
     // ------------------------------------------------------------------
     // Montagem
     // ------------------------------------------------------------------
+    let arteCapa = null;
+    function carregarArteCapa() {
+        if (!arteCapa) {
+            arteCapa = fetch('assets/laudo/capa_carro.png', { cache: 'force-cache' })
+                .then(r => r.ok ? r.blob() : null)
+                .then(b => b ? new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }) : null)
+                .catch(() => null);
+            arteCapa.then(v => { if (!v) arteCapa = null; });
+        }
+        return arteCapa;
+    }
+
     async function prepararLaudo(cautelarId, opcoes = {}) {
         if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
         const cautelar = db.cautelares.find(c => c.id === cautelarId);
@@ -1183,11 +1198,12 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
         const D = montarDados(cautelarId);
         if (opcoes.parecerFinal && PARECER[opcoes.parecerFinal]) D.parecerFinal = opcoes.parecerFinal;
         if (opcoes.obsFinal !== undefined) D.d8 = Object.assign({}, D.d8, { observacaoFinal: opcoes.obsFinal });
-        const [F, qr] = await Promise.all([
+        const [F, qr, carroCapa] = await Promise.all([
             carregarFotos(D),
-            D.hash ? gerarQrDataUrl(urlConsulta(D.hash)) : Promise.resolve(null)
+            D.hash ? gerarQrDataUrl(urlConsulta(D.hash)) : Promise.resolve(null),
+            carregarArteCapa()
         ]);
-        return { D, F, qr, html: montarHtml(D, F, { qr, modo: opcoes.modo }) };
+        return { D, F, qr, html: montarHtml(D, F, { qr, carroCapa, modo: opcoes.modo }) };
     }
 
     function carregarIframe(iframe, html) {
