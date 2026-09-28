@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certiva Vistorias — Validação de Laudo Cautelar</title>
+    <title>Certive Vistorias — Validação de Laudo Cautelar</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -198,23 +198,23 @@
         <!-- Conteúdo Carregando -->
         <div id="loader-view" class="loader">
             <div class="spinner"></div>
-            <p style="font-size: 13px;">Consultando assinatura e hash criptográfico do documento...</p>
+            <p style="font-size: 13px;">Consultando o código de verificação do laudo...</p>
         </div>
 
         <!-- Conteúdo Não Encontrado -->
         <div id="not-found-view" class="content" style="display: none; text-align: center;">
             <div style="font-size: 48px; color: var(--danger);"><i class="ri-error-warning-line"></i></div>
             <h2 style="font-family: 'Fraunces', serif; font-size: 20px;">Laudo Não Encontrado</h2>
-            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">O hash criptográfico fornecido na assinatura deste laudo não confere com nenhum registro em nosso banco de dados. O laudo pode ter sido alterado ou cancelado.</p>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">O código de verificação informado não corresponde a nenhum laudo emitido pela Certive. Confira o código impresso no laudo ou entre em contato com a unidade emissora.</p>
             <div class="badge-status status-invalid" style="margin-top: 10px;">
-                <i class="ri-close-circle-fill"></i> Documento Inválido / Violado
+                <i class="ri-close-circle-fill"></i> Laudo não localizado
             </div>
         </div>
 
         <!-- Conteúdo Encontrado -->
         <div id="success-view" class="content" style="display: none;">
             <div class="badge-status status-valid">
-                <i class="ri-checkbox-circle-fill"></i> Laudo Autêntico & Concluído
+                <i class="ri-checkbox-circle-fill"></i> Laudo emitido pela Certive
             </div>
 
             <div class="info-grid">
@@ -227,25 +227,35 @@
                     <span class="info-value vehicle-highlight" id="val-placa">ABC-1234</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Chassi (Mascarado)</span>
-                    <span class="info-value" id="val-chassi" style="font-family: monospace;">***************1234</span>
+                    <span class="info-label">Chassi (final)</span>
+                    <span class="info-value" id="val-chassi" style="font-family: monospace;">—</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Marca / Modelo</span>
                     <span class="info-value" id="val-modelo">FORD FOCUS SE 2.0</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Data da Vistoria</span>
+                    <span class="info-label">Emitido em</span>
                     <span class="info-value" id="val-data">06/07/2026</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Resultado Geral</span>
-                    <span class="info-value" id="val-resultado" style="text-transform: uppercase;">CONFORME</span>
+                    <span class="info-value" id="val-resultado" style="text-transform: uppercase;">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Unidade emissora</span>
+                    <span class="info-value" id="val-unidade">—</span>
                 </div>
             </div>
 
+            <div id="conferir-arquivo" style="display:none; margin-top: 14px; padding: 12px; border: 1px dashed var(--border); border-radius: 8px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Tem o arquivo PDF? Confira se ele é exatamente o emitido (a conferência acontece no seu aparelho; o arquivo não é enviado).</p>
+                <input type="file" id="arquivo-pdf" accept="application/pdf" style="font-size: 12px; color: var(--text-secondary);">
+                <p id="resultado-arquivo" style="font-size: 12px; margin-top: 8px; font-weight: 600;"></p>
+            </div>
+
             <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; text-align: center; margin-top: 10px;">
-                <i class="ri-information-line"></i> Este documento foi devidamente assinado eletronicamente por nossa equipe técnica e as conformidades de estrutura e pintura conferem com o veículo auditado.
+                <i class="ri-information-line"></i> Os dados acima são os registrados pela Certive na emissão do laudo. Compare-os com o documento que você recebeu.
             </p>
         </div>
 
@@ -256,110 +266,56 @@
         </div>
     </div>
 
-    <!-- Script de Busca -->
+    <!-- Consulta pelo código de verificação (função consultar_laudo) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+        const PARECERES = { conforme: 'Conforme', com_ressalvas: 'Conforme com ressalvas', nao_conforme: 'Não conforme' };
+
         document.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const hash = urlParams.get('hash');
+            const params = new URLSearchParams(window.location.search);
+            // "codigo" nos laudos novos; "hash" nos QR emitidos antes
+            const codigo = params.get('codigo') || params.get('hash');
+            if (!codigo || typeof supabaseClient === 'undefined' || !supabaseClient) { showView('not-found-view'); return; }
 
-            if (!hash) {
-                showView('not-found-view');
-                return;
+            let laudo = null;
+            try {
+                const { data, error } = await supabaseClient.rpc('consultar_laudo', { p_codigo: codigo });
+                if (!error) laudo = data;
+            } catch (e) { console.warn('Falha na consulta:', e); }
+            if (!laudo) { showView('not-found-view'); return; }
+
+            const texto = (id, v) => { document.getElementById(id).textContent = v || '—'; };
+            texto('val-dossie', laudo.dossie);
+            texto('val-placa', laudo.placa);
+            texto('val-chassi', laudo.chassiFinal ? '•••• ' + laudo.chassiFinal : '');
+            texto('val-modelo', [laudo.marcaModelo, laudo.ano].filter(Boolean).join(' — '));
+            texto('val-data', laudo.emitidoEm ? new Date(laudo.emitidoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
+            texto('val-unidade', [laudo.unidade, [laudo.cidade, laudo.uf].filter(Boolean).join('/')].filter(Boolean).join(' — '));
+            const parecer = String(laudo.parecer || '');
+            const res = document.getElementById('val-resultado');
+            res.textContent = PARECERES[parecer] || parecer.replace(/_/g, ' ') || '—';
+            res.style.color = parecer === 'conforme' ? 'var(--success)' : (parecer === 'com_ressalvas' ? 'var(--warning)' : 'var(--danger)');
+
+            if (laudo.sha256) {
+                document.getElementById('conferir-arquivo').style.display = 'block';
+                document.getElementById('arquivo-pdf').addEventListener('change', async (ev) => {
+                    const arq = ev.target.files && ev.target.files[0];
+                    const saida = document.getElementById('resultado-arquivo');
+                    if (!arq) return;
+                    const buf = await arq.arrayBuffer();
+                    const dig = await crypto.subtle.digest('SHA-256', buf);
+                    const hex = [...new Uint8Array(dig)].map(b => b.toString(16).padStart(2, '0')).join('');
+                    const ok = hex === laudo.sha256;
+                    saida.textContent = ok ? 'O arquivo é idêntico ao laudo emitido.' : 'O arquivo NÃO é idêntico ao emitido (foi alterado ou é outra versão).';
+                    saida.style.color = ok ? 'var(--success)' : 'var(--danger)';
+                });
             }
-
-            let cautelar = null;
-            let os = null;
-
-            // 1. Tenta carregar do Supabase se configurado
-            const isSupabaseConfigured = (typeof supabaseClient !== 'undefined' && supabaseClient !== null);
-            if (isSupabaseConfigured) {
-                try {
-                    const { data: cautelarData, error: cautelarErr } = await supabaseClient
-                        .from('cautelares')
-                        .select('*')
-                        .eq('hash_laudo', hash)
-                        .single();
-
-                    if (cautelarData && !cautelarErr) {
-                        cautelar = cautelarData;
-                        
-                        // Busca a OS correspondente
-                        const { data: osData } = await supabaseClient
-                            .from('ordens_servico')
-                            .select('*')
-                            .eq('id', cautelar.os_id)
-                            .single();
-                        os = osData;
-                    }
-                } catch (e) {
-                    console.warn("Falha ao buscar no Supabase:", e);
-                }
-            }
-
-            // 2. Fallback: LocalStorage local para desenvolvimento e testes
-            if (!cautelar) {
-                try {
-                    const dbStr = localStorage.getItem('certive_db');
-                    if (dbStr) {
-                        const localDb = JSON.parse(dbStr);
-                        cautelar = (localDb.cautelares || []).find(c => c.hashLaudo === hash);
-                        if (cautelar) {
-                            os = (localDb.ordens_servico || []).find(o => o.id === cautelar.osId);
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Falha ao ler LocalStorage:", e);
-                }
-            }
-
-            // 3. Exibir resultado
-            if (cautelar && os) {
-                // Preenche os campos
-                document.getElementById('val-dossie').textContent = cautelar.dossieNumero || cautelar.dossie_numero;
-                document.getElementById('val-placa').textContent = os.placa;
-                
-                const rawChassi = os.renavam || ''; // No schema, chassi está no renavam/chassi
-                const maskedChassi = rawChassi.length > 4 
-                    ? '*'.repeat(rawChassi.length - 4) + rawChassi.substring(rawChassi.length - 4) 
-                    : rawChassi;
-                document.getElementById('val-chassi').textContent = maskedChassi;
-                
-                // Servico nome
-                document.getElementById('val-modelo').textContent = os.clienteNome || 'VEÍCULO CADASTRADO';
-                
-                // Format Date
-                const dateVal = new Date(cautelar.dataHoraEnvio || cautelar.data_hora_envio || new Date());
-                document.getElementById('val-data').textContent = dateVal.toLocaleDateString('pt-BR');
-                
-                // Resultado
-                const statusVal = (cautelar.status === 'concluida' || cautelar.status === 'concluido') ? 'Concluída' : 'Aguardando Emissão';
-                const finalResult = (cautelar.status === 'concluida' || cautelar.status === 'concluido')
-                    ? (cautelar.parecerFinal || 'CONFORME')
-                    : 'RASCUNHO PRELIMINAR';
-                
-                const resLabel = document.getElementById('val-resultado');
-                resLabel.textContent = finalResult.replace('_', ' ');
-                if (finalResult.includes('conforme') && !finalResult.includes('nao')) {
-                    resLabel.style.color = 'var(--success)';
-                } else if (finalResult.includes('ressalvas')) {
-                    resLabel.style.color = 'var(--warning)';
-                } else {
-                    resLabel.style.color = 'var(--danger)';
-                }
-
-                showView('success-view');
-            } else {
-                showView('not-found-view');
-            }
+            showView('success-view');
         });
 
         function showView(viewId) {
-            document.getElementById('loader-view').style.display = 'none';
-            document.getElementById('not-found-view').style.display = 'none';
-            document.getElementById('success-view').style.display = 'none';
-
+            ['loader-view', 'not-found-view', 'success-view'].forEach(id => { document.getElementById(id).style.display = 'none'; });
             document.getElementById(viewId).style.display = 'block';
         }
     </script>

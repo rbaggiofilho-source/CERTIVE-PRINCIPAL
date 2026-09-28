@@ -10524,6 +10524,26 @@ const CautelarOfflineDB = {
         });
     },
 
+    // Apaga só se ainda for a MESMA foto (mesmo momento de gravação). Se o
+    // vistoriador refez a foto enquanto a anterior subia, a nova fica.
+    deleteFotoSeIgual(cautelarId, slotCodigo, timestamp) {
+        return this.open().then((db) => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['fotos'], 'readwrite');
+                const store = transaction.objectStore('fotos');
+                const id = `${cautelarId}_${slotCodigo}`;
+                const req = store.get(id);
+                req.onsuccess = (e) => {
+                    const atual = e.target.result;
+                    if (atual && timestamp && atual.timestamp !== timestamp) { resolve(false); return; }
+                    store.delete(id);
+                    resolve(true);
+                };
+                req.onerror = (e) => reject(e);
+            });
+        });
+    },
+
     getAllFotos(cautelarId) {
         return this.open().then((db) => {
             return new Promise((resolve, reject) => {
@@ -11861,7 +11881,21 @@ function salvarESairCaptura() {
  * permissão, cai para o seletor de arquivo.
  */
 const CAUTELAR_FOTO_LADO_MAX = 1600;
+// Fotos de números gravados (chassi, motor, etiquetas, vidros): resolução maior,
+// senão os caracteres pequenos ficam no limite da leitura.
+const CAUTELAR_FOTO_LADO_MAX_TEXTO = 2400;
 const CAUTELAR_FOTO_QUALIDADE = 0.82;
+
+// Pede ao navegador que não apague os dados do site (fotos ainda não enviadas
+// ficam no IndexedDB; o iPhone apaga dados de sites "não persistentes" quando
+// falta espaço ou após dias sem uso).
+function cautelarPedirArmazenamentoPersistente() {
+    if (window.__persistenciaPedida || !navigator.storage || !navigator.storage.persist) return;
+    window.__persistenciaPedida = true;
+    navigator.storage.persisted().then(ja => ja || navigator.storage.persist()).then(ok => {
+        if (!ok) console.warn('O navegador não garantiu o armazenamento persistente das fotos.');
+    }).catch(() => {});
+}
 
 /**
  * Posição do celular no momento da foto, pelo sensor de gravidade.
@@ -11969,7 +12003,10 @@ async function abrirCameraCautelar(slotCodigo) {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            // Pede a maior resolução que a câmera der (o navegador reduz se não suportar)
+            video: slotInfo && slotInfo.texto
+                ? { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }
+                : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
         });
     } catch (err) {
         console.warn("Câmera na página indisponível; usando a câmera do sistema.", err);
@@ -11995,7 +12032,8 @@ async function abrirCameraCautelar(slotCodigo) {
     overlay.querySelector('#cam-disparo').onclick = async () => {
         const w = video.videoWidth, h = video.videoHeight;
         if (!w || !h) return;
-        const escala = Math.min(1, CAUTELAR_FOTO_LADO_MAX / Math.max(w, h));
+        const ladoMax = slotInfo && slotInfo.texto ? CAUTELAR_FOTO_LADO_MAX_TEXTO : CAUTELAR_FOTO_LADO_MAX;
+        const escala = Math.min(1, ladoMax / Math.max(w, h));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(w * escala);
         canvas.height = Math.round(h * escala);
@@ -12072,6 +12110,16 @@ async function cautelarObterOriginal(cautelarId, slotCodigo) {
  * Gira uma foto já registrada e a coloca de novo na fila de envio.
  */
 async function cautelarGirarFoto(cautelarId, slotCodigo, graus) {
+    const chave = `${cautelarId}_${slotCodigo}`;
+    if (window._cautelarEnviando.has(chave) || window._cautelarOrientando.has(chave)) {
+        throw new Error('A foto está sendo enviada ou conferida; tente girar em alguns segundos.');
+    }
+    window._cautelarOrientando.add(chave);
+    try { return await cautelarGirarFotoAgora(cautelarId, slotCodigo, graus); }
+    finally { window._cautelarOrientando.delete(chave); }
+}
+
+async function cautelarGirarFotoAgora(cautelarId, slotCodigo, graus) {
     const orig = await cautelarObterOriginal(cautelarId, slotCodigo);
     if (!orig) throw new Error('Foto original indisponível');
     const girada = await cautelarGirarBlob(orig.blob, graus);
@@ -12162,6 +12210,8 @@ async function cautelarAutoOrientar(cautelarId, slotCodigo) {
         if (!rec || !rec.blob) return;
         const resultado = await cautelarGarantirOrientacao(rec.blob, slotCodigo);
         if (!resultado.conferida) return;
+        const agora = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo).catch(() => null);
+        if (!agora || agora.timestamp !== rec.timestamp) return;   // foto refeita no meio: a nova será conferida
         await cautelarSalvarFotoConferida(cautelarId, slotCodigo, resultado.blob, rec.metadados, resultado);
         const secaoNum = cautelarSecaoDoSlot(slotCodigo);
         if (resultado.rotacao && window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum && !document.getElementById('cautelar-preview-overlay')) {
@@ -12185,19 +12235,30 @@ async function cautelarConferirOrientacaoFotos(cautelarId, aoProgredir) {
     const alvo = db.cautelares_fotos.filter(f => secaoIds.includes(f.secaoId)).filter(f => {
         const info = cautelarSlotInfo(f.slotCodigo);
         const o = (f.metadados_json || f.metadados || {}).orientacaoIA;
-        return info && info.texto && (!o || o.incerta);
+        return info && info.texto && !o;
     });
-    const incertas = [];
+    // Já marcadas como incertas numa conferência anterior: não gasta outra análise,
+    // vão direto para a lista de conferência de quem emite
+    const incertas = db.cautelares_fotos.filter(f => secaoIds.includes(f.secaoId)).filter(f => {
+        const o = (f.metadados_json || f.metadados || {}).orientacaoIA;
+        return o && o.incerta;
+    }).map(f => (cautelarSlotInfo(f.slotCodigo) || {}).nome || f.slotCodigo);
     let feitas = 0, alterou = false, i = 0;
     const trabalhador = async () => {
         while (i < alvo.length) {
             const foto = alvo[i++];
             const info = cautelarSlotInfo(foto.slotCodigo);
+            const chave = `${cautelarId}_${foto.slotCodigo}`;
+            // Trava por foto: não confere a que está subindo, girando ou sendo conferida
+            if (window._cautelarEnviando.has(chave) || window._cautelarOrientando.has(chave)) { feitas++; continue; }
+            window._cautelarOrientando.add(chave);
             try {
                 const orig = await cautelarObterOriginal(cautelarId, foto.slotCodigo);
                 if (!orig) continue;
+                const urlAntes = foto.url_original;
                 const resultado = await cautelarGarantirOrientacao(orig.blob, foto.slotCodigo);
                 if (!resultado.conferida) { incertas.push(info.nome); continue; }
+                if (foto.url_original !== urlAntes) continue;   // foto trocada no meio
                 await cautelarSalvarFotoConferida(cautelarId, foto.slotCodigo, resultado.blob, orig.metadados, resultado);
                 if (resultado.rotacao) alterou = true;
                 if (resultado.incerta) incertas.push(info.nome);
@@ -12205,6 +12266,7 @@ async function cautelarConferirOrientacaoFotos(cautelarId, aoProgredir) {
                 console.warn('Checagem de orientação indisponível para', foto.slotCodigo, e);
                 incertas.push(info.nome);
             } finally {
+                window._cautelarOrientando.delete(chave);
                 feitas++;
                 if (typeof aoProgredir === 'function') aoProgredir(feitas, alvo.length);
             }
@@ -12332,7 +12394,7 @@ async function abrirPreviewFotoCautelar(slotCodigo, opcoes = {}) {
             cautelarEnviarPendentes(cautelarId);
         } catch (e) {
             console.warn(e);
-            showToast("Não foi possível girar a foto agora.", "error");
+            showToast(e && /enviada ou conferida/.test(e.message) ? e.message : "Não foi possível girar a foto agora.", "error");
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="ri-clockwise-line"></i> Girar';
@@ -12391,9 +12453,11 @@ async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
     cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Processando imagem...`);
 
     try {
+        cautelarPedirArmazenamentoPersistente();
+        const infoSlot = cautelarSlotInfo(slotCodigo);
         const blobOriginal = opcoes.jaReduzida
             ? fonte
-            : await compressImage(fonte, CAUTELAR_FOTO_LADO_MAX, CAUTELAR_FOTO_QUALIDADE);
+            : await compressImage(fonte, infoSlot && infoSlot.texto ? CAUTELAR_FOTO_LADO_MAX_TEXTO : CAUTELAR_FOTO_LADO_MAX, CAUTELAR_FOTO_QUALIDADE);
         const blobThumb = await compressImage(blobOriginal, 400, 0.70);
 
         const metadados = {
@@ -12555,9 +12619,15 @@ async function cautelarEnviarFoto(cautelarId, rec) {
     photo.url_thumb = urlThumb;
     photo.urlOriginal = '';
     photo.urlThumb = '';
+    const apagou = await CautelarOfflineDB.deleteFotoSeIgual(cautelarId, slotCodigo, rec.timestamp);
+    if (!apagou) {
+        // Foto refeita durante o envio: a nova continua pendente e sobe em seguida
+        photo.pendenteEnvio = true;
+        setTimeout(() => cautelarEnviarPendentes(cautelarId), 500);
+        return;
+    }
     delete photo.pendenteEnvio;
     saveDatabase();
-    await CautelarOfflineDB.deleteFoto(cautelarId, slotCodigo);
 
     const st = document.getElementById(`status-envio-${slotCodigo}`);
     if (st && window.activeCautelarId === cautelarId) {
@@ -13767,6 +13837,8 @@ async function solicitarLaudoAoServidor(cautelarId) {
         } catch (_) { /* resposta sem corpo JSON */ }
         throw new Error(detalhe || "Não foi possível gerar o laudo.");
     }
+    // Bloqueio por foto obrigatória ausente vem sem redação (não gasta a geração)
+    if (data && data.status === 'bloqueado' && !data.resposta) return data;
     if (!data || !data.resposta) throw new Error("O servidor retornou um laudo vazio.");
     return data;
 }
@@ -13918,15 +13990,50 @@ function avisarDadosVeiculoFaltando(os, faltando, aoCorrigir) {
     fundo.querySelector('[data-acao="corrigir"]').onclick = () => { fundo.remove(); abrirCorrecaoDadosVeiculo(os.id, aoCorrigir); };
 }
 
+// Código de verificação do laudo (vai no QR e no rodapé). Aleatório e sem
+// letras ambíguas: não dá para adivinhar o de outro laudo.
+function gerarCodigoVerificacao() {
+    const alfabeto = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    return Array.from(bytes, b => alfabeto[b % alfabeto.length]).join('');
+}
+
+async function sha256Hex(bytes) {
+    const dig = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(dig), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Fotos obrigatórias conferidas no BANCO (não no cache deste aparelho): a mesa
+// não enxerga foto presa no celular do vistoriador.
+async function cautelarFotosObrigatoriasFaltando(cautelarId) {
+    const OBRIG = {
+        placa_dianteira: 'Placa dianteira', painel_hodometro: 'Painel com hodômetro', crlv_documento: 'Documento do veículo',
+        chassi_gravado: 'Número do chassi gravado', motor_gravado: 'Número do motor'
+    };
+    const { data: secoes, error: e1 } = await supabaseClient.from('cautelares_secoes').select('id').eq('cautelarId', cautelarId);
+    if (e1) throw e1;
+    const ids = (secoes || []).map(x => x.id);
+    if (!ids.length) return Object.values(OBRIG);
+    const { data: fotos, error: e2 } = await supabaseClient.from('cautelares_fotos').select('slotCodigo, url_original').in('secaoId', ids);
+    if (e2) throw e2;
+    const tem = new Set((fotos || []).filter(f => f.url_original).map(f => f.slotCodigo));
+    return Object.keys(OBRIG).filter(k => !tem.has(k)).map(k => OBRIG[k]);
+}
+
 /**
- * Emite o laudo finalizando o status da vistoria, gera o Hash SHA-256 e exporta para PDF.
+ * Emite o laudo. A vistoria só vira "concluída" DEPOIS que o PDF final foi
+ * gerado e guardado no servidor, com o SHA-256 do arquivo e o código de
+ * verificação. Se algo falhar no meio, nada muda e dá para tentar de novo.
  */
 async function gerarLaudoFinalPdf() {
     const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
     if (!cautelar) return;
+    if (window.__emitindoLaudo) { showToast("O laudo já está sendo emitido.", "info"); return; }
 
     const os = db.ordens_servico.find(o => o.id === cautelar.osId);
     const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+    const permissoes = (currentSession && currentSession.permissoes) || [];
+    const ehAdministrador = permissoes.includes('cautelar_administrar');
 
     // Dados do veículo completos no cadastro: sem eles o laudo não é finalizado
     const faltandoVeiculo = cautelarDadosVeiculoFaltando(os, cautelar.id);
@@ -13938,220 +14045,209 @@ async function gerarLaudoFinalPdf() {
         return;
     }
 
-    // Valida se o operador assinou
     if (!window.operatorSignatureConfirmed) {
         showToast("É obrigatório assinar e confirmar sua assinatura de operador antes de emitir o laudo.", "warning");
         return;
     }
-
-    const confirmMsg = "Deseja realmente gerar a versão final e selada deste laudo PDF? Esta ação registrará as assinaturas e o hash na blockchain interna.";
-    if (!confirm(confirmMsg)) return;
-
-    // Desabilitar o botão de emissão e mostrar loader
-    const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
-    const originalText = emitirBtn ? emitirBtn.innerHTML : "";
-    if (emitirBtn) {
-        emitirBtn.disabled = true;
-        emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
-    }
-
-    // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
-    const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
-    if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
-        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+    if (!window.useSupabase || navigator.onLine === false) {
+        showToast("A emissão do laudo precisa de conexão com o servidor.", "error");
         return;
     }
 
-    // 0.1 Fotos de identificação: conferência final da posição (checagem redundante)
-    if (window.useSupabase && navigator.onLine !== false) {
-        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS...`;
-        const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => {
-            if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS ${feitas}/${total}...`;
-        });
-        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
-        if (incertas.length && !confirm(`A posição destas fotos de identificação não pôde ser confirmada automaticamente:\n\n- ${incertas.join('\n- ')}\n\nConfira-as na pré-visualização (e gire, se preciso). Deseja emitir o laudo mesmo assim?`)) {
-            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-            return;
-        }
-    }
+    if (!confirm("Emitir a versão final deste laudo? O PDF será guardado no servidor com código de verificação e não poderá ser alterado.")) return;
 
-    // 1. O servidor monta, valida e registra o pacote antes da geração do PDF.
-    showToast("O sistema está gerando o laudo…", "info");
-    let laudoServidor;
+    const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
+    const originalText = emitirBtn ? emitirBtn.innerHTML : "";
+    const etapa = texto => {
+        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> ${texto}`;
+    };
+    const liberar = () => {
+        window.__emitindoLaudo = false;
+        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+    };
+    window.__emitindoLaudo = true;
+    if (emitirBtn) emitirBtn.disabled = true;
+    etapa('ENVIANDO FOTOS...');
+
     try {
-        laudoServidor = await analisarLaudoComIAInvisivel();
-        const resposta = laudoServidor.resposta;
-        const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
-        // Bloqueio só quando faltam itens obrigatórios (status "bloqueado"): aí apenas
-        // o administrador pode forçar. Inconsistências são avisos: quem finaliza confere
-        // e emite.
-        const bloqueado = laudoServidor.status === 'bloqueado';
-        const temAvisos = (laudoServidor.inconsistencias || []).length > 0;
-        if (bloqueado || temAvisos) {
-            const permissoes = currentSession.permissoes || [];
-            const podeForcar = bloqueado
-                ? permissoes.includes('cautelar_administrar')
-                : (permissoes.includes('finalizar_cautelar') || permissoes.includes('cautelar_administrar'));
-            const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar, bloqueado);
-            if (!confirmou) {
-                if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-                return;
+        // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
+        const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
+        if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
+            return liberar();
+        }
+
+        // 0.1 Fotos obrigatórias conferidas no servidor
+        const obrigatoriasFaltando = await cautelarFotosObrigatoriasFaltando(cautelar.id);
+        if (obrigatoriasFaltando.length) {
+            if (!ehAdministrador) {
+                alert(`O laudo não pode ser emitido: estas fotos obrigatórias não estão no servidor:\n\n- ${obrigatoriasFaltando.join('\n- ')}\n\nPeça ao vistoriador para enviá-las (ou refazê-las).`);
+                return liberar();
             }
+            if (!confirm(`Fotos obrigatórias ausentes no servidor:\n\n- ${obrigatoriasFaltando.join('\n- ')}\n\nComo administrador, você pode emitir assim mesmo (fica registrado). Emitir?`)) return liberar();
+            logAudit("Laudo sem fotos obrigatórias", `Emitiu o laudo da placa ${os.placa} sem: ${obrigatoriasFaltando.join(', ')}.`);
         }
-        cautelar.dadosIaConfeccionado = resposta;
-        cautelar.laudoGeradoId = laudoServidor.laudoId;
-        // O texto final do laudo vem de resposta.campos; o campo de observações só é
-        // preenchido se o operador não tiver escrito nada.
-        const obsOperador = document.getElementById('caut-final-obs');
-        if (obsOperador && !obsOperador.value.trim() && resposta.campos && resposta.campos['final.opinion_text']) {
-            obsOperador.value = resposta.campos['final.opinion_text'];
+
+        // 0.2 Fotos de identificação: conferência final da posição
+        etapa('CONFERINDO FOTOS...');
+        const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => etapa(`CONFERINDO FOTOS ${feitas}/${total}...`));
+        if (incertas.length && !confirm(`A posição destas fotos de identificação não pôde ser confirmada automaticamente:\n\n- ${incertas.join('\n- ')}\n\nConfira-as na pré-visualização (e gire, se preciso). Deseja emitir o laudo mesmo assim?`)) {
+            return liberar();
         }
-        saveDatabase();
-    } catch (erro) {
-        console.error("Erro ao gerar laudo no servidor:", erro);
-        // Enquanto a geração no servidor não estiver publicada/configurada (ou se ela
-        // falhar), a mesa pode emitir com a redação padrão do sistema, como antes.
-        const usarPadrao = confirm(
-            "Não foi possível gerar a redação do laudo agora" +
-            (erro && erro.message ? ` (${erro.message})` : "") +
-            ".\n\nDeseja emitir o laudo com a redação padrão do sistema?"
-        );
-        if (!usarPadrao) {
-            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-            return;
-        }
-        cautelar.dadosIaConfeccionado = null;
-        cautelar.laudoGeradoId = null;
-    }
 
-    const parecerFinal = document.getElementById('caut-final-parecer').value;
-    const obsFinal = document.getElementById('caut-final-obs').value;
-
-    // 2. Gera Hash Único do laudo (SHA-256 simulado)
-    const seed = `${os.placa}_${cautelar.dossieNumero}_${new Date().toISOString()}`;
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-        hash = (hash << 5) - hash + seed.charCodeAt(i);
-        hash |= 0;
-    }
-    const hashLaudo = 'sha256_' + Math.abs(hash).toString(16).padStart(16, '0') + Math.random().toString(36).substring(2, 18);
-
-    cautelar.hashLaudo = hashLaudo;
-    cautelar.parecerFinal = parecerFinal;
-    cautelar.status = "concluida";
-    cautelar.finalizadoEm = new Date().toISOString();
-    cautelar.finalizadoPor = currentSession.nome;
-
-    const approved = parecerFinal !== 'nao_conforme';
-
-    // Se for de parceiro e reprovado
-    if (os.clienteTipo === 'parceiro' && !approved) {
-        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
-        if (aplicarDesconto) {
-            const valorOriginal = os.valor;
-            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
-            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
-            
-            // O que já foi recebido não é reescrito (o caixa pode estar fechado):
-            
-            // a diferença sai como devolução no caixa de hoje.
-            
-            registrarDescontoReprovada(os, valorOriginal);
-        }
-    }
-
-    cautelar.hashLaudo = hashLaudo;
-    cautelar.parecerFinal = parecerFinal;
-    cautelar.status = "concluida";
-    cautelar.finalizadoEm = new Date().toISOString();
-    cautelar.finalizadoPor = currentSession.nome;
-
-    // Atualiza a OS
-    os.status = approved ? 'concluida_aprovada' : 'concluida_reprovada';
-    os.finalizadoEm = cautelar.finalizadoEm;
-    os.finalizadoPor = currentSession.nome;
-
-    // Salva o parecer e observação final nos dados da seção 8
-    const secao8 = secoes.find(s => s.numeroSecao === 8);
-    if (secao8) {
-        secao8.dadosJson = secao8.dadosJson || {};
-        secao8.dadosJson.observacaoFinal = obsFinal;
-        secao8.dadosJson.parecerFinal = parecerFinal;
-        secao8.status = "completa";
-    }
-
-    saveDatabase();
-
-    // Sincroniza com o Supabase online
-    if (window.useSupabase) {
-        await Promise.all([
-            sbUpdate('cautelares', cautelar.id, {
-                status: cautelar.status,
-                "parecerConsolidado": cautelar.parecerFinal,
-                "pdfHash": cautelar.hashLaudo,
-                "dataHoraFinalizacao": cautelar.finalizadoEm,
-                "finalizadoPorId": currentSession.id || null
-            }),
-            sbUpdate('ordens_servico', os.id, {
-                status: os.status,
-                valor: os.valor,
-                observacoes: os.observacoes,
-                "finalizadoEm": os.finalizadoEm,
-                "finalizadoPor": os.finalizadoPor
-            }),
-            sbUpdate('cautelares_secoes', secao8.id, {
-                "dadosJson": secao8.dadosJson,
-                status: 'completa'
-            })
-        ]).catch(e => console.warn("Supabase final sync warning:", e));
-    }
-
-    logAudit("Finalizar Cautelar", `Finalizou laudo cautelar da placa ${os.placa} com parecer ${parecerFinal.toUpperCase()} e gerou PDF.`);
-
-    // Renderiza a visualização final e exporta para PDF usando pdf-lib AcroForm
-    atualizarPreviewLaudo();
-    showToast("Gerando PDF com template oficial...", "info");
-
-    generateInspectionReport(cautelar.id)
-        .then(async (pdfBytes) => {
-            const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const pdfUrl = URL.createObjectURL(pdfBlob);
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-            link.click();
-            
-            if (window.useSupabase) {
-                const storagePath = `laudos/${cautelar.id}/LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-                supabaseClient.storage.from('cautelares').upload(storagePath, pdfBlob, {
-                    contentType: 'application/pdf',
-                    upsert: true
-                }).then(({ data, error }) => {
-                    if (!error) {
-                        const { data: publicUrlData } = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath);
-                        sbUpdate('cautelares', cautelar.id, { pdfUrl: publicUrlData.publicUrl });
-                        cautelar.pdfUrl = publicUrlData.publicUrl;
-                        saveDatabase();
-                    }
-                }).catch(e => console.warn("Supabase PDF upload error:", e));
+        // 1. Redação do laudo no servidor (sempre nova para este pacote de dados)
+        etapa('GERANDO LAUDO...');
+        showToast("O sistema está gerando o laudo…", "info");
+        let resposta = null, laudoGeradoId = null;
+        try {
+            const laudoServidor = await analisarLaudoComIAInvisivel();
+            const apontamentos = [...(laudoServidor.pendencias || []), ...(laudoServidor.inconsistencias || [])];
+            const bloqueado = laudoServidor.status === 'bloqueado';
+            const temAvisos = (laudoServidor.inconsistencias || []).length > 0;
+            if (bloqueado || temAvisos) {
+                const podeForcar = bloqueado ? ehAdministrador : (permissoes.includes('finalizar_cautelar') || ehAdministrador);
+                const confirmou = await confirmarEmissaoComInconsistencias(apontamentos.length ? apontamentos : ['O laudo foi bloqueado para revisão.'], podeForcar, bloqueado);
+                if (!confirmou) return liberar();
+                if (bloqueado) logAudit("Laudo bloqueado emitido", `Emitiu o laudo da placa ${os.placa} apesar do bloqueio: ${apontamentos.join(' | ').slice(0, 900)}`);
             }
-
-            showToast("Laudo PDF exportado com sucesso!", "success");
-            fecharFinalizacaoDesktop();
-        })
-        .catch(err => {
-            // Sem "plano B" por captura de tela: ele gerava um PDF com os dados de
-            // exemplo das imagens de fundo. Melhor avisar e permitir tentar de novo.
-            console.error("Erro na geração do PDF do laudo:", err);
-            showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}. Tente novamente em "Laudo PDF".`, "error");
-            fecharFinalizacaoDesktop();
-        })
-        .finally(() => {
-            if (emitirBtn) {
-                emitirBtn.disabled = false;
-                emitirBtn.innerHTML = originalText;
+            resposta = laudoServidor.resposta || null;
+            laudoGeradoId = laudoServidor.resposta ? laudoServidor.laudoId : null;
+        } catch (erro) {
+            console.error("Erro ao gerar laudo no servidor:", erro);
+            // Sem a conferência do servidor, emitir com a redação padrão exige a
+            // mesma permissão de liberar um laudo bloqueado, e fica registrado.
+            if (!ehAdministrador) {
+                alert("Não foi possível gerar a redação do laudo agora" + (erro && erro.message ? ` (${erro.message})` : "") +
+                    ".\n\nTente de novo em instantes. A emissão com a redação padrão só pode ser feita por um administrador.");
+                return liberar();
             }
+            if (!confirm("Não foi possível gerar a redação do laudo agora" + (erro && erro.message ? ` (${erro.message})` : "") +
+                ".\n\nEmitir com a redação padrão do sistema? (fica registrado)")) return liberar();
+            logAudit("Laudo com redação padrão", `Emitiu o laudo da placa ${os.placa} com a redação padrão (servidor indisponível: ${(erro && erro.message) || erro}).`);
+        }
+
+        const parecerFinal = document.getElementById('caut-final-parecer').value;
+        const obsFinal = document.getElementById('caut-final-obs').value;
+        const approved = parecerFinal !== 'nao_conforme';
+        const agora = new Date().toISOString();
+        const codigo = gerarCodigoVerificacao();
+
+        // 2. Monta o PDF com os dados finais. Os campos ficam no cache só
+        //    durante a geração e voltam ao que eram se algo falhar.
+        const antes = {
+            cautelar: { ...cautelar },
+            secao8: (() => { const s8 = secoes.find(s => s.numeroSecao === 8); return s8 ? { dadosJson: s8.dadosJson ? { ...s8.dadosJson } : s8.dadosJson, status: s8.status } : null; })()
+        };
+        const secao8 = secoes.find(s => s.numeroSecao === 8);
+        Object.assign(cautelar, {
+            dadosIaConfeccionado: resposta, laudoGeradoId, codigoVerificacao: codigo,
+            parecerFinal, finalizadoEm: agora, dataHoraFinalizacao: agora, finalizadoPor: currentSession.nome
         });
+        if (secao8) {
+            secao8.dadosJson = { ...(secao8.dadosJson || {}), observacaoFinal: obsFinal, parecerFinal };
+            secao8.status = "completa";
+        }
+        const desfazer = () => {
+            Object.keys(cautelar).forEach(k => { if (!(k in antes.cautelar)) delete cautelar[k]; });
+            Object.assign(cautelar, antes.cautelar);
+            if (secao8 && antes.secao8) Object.assign(secao8, antes.secao8);
+        };
+
+        let pdfBytes, pdfHash, pdfUrl;
+        try {
+            etapa('MONTANDO PDF...');
+            pdfBytes = await generateInspectionReport(cautelar.id);
+            pdfHash = await sha256Hex(pdfBytes);
+
+            // 3. Guarda o PDF no servidor
+            etapa('GUARDANDO PDF...');
+            const storagePath = `laudos/${cautelar.id}/LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+            const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const { error: erroUpload } = await supabaseClient.storage.from('cautelares').upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
+            if (erroUpload) throw new Error('não foi possível guardar o PDF no servidor (' + erroUpload.message + ')');
+            pdfUrl = supabaseClient.storage.from('cautelares').getPublicUrl(storagePath).data.publicUrl;
+
+            // 4. Só agora a vistoria vira concluída
+            etapa('FINALIZANDO...');
+            await sbUpdate('cautelares', cautelar.id, {
+                status: 'concluida',
+                parecerConsolidado: parecerFinal,
+                pdfHash, pdfUrl,
+                codigoVerificacao: codigo,
+                laudoGeradoId,
+                dataHoraFinalizacao: agora,
+                finalizadoPorId: currentSession.id || null
+            });
+        } catch (erro) {
+            desfazer();
+            console.error("Erro na emissão do laudo:", erro);
+            showToast(`O laudo NÃO foi emitido: ${erro && erro.message ? erro.message : erro}. Nada foi alterado; tente de novo.`, "error");
+            return liberar();
+        }
+
+        cautelar.status = 'concluida';
+        cautelar.pdfHash = pdfHash;
+        cautelar.hashLaudo = pdfHash;
+        cautelar.pdfUrl = pdfUrl;
+
+        // 5. OS e seção 8 (a vistoria já está concluída; falha aqui é avisada)
+        const osStatus = approved ? 'concluida_aprovada' : 'concluida_reprovada';
+        try {
+            await Promise.all([
+                sbUpdate('ordens_servico', os.id, { status: osStatus, finalizadoEm: agora, finalizadoPor: currentSession.nome }),
+                secao8 ? sbUpdate('cautelares_secoes', secao8.id, { dadosJson: secao8.dadosJson, status: 'completa' }) : Promise.resolve()
+            ]);
+            Object.assign(os, { status: osStatus, finalizadoEm: agora, finalizadoPor: currentSession.nome });
+        } catch (erro) {
+            showToast(`Laudo emitido, mas a O.S. não foi atualizada (${erro.message || erro}). Confira a O.S. ${os.numero}.`, "warning");
+        }
+
+        // Desconto de parceiro na reprovada (só depois do laudo emitido)
+        if (os.clienteTipo === 'parceiro' && !approved &&
+            confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?")) {
+            const valorOriginal = os.valor;
+            const valor = parseFloat((valorOriginal * 0.5).toFixed(2));
+            const observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% aplicado (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
+            try {
+                await sbUpdate('ordens_servico', os.id, { valor, observacoes });
+                Object.assign(os, { valor, observacoes });
+                registrarDescontoReprovada(os, valorOriginal);
+            } catch (erro) {
+                showToast("O desconto NÃO foi aplicado: " + (erro.message || erro), "error");
+            }
+        }
+
+        logAudit("Finalizar Cautelar", `Emitiu o laudo cautelar da placa ${os.placa} (parecer ${parecerFinal.toUpperCase()}, código ${codigo}).`);
+
+        // 6. Entrega o arquivo guardado (o mesmo que foi registrado)
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+        link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+
+        showToast("Laudo emitido e guardado com sucesso!", "success");
+        liberar();
+        fecharFinalizacaoDesktop();
+    } catch (erro) {
+        console.error("Erro na emissão do laudo:", erro);
+        showToast("Erro na emissão do laudo: " + (erro.message || erro), "error");
+        liberar();
+    }
+}
+
+// Localiza a OS por id (número) ou pela placa EXATA. Com a placa, se houver
+// mais de uma OS, não escolhe sozinho: pede o id. Antes pegava a primeira que
+// encontrasse (e a exclusão aceitava parte da placa).
+function acharOSUnica(placaOuId) {
+    if (typeof placaOuId === 'number' || /^\d+$/.test(String(placaOuId).trim())) {
+        const os = db.ordens_servico.find(o => o.id === Number(placaOuId));
+        return os ? { os } : { erro: `O.S. #${placaOuId} não encontrada.` };
+    }
+    const alvo = String(placaOuId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const lista = db.ordens_servico.filter(o => String(o.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === alvo);
+    if (!lista.length) return { erro: `Nenhuma O.S. com a placa ${placaOuId}.` };
+    if (lista.length > 1) return { erro: `Há ${lista.length} O.S. com a placa ${placaOuId} (${lista.map(o => `${o.numero} = id ${o.id}`).join(', ')}). Informe o id da O.S.` };
+    return { os: lista[0] };
 }
 
 async function reabrirLaudo(placa) {
@@ -14161,11 +14257,15 @@ async function reabrirLaudo(placa) {
     }
     
     try {
-        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase() === placa.toUpperCase());
-        if (!os) {
-            showToast(`Ordem de serviço não encontrada para a placa ${placa}`, "error");
+        const achado = acharOSUnica(placa);
+        if (achado.erro) { showToast(achado.erro, "error"); return; }
+        const os = achado.os;
+        placa = os.placa;
+        if (!(currentSession && (currentSession.permissoes || []).includes('cautelar_administrar'))) {
+            showToast("Só um administrador de cautelar pode reabrir um laudo emitido.", "error");
             return;
         }
+        if (!confirm(`Reabrir o laudo da O.S. ${os.numero} (placa ${os.placa})? O laudo emitido deixa de valer (a consulta pelo código passa a dizer "não localizado") até ser emitido de novo.`)) return;
 
         // Bloquear reabertura de OS faturada
         if (os.faturaId) {
@@ -14210,6 +14310,8 @@ async function reabrirLaudo(placa) {
                     status: 'em_andamento',
                     pdfUrl: null,
                     pdfHash: null,
+                    codigoVerificacao: null,
+                    laudoGeradoId: null,
                     dataHoraFinalizacao: null,
                     finalizadoPorId: null
                 }),
@@ -14222,8 +14324,11 @@ async function reabrirLaudo(placa) {
                     dadosJson: secao8.dadosJson,
                     status: 'pendente'
                 }) : Promise.resolve()
-            ]).catch(err => console.error("Erro ao sincronizar reabertura com Supabase:", err));
+            ]);
         }
+        cautelar.codigoVerificacao = null;
+        cautelar.laudoGeradoId = null;
+        logAudit("Reabrir Laudo", `Reabriu o laudo cautelar da O.S. ${os.numero} (placa ${os.placa}).`);
 
         showToast(`Laudo da placa ${placa.toUpperCase()} reaberto com sucesso!`, "success");
         setTimeout(() => {
@@ -14231,7 +14336,7 @@ async function reabrirLaudo(placa) {
         }, 1000);
     } catch (err) {
         console.error("Erro ao reabrir laudo:", err);
-        showToast("Erro crítico ao reabrir laudo.", "error");
+        showToast("Erro ao reabrir o laudo: " + (err.message || err) + ". Recarregue a página e confira.", "error");
     }
 }
 window.reabrirLaudo = reabrirLaudo;
@@ -14243,11 +14348,10 @@ async function excluirVistoria(placa) {
     }
 
     try {
-        const os = db.ordens_servico.find(o => o.placa && o.placa.toUpperCase().includes(placa.toUpperCase()));
-        if (!os) {
-            showToast(`Ordem de serviço não encontrada para placa contendo: ${placa}`, "error");
-            return;
-        }
+        const achado = acharOSUnica(placa);
+        if (achado.erro) { showToast(achado.erro, "error"); return; }
+        const os = achado.os;
+        if (os.faturaId) { showToast(`A O.S. ${os.numero} está numa fatura; cancele-a em vez de excluir.`, "error"); return; }
 
         const confirmMsg = `ATENÇÃO: Deseja realmente EXCLUIR DEFINITIVAMENTE a OS Placa: ${os.placa} e todas as suas vistorias, seções, fotos e lançamentos financeiros? Esta ação não pode ser desfeita.`;
         if (!confirm(confirmMsg)) return;
@@ -14340,34 +14444,34 @@ async function verResumoCautelar(cautelarId) {
 }
 
 /**
- * Abre ou baixa o laudo PDF finalizado da Cautelar.
+ * Baixa o laudo PDF emitido: o arquivo guardado na emissão (o mesmo do SHA-256
+ * registrado). Gerar um PDF novo a cada clique produzia documentos diferentes
+ * com o mesmo código.
  */
 async function exibirPdfCautelar(cautelarId) {
-    await verResumoCautelar(cautelarId);
-    
-    showToast("Gerando cópia do Laudo PDF...", "info");
-    setTimeout(() => {
-        const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-        
-        generateInspectionReport(cautelar.id)
-            .then(async (pdfBytes) => {
-                const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                const link = document.createElement('a');
-                link.href = pdfUrl;
-                link.download = `LAUDO_CAUTELAR_${os.placa}_${cautelar.dossieNumero}.pdf`;
-                link.click();
-                
-                showToast("Laudo PDF exportado com sucesso!", "success");
-                fecharFinalizacaoDesktop();
-            })
-            .catch(err => {
-                console.error("Erro na geração do PDF do laudo:", err);
-                showToast(`Não foi possível gerar o PDF do laudo: ${err && err.message ? err.message : err}`, "error");
-                fecharFinalizacaoDesktop();
-            });
-    }, 1000);
+    const cautelar = db.cautelares.find(c => c.id === cautelarId);
+    if (!cautelar) return;
+    const os = db.ordens_servico.find(o => o.id === cautelar.osId) || {};
+    if (!cautelar.pdfUrl) {
+        showToast("Este laudo não tem PDF guardado no servidor. Um administrador pode reabrir e emitir de novo.", "error");
+        return;
+    }
+    try {
+        showToast("Baixando o laudo...", "info");
+        const url = await urlArmazenamento(cautelar.pdfUrl, 600);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `LAUDO_CAUTELAR_${os.placa || ''}_${cautelar.dossieNumero || cautelar.id}.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+        logAudit("Download Laudo", `Baixou o laudo cautelar da placa ${os.placa || '?'} (dossiê ${cautelar.dossieNumero || cautelar.id}).`);
+    } catch (err) {
+        console.error("Erro ao baixar o laudo:", err);
+        showToast("Não foi possível baixar o laudo: " + (err.message || err), "error");
+    }
 }
 
 // Config: Notificações WhatsApp
