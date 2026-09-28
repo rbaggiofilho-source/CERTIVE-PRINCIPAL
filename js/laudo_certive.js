@@ -263,12 +263,17 @@
 
     function textoParecerFinal(D) {
         if (D.campos['final.opinion_text']) return D.campos['final.opinion_text'];
-        const p = PARECER[D.parecerFinal].texto;
-        const { alerta } = listasResumo(D);
-        let t = `Com base nas verificações realizadas no veículo ${D.marcaModelo !== 'Não informado' ? D.marcaModelo + ', ' : ''}placa ${D.os.placa}, ` +
-            `o parecer técnico desta vistoria cautelar é ${p}.`;
-        if (alerta.length) t += ` Foram registrados os seguintes pontos de atenção: ${alerta.slice(0, 8).join('; ')}.`;
-        else t += ' Não foram constatados indícios de sinistro estrutural, remarcação de chassi ou irregularidades de identificação.';
+        const { atencao, naoConformes } = listasResumo(D);
+        const veiculo = D.marcaModelo !== 'Não informado' ? `${D.marcaModelo}, placa ${D.os.placa}` : `placa ${D.os.placa}`;
+        let t = `A vistoria cautelar do veículo ${veiculo}, realizada em ${dataBR(D.dataVistoria, true)}, resultou no parecer ${PARECER[D.parecerFinal].texto}.`;
+        if (naoConformes.length || atencao.length) {
+            const partes = [];
+            if (naoConformes.length) partes.push(`${naoConformes.length} não conformidade(s)`);
+            if (atencao.length) partes.push(`${atencao.length} ponto(s) de atenção`);
+            t += ` Foram registrados ${partes.join(' e ')}, relacionados no resumo da análise (seção II) e detalhados nas seções técnicas III a VII.`;
+        } else {
+            t += ' Não foram constatados indícios de sinistro estrutural, remarcação de numeração ou irregularidades de identificação.';
+        }
         return t;
     }
 
@@ -690,7 +695,7 @@ table{border-collapse:collapse;width:100%}
 
 /* Fotos */
 .fotos{display:grid;gap:12px}
-.fotos.c2{grid-template-columns:1fr 1fr}.fotos.c3{grid-template-columns:1fr 1fr 1fr}
+.fotos.c2{grid-template-columns:1fr 1fr}.fotos.c3{grid-template-columns:1fr 1fr 1fr}.fotos.c5{grid-template-columns:repeat(5,1fr)}.fotos.c5 .leg{font-size:8px}.fotos.c5 .leg small{font-size:6.6px}
 .foto{display:flex;flex-direction:column;gap:6px;min-width:0}
 .foto .img{height:var(--fh,130px);border-radius:6px;background-color:#121821;background-position:center;background-repeat:no-repeat;background-size:cover;border:1px solid #d9d3c6;position:relative}
 .foto .img.leitura{background-size:contain}
@@ -703,7 +708,7 @@ table{border-collapse:collapse;width:100%}
 .destaque.nc .img{border-color:${COR.vermelho}}.destaque.ress .img{border-color:${COR.ambar}}
 .destaque .tag{position:absolute;left:10px;top:10px;font-size:8px;font-weight:800;letter-spacing:1.2px;color:#fff;padding:5px 10px;border-radius:20px}
 .destaque.nc .tag{background:${COR.vermelho}}.destaque.ress .tag{background:${COR.ambar}}
-.destaque .leg{font-size:10px}.destaque .leg small{font-size:8.6px;color:#5b6270}
+.foto .leg small.motivo{font-weight:700;font-size:8px}
 
 /* Capa */
 .capa{background:#0a172d}
@@ -809,16 +814,28 @@ table{border-collapse:collapse;width:100%}
 
     function rotulo(t) { return `<div class="rot"><i></i>${esc(t)}</div>`; }
 
+    // Contexto da montagem: fotos já exibidas (o registro final mostra só as que faltam),
+    // metadados (data/GPS) e constatações de cada foto (destacadas no próprio lugar)
+    let ctxFotos = { exibidas: new Set(), meta: () => ({}), alertas: {} };
+
+    function infoFoto(slot) {
+        const m = ctxFotos.meta(slot) || {};
+        return [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps && m.gps.latitude ? `GPS ${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
+    }
+
     function fotoHtml(F, slot, legenda, opcoes = {}) {
         const f = F[slot];
+        if (f) ctxFotos.exibidas.add(slot);
+        const alerta = ctxFotos.alertas[slot];
         const leitura = SLOTS_LEITURA.test(slot) || opcoes.leitura;
-        const extra = opcoes.info ? `<small>${esc(opcoes.info)}</small>` : '';
+        const linhas = [alerta ? `<small class="motivo tx-${alerta.cls}">${esc(alerta.motivo)}</small>` : '', f ? `<small>${esc(infoFoto(slot))}</small>` : ''].join('');
         const num = opcoes.numero ? `<span class="num">${opcoes.numero}</span>` : '';
+        const tag = alerta ? `<span class="tag">${alerta.cls === 'nc' ? 'NÃO CONFORME' : 'PONTO DE ATENÇÃO'}</span>` : '';
         const alt = opcoes.altura ? `--fh:${opcoes.altura}px;` : '';
         const img = f
-            ? `<div class="img${leitura ? ' leitura' : ''}" style="${alt}background-image:url('${f.url}')">${num}</div>`
+            ? `<div class="img${leitura ? ' leitura' : ''}" style="${alt}background-image:url('${f.url}')">${num}${tag}</div>`
             : `<div class="img vazia" style="${alt}">FOTO NÃO REGISTRADA${num}</div>`;
-        return `<div class="foto">${img}${legenda ? `<div class="leg">${esc(legenda)}${extra}</div>` : ''}</div>`;
+        return `<div class="foto${alerta ? ` destaque ${alerta.cls}` : ''}">${img}${legenda ? `<div class="leg">${esc(legenda)}${linhas}</div>` : ''}</div>`;
     }
 
     function cabecalho(D, numeral, titulo, subtitulo) {
@@ -876,7 +893,6 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
             ['Tipo', D.tipo],
             ['Ano fab. / modelo', D.os.veiculoAno || D.campos['vehicle.year']],
             D.campos['vehicle.color'] ? ['Cor', D.campos['vehicle.color']] : null,
-            ['Placa', D.os.placa],
             ['Chassi', `<span class="mono">${esc(D.chassiLido)}</span>`, true],
             ['Motor', `<span class="mono">${esc(D.motorLido)}</span>`, true],
             ['Renavam', D.os.renavam || D.campos['vehicle.renavam']],
@@ -972,21 +988,20 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
         const outros = D.estrutura.filter(e => e.status !== 'original' && e.status !== 'nao_aplicavel');
         let analise = `Foram avaliados ${D.estrutura.length} pontos estruturais: ${originais} sem indícios de reparo` +
             (outros.length ? ` e ${outros.length} com constatações (${outros.map(e => nomeEst(e).toLowerCase() + ' — ' + ROTULO_ESTRUTURA[e.status].t.toLowerCase()).join('; ')}).` : '.');
-        if (sim(D.d3.indicioBatida)) analise += sim(D.d3.deformacaoEstrutural) ? ' Há indícios de batida com deformação estrutural.' : ' Há indícios de batida, sem deformação estrutural.';
         const colunas = D.itensPintura.filter(i => i.reparo === 'sim');
         if (colunas.length) analise += ` Colunas com indícios de reparo estrutural: ${colunas.map(i => i.nome.toLowerCase()).join(', ')}.`;
         const obs = [D.d3.obsEnchente, D.d3.obsBatida, D.d3.observacao].filter(Boolean).map(textoVistoriador).join(' ');
         if (obs) analise += ` Observações do vistoriador: ${obs}`;
         const comFoto = D.estrutura.filter(e => F[e.codigo]);
         const prioridade = e => (e.status === 'original' || e.status === 'nao_aplicavel' ? 1 : 0);
-        const fotos = (comFoto.length ? comFoto : D.estrutura).slice().sort((a, b) => prioridade(a) - prioridade(b)).slice(0, 6);
+        const fotos = (comFoto.length ? comFoto : D.estrutura).slice().sort((a, b) => prioridade(a) - prioridade(b));
         return pagina(D, 'III', 'ANÁLISE ESTRUTURAL', 'Carroceria e região do chassi', `
 <div class="indic">${indic.map(([ic, r, ruim]) => `<div class="card"><div class="circ ${ruim ? 'nc' : 'ok'}">${icone(ic, ruim ? COR.vermelho : COR.verde, 24, 1.8)}</div><div><div class="r">${r}</div><div class="v ${ruim ? 'tx-nc' : 'tx-ok'}">${ruim ? 'CONSTATADO' : 'NÃO CONSTATADO'}</div></div></div>`).join('')}</div>
 <div>${rotulo('Pontos estruturais avaliados')}
 <table class="tab" style="--pt:5.4px;--ft:9.6px"><thead><tr><th>Item</th><th>Região</th><th style="width:150px">Status</th><th>Observações</th></tr></thead><tbody>${linhas}</tbody></table></div>
 <div class="card analise"><div class="circ">${icone('relatorio', '#fff', 24, 1.8)}</div><div class="t"><b>ANÁLISE TÉCNICA ${statusSpan(D.status.estrutura)}</b>${esc(analise)}</div></div>
 <div>${rotulo('Registro fotográfico — estrutura')}
-<div class="fotos c3" style="--fh:128px">${fotos.map(e => fotoHtml(F, e.codigo, nomeEst(e))).join('')}</div></div>`);
+<div class="fotos c5" style="--fh:100px;gap:9px">${fotos.map(e => fotoHtml(F, e.codigo, nomeEst(e).replace('Torre do amortecedor', 'Torre amort.'))).join('')}</div></div>`);
     }
 
     function paginaPintura(D, F) {
@@ -1003,11 +1018,9 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
             return `<tr><td class="c"><span class="bola" style="background:${cor}">${it.numero}</span></td><td${it.reparo === 'sim' ? ' class="b tx-nc"' : ''}>${esc(it.nome)}${it.reparo === 'sim' ? ' *' : ''}</td><td class="c">${esc(um)}</td><td style="color:${cor};font-weight:700">${ROTULO_PINTURA[it.classe] || capitalizar(it.classe)}</td></tr>`;
         }).join('');
         const legenda = [['Original de fábrica', COR.verde], ['Repintura', COR.gold], ['Repintura com massa', COR.ambar], ['Avariado', COR.vermelho], ['Plástico / não se aplica', COR.neutro]];
-        const etiquetas = D.etiquetas.map(e => `<tr><td>${esc(e.nome)}</td><td>${chipEtiqueta(e.status)}</td></tr>`).join('');
         const notas = [];
-        if (D.itensPintura.some(i => i.reparo === 'sim')) notas.push('<b>*</b> Coluna com indícios de reparo estrutural.');
+        if (D.itensPintura.some(i => i.reparo === 'sim')) notas.push('<b>*</b> Indícios de reparo estrutural na coluna (ver seção III).');
         if (D.d4.observacao) notas.push(`Observação: ${esc(textoVistoriador(D.d4.observacao))}`);
-        if (D.d2.observacao) notas.push(`Etiquetas: ${esc(textoVistoriador(D.d2.observacao))}`);
         return pagina(D, 'IV', 'PINTURA E ACABAMENTO', 'Medição de espessura e classificação por peça', `
 <div class="lin" style="gap:18px">
   <div class="diagrama"><div class="dir" style="top:-2px">FRENTE</div><div class="sil">${sil.svg}</div>${marcadores}<div class="dir" style="bottom:-4px">TRASEIRA</div></div>
@@ -1018,8 +1031,8 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
   </div>
 </div>
 <div class="lin" style="gap:16px;align-items:flex-start">
-  <div style="flex:1.1">${rotulo('Etiquetas e acabamentos')}<table class="tab"><thead><tr><th>Item</th><th style="width:112px">Status</th></tr></thead><tbody>${etiquetas}</tbody></table></div>
-  <div class="fotos c2" style="flex:1;--fh:112px">${fotoHtml(F, 'etiqueta_eta', 'Etiqueta ETA — motor')}${fotoHtml(F, 'medidor_pintura_uso', 'Medidor de espessura em uso')}</div>
+  <div style="flex:1.1">${rotulo('Medição')}<div class="nota">Espessura da camada de tinta medida com medidor de espessura em cada peça metálica; peças plásticas são avaliadas visualmente. A classificação de cada peça é feita pelo vistoriador com base na medição e na inspeção visual.</div></div>
+  <div class="fotos" style="flex:1;--fh:150px">${fotoHtml(F, 'medidor_pintura_uso', 'Medidor de espessura em uso')}</div>
 </div>`);
     }
 
@@ -1040,9 +1053,11 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
 <div>${rotulo('Vidros')}
 <table class="tab"><thead><tr><th>Vidro</th><th>Gravação</th><th>Número lido</th><th class="c">Desbaste</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table></div>
 ${alerta}${obs}
-<div>${rotulo('Etiquetas de identificação')}<div class="card" style="overflow:hidden">${ident}</div></div>
+<div>${rotulo('Etiquetas de identificação')}<div class="lin" style="align-items:flex-start">
+  <div class="col" style="flex:1.3;gap:8px"><div class="card" style="overflow:hidden">${ident}</div>${D.d2.observacao ? `<div class="nota">Observação: ${esc(textoVistoriador(D.d2.observacao))}</div>` : ''}</div>
+  <div class="fotos" style="flex:1;--fh:96px">${fotoHtml(F, 'etiqueta_eta', 'Etiqueta ETA — motor')}</div></div></div>
 <div>${rotulo('Registro fotográfico')}
-<div class="fotos c3" style="--fh:150px">${D.vidros.map(v => fotoHtml(F, v.codigo, nomeCurto(v.nome), { info: v.lida ? `Gravação: ${v.lida}` : '' })).join('')}</div></div>`);
+<div class="fotos c3" style="--fh:150px">${D.vidros.map(v => fotoHtml(F, v.codigo, nomeCurto(v.nome))).join('')}</div></div>`);
     }
 
     function paginaMotorChassi(D, F) {
@@ -1050,23 +1065,16 @@ ${alerta}${obs}
             : (D.chassiConfere ? '<span class="st ok">Confere com o cadastro</span>' : `<span class="st nc">Diverge do cadastro</span> &nbsp;<span class="mono">${esc(D.chassiCadastro)}</span>`);
         const orig = v => v === false ? '<span class="st nc">Não original</span>' : '<span class="st ok">Original</span>';
         const tabela = kv([
-            ['Chassi lido', `<span class="mono">${esc(D.chassiLido)}</span>`, true],
             ['Conferência cadastral', conf, true],
             ['Gravação do chassi', orig(D.d2.chassiOriginal), true],
-            ['Motor lido', `<span class="mono">${esc(D.motorLido)}</span>`, true],
             ['Gravação do motor', orig(D.d2.motorOriginal), true],
             ['Compartimento do motor', D.d6.reparoMotor === 'sim' ? '<span class="st ress">Sinais de reparo</span>' : '<span class="st ok">Sem sinais de reparo</span>', true],
             ['Cor original do compartimento', D.d6.corMotorOk === 'nao' ? '<span class="st ress">Não preservada</span>' : '<span class="st ok">Preservada</span>', true]
         ]);
         const st = [D.status.motor, D.status.chassi];
         const pior = st.includes('nao_conforme') ? 'nao_conforme' : (st.includes('com_ressalvas') ? 'com_ressalvas' : 'conforme');
-        const partes = [
-            `Chassi lido no veículo: ${D.chassiLido}; gravação com características ${D.d2.chassiOriginal === false ? 'NÃO originais' : 'originais'}.`,
-            `Motor lido: ${D.motorLido}; gravação com características ${D.d2.motorOriginal === false ? 'NÃO originais' : 'originais'}.`,
-            D.d6.reparoMotor === 'sim' ? 'O compartimento do motor apresenta sinais de reparo ou troca de estruturas.' : 'O compartimento do motor não apresenta sinais de reparo estrutural.',
-            D.d6.corMotorOk === 'nao' ? 'A cor original do compartimento não está preservada.' : ''
-        ];
-        const texto = D.campos['technical.observation'] || [partes.filter(Boolean).join(' '), textoVistoriador(D.d6.observacao)].filter(Boolean).join(' ');
+        const texto = D.campos['technical.observation'] || textoVistoriador(D.d6.observacao) ||
+            'Sem observações adicionais além das constatações registradas acima.';
         const fotos = [
             ['chassi_gravado', 'Gravação do chassi'], ['chassi_secundario', 'Chassi — plaquetas / secundário'], ['motor_gravado', 'Gravação do motor'],
             ['motor_vista_geral', 'Compartimento do motor'], ['motor_painel_corta_fogo', 'Painel corta-fogo'], ['motor_batentes_dobradicas', 'Batentes do capô']
@@ -1100,7 +1108,7 @@ ${D.d7.observacao ? `<div class="nota">Observação: ${esc(textoVistoriador(D.d7
         const assinatura = D.d8.signatureBase64 && String(D.d8.signatureBase64).startsWith('data:image') ? D.d8.signatureBase64 : null;
         return pagina(D, 'VIII', 'PARECER FINAL', 'Conclusão técnica', `
 <div class="caixa-parecer pf">${svgEscudoParecer(D.parecerFinal, 100)}
-  <div><div class="r">PARECER TÉCNICO</div><div class="p">${pf.texto}</div><div class="d">${esc(resumoParecer(D.parecerFinal))}</div></div>
+  <div><div class="r">PARECER TÉCNICO FINAL</div><div class="p">${pf.texto}</div></div>
 </div>
 <div>${rotulo('Fundamentação')}<div class="card fund"><div class="t">${esc(texto)}</div></div></div>
 ${obs ? `<div>${rotulo('Observações do vistoriador')}<div class="card fund"><div class="t">${esc(obs)}</div></div></div>` : ''}
@@ -1128,50 +1136,30 @@ ${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Rec
         if (D.d6.reparoMotor === 'sim') add('motor_vista_geral', 'Compartimento do motor', 'Sinais de reparo ou troca de estruturas', 'ress');
         if (D.d2.eta_motor === 'danificada' || D.d2.eta_motor === 'ausente') add('etiqueta_eta', 'Etiqueta ETA do motor', D.d2.eta_motor === 'ausente' ? 'Etiqueta ausente' : 'Etiqueta danificada', D.d2.eta_motor === 'ausente' ? 'nc' : 'ress');
         D.vidros.filter(v => !v.original || v.desbaste).forEach(v =>
-            add(v.codigo, `Vidro ${nomeCurto(v.nome).toLowerCase()}`, !v.original ? 'Gravação divergente (vidro trocado)' : `Desbaste / polimento na gravação${v.lida ? ' — lido: ' + v.lida : ''}`, !v.original ? 'nc' : 'ress'));
+            add(v.codigo, `Vidro ${nomeCurto(v.nome).toLowerCase()}`, !v.original ? 'Gravação divergente (vidro trocado)' : 'Desbaste / polimento na gravação', !v.original ? 'nc' : 'ress'));
         if (D.d7.intervencaoQuadros === 'sim') ((global.CAUTELAR_SLOTS || {})[7] || []).forEach(q => add(q.codigo, capitalizar(q.nome), 'Intervenção / soldas no quadro de porta', 'nc'));
         return lista;
     }
 
-    function blocoDestaques(F, itens) {
-        return `<div class="fotos c2" style="--fh:250px;row-gap:16px">${itens.map(d =>
-            `<div class="foto destaque ${d.cls}"><div class="img${SLOTS_LEITURA.test(d.slot) ? ' leitura' : ''}" style="background-image:url('${F[d.slot].url}')"><span class="tag">${d.cls === 'nc' ? 'NÃO CONFORME' : 'PONTO DE ATENÇÃO'}</span></div>
-<div class="leg">${esc(d.titulo)}<small>${esc(d.motivo)}</small></div></div>`).join('')}</div>`;
-    }
-
     function paginasRegistro(D, F) {
         const saida = [];
-        const destaques = destaquesFotograficos(D, F);
-        const todos = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n]).filter(sl => F[sl.codigo]);
-        const galeria = (lote, inicio, altura) => `<div class="fotos c3" style="--fh:${altura}px;row-gap:16px">${lote.map((sl, i) => {
-            const m = D.meta(sl.codigo);
-            const info = [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps && m.gps.latitude ? `GPS ${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
-            return fotoHtml(F, sl.codigo, nomeCurto(sl.nome), { numero: inicio + i + 1, info });
-        }).join('')}</div>`;
-        const rotAcervo = '<div class="rot"><i></i>Acervo completo</div>';
-        let usadas = 0;
-        // Destaques (até 4 por página); a primeira página completa o espaço com o início do acervo
-        for (let p = 0; p * 4 < destaques.length; p++) {
-            const lote = destaques.slice(p * 4, (p + 1) * 4);
-            let html = `${p === 0 ? '<div class="rot"><i></i>Pontos com constatação em destaque</div>' : ''}${blocoDestaques(F, lote)}`;
-            const ultima = (p + 1) * 4 >= destaques.length;
-            if (ultima) {
-                const linhas = Math.ceil(lote.length / 2) <= 1 ? 2 : 1;
-                const extra = todos.slice(0, linhas * 3);
-                if (extra.length) { html += rotAcervo + galeria(extra, 0, 180); usadas = extra.length; }
-            }
-            saida.push(saida.length === 0 ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Destaques e acervo completo da vistoria', html) : pagina(D, '', '', '', html));
-        }
+        const restantes = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n])
+            .filter(sl => F[sl.codigo] && !ctxFotos.exibidas.has(sl.codigo));
         const porPagina = 9;
-        for (let inicio = usadas; inicio < todos.length; inicio += porPagina) {
+        for (let inicio = 0; inicio < restantes.length; inicio += porPagina) {
             const primeira = saida.length === 0;
-            const html = `${inicio === 0 ? rotAcervo : ''}${galeria(todos.slice(inicio, inicio + porPagina), inicio, primeira ? 196 : 222)}`;
-            saida.push(primeira ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Acervo completo da vistoria', html) : pagina(D, '', '', '', html));
+            const html = `${primeira ? '<div class="nota" style="margin-bottom:-4px">Fotografias da vistoria que não constam nas seções anteriores. Todas as fotos do laudo trazem data, hora e localização da captura.</div>' : ''}
+<div class="fotos c3" style="--fh:${primeira ? 196 : 222}px;row-gap:16px">${restantes.slice(inicio, inicio + porPagina).map(sl => fotoHtml(F, sl.codigo, nomeCurto(sl.nome))).join('')}</div>`;
+            saida.push(primeira ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Registros complementares', html) : pagina(D, '', '', '', html));
         }
         return saida;
     }
 
     function montarHtml(D, F, extras = {}) {
+        ctxFotos = {
+            exibidas: new Set(), meta: D.meta,
+            alertas: Object.fromEntries(destaquesFotograficos(D, F).map(d => [d.slot, { cls: d.cls, motivo: d.motivo }]))
+        };
         const paginas = [
             paginaCapa(D, extras), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
             paginaPintura(D, F), paginaVidros(D, F), paginaMotorChassi(D, F), paginaQuadros(D, F),
