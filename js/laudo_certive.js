@@ -478,7 +478,7 @@ ${dentro}</svg>`;
 <defs>
 ${gradOuro(id)}${filtroEscovado(`${id}e`, '0.003 0.45')}
 <radialGradient id="${id}r" cx=".5" cy=".4" r=".62"><stop offset="0" stop-color="#17325b"/><stop offset="1" stop-color="#081326"/></radialGradient>
-<path id="${id}t" d="M 48 200 A 152 152 0 0 1 352 200"/>
+<path id="${id}t" d="M 54 200 A 146 146 0 0 1 346 200"/>
 <path id="${id}b" d="M 38 200 A 162 162 0 0 0 362 200"/>
 </defs>
 <circle cx="200" cy="200" r="193" fill="url(#${id}r)"/>
@@ -486,12 +486,12 @@ ${gradOuro(id)}${filtroEscovado(`${id}e`, '0.003 0.45')}
 <g filter="url(#${id}e)">
 <circle cx="200" cy="200" r="190" fill="none" stroke="url(#${id})" stroke-width="11"/>
 <circle cx="200" cy="200" r="176" fill="none" stroke="url(#${id})" stroke-width="2.4"/>
-<text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="36" letter-spacing="2.5" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">LAUDO CAUTELAR</textPath></text>
-<path d="${arco(135, 202, -22)}" fill="none" stroke="url(#${id})" stroke-width="8" stroke-linecap="round"/>
-<path d="${arco(149, 204, 158)} ${arco(149, 22, -24)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
-<path d="${arco(162, 204, 166)} ${arco(162, 14, -24)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
+<text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="29" letter-spacing="1.6" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">LAUDO CAUTELAR</textPath></text>
+<path d="${arco(130, 196, -16)}" fill="none" stroke="url(#${id})" stroke-width="8" stroke-linecap="round"/>
+<path d="${arco(149, 196, 172)} ${arco(149, 8, -16)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
+<path d="${arco(162, 196, 176)} ${arco(162, 4, -16)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
 </g>
-<g transform="translate(120 90) scale(.46)">${svgLogo(348).replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+<g transform="translate(126 94) scale(.425)">${svgLogo(348).replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
 <g filter="url(#${id}e)">
 ${[-2, -1, 0, 1, 2].map(i => estrela(200 + i * 30, 309, 10.5)).join('')}
 ${aprovado
@@ -722,7 +722,7 @@ table{border-collapse:collapse;width:100%}
 .capa .item{display:flex;align-items:center;gap:22px;font-size:11px;letter-spacing:1.6px;color:#cdd4df;font-weight:600;line-height:1.4}
 .capa .item .ic{width:34px;display:flex;justify-content:center}
 .capa .selo{position:absolute;left:514px;top:872px;width:212px;height:212px}
-.capa .selo-nome{position:absolute;left:0;right:0;top:139px;text-align:center;font-family:'Montserrat',Arial,sans-serif;font-weight:700;font-size:12.6px;letter-spacing:.9px;color:#EBC263;text-shadow:0 1px 1px rgba(40,26,5,.9),0 0 3px rgba(255,236,170,.25)}
+.capa .selo-nome{position:absolute;left:0;right:0;top:139px;text-align:center;font-family:'Montserrat',Arial,sans-serif;font-weight:700;font-size:11px;letter-spacing:.7px;line-height:1;color:#EBC263;text-shadow:0 1px 1px rgba(40,26,5,.9),0 0 3px rgba(255,236,170,.25)}
 .capa .local{position:absolute;left:56px;top:1044px;font-size:10.5px;letter-spacing:1.2px;color:#e3e7ee;font-weight:700;line-height:1.6}
 
 /* Resumo */
