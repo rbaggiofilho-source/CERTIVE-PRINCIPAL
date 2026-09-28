@@ -2659,6 +2659,11 @@ function openOSDetailsModal(id) {
                 <button class="btn btn-success" onclick="openConcludeVistoriaModal(${os.id})"><i class="ri-checkbox-circle-line"></i> Concluir Vistoria</button>
             `;
         }
+        // Dados do veículo: corrigíveis enquanto a O.S. não foi concluída (o laudo exige)
+        if (os.status !== 'aberta' && os.status !== 'cancelada' && !os.status.startsWith('concluida')) {
+            const faltam = cautelarDadosVeiculoFaltando(os, ((db.cautelares || []).find(c => c.osId === os.id) || {}).id);
+            footerHtml += `<button class="btn ${faltam.length ? 'btn-danger' : 'btn-secondary'}" onclick="abrirCorrecaoDadosVeiculo(${os.id}, () => openOSDetailsModal(${os.id}))"><i class="ri-car-line"></i> Dados do veículo${faltam.length ? ` (${faltam.length} pendente${faltam.length > 1 ? 's' : ''})` : ''}</button>`;
+        }
         // Cancel Action (Estorno)
         if (os.status !== 'cancelada' && !os.status.startsWith('concluida')) {
             footerHtml += `<button class="btn btn-danger btn-sm" style="margin-right: auto;" onclick="cancelOS(${os.id})"><i class="ri-close-line"></i> Cancelar OS</button>`;
@@ -13492,6 +13497,63 @@ function salvarESairCaptura() {
 const CAUTELAR_FOTO_LADO_MAX = 1600;
 const CAUTELAR_FOTO_QUALIDADE = 0.82;
 
+/**
+ * Posição do celular no momento da foto, pelo sensor de gravidade.
+ * Com a tela travada em pé, uma foto tirada com o aparelho deitado sai deitada;
+ * aqui o sistema sabe como o celular estava sendo segurado e grava a foto em pé.
+ */
+const CautelarSensorPosicao = {
+    leituras: [],
+    handler: null,
+    iniciar() {
+        this.parar();
+        this.leituras = [];
+        if (typeof DeviceMotionEvent === 'undefined') return;
+        const ligar = () => {
+            this.handler = (e) => {
+                const g = e.accelerationIncludingGravity;
+                if (!g || g.x == null || g.y == null) return;
+                this.leituras.push([g.x, g.y]);
+                if (this.leituras.length > 8) this.leituras.shift();
+            };
+            window.addEventListener('devicemotion', this.handler);
+        };
+        // iPhone: a permissão do sensor precisa ser pedida no toque do usuário
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission().then(r => { if (r === 'granted') ligar(); }).catch(() => { });
+        } else {
+            ligar();
+        }
+    },
+    parar() {
+        if (this.handler) window.removeEventListener('devicemotion', this.handler);
+        this.handler = null;
+    },
+    /**
+     * Rotação (horária: 0, 90, 180 ou 270) que deixa a foto em pé, ou null quando a
+     * posição é incerta (celular apontado para baixo/cima, inclinado a 45° ou sem sensor).
+     */
+    rotacaoNecessaria() {
+        if (!this.leituras.length) return null;
+        let x = 0, y = 0;
+        this.leituras.forEach(l => { x += l[0]; y += l[1]; });
+        x /= this.leituras.length; y /= this.leituras.length;
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) { x = -x; y = -y; } // iOS usa o sinal invertido
+        if (Math.hypot(x, y) < 3) return null;
+        // Posição física: 0 em pé, 90 topo para a esquerda, 180 de cabeça para baixo, 270 topo para a direita
+        let fisica;
+        if (Math.abs(x) > Math.abs(y) * 1.2) fisica = x > 0 ? 90 : 270;
+        else if (Math.abs(y) > Math.abs(x) * 1.2) fisica = y > 0 ? 0 : 180;
+        else return null;
+        // Se a tela também girou, a imagem da câmera já vem na posição da tela
+        const angTela = (screen.orientation && typeof screen.orientation.angle === 'number')
+            ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+        const tela = ((angTela % 360) + 360) % 360;
+        const diferenca = (((fisica - tela) % 360) + 360) % 360;
+        return (360 - diferenca) % 360;
+    }
+};
+
 async function abrirCameraCautelar(slotCodigo) {
     const usarArquivo = () => {
         const input = document.getElementById(`input-camera-${slotCodigo}`);
@@ -13507,6 +13569,7 @@ async function abrirCameraCautelar(slotCodigo) {
     }
 
     fecharCameraCautelar();
+    CautelarSensorPosicao.iniciar(); // no toque do usuário (exigência do iPhone)
     const slotInfo = cautelarSlotInfo(slotCodigo);
 
     const overlay = document.createElement('div');
@@ -13571,20 +13634,25 @@ async function abrirCameraCautelar(slotCodigo) {
         canvas.width = Math.round(w * escala);
         canvas.height = Math.round(h * escala);
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', CAUTELAR_FOTO_QUALIDADE));
+        const rotacaoSensor = CautelarSensorPosicao.rotacaoNecessaria();
+        let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', CAUTELAR_FOTO_QUALIDADE));
         canvas.width = 0;
         canvas.height = 0;
         fecharCameraCautelar();
+        if (blob && rotacaoSensor) {
+            try { blob = await cautelarGirarBlob(blob, rotacaoSensor); } catch (e) { console.warn('Não foi possível endireitar a foto pelo sensor:', e); }
+        }
         if (navigator.vibrate) navigator.vibrate(30);
         if (!blob) {
             showToast("Falha ao capturar a foto. Tente novamente.", "error");
             return;
         }
-        await processarFotoCautelar(slotCodigo, blob, { origem: 'camera_pagina', jaReduzida: true });
+        await processarFotoCautelar(slotCodigo, blob, { origem: 'camera_pagina', jaReduzida: true, rotacaoSensor });
     };
 }
 
 function fecharCameraCautelar() {
+    CautelarSensorPosicao.parar();
     if (window._cautelarCameraStream) {
         window._cautelarCameraStream.getTracks().forEach(t => t.stop());
         window._cautelarCameraStream = null;
@@ -13660,93 +13728,130 @@ function cautelarConfigIA() {
     return config && config.chaveOpenAi ? config : null;
 }
 
+function cautelarBlobParaDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// Pergunta ao servidor a rotação que deixa o texto da foto na horizontal e legível
+async function cautelarConsultarOrientacao(blob, slotCodigo) {
+    if (!window.useSupabase || typeof supabaseClient === 'undefined' || !supabaseClient || navigator.onLine === false) return null;
+    const amostra = await compressImage(blob, 1024, 0.85);
+    const imagem = await cautelarBlobParaDataUrl(amostra);
+    const { data, error } = await supabaseClient.functions.invoke('orientar-foto', { body: { imagem, slot: slotCodigo } });
+    if (error || !data || typeof data.rotacao !== 'number') throw error || new Error('Resposta inválida da checagem de orientação');
+    return data;
+}
+
 /**
- * Fotos de números e etiquetas (chassi, motor, ETA, vidros, placa, CRLV, painel):
- * identifica a orientação do texto e gira a imagem para a informação ficar na
- * horizontal, legível da esquerda para a direita. Usa a integração de IA já
- * configurada no sistema; sem ela (ou sem internet), o vistoriador pode girar na
- * pré-visualização.
+ * Checagem redundante das fotos de identificação: o servidor analisa duas vezes a
+ * imagem; se indicar rotação, a foto é girada e conferida DE NOVO — só fica girada
+ * se a segunda conferência disser que está em pé. Caso contrário, a foto não é
+ * alterada e fica marcada como "incerta" para conferência de quem emite o laudo.
+ * Devolve { blob, rotacao, conferida, incerta }.
+ */
+async function cautelarGarantirOrientacao(blob, slotCodigo) {
+    const r1 = await cautelarConsultarOrientacao(blob, slotCodigo);
+    if (!r1) return { blob, rotacao: 0, conferida: false, incerta: false };
+    if (!r1.rotacao) return { blob, rotacao: 0, conferida: true, incerta: !!r1.incerta };
+    const girada = await cautelarGirarBlob(blob, r1.rotacao);
+    const r2 = await cautelarConsultarOrientacao(girada, slotCodigo);
+    if (r2 && r2.rotacao === 0 && !r2.incerta) return { blob: girada, rotacao: r1.rotacao, conferida: true, incerta: false };
+    return { blob, rotacao: 0, conferida: true, incerta: true };
+}
+
+// Grava a foto ajustada (no aparelho e na fila de envio) com o registro da conferência
+async function cautelarSalvarFotoConferida(cautelarId, slotCodigo, blob, metadadosBase, resultado) {
+    const orientacaoIA = { rotacao: resultado.rotacao, incerta: resultado.incerta, conferidaEm: new Date().toISOString() };
+    const metadados = Object.assign({}, metadadosBase || {}, { orientacaoIA });
+    const thumb = resultado.rotacao ? await compressImage(blob, 400, 0.70) : undefined;
+    const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+    const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
+    const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
+    if (resultado.rotacao) {
+        await CautelarOfflineDB.saveFoto(cautelarId, slotCodigo, blob, metadados, thumb);
+        if (photo) photo.pendenteEnvio = true;
+    }
+    if (photo) photo.metadados_json = Object.assign({}, photo.metadados_json || {}, { orientacaoIA });
+    saveDatabase();
+    // Foto já na nuvem e sem alteração: grava só o registro da conferência
+    if (!resultado.rotacao && photo && Number(photo.id) > 0 && window.useSupabase) {
+        sbUpdate('cautelares_fotos', photo.id, { metadados: photo.metadados_json }).catch(e => console.warn('Registro da conferência não gravado:', e));
+    }
+    return metadados;
+}
+
+/**
+ * Logo depois da foto: fotos de números e etiquetas (chassi, motor, ETA, vidros,
+ * placa, CRLV, painel) passam pela checagem redundante no servidor.
  */
 async function cautelarAutoOrientar(cautelarId, slotCodigo) {
     const info = cautelarSlotInfo(slotCodigo);
-    const config = cautelarConfigIA();
-    if (!info || !info.texto || !config || navigator.onLine === false) return;
+    if (!info || !info.texto || navigator.onLine === false) return;
 
     const chave = `${cautelarId}_${slotCodigo}`;
     window._cautelarOrientando.add(chave);
-    cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Ajustando orientação da foto...`);
+    cautelarIndicador(`<i class="ri-loader-4-line" style="color:var(--accent); animation: pulse 1s infinite;"></i> Conferindo a posição da foto...`);
     try {
         const rec = await CautelarOfflineDB.getFoto(cautelarId, slotCodigo);
         if (!rec || !rec.blob) return;
-        const amostra = await compressImage(rec.blob, 768, 0.8);
-        const dataUrl = await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(amostra);
-        });
-
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
-        let graus = 0;
-        try {
-            const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                signal: controller.signal,
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.chaveOpenAi}` },
-                body: JSON.stringify({
-                    model: config.modeloOpenAi || "gpt-4o-mini",
-                    response_format: { type: "json_object" },
-                    temperature: 0,
-                    messages: [
-                        {
-                            role: "system",
-                            content: "Você analisa fotos de vistoria veicular. Responda apenas JSON no formato {\"rotacao\": N}, " +
-                                "onde N é 0, 90, 180 ou 270: quantos graus a imagem deve ser girada no sentido HORÁRIO para que " +
-                                "o texto/número principal fique na horizontal, legível da esquerda para a direita e de cabeça para cima."
-                        },
-                        {
-                            role: "user",
-                            content: [
-                                { type: "text", text: `Foto: ${info.nome}. Qual rotação horária deixa a informação principal na horizontal e legível?` },
-                                { type: "image_url", image_url: { url: dataUrl, detail: "low" } }
-                            ]
-                        }
-                    ]
-                })
-            });
-            if (resp.ok) {
-                const json = await resp.json();
-                const conteudo = JSON.parse(json.choices?.[0]?.message?.content || '{}');
-                const n = parseInt(conteudo.rotacao, 10);
-                if ([90, 180, 270].includes(n)) graus = n;
-            } else {
-                console.warn('Orientação automática indisponível:', resp.status);
-            }
-        } finally {
-            clearTimeout(timer);
+        const resultado = await cautelarGarantirOrientacao(rec.blob, slotCodigo);
+        if (!resultado.conferida) return;
+        await cautelarSalvarFotoConferida(cautelarId, slotCodigo, resultado.blob, rec.metadados, resultado);
+        const secaoNum = cautelarSecaoDoSlot(slotCodigo);
+        if (resultado.rotacao && window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum && !document.getElementById('cautelar-preview-overlay')) {
+            renderCapturaSecao(secaoNum);
         }
-
-        if (graus) {
-            const girada = await cautelarGirarBlob(rec.blob, graus);
-            const thumb = await compressImage(girada, 400, 0.70);
-            const metadados = Object.assign({}, rec.metadados || {}, { rotacaoAuto: graus });
-            await CautelarOfflineDB.saveFoto(cautelarId, slotCodigo, girada, metadados, thumb);
-            const secaoNum = cautelarSecaoDoSlot(slotCodigo);
-            const secao = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === secaoNum);
-            const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
-            if (photo) {
-                photo.metadados_json = Object.assign({}, photo.metadados_json || {}, { rotacaoAuto: graus });
-                saveDatabase();
-            }
-            if (window.activeCautelarId === cautelarId && window.activeSecaoNum === secaoNum && !document.getElementById('cautelar-preview-overlay')) {
-                renderCapturaSecao(secaoNum);
-            }
-        }
+        if (resultado.incerta) showToast(`Confira a posição da foto "${info.nome}": o texto não pôde ser confirmado na horizontal.`, "warning");
     } catch (e) {
-        console.warn('Falha na orientação automática da foto:', e);
+        console.warn('Falha na checagem de orientação da foto:', e);
     } finally {
         window._cautelarOrientando.delete(chave);
     }
+}
+
+/**
+ * Antes de emitir o laudo: confere de novo TODAS as fotos de identificação que
+ * ainda não foram conferidas (ou ficaram incertas), endireita as que precisarem e
+ * envia. Devolve os nomes das fotos cuja posição não pôde ser confirmada.
+ */
+async function cautelarConferirOrientacaoFotos(cautelarId, aoProgredir) {
+    const secaoIds = db.cautelares_secoes.filter(s => s.cautelarId === cautelarId).map(s => s.id);
+    const alvo = db.cautelares_fotos.filter(f => secaoIds.includes(f.secaoId)).filter(f => {
+        const info = cautelarSlotInfo(f.slotCodigo);
+        const o = (f.metadados_json || f.metadados || {}).orientacaoIA;
+        return info && info.texto && (!o || o.incerta);
+    });
+    const incertas = [];
+    let feitas = 0, alterou = false, i = 0;
+    const trabalhador = async () => {
+        while (i < alvo.length) {
+            const foto = alvo[i++];
+            const info = cautelarSlotInfo(foto.slotCodigo);
+            try {
+                const orig = await cautelarObterOriginal(cautelarId, foto.slotCodigo);
+                if (!orig) continue;
+                const resultado = await cautelarGarantirOrientacao(orig.blob, foto.slotCodigo);
+                if (!resultado.conferida) { incertas.push(info.nome); continue; }
+                await cautelarSalvarFotoConferida(cautelarId, foto.slotCodigo, resultado.blob, orig.metadados, resultado);
+                if (resultado.rotacao) alterou = true;
+                if (resultado.incerta) incertas.push(info.nome);
+            } catch (e) {
+                console.warn('Checagem de orientação indisponível para', foto.slotCodigo, e);
+                incertas.push(info.nome);
+            } finally {
+                feitas++;
+                if (typeof aoProgredir === 'function') aoProgredir(feitas, alvo.length);
+            }
+        }
+    };
+    await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
+    if (alterou) await cautelarEnviarPendentes(cautelarId);
+    return incertas;
 }
 
 /**
@@ -13936,6 +14041,8 @@ async function processarFotoCautelar(slotCodigo, fonte, opcoes = {}) {
             origem: opcoes.origem || 'arquivo',
             exif: opcoes.exif || { sizeBytes: blobOriginal.size, type: 'image/jpeg' }
         };
+        // Rotação aplicada pelo sensor de posição (null = posição incerta, sem ajuste)
+        if (opcoes.rotacaoSensor !== undefined) metadados.rotacaoSensor = opcoes.rotacaoSensor;
         if (navigator.geolocation) {
             try {
                 const position = await new Promise((resolve, reject) => {
@@ -14347,6 +14454,13 @@ async function abrirFinalizacaoDesktop(cautelarId) {
 
     window.activeFinalizacaoCautelarId = cautelarId;
     window.operatorSignatureConfirmed = false;
+    const osFinal = db.ordens_servico.find(o => o.id === cautelar.osId);
+    const faltandoVeiculo = osFinal ? cautelarDadosVeiculoFaltando(osFinal, cautelarId) : [];
+    if (faltandoVeiculo.length) {
+        setTimeout(() => avisarDadosVeiculoFaltando(osFinal, faltandoVeiculo, () => {
+            if (typeof atualizarPreviewLaudo === 'function') atualizarPreviewLaudo();
+        }), 400);
+    }
 
     // Resgata o parecer final ou inicializa com o preliminar
     const secao8 = db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === 8);
@@ -15344,6 +15458,106 @@ async function analisarLaudoComIAInvisivel() {
 }
 
 /**
+ * DADOS DO VEÍCULO OBRIGATÓRIOS PARA O LAUDO
+ * O laudo não é finalizado sem marca/modelo, ano, chassi, renavam e tipo do
+ * veículo no cadastro da O.S. A correção pode ser feita aqui (tela de finalização
+ * ou ficha da O.S. no atendimento), mesmo com a O.S. já em vistoria.
+ */
+function cautelarDadosVeiculoFaltando(os, cautelarId) {
+    const d1 = cautelarId ? ((db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === 1) || {}).dadosJson || {}) : {};
+    const vazio = v => !String(v == null ? '' : v).trim() || /^n[ãa]o informado$/i.test(String(v).trim());
+    const faltando = [];
+    if (vazio(os.veiculoMarcaModelo)) faltando.push('Marca / modelo');
+    if (vazio(os.veiculoAno)) faltando.push('Ano de fabricação / modelo');
+    if (vazio(os.veiculoChassi)) faltando.push('Chassi (cadastro)');
+    if (vazio(os.renavam)) faltando.push('Renavam');
+    if (vazio(os.veiculoTipo) && vazio(d1.tipoVeiculo)) faltando.push('Tipo de veículo');
+    return faltando;
+}
+
+function abrirCorrecaoDadosVeiculo(osId, aoSalvar) {
+    const os = db.ordens_servico.find(o => o.id === osId);
+    if (!os) return;
+    const cautelar = (db.cautelares || []).find(c => c.osId === osId);
+    const d1 = cautelar ? ((db.cautelares_secoes.find(s => s.cautelarId === cautelar.id && s.numeroSecao === 1) || {}).dadosJson || {}) : {};
+    const d2 = cautelar ? ((db.cautelares_secoes.find(s => s.cautelarId === cautelar.id && s.numeroSecao === 2) || {}).dadosJson || {}) : {};
+    const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const tipoAtual = os.veiculoTipo || d1.tipoVeiculo || '';
+    document.getElementById('modal-dados-veiculo')?.remove();
+    const fundo = document.createElement('div');
+    fundo.id = 'modal-dados-veiculo';
+    fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px';
+    const campo = (id, rotulo, valor, extra = '') => `<label style="display:block;font-size:11px;font-weight:700;color:var(--text-secondary);margin:12px 0 4px;text-transform:uppercase">${rotulo}</label>
+        <input id="${id}" value="${esc(valor)}" ${extra} style="width:100%;height:40px;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:14px;background:var(--bg-primary);color:var(--text-primary);text-transform:uppercase">`;
+    fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:480px;width:100%;border-radius:10px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);max-height:92vh;overflow:auto">
+        <h3 style="margin:0 0 4px">Dados do veículo — ${esc(os.placa)}</h3>
+        <p style="margin:0;color:var(--text-secondary);font-size:12px">Obrigatórios para finalizar o laudo cautelar. Copie do documento do veículo (CRLV).</p>
+        ${campo('dv-marca-modelo', 'Marca / modelo', os.veiculoMarcaModelo, 'placeholder="EX.: FIAT / TORO VOLCANO"')}
+        ${campo('dv-ano', 'Ano fabricação / modelo', os.veiculoAno, 'placeholder="EX.: 2022/2023" inputmode="numeric"')}
+        ${campo('dv-chassi', 'Chassi', os.veiculoChassi, 'maxlength="17" placeholder="17 CARACTERES"')}
+        ${d2.chassiLido && !os.veiculoChassi ? `<button type="button" id="dv-usar-lido" style="margin-top:6px;background:none;border:none;color:var(--accent);font-size:12px;text-decoration:underline;padding:0">Usar o chassi lido na vistoria (${esc(d2.chassiLido)})</button>` : ''}
+        ${campo('dv-renavam', 'Renavam', os.renavam, 'inputmode="numeric" maxlength="11"')}
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text-secondary);margin:12px 0 4px;text-transform:uppercase">Tipo de veículo</label>
+        <select id="dv-tipo" style="width:100%;height:40px;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:14px;background:var(--bg-primary);color:var(--text-primary)">
+            <option value="">SELECIONE</option>${CAUTELAR_TIPOS_VEICULO.map(({ v, t }) => `<option value="${v}" ${v === tipoAtual ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
+        </select>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+            <button class="btn btn-secondary" data-acao="cancelar">Cancelar</button>
+            <button class="btn btn-primary" data-acao="salvar">Salvar dados</button>
+        </div></div>`;
+    document.body.appendChild(fundo);
+    const usarLido = fundo.querySelector('#dv-usar-lido');
+    if (usarLido) usarLido.onclick = () => { fundo.querySelector('#dv-chassi').value = d2.chassiLido; };
+    fundo.querySelector('[data-acao="cancelar"]').onclick = () => fundo.remove();
+    fundo.querySelector('[data-acao="salvar"]').onclick = async () => {
+        const val = id => fundo.querySelector(id).value.trim().toUpperCase();
+        const marcaModelo = val('#dv-marca-modelo'), ano = val('#dv-ano'), chassi = val('#dv-chassi').replace(/\s/g, ''), renavam = val('#dv-renavam').replace(/\D/g, ''), tipo = fundo.querySelector('#dv-tipo').value;
+        const faltam = [[marcaModelo, 'Marca / modelo'], [ano, 'Ano'], [chassi, 'Chassi'], [renavam, 'Renavam'], [tipo, 'Tipo de veículo']].filter(([v]) => !v).map(([, n]) => n);
+        if (faltam.length) { showToast(`Preencha: ${faltam.join(', ')}.`, "error"); return; }
+        if (!/^\d{4}(\/\d{4})?$/.test(ano)) { showToast("Ano inválido. Use 2022 ou 2022/2023.", "error"); return; }
+        if (chassi.length !== 17 && !confirm(`O chassi informado tem ${chassi.length} caracteres (o padrão é 17). Confirma assim mesmo?`)) return;
+        if (renavam.length < 9) { showToast("Renavam inválido (9 a 11 dígitos).", "error"); return; }
+        const btn = fundo.querySelector('[data-acao="salvar"]');
+        btn.disabled = true;
+        try {
+            os.veiculoMarcaModelo = marcaModelo;
+            os.veiculoAno = ano;
+            os.veiculoChassi = chassi;
+            os.renavam = renavam;
+            os.veiculoTipo = tipo;
+            saveDatabase();
+            await dbSave('ordens_servico', { veiculoMarcaModelo: marcaModelo, veiculoAno: ano, veiculoChassi: chassi, renavam, veiculoTipo: tipo }, 'update', os.id);
+            logAudit("Dados do veículo", `Corrigiu os dados do veículo da OS ${os.numero} (placa ${os.placa}).`);
+            showToast("Dados do veículo salvos.", "success");
+            fundo.remove();
+            if (typeof aoSalvar === 'function') aoSalvar(os);
+        } catch (e) {
+            console.error(e);
+            showToast("Não foi possível salvar os dados do veículo. Tente novamente.", "error");
+            btn.disabled = false;
+        }
+    };
+}
+
+function avisarDadosVeiculoFaltando(os, faltando, aoCorrigir) {
+    document.getElementById('modal-veiculo-incompleto')?.remove();
+    const fundo = document.createElement('div');
+    fundo.id = 'modal-veiculo-incompleto';
+    fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:520px;width:100%;border-radius:10px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+        <h3 style="margin:0 0 8px">Laudo bloqueado: faltam dados do veículo</h3>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 8px">O laudo cautelar só pode ser finalizado com os dados do veículo completos no cadastro da O.S. ${os.numero}:</p>
+        <ul style="padding-left:22px;margin:0">${faltando.map(f => `<li style="margin:6px 0">${f}</li>`).join('')}</ul>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+            <button class="btn btn-secondary" data-acao="fechar">Fechar</button>
+            <button class="btn btn-primary" data-acao="corrigir">Corrigir agora</button>
+        </div></div>`;
+    document.body.appendChild(fundo);
+    fundo.querySelector('[data-acao="fechar"]').onclick = () => fundo.remove();
+    fundo.querySelector('[data-acao="corrigir"]').onclick = () => { fundo.remove(); abrirCorrecaoDadosVeiculo(os.id, aoCorrigir); };
+}
+
+/**
  * Emite o laudo finalizando o status da vistoria, gera o Hash SHA-256 e exporta para PDF.
  */
 async function gerarLaudoFinalPdf() {
@@ -15352,6 +15566,16 @@ async function gerarLaudoFinalPdf() {
 
     const os = db.ordens_servico.find(o => o.id === cautelar.osId);
     const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
+
+    // Dados do veículo completos no cadastro: sem eles o laudo não é finalizado
+    const faltandoVeiculo = cautelarDadosVeiculoFaltando(os, cautelar.id);
+    if (faltandoVeiculo.length) {
+        avisarDadosVeiculoFaltando(os, faltandoVeiculo, () => {
+            if (typeof atualizarPreviewLaudo === 'function') atualizarPreviewLaudo();
+            showToast("Dados completos. Agora é possível emitir o laudo.", "success");
+        });
+        return;
+    }
 
     // Valida se o operador assinou
     if (!window.operatorSignatureConfirmed) {
@@ -15375,6 +15599,19 @@ async function gerarLaudoFinalPdf() {
     if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
         if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
         return;
+    }
+
+    // 0.1 Fotos de identificação: conferência final da posição (checagem redundante)
+    if (window.useSupabase && navigator.onLine !== false) {
+        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS...`;
+        const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => {
+            if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> CONFERINDO FOTOS ${feitas}/${total}...`;
+        });
+        if (emitirBtn) emitirBtn.innerHTML = `<i class="ri-loader-4-line spin" style="font-size: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;"></i> GERANDO LAUDO...`;
+        if (incertas.length && !confirm(`A posição destas fotos de identificação não pôde ser confirmada automaticamente:\n\n- ${incertas.join('\n- ')}\n\nConfira-as na pré-visualização (e gire, se preciso). Deseja emitir o laudo mesmo assim?`)) {
+            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+            return;
+        }
     }
 
     // 1. O servidor monta, valida e registra o pacote antes da geração do PDF.
