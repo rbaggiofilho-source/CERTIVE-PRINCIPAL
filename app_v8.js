@@ -15386,9 +15386,19 @@ async function gerarLaudoFinalPdf() {
         saveDatabase();
     } catch (erro) {
         console.error("Erro ao gerar laudo no servidor:", erro);
-        showToast(erro.message || "Não foi possível gerar o laudo.", "error");
-        if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
-        return;
+        // Enquanto a geração no servidor não estiver publicada/configurada (ou se ela
+        // falhar), a mesa pode emitir com a redação padrão do sistema, como antes.
+        const usarPadrao = confirm(
+            "Não foi possível gerar a redação do laudo agora" +
+            (erro && erro.message ? ` (${erro.message})` : "") +
+            ".\n\nDeseja emitir o laudo com a redação padrão do sistema?"
+        );
+        if (!usarPadrao) {
+            if (emitirBtn) { emitirBtn.disabled = false; emitirBtn.innerHTML = originalText; }
+            return;
+        }
+        cautelar.dadosIaConfeccionado = null;
+        cautelar.laudoGeradoId = null;
     }
 
     const parecerFinal = document.getElementById('caut-final-parecer').value;
