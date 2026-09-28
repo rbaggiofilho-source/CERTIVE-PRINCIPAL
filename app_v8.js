@@ -82,13 +82,45 @@ function parseDividedPayment(obsText) {
     return result.length === 2 ? result : null;
 }
 
+// Divisão do pagamento de uma OS: a coluna pagamentoDividido é a fonte; a
+// marca [PAG_DIVIDIDO: ...] nas observações fica só para as OS antigas (se
+// alguém editasse as observações, a divisão se perdia).
+function divisaoPagamento(os) {
+    if (!os) return null;
+    const col = os.pagamentoDividido;
+    if (Array.isArray(col) && col.length === 2) return col.map(p => ({ forma: p.forma, valor: Number(p.valor) }));
+    return parseDividedPayment(os.observacoes);
+}
+
 function removeDividedPaymentTag(obsText) {
     if (!obsText) return '';
     return obsText.replace(/\[PAG_DIVIDIDO: [^\]]+\]/, '').trim();
 }
 
 function formatCurrency(val) {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const n = Number(val);
+    return (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// ---- Dinheiro em centavos ----
+// Somar reais em ponto flutuante acumula erro (0,1 + 0,2 = 0,30000000000000004)
+// e o total do caixa "não fecha" por um centavo. Toda soma de valores passa por
+// aqui: a conta é feita em centavos inteiros.
+function paraCentavos(valor) {
+    const n = Number(valor);
+    return isFinite(n) ? Math.round(n * 100) : 0;
+}
+function somaCentavos(a, b) {
+    return (paraCentavos(a) + paraCentavos(b)) / 100;
+}
+// Lê um valor digitado ("1.234,56", "1234.56", "R$ 150"). Devolve null quando
+// não é um valor válido, para quem chama recusar em vez de gravar R$ 0.
+function lerValorMonetario(texto) {
+    let t = String(texto == null ? '' : texto).trim().replace(/[R$\s]/g, '');
+    if (!t) return null;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+    return paraCentavos(t) / 100;
 }
 
 // ---- Datas: sempre no horário de Brasília ----
@@ -933,7 +965,7 @@ function renderAtendimentoKPIs() {
     // Revenue generated from immediate payments today
     const totalRev = todayOSs
         .filter(o => o.pago && o.status !== 'cancelada')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     const kpiGrid = document.getElementById('atendimento-kpis');
     kpiGrid.innerHTML = `
@@ -1391,6 +1423,7 @@ function submitOSForm() {
         }
 
         let finalObs = obs;
+        let pagamentoDividido = null;
         if (pagamento === 'dividido') {
             const f1 = document.getElementById('os-div-forma-1').value;
             const v1 = parseFloat(document.getElementById('os-div-valor-1').value) || 0;
@@ -1402,12 +1435,13 @@ function submitOSForm() {
                 return;
             }
             
-            if (Math.abs((v1 + v2) - valor) > 0.01) {
+            if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(valor)) {
                 showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
                 return;
             }
             
             finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+            pagamentoDividido = [{ forma: f1, valor: v1 }, { forma: f2, valor: v2 }];
         }
 
         if (!docVeiculo || !docIdentidade) {
@@ -1466,6 +1500,7 @@ function submitOSForm() {
             pago: pagamento !== 'faturamento',
             formaPagamento: pagamento,
             parcelas: parcelas,
+            pagamentoDividido,
             statusNfse: "Não solicitada",
             numeroNfse: null,
             dataNfse: null,
@@ -1820,7 +1855,7 @@ function openOSDetailsModal(id) {
     if (os.formaPagamento === 'credito_parcelado') {
         cobrancaLabel = `CRÉDITO PARCELADO (${os.parcelas}x)`;
     } else if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             cobrancaLabel = `DIVIDIDO (${splitData[0].forma.toUpperCase()}: R$ ${splitData[0].valor.toFixed(2)} / ${splitData[1].forma.toUpperCase()}: R$ ${splitData[1].valor.toFixed(2)})`;
         }
@@ -1896,9 +1931,6 @@ function openOSDetailsModal(id) {
     modal.classList.add('active');
 }
 
-function closeOSModal() {
-    document.getElementById('modal-os-detalhes').classList.remove('active');
-}
 
 function closeOSModal(e) {
     if (e && e.target !== e.currentTarget) return;
@@ -1909,8 +1941,8 @@ function closeOSModal(e) {
 // dinheiro já tinha entrado (OS paga na abertura).
 function registrarDescontoReprovada(os, valorOriginal) {
     const recebidos = db.caixa_movimentos.filter(m => m.osId === os.id && movEhRecebimento(m));
-    const recebido = recebidos.reduce((t, m) => t + Number(m.valor || 0), 0)
-        - db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'saida').reduce((t, m) => t + Number(m.valor || 0), 0);
+    const recebido = recebidos.reduce((t, m) => somaCentavos(t, m.valor), 0)
+        - db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'saida').reduce((t, m) => somaCentavos(t, m.valor), 0);
     const devolver = Math.round((Math.min(recebido, valorOriginal) - os.valor) * 100) / 100;
     if (devolver <= 0) return;
     const caixa = getTodayOpenCaixa();
@@ -1979,40 +2011,6 @@ async function changeOSStatus(id, newStatus) {
     renderAtendimentoPage();
 }
 
-function finalizeVistoria(id, approved) {
-    const os = db.ordens_servico.find(o => o.id === id);
-    if (!os) return;
-
-    // Se for de parceiro e reprovado (approved === false)
-    if (os.clienteTipo === 'parceiro' && !approved) {
-        const aplicarDesconto = confirm("Esta vistoria foi REPROVADA e o cliente é um lojista parceiro.\nDeseja aplicar o desconto comercial de 50% nesta OS?");
-        if (aplicarDesconto) {
-            const valorOriginal = os.valor;
-            os.valor = parseFloat((valorOriginal * 0.5).toFixed(2));
-            os.observacoes = (os.observacoes ? os.observacoes + " | " : "") + `Desconto comercial de 50% applied (Cautelar Reprovada). Valor original: R$ ${valorOriginal.toFixed(2)}`;
-            // O que já foi recebido não é reescrito (o caixa pode estar fechado):
-            // a diferença sai como devolução no caixa de hoje.
-            registrarDescontoReprovada(os, valorOriginal);
-        }
-    }
-
-    os.status = approved ? "concluida_aprovada" : "concluida_reprovada";
-    os.finalizadoEm = new Date().toISOString();
-    os.finalizadoPor = currentSession.nome;
-
-    dbSave('ordens_servico', {
-        status: os.status,
-        valor: os.valor,
-        observacoes: os.observacoes,
-        finalizadoEm: os.finalizadoEm,
-        finalizadoPor: os.finalizadoPor
-    }, 'update', os.id);
-    
-    showToast(`Vistoria concluída! Laudo ${approved ? 'APROVADO' : 'REPROVADO'} para placa ${os.placa}.`, "info");
-    logAudit("Laudo Emissão", `Laudou a OS ${os.numero} como ${approved ? 'APROVADO' : 'REPROVADO'}.`);
-    closeOSModal();
-    renderAtendimentoPage();
-}
 
 // Tira a OS de uma fatura em aberto (cancela antes a cobrança do Asaas, cujo
 // valor deixaria de bater). Lança erro se não for possível.
@@ -2174,7 +2172,7 @@ function openEditOSModal(id) {
     }
 
     if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             document.getElementById('edit-os-div-forma-1').value = splitData[0].forma;
             document.getElementById('edit-os-div-valor-1').value = splitData[0].valor.toFixed(2);
@@ -2275,6 +2273,7 @@ async function submitEditOSForm(event) {
     }
 
     let finalObs = obs;
+    let pagamentoDividido = null;
     if (pagamento === 'dividido') {
         const f1 = document.getElementById('edit-os-div-forma-1').value;
         const v1 = parseFloat(document.getElementById('edit-os-div-valor-1').value) || 0;
@@ -2286,12 +2285,13 @@ async function submitEditOSForm(event) {
             return;
         }
         
-        if (Math.abs((v1 + v2) - valor) > 0.01) {
+        if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(valor)) {
             showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${valor.toFixed(2)}).`, "error");
             return;
         }
         
         finalObs += `\n[PAG_DIVIDIDO: ${f1}=${v1};${f2}=${v2}]`;
+        pagamentoDividido = [{ forma: f1, valor: v1 }, { forma: f2, valor: v2 }];
     }
 
     const service = db.servicos.find(s => s.id === serviceId);
@@ -2308,8 +2308,8 @@ async function submitEditOSForm(event) {
     // A comparação é feita ANTES de mexer na OS. Antes o sistema alterava o
     // registro e depois o comparava com ele mesmo, então nunca via mudança e a
     // trava de caixa fechado não funcionava.
-    const divisaoAntes = JSON.stringify(parseDividedPayment(os.observacoes) || null);
-    const divisaoDepois = JSON.stringify(parseDividedPayment(finalObs) || null);
+    const divisaoAntes = JSON.stringify(divisaoPagamento(os) || null);
+    const divisaoDepois = JSON.stringify(pagamentoDividido);
     const mudouFinanceiro =
         Math.abs(Number(os.valor) - valor) > 0.004 ||
         os.formaPagamento !== pagamento ||
@@ -2357,11 +2357,11 @@ async function submitEditOSForm(event) {
 
     try {
         if (mudouFinanceiro) {
-            const osNova = { ...os, ...alteracoes, formaPagamento: pagamento, parcelas, pago: pagamento !== 'faturamento' };
+            const osNova = { ...os, ...alteracoes, formaPagamento: pagamento, parcelas, pagamentoDividido, pago: pagamento !== 'faturamento' };
             // Troca os lançamentos da venda e a forma de pagamento numa transação
             const { data: r, error } = await supabaseClient.rpc('alterar_pagamento_os', {
                 p_os_id: os.id,
-                p_os: { formaPagamento: pagamento, pago: osNova.pago, parcelas, observacoes: finalObs },
+                p_os: { formaPagamento: pagamento, pago: osNova.pago, parcelas, observacoes: finalObs, pagamentoDividido },
                 p_movimentos: activeCaixa ? movimentosDaVendaOS(osNova, activeCaixa) : [],
                 p_por: currentSession.nome
             });
@@ -2369,7 +2369,7 @@ async function submitEditOSForm(event) {
             aplicarResultadoAlteracaoPagamento(os, r);
         }
         await dbSave('ordens_servico', alteracoes, 'update', os.id);
-        Object.assign(os, alteracoes, { formaPagamento: pagamento, parcelas, pago: pagamento !== 'faturamento' });
+        Object.assign(os, alteracoes, { formaPagamento: pagamento, parcelas, pagamentoDividido, pago: pagamento !== 'faturamento' });
     } catch (err) {
         console.error("Erro ao salvar a edição da OS:", err);
         showToast("A edição da OS não foi salva: " + (err.message || err), "error");
@@ -2428,6 +2428,19 @@ function renderHistoricoPage() {
     renderHistorico();
 }
 
+// A carga inicial traz só os últimos meses (ver JANELA_MESES em supabase-db.js).
+// Quando a tela precisa de período anterior (ou de busca em todo o histórico),
+// busca o restante uma vez e desenha de novo.
+function garantirHistoricoCompleto(precisa, redesenhar) {
+    if (!precisa || window.historicoCompleto || typeof carregarHistoricoCompleto !== 'function' || window.__carregandoHistorico) return;
+    window.__carregandoHistorico = true;
+    showToast("Buscando o histórico completo...", "info");
+    carregarHistoricoCompleto()
+        .then(() => { if (typeof redesenhar === 'function') redesenhar(); })
+        .catch(e => { console.error(e); showToast("Não foi possível buscar o histórico anterior: " + (e.message || e), "error"); })
+        .finally(() => { window.__carregandoHistorico = false; });
+}
+
 // Lista filtrada do Histórico Geral (mesma fonte da tela e do relatório).
 function getHistoricoFilteredList() {
     const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -2439,6 +2452,8 @@ function getHistoricoFilteredList() {
     const dataFimFilter = g('hist-filter-data-fim');
     const pagamentoFilter = g('hist-filter-pagamento');
     const statusFilter = g('hist-filter-status');
+    const corte = typeof inicioJanelaCarga === 'function' ? inicioJanelaCarga() : '';
+    garantirHistoricoCompleto(!!(placaFilter || clienteFilter || valorFilter || (dataIniFilter && dataIniFilter < corte)), renderHistorico);
 
     return db.ordens_servico.filter(o => {
         if (o.unidadeId !== activeUnitId) return false;
@@ -2450,7 +2465,7 @@ function getHistoricoFilteredList() {
         }
         if (servicoFilter && o.servicoId !== parseInt(servicoFilter)) return false;
         if (valorFilter && Math.abs(o.valor - parseFloat(valorFilter)) > 0.01) return false;
-        const osDate = o.criadoEm.split('T')[0];
+        const osDate = getLocalDateString(o.criadoEm);
         if (dataIniFilter && osDate < dataIniFilter) return false;
         if (dataFimFilter && osDate > dataFimFilter) return false;
         if (pagamentoFilter && o.formaPagamento !== pagamentoFilter) return false;
@@ -2572,7 +2587,7 @@ function gerarRelatorioHistorico() {
     if (g('hist-filter-pagamento')) filtros.push(`Pagamento: ${g('hist-filter-pagamento')}`);
     if (g('hist-filter-status')) filtros.push(`Status: ${g('hist-filter-status')}`);
 
-    const totalValor = list.reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const totalValor = list.reduce((s, o) => somaCentavos(s, o.valor), 0);
     const meta = [`Registros: ${list.length}    Valor total: ${formatCurrency(totalValor)}`];
     if (filtros.length) meta.push('Filtros: ' + filtros.join('   |   '));
 
@@ -3213,7 +3228,7 @@ function movimentosDaVendaOS(os, caixa) {
     };
     const servico = (os.servicoNome || 'Vistoria').split(' — ')[0];
     if (os.formaPagamento === 'dividido') {
-        const partes = parseDividedPayment(os.observacoes) || [];
+        const partes = divisaoPagamento(os) || [];
         return partes.map((part, i) => ({
             ...base,
             valor: part.valor,
@@ -3566,8 +3581,8 @@ async function openTodayCaixaDrawer() {
     if (caixasAnteriores.length > 0) {
         const ultimoCaixa = caixasAnteriores[0];
         const movsUltimo = db.caixa_movimentos.filter(m => m.caixaId === ultimoCaixa.id);
-        const cashPayments = movsUltimo.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-        const cashSangrias = movsUltimo.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const cashPayments = movsUltimo.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const cashSangrias = movsUltimo.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         saldoAberturaEstimado = ultimoCaixa.saldoAbertura + cashPayments - cashSangrias;
     }
 
@@ -3608,12 +3623,12 @@ function renderCaixaKPIs(activeCaixa) {
 
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
     
-    const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     
     // Physical cash balance (Float + cash payments - cash sangrias)
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const finalCashInDrawer = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
 
     const totalBalance = totalEntradas - totalSaidas;
@@ -3728,7 +3743,7 @@ function totalPagoPorCaixa(contaId) {
                             // vínculo também tem contaPagarId nulo
     return (db.caixa_movimentos || [])
         .filter(m => m.tipo === 'saida' && m.contaPagarId === contaId)
-        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+        .reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 }
 
 // Mostra e preenche o seletor de conta quando a saída é pagamento de conta.
@@ -3767,7 +3782,7 @@ async function submitCaixaMov(event) {
     if (!activeCaixa) return;
 
     const tipo = document.getElementById('mov-tipo').value;
-    const valor = parseFloat(document.getElementById('mov-valor').value);
+    const valor = lerValorMonetario(document.getElementById('mov-valor').value);
     const desc = document.getElementById('mov-desc').value.trim();
     const forma = document.getElementById('mov-forma-pag').value;
     const partnerId = parseInt(document.getElementById('mov-parceiro-select').value);
@@ -3783,7 +3798,7 @@ async function submitCaixaMov(event) {
         return;
     }
 
-    if (valor <= 0) {
+    if (valor === null || valor <= 0) {
         showToast("Valor do movimento inválido.", "error");
         return;
     }
@@ -3925,22 +3940,22 @@ function generateCashierPdfData(c) {
     const entries = allMovs.filter(m => m.tipo === 'entrada');
     const exits = allMovs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = exits.reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
     const diff = c.saldoEspécieInformado - estimatedCash;
 
-    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
-    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
+    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCreditoParcelado = entries.filter(m => m.formaPagamento === 'credito_parcelado').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalFaturamento = db.ordens_servico
         .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(18);
@@ -4067,7 +4082,7 @@ function generateCashierPdfData(c) {
 // e cada OS de serviço ECV precisa ter saído no relatório.
 // ==========================================================
 
-const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDFJS_WORKER = 'js/vendor/pdfjs-3.11.174.worker.min.js';
 
 // Linha do relatório: PLACA MARCA/MODELO DD/MM/AAAA HH:MM NOTA R$ VALOR [OBS] STATUS
 const RE_LAUDO = /([A-Z]{3}\d[A-Z0-9]\d{2})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+(\d+)\s+R\$\s*([\d.,]+)\s+(.*)$/;
@@ -4515,7 +4530,7 @@ function renderPendencias() {
     if (lista.length === 0 && !verResolvidas) { card.style.display = 'none'; return; }
     card.style.display = 'block';
 
-    const taxaEmRisco = abertas.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+    const taxaEmRisco = abertas.reduce((sm, p) => somaCentavos(sm, p.valorTaxa), 0);
     if (contador) {
         contador.textContent = abertas.length > 0
             ? ` — ${abertas.length} em aberto${taxaEmRisco > 0 ? ` (${formatCurrency(taxaEmRisco)} de taxa)` : ''}`
@@ -4656,15 +4671,19 @@ async function submitFecharCaixa(event) {
         logAudit("Fechamento com pendência", `Fechou o caixa com ${pendentes.length} OS em aberto: ${pendentes.map(o => o.numero).join(', ')}.`);
     }
 
-    const saldoFisico = parseFloat(document.getElementById('fechar-saldo-fisico').value);
+    const saldoFisico = lerValorMonetario(document.getElementById('fechar-saldo-fisico').value);
+    if (saldoFisico === null || saldoFisico < 0) {
+        showToast("Informe o saldo em dinheiro contado na gaveta (pode ser 0,00).", "error");
+        return;
+    }
     
     // Calculate estimated cash balance in box
     const movs = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const estimatedCash = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const estimatedCash = (paraCentavos(activeCaixa.saldoAbertura) + paraCentavos(cashPayments) - paraCentavos(cashSangrias)) / 100;
 
-    const diff = saldoFisico - estimatedCash;
+    const diff = (paraCentavos(saldoFisico) - paraCentavos(estimatedCash)) / 100;
 
     // AUDITORIA: lê o PDF do DETRAN que o operador acabou de anexar e compara
     // com as OS registradas. Falha na leitura não impede o fechamento — o PDF
@@ -4844,8 +4863,8 @@ async function submitFecharCaixa(event) {
                     let saldoAnterior = 0.00;
                     
                     const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-                    const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                    const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                    const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                    const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                     saldoAnterior = activeCaixa.saldoAbertura + cashPaymentsReaberto - cashSangriasReaberto;
 
                     for (let i = idxReaberto + 1; i < caixasUnidade.length; i++) {
@@ -4863,8 +4882,8 @@ async function submitFecharCaixa(event) {
                         }
 
                         const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
-                        const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-                        const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+                        const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                        const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                         saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
                     }
                 }
@@ -4899,15 +4918,15 @@ async function submitFecharCaixa(event) {
             const unidadeNomeFecha = (db.unidades.find(u => u.id === activeCaixa.unidadeId) || {}).nome || 'Unidade';
             const horaFecha = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const movsFecha = db.caixa_movimentos.filter(m => m.caixaId === activeCaixa.id);
-            const entradasTotaisFecha = movsFecha.filter(movEhRecebimento).reduce((s, m) => s + (Number(m.valor) || 0), 0);
-            const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => s + (Number(m.valor) || 0), 0);
+            const entradasTotaisFecha = movsFecha.filter(movEhRecebimento).reduce((s, m) => somaCentavos(s, m.valor), 0);
+            const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => somaCentavos(s, m.valor), 0);
             const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
             // Aviso de inconsistência: repete TODO DIA enquanto não for corrigida,
             // e mostra há quantos fechamentos ela vem sendo arrastada.
             const emAberto = pendenciasAbertas(activeCaixa.unidadeId);
             let alertaPendentes = '';
             if (emAberto.length > 0) {
-                const taxaEmRisco = emAberto.reduce((sm, p) => sm + (Number(p.valorTaxa) || 0), 0);
+                const taxaEmRisco = emAberto.reduce((sm, p) => somaCentavos(sm, p.valorTaxa), 0);
                 const antigas = emAberto.filter(p => (Number(p.vezesIgnorada) || 1) > 1);
                 const linhas = emAberto.slice(0, 8).map(p => {
                     const v = Number(p.vezesIgnorada) || 1;
@@ -4934,6 +4953,7 @@ async function submitFecharCaixa(event) {
 }
 
 function renderCaixaHistorico() {
+    garantirHistoricoCompleto(true, renderCaixaHistorico);
     const tbody = document.getElementById('caixa-historico-tbody');
     const today = getLocalDateString(new Date());
     const closedCaixas = db.caixa_diario
@@ -4947,15 +4967,15 @@ function renderCaixaHistorico() {
 
     tbody.innerHTML = closedCaixas.map(c => {
         const movs = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-        const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => sum + m.valor, 0);
-        const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.valor, 0);
+        const totalEntradas = movs.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const totalSaidas = movs.filter(m => m.tipo === 'saida').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         
-        const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-        const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+        const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+        const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
         const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
         
         const diff = c.saldoEspécieInformado - estimatedCash;
-        const diffColor = diff === 0 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
+        const diffColor = Math.abs(diff) < 0.005 ? 'var(--success)' : (diff > 0 ? 'var(--info)' : 'var(--danger)');
 
         const isClosed = c.status === "fechado";
         const statusBadge = isClosed 
@@ -5130,22 +5150,22 @@ function printCaixaById(caixaId) {
     const entries = allMovs.filter(m => m.tipo === 'entrada');
     const exits = allMovs.filter(m => m.tipo === 'saida');
 
-    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => sum + m.valor, 0);
-    const totalSaidas = exits.reduce((sum, m) => sum + m.valor, 0);
+    const totalEntradas = entries.filter(movEhRecebimento).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalSaidas = exits.reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
-    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
+    const cashPayments = movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const cashSangrias = movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const estimatedCash = c.saldoAbertura + cashPayments - cashSangrias;
     const diff = c.saldoEspécieInformado - estimatedCash;
 
     // Modalidades de Pagamento
-    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => sum + m.valor, 0);
-    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => sum + m.valor, 0);
-    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => sum + m.valor, 0);
-    const totalCredito = entries.filter(m => m.formaPagamento === 'credito' || m.formaPagamento === 'credito_parcelado').reduce((sum, m) => sum + m.valor, 0);
+    const totalPix = entries.filter(m => m.formaPagamento === 'pix').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalEspecie = entries.filter(m => m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalDebito = entries.filter(m => m.formaPagamento === 'debito').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const totalCredito = entries.filter(m => m.formaPagamento === 'credito' || m.formaPagamento === 'credito_parcelado').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalFaturamento = db.ordens_servico
         .filter(o => o.unidadeId === c.unidadeId && getLocalDateString(o.criadoEm) === c.data && o.status !== 'cancelada' && o.formaPagamento === 'faturamento')
-        .reduce((sum, o) => sum + o.valor, 0);
+        .reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     // Entries Rows mapping
     let entryRows = entries.map(m => {
@@ -5278,7 +5298,7 @@ function printCaixaById(caixaId) {
                     <strong>Saldo Estimado:</strong> ${formatCurrency(estimatedCash)}<br>
                     <strong>Saldo Apurado:</strong> ${c.status === 'fechado' ? formatCurrency(c.saldoEspécieInformado) : 'AGUARDANDO FECHAMENTO'}<br>
                     <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
-                    <strong>Diferença de Caixa:</strong> <strong style="color: ${diff === 0 ? '#10b981' : '#ef4444'}">${c.status === 'fechado' ? formatCurrency(diff) : 'AGUARDANDO FECHAMENTO'}</strong>
+                    <strong>Diferença de Caixa:</strong> <strong style="color: ${Math.abs(diff) < 0.005 ? '#10b981' : '#ef4444'}">${c.status === 'fechado' ? formatCurrency(diff) : 'AGUARDANDO FECHAMENTO'}</strong>
                 </div>
             </div>
         </div>
@@ -5321,7 +5341,7 @@ function renderFaturamentoKPIs() {
     const openOSList = getUnbilledOSs();
     
     // 1. Valor total consolidado a receber de lotes não fechados
-    const totalAReceber = openOSList.reduce((sum, os) => sum + os.valor, 0);
+    const totalAReceber = openOSList.reduce((sum, os) => somaCentavos(sum, os.valor), 0);
     
     // 2. Quantidade total de OSs pendentes
     const totalOSs = openOSList.length;
@@ -5381,7 +5401,7 @@ function renderFaturamentoKPIs() {
 
     // Novo: Histórico de Faturas Emitidas
     const activeUnitFaturas = db.faturas.filter(f => f.unidadeId === activeUnitId);
-    const totalHistorico = activeUnitFaturas.reduce((sum, f) => sum + f.valorTotal, 0);
+    const totalHistorico = activeUnitFaturas.reduce((sum, f) => somaCentavos(sum, f.valorTotal), 0);
     const totalHistoricoQtd = activeUnitFaturas.length;
 
     const elHistorico = document.getElementById('fat-db-total-historico');
@@ -5489,11 +5509,11 @@ function openGirarFaturaModal() {
     }
 
     const partner = db.parceiros.find(p => p.id === partnerIds[0]);
-    const totalVal = selectedOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalVal = selectedOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     // Calcular créditos/cortesias disponíveis
     const creditosDisponiveis = (db.parceiros_creditos || []).filter(c => c.parceiroId === partner.id && !c.utilizado);
-    const totalCreditos = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
+    const totalCreditos = creditosDisponiveis.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     const liquidoVal = Math.max(0, totalVal - totalCreditos);
 
     // Populate modal
@@ -5523,9 +5543,6 @@ function openGirarFaturaModal() {
     document.getElementById('modal-faturamento-fechar').classList.add('active');
 }
 
-function closeFatModal() {
-    document.getElementById('modal-faturamento-fechar').classList.remove('active');
-}
 
 function closeFatModal(e) {
     if (e && e.target !== e.currentTarget) return;
@@ -5749,7 +5766,7 @@ function renderResumoFaturas(lista, criterio, verTodas, mesSel) {
 
     const pagas   = lista.filter(f => f.pago);
     const abertas = lista.filter(f => !f.pago);
-    const soma = arr => arr.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const soma = arr => arr.reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
 
     // No critério "pagamento" não existe fatura em aberto: ela só entra no mês
     // quando foi paga. Mostrar "em aberto" ali seria sempre zero e confundiria.
@@ -5801,8 +5818,8 @@ function renderRodapeFaturas(lista) {
     const tfoot = document.getElementById('fat-faturas-tfoot');
     if (!tfoot) return;
     if (lista.length === 0) { tfoot.innerHTML = ''; return; }
-    const total = lista.reduce((s, f) => s + Number(f.valorTotal || 0), 0);
-    const pago = lista.filter(f => f.pago).reduce((s, f) => s + Number(f.valorTotal || 0), 0);
+    const total = lista.reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
+    const pago = lista.filter(f => f.pago).reduce((s, f) => somaCentavos(s, f.valorTotal), 0);
     const aberto = total - pago;
     const os = lista.reduce((s, f) => s + ((f.ordensIds || []).length), 0);
     tfoot.innerHTML = `
@@ -6536,7 +6553,7 @@ function renderContasBannerAtrasadas() {
         competenciaMes(c) && competenciaMes(c) < contasCompetenciaSel
     );
     if (antigas.length === 0) { box.innerHTML = ''; return; }
-    const total = antigas.reduce((s, c) => s + (Number(c.valor)||0), 0);
+    const total = antigas.reduce((s, c) => somaCentavos(s, c.valor), 0);
     const maisAntiga = antigas.slice().sort((a,b) => competenciaMes(a).localeCompare(competenciaMes(b)))[0];
     const mesAlvo = competenciaMes(maisAntiga);
     box.innerHTML = `
@@ -7104,14 +7121,14 @@ function renderAssessorTab() {
     // 1. Render Comparative Table (Camada A)
     const tbodyCat = document.getElementById('assessor-categorias-tbody');
     tbodyCat.innerHTML = CATEGORIAS_DESPESAS.map(cat => {
-        const gastoAtual = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.valor, 0);
-        const gastoAnterior = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(prevMonthStr)).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAtual = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(currentMonthStr)).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+        const gastoAnterior = unitExpenses.filter(c => c.categoria === cat && c.vencimento.startsWith(prevMonthStr)).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const meta = unitMetas[cat] || 0;
         
         // Historical average including all months in the DB for this unit
         const allMonths = [...new Set(unitExpenses.filter(c => c.categoria === cat).map(c => c.vencimento.substring(0, 7)))];
         const numMonths = allMonths.length || 1;
-        const totalCatGastos = unitExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
+        const totalCatGastos = unitExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const mediaHistorica = totalCatGastos / numMonths;
         
         let statusMetaBadge = '';
@@ -7305,8 +7322,8 @@ function renderAiInsights() {
     const unitMetas = (db.metas_despesas && db.metas_despesas[activeUnitId]) || {};
     
     CATEGORIAS_DESPESAS.forEach(cat => {
-        const gastoAtual = currentExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
-        const gastoAnterior = prevExpenses.filter(c => c.categoria === cat).reduce((sum, c) => sum + c.valor, 0);
+        const gastoAtual = currentExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+        const gastoAnterior = prevExpenses.filter(c => c.categoria === cat).reduce((sum, c) => somaCentavos(sum, c.valor), 0);
         const meta = unitMetas[cat] || 0;
         
         totalCurrent += gastoAtual;
@@ -7622,6 +7639,8 @@ function renderBI() {
 
     const period = periodSelect.value;
     const unitFilter = unitSelect.value;
+    const corteMes = typeof inicioJanelaCarga === 'function' ? inicioJanelaCarga().slice(0, 7) : '';
+    garantirHistoricoCompleto(period === 'todos' || (/^\d{4}-\d{2}$/.test(period) && period <= corteMes), renderBI);
     const capitalCustom = parseFloat(document.getElementById('bi-capital-investido').value) || null;
 
     let OSs = [];
@@ -7644,7 +7663,7 @@ function renderBI() {
         OSs = [...db.ordens_servico];
         Expenses = [...db.contas_pagar];
     } else {
-        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+        OSs = db.ordens_servico.filter(o => o.criadoEm && competenciaLocalDeOS(o.criadoEm) === period);
         Expenses = db.contas_pagar.filter(c => competenciaMes(c) === period);
     }
 
@@ -7665,7 +7684,7 @@ function renderBI() {
     } else if (period === 'todos') {
         periodMovs = [...db.caixa_movimentos];
     } else {
-        periodMovs = db.caixa_movimentos.filter(m => m.data && m.data.startsWith(period));
+        periodMovs = db.caixa_movimentos.filter(m => m.data && getLocalDateString(m.data).slice(0, 7) === period);
     }
 
     if (unitFilter !== 'todas') {
@@ -7682,12 +7701,12 @@ function renderBI() {
     // natureza gravada conta como despesa, que era o comportamento assumido.
     const caixaDespesasVal = periodMovs
         .filter(m => m.tipo === 'saida' && (!m.natureza || m.natureza === 'despesa'))
-        .reduce((sum, m) => sum + Number(m.valor || 0), 0);
+        .reduce((sum, m) => somaCentavos(sum, m.valor), 0);
 
 
     // Custos e Despesas (exclui lançamentos manuais do DETRAN para não duplicar com o cálculo de taxas das OSs)
-    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => sum + c.valor, 0);
+    const fixedExpensesVal = Expenses.filter(c => c.tipo === 'fixo').reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+    const variableExpensesVal = Expenses.filter(c => (c.tipo === 'variavel' || c.tipo === 'variável') && c.fornecedor !== "DETRAN-SC").reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     
     // Taxas operacionais do DETRAN — mesma regra da guia (ver laudosDetranDoMes).
     // A versão anterior somava a taxa de toda OS com valor > 0, sem olhar o tipo
@@ -7700,13 +7719,13 @@ function renderBI() {
         return sum + taxaDetranDoServico(o.servicoId);
     }, 0);
 
-    const totalRevenue = nonCancelledOSs.reduce((sum, o) => sum + o.valor, 0);
+    const totalRevenue = nonCancelledOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
     const totalExpenses = fixedExpensesVal + variableExpensesVal + variableTaxesVal + caixaDespesasVal;
     const netProfit = totalRevenue - totalExpenses;
 
     const cashInflows = periodMovs.filter(movEhRecebimento);
-    const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => sum + m.valor, 0);
-    const directPaymentsReceived = cashInflows.filter(m => m.faturaId === null).reduce((sum, m) => sum + m.valor, 0);
+    const fatPaymentsReceived = cashInflows.filter(m => m.faturaId !== null).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+    const directPaymentsReceived = cashInflows.filter(m => m.faturaId === null).reduce((sum, m) => somaCentavos(sum, m.valor), 0);
     const totalCashRevenue = directPaymentsReceived + fatPaymentsReceived;
     const netCashProfit = totalCashRevenue - totalExpenses;
 
@@ -7850,7 +7869,7 @@ function renderBI() {
             const partnerRentability = db.parceiros.map(p => {
                 const partnerOSs = nonCancelledOSs.filter(o => o.parceiroId === p.id);
                 const count = partnerOSs.length;
-                const revenue = partnerOSs.reduce((sum, o) => sum + o.valor, 0);
+                const revenue = partnerOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
                 const avgRevenue = count ? revenue / count : 0;
                 const margin = count ? avgRevenue - avgCostPerOS : 0;
                 return {
@@ -7910,7 +7929,7 @@ function renderBI() {
             const serviceDetails = db.servicos.map(s => {
                 const svcOSs = nonCancelledOSs.filter(o => o.servicoId === s.id && o.servicoId !== 7 && o.servicoId !== 8);
                 const count = svcOSs.length;
-                const val = svcOSs.reduce((sum, o) => sum + o.valor, 0);
+                const val = svcOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
                 return {
                     id: s.id,
                     name: s.nome,
@@ -7929,7 +7948,7 @@ function renderBI() {
                 name: 'Vistoria Combo (Parceiros)',
                 cat: 'Cautelar',
                 count: comboOSs.length,
-                val: comboOSs.reduce((sum, o) => sum + o.valor, 0)
+                val: comboOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0)
             };
 
             const comboTransfDetail = {
@@ -7937,7 +7956,7 @@ function renderBI() {
                 name: 'Vistoria de Transferência Combo (Parceiros)',
                 cat: 'Transferência',
                 count: comboTransfOSs.length,
-                val: comboTransfOSs.reduce((sum, o) => sum + o.valor, 0)
+                val: comboTransfOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0)
             };
 
             const allServices = [...serviceDetails];
@@ -8162,7 +8181,7 @@ function renderBIPartnersDetail() {
     } else if (period === 'todos') {
         OSs = [...db.ordens_servico];
     } else {
-        OSs = db.ordens_servico.filter(o => o.criadoEm && o.criadoEm.startsWith(period));
+        OSs = db.ordens_servico.filter(o => o.criadoEm && competenciaLocalDeOS(o.criadoEm) === period);
     }
 
     if (unitFilter !== 'todas') {
@@ -8258,8 +8277,8 @@ function renderBIShareChart(OSs, totalRevenue) {
         return;
     }
 
-    const particularRev = OSs.filter(o => o.clienteTipo === 'particular').reduce((sum, o) => sum + o.valor, 0);
-    const partnerRev = OSs.filter(o => o.clienteTipo === 'parceiro').reduce((sum, o) => sum + o.valor, 0);
+    const particularRev = OSs.filter(o => o.clienteTipo === 'particular').reduce((sum, o) => somaCentavos(sum, o.valor), 0);
+    const partnerRev = OSs.filter(o => o.clienteTipo === 'parceiro').reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     const particularPercent = (particularRev / totalRevenue) * 100;
     const partnerPercent = (partnerRev / totalRevenue) * 100;
@@ -9501,7 +9520,7 @@ function openChangePaymentModal(id) {
     if (os.formaPagamento === 'credito_parcelado') {
         document.getElementById('alt-pag-parcelas').value = os.parcelas || "1";
     } else if (os.formaPagamento === 'dividido') {
-        const splitData = parseDividedPayment(os.observacoes);
+        const splitData = divisaoPagamento(os);
         if (splitData) {
             document.getElementById('alt-pag-div-forma-1').value = splitData[0].forma;
             document.getElementById('alt-pag-div-valor-1').value = splitData[0].valor.toFixed(2);
@@ -9606,7 +9625,7 @@ async function submitChangePayment(event) {
             showToast("Por favor, preencha ambos os valores parciais do pagamento dividido.", "error");
             return;
         }
-        if (Math.abs((v1 + v2) - os.valor) > 0.01) {
+        if (paraCentavos(v1) + paraCentavos(v2) !== paraCentavos(os.valor)) {
             showToast(`A soma dos valores (R$ ${v1.toFixed(2)} + R$ ${v2.toFixed(2)} = R$ ${(v1+v2).toFixed(2)}) deve ser exatamente igual ao valor total do serviço (R$ ${os.valor.toFixed(2)}).`, "error");
             return;
         }
@@ -9694,7 +9713,7 @@ async function submitChangePayment(event) {
         //    o crédito abatido que não couber mais), troca os lançamentos e a OS.
         const { data: r, error } = await supabaseClient.rpc('alterar_pagamento_os', {
             p_os_id: os.id,
-            p_os: { formaPagamento: newForma, pago: newForma !== 'faturamento', parcelas: newParcelas, observacoes },
+            p_os: { formaPagamento: newForma, pago: newForma !== 'faturamento', parcelas: newParcelas, observacoes, pagamentoDividido: partesDivididas },
             p_movimentos: movimentos,
             p_por: currentSession.nome
         });
@@ -9838,8 +9857,8 @@ async function closeAndExitReopenMode() {
                 
                 // Passo 1: Calcular o saldo final do dia reaberto
                 const movsReaberto = db.caixa_movimentos.filter(m => m.caixaId === c.id);
-                const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
-                const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                const cashPaymentsReaberto = movsReaberto.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                const cashSangriasReaberto = movsReaberto.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                 saldoAnterior = parseFloat(c.saldoAbertura || 0) + cashPaymentsReaberto - cashSangriasReaberto;
 
                 // Passo 2: Propagar em cascata para todos os caixas subsequentes
@@ -9862,8 +9881,8 @@ async function closeAndExitReopenMode() {
 
                     // Calcula o saldo final deste dia subsequente para a próxima iteração
                     const movsSub = db.caixa_movimentos.filter(m => m.caixaId === proximoCaixa.id);
-                    const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
-                    const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => sum + parseFloat(m.valor || 0), 0);
+                    const cashPaymentsSub = movsSub.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
+                    const cashSangriasSub = movsSub.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie').reduce((sum, m) => somaCentavos(sum, m.valor), 0);
                     saldoAnterior = proximoCaixa.saldoAbertura + cashPaymentsSub - cashSangriasSub;
                 }
             }
@@ -12859,12 +12878,6 @@ function saveSignatureCanvas(showAlert = true) {
 // STUBS E PLACEHOLDERS RESTANTES (MILESTONE 3)
 // ============================================================================
 
-/**
- * Abre a visualização resumida (modo leitura) da Cautelar.
- */
-function verResumoCautelar(cautelarId) {
-    showToast("Visualização de resumo em desenvolvimento (Milestone 2).", "info");
-}
 
 // Variável de controle do finalizador
 window.activeFinalizacaoCautelarId = null;
@@ -13041,660 +13054,6 @@ function confirmOperatorSignature(showAlert = true) {
     atualizarPreviewLaudo();
 }
 
-/**
- * Renderiza a pré-visualização real-time do Laudo A4 de 9 páginas.
- */
-function atualizarPreviewLaudo_old() {
-    const previewContainer = document.getElementById('laudo-preview-container');
-    if (!previewContainer) return;
-
-    const cautelar = db.cautelares.find(c => c.id === window.activeFinalizacaoCautelarId);
-    if (!cautelar) return;
-
-    const os = db.ordens_servico.find(o => o.id === cautelar.osId);
-    const secoes = db.cautelares_secoes.filter(s => s.cautelarId === cautelar.id);
-
-    // Resgata os dados preenchidos
-    const dataSec1 = (secoes.find(s => s.numeroSecao === 1)?.dadosJson) || {};
-    const dataSec2 = (secoes.find(s => s.numeroSecao === 2)?.dadosJson) || {};
-    const dataSec3 = (secoes.find(s => s.numeroSecao === 3)?.dadosJson) || {};
-    const dataSec4 = (secoes.find(s => s.numeroSecao === 4)?.dadosJson) || {};
-    const dataSec5 = (secoes.find(s => s.numeroSecao === 5)?.dadosJson) || {};
-    const dataSec6 = (secoes.find(s => s.numeroSecao === 6)?.dadosJson) || {};
-    const dataSec7 = (secoes.find(s => s.numeroSecao === 7)?.dadosJson) || {};
-    const dataSec8 = (secoes.find(s => s.numeroSecao === 8)?.dadosJson) || {};
-
-    const parecerFinal = document.getElementById('caut-final-parecer').value;
-    const obsFinal = document.getElementById('caut-final-obs').value;
-
-    const signatureVistoriador = dataSec8.signatureBase64 || '';
-    const signatureOperador = sessionStorage.getItem('certive_operator_signature') || '';
-
-    // Coleta as fotos
-    const fotos = db.cautelares_fotos.filter(f => secoes.map(s => s.id).includes(f.secaoId));
-
-    const getFotoUrl = (codigo) => {
-        const f = fotos.find(ph => ph.slotCodigo === codigo);
-        return f ? (f.url_thumb || f.url_original || '') : '';
-    };
-
-    // Estilo comum das folhas internas
-    const headerStyle = `
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(0, 0, 0, 0.08); padding-bottom: 8px; margin-bottom: 18px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 22px; height: 22px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #C9A961; font-weight: 900; font-size: 11px; font-family: 'Outfit', sans-serif;">C</div>
-                <div style="font-size: 11px; font-weight: 800; color: #0A1F3D; font-family: 'Outfit', sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Certive Vistorias</div>
-                <div style="font-size: 8px; color: #a3aab8; font-weight: 500; font-family: 'Outfit', sans-serif; text-transform: uppercase; margin-left: 5px;">ECV CREDENCIADA DETRAN-SC</div>
-            </div>
-            <div style="text-align: right; font-family: 'Outfit', sans-serif;">
-                <span style="font-size: 8px; color: #a3aab8; font-weight: 600; text-transform: uppercase;">DOSSIÊ</span><br>
-                <span style="font-family: monospace; font-size: 9px; color: #0A1F3D; font-weight: 700;">${escHtml(cautelar.dossieNumero)}</span>
-            </div>
-        </div>
-    `;
-
-    const getFooterStyle = (pageNum) => `
-        <div style="position: absolute; bottom: 30px; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 8px; font-size: 8px; color: #a3aab8; font-family: 'Outfit', sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">
-            <span>CERTIVE VISTORIAS — CAUTELAR</span>
-            <span>PÁG. 0${pageNum} DE 09</span>
-        </div>
-    `;
-
-    let html = '';
-
-    // ==========================================
-    // PÁGINA 1: CAPA DO LAUDO (ESTILO PREMIUM AZUL DO MODELO)
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 60px 50px; background: #050E1A; color: #fdfdfb; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Outfit', sans-serif;">
-            <!-- Linha Decorativa Dourada Topo -->
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: #C9A961;"></div>
-            
-            <div style="display: flex; flex-direction: column; align-items: center; margin-top: 40px;">
-                <!-- Logo Dourada Redonda -->
-                <div style="width: 75px; height: 75px; border: 2px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; box-shadow: 0 0 15px rgba(201, 169, 97, 0.2);">
-                    <div style="color: #C9A961; font-size: 32px; font-weight: 900; letter-spacing: -2px;">C</div>
-                </div>
-                <h2 style="font-size: 16px; font-weight: 800; color: #C9A961; letter-spacing: 2px; text-transform: uppercase; margin: 0;">CERTIVE VISTORIAS</h2>
-                <span style="font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px;">ECV Credenciada Detran-SC</span>
-            </div>
-
-            <div style="text-align: center; margin: 40px 0;">
-                <h1 style="font-size: 52px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; margin: 0 0 10px 0; text-transform: uppercase; font-family: 'Outfit', sans-serif; line-height: 1.1;">LAUDO<br>CAUTELAR</h1>
-                <div style="font-size: 18px; font-weight: 700; color: #C9A961; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 25px;">de Aquisição Veicular</div>
-                <div style="height: 1px; width: 60px; background: rgba(255,255,255,0.2); margin: 0 auto 25px auto;"></div>
-                <p style="font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 400; text-transform: uppercase; letter-spacing: 1.5px; margin: 0; line-height: 1.6;">Análise Físico-Estrutural<br>e Pesquisa Documental</p>
-            </div>
-
-            <!-- Selo Círculo Dourado Cautelar no centro inferior -->
-            <div style="display: flex; justify-content: center; margin: 20px 0;">
-                <div style="width: 130px; height: 130px; border: 1.5px dashed rgba(201, 169, 97, 0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative;">
-                    <div style="width: 112px; height: 112px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.02);">
-                        <div style="font-size: 18px; font-weight: 900; color: #C9A961;">C</div>
-                        <span style="font-size: 6px; font-weight: 800; color: #C9A961; letter-spacing: 0.8px; text-transform: uppercase; margin-top: 2px;">CERTIVE</span>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; font-size: 11px; color: rgba(255,255,255,0.7); font-family: 'Outfit', sans-serif;">
-                <div>
-                    <strong style="color: #C9A961;">SÃO JOSÉ / SC</strong><br>
-                    <span>${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')}</span>
-                </div>
-                <div style="text-align: right;">
-                    <strong style="color: #C9A961;">DOSSIÊ:</strong> <span style="font-family: monospace;">${escHtml(cautelar.dossieNumero)}</span>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 2: IDENTIFICAÇÃO DO VEÍCULO (FICHA COM DUAS FOTOS LATERAIS)
-    // ==========================================
-    const imgVeiculo1 = getFotoUrl('frente_45_dir');
-    const imgVeiculo2 = getFotoUrl('traseira_45_esq');
-    
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-top: 10px;">
-                <!-- Coluna de Títulos e Ficha Técnica -->
-                <div>
-                    <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px;">
-                        <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">I</span>
-                        <div>
-                            <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Identificação<br>do Veículo</h3>
-                        </div>
-                    </div>
-
-                    <!-- Ficha Técnica -->
-                    <div style="display: flex; flex-direction: column; gap: 10px; font-size: 11px;">
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Marca / Modelo</span>
-                            <span style="font-weight: 800; font-size: 12px; color: #0A1F3D; text-transform: uppercase;">${escHtml(os.clienteNome || 'TOYOTA COROLLA XEI 2.0')}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Ano Fabricação / Modelo</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${os.fabricacaoAno || '2019'} / ${os.modeloAno || '2020'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Cor</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${os.cor || 'PRATA'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Placa</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; font-size: 12px; text-transform: uppercase;">${escHtml(os.placa)}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Chassi</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${escHtml(os.renavam || '9BRB03HE0L2567890')}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Motor</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${os.chassi || '3ZR-FAE L256789'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Combustível</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${dataSec1.combustivel || 'FLEX'}</span>
-                        </div>
-                        <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
-                        <div>
-                            <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">KM Informado</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${dataSec1.quilometragem || '68.932'} km</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Coluna de Imagens e Dados de Vistoria -->
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                    <!-- Foto 1 -->
-                    <div style="width: 100%; height: 160px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); overflow: hidden; background: #eef1f5;">
-                        ${imgVeiculo1 ? `<img src="${imgVeiculo1}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; color:#aaa;">FRENTE 45° LADO DIREITO</div>`}
-                    </div>
-                    <!-- Foto 2 -->
-                    <div style="width: 100%; height: 160px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); overflow: hidden; background: #eef1f5;">
-                        ${imgVeiculo2 ? `<img src="${imgVeiculo2}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; color:#aaa;">TRASEIRA 45° LADO ESQUERDO</div>`}
-                    </div>
-
-                    <!-- Dados da Vistoria Card -->
-                    <div style="background: rgba(10, 31, 61, 0.02); border: 1px solid rgba(10, 31, 61, 0.06); border-radius: 4px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 10px; margin-top: 10px;">
-                        <h4 style="font-size: 9px; font-weight: 800; color: #0A1F3D; text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.5px;">Dados da Vistoria</h4>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">DATA / HORA:</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às ${new Date(cautelar.criadoEm).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">LOCAL:</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${escHtml(db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC')}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: #a3aab8; font-weight: 500;">VISTORIADOR:</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${escHtml(db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes')}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            ${getFooterStyle(2)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 3: RESUMO DA ANÁLISE (EVALUATION BLOCKS)
-    // ==========================================
-    let labelParecer = 'CONFORME';
-    let labelColor = '#3a663b';
-    let labelBg = 'rgba(58, 102, 59, 0.08)';
-    let labelBorder = 'rgba(58, 102, 59, 0.2)';
-    let labelTextDesc = 'Com base nas verificações realizadas, o veículo apresenta condições compatíveis com sua idade e uso, não havendo impedimentos para a aquisição.';
-
-    if (parecerFinal === 'com_ressalvas') {
-        labelParecer = 'CONFORME COM RESSALVAS';
-        labelColor = '#B8642B';
-        labelBg = 'rgba(184, 100, 43, 0.08)';
-        labelBorder = 'rgba(184, 100, 43, 0.2)';
-        labelTextDesc = 'Foram identificadas repinturas em painéis secundários, sem indícios de massa poliéster ou reparos estruturais.';
-    } else if (parecerFinal === 'nao_conforme') {
-        labelParecer = 'NÃO CONFORME';
-        labelColor = '#8B2635';
-        labelBg = 'rgba(139, 38, 53, 0.08)';
-        labelBorder = 'rgba(139, 38, 53, 0.2)';
-        labelTextDesc = 'Identificado dano ou solda em regiões de chassi / colunas estruturais, gerando reprovação por comprometimento de integridade física.';
-    }
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">II</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Resumo da Análise</h3>
-                </div>
-            </div>
-
-            <!-- Blocos de Avaliação de Módulos (Modelo Corolla) -->
-            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 30px;">
-                <!-- Bloco Estrutura -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: ${dataSec3.parecerEstrutural === 'nao_conforme' ? 'rgba(139, 38, 53, 0.08)' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? 'rgba(184, 100, 43, 0.08)' : 'rgba(58, 102, 59, 0.08)')}; display: flex; align-items: center; justify-content: center; color: ${dataSec3.parecerEstrutural === 'nao_conforme' ? '#8B2635' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? '#B8642B' : '#3a663b')}; font-size: 20px;">
-                        <i class="ri-shield-check-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">ESTRUTURA E CARROCERIA</strong>
-                        <span style="color: ${dataSec3.parecerEstrutural === 'nao_conforme' ? '#8B2635' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? '#B8642B' : '#3a663b')}; font-weight: 700; text-transform: uppercase; margin-right: 6px;">${dataSec3.parecerEstrutural === 'nao_conforme' ? 'NÃO CONFORME' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? 'COM RESSALVAS' : 'CONFORME')}</span>
-                        <span style="color: #a3aab8; font-weight: 400;">${escHtml(dataSec3.observacao || 'Não foram identificados sinais de sinistro, corte estrutural, remarcação de chassi ou danos que comprometam a integridade do veículo.')}</span>
-                    </div>
-                </div>
-
-                <!-- Bloco Pintura -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: rgba(184, 100, 43, 0.08); display: flex; align-items: center; justify-content: center; color: #B8642B; font-size: 20px;">
-                        <i class="ri-palette-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">PINTURA E ACABAMENTO</strong>
-                        <span style="color: #B8642B; font-weight: 700; text-transform: uppercase; margin-right: 6px;">COM RESSALVAS</span>
-                        <span style="color: #a3aab8; font-weight: 400;">Foram identificadas repinturas em painéis secundários, sem indícios de massa poliéster ou reparos estruturais.</span>
-                    </div>
-                </div>
-
-                <!-- Bloco Documentação -->
-                <div style="display: flex; gap: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 16px; align-items: center;">
-                    <div style="width: 42px; height: 42px; border-radius: 50%; background: rgba(58, 102, 59, 0.08); display: flex; align-items: center; justify-content: center; color: #3a663b; font-size: 20px;">
-                        <i class="ri-file-list-3-line"></i>
-                    </div>
-                    <div style="flex: 1; font-size: 11px;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">DOCUMENTAÇÃO E RESTRIÇÕES</strong>
-                        <span style="color: #3a663b; font-weight: 700; text-transform: uppercase; margin-right: 6px;">CONFORME</span>
-                        <span style="color: #a3aab8; font-weight: 400;">Veículo com situação cadastral regular. Sem restrições, débitos ou apontamentos nas bases consultadas.</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Parecer Técnico Card Base -->
-            <div style="background: ${labelBg}; border: 1.5px solid ${labelBorder}; border-radius: 6px; padding: 20px; font-size: 12px;">
-                <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px; letter-spacing: 0.5px;">PARECER TÉCNICO</span>
-                <h2 style="font-size: 26px; font-weight: 800; color: ${labelColor}; margin: 0 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase;">${labelParecer}</h2>
-                <p style="font-size: 11.5px; color: #0A1F3D; line-height: 1.6; margin: 0; font-weight: 500;">
-                    ${labelTextDesc}
-                </p>
-            </div>
-
-            ${getFooterStyle(3)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 4: ANÁLISE ESTRUTURAL — REGIÃO DO CHASSI
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">III</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Análise Estrutural<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Região do Chassi</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 18px; margin-top: 10px;">
-                <!-- Bloco 1 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('chassi_gravado') ? `<img src="${getFotoUrl('chassi_gravado')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Gravação de chassi</strong>
-                        <p style="color: #a3aab8; margin: 0;">Numeração original de fábrica, gravação dentro do padrão apresentado pelo fabricante. Sem sinais de alteração.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 2 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('longarina_diant_esq') ? `<img src="${getFotoUrl('longarina_diant_esq')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Longarina dianteira</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Solda e pontos de fábrica preservados. Sem sinais de reparo ou soldas corretivas.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 3 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('assoalho_porta_malas') ? `<img src="${getFotoUrl('assoalho_porta_malas')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Assoalho central</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Sem sinais de amassado, solda irregular ou reparos estruturais no habitáculo.</p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(4)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 5: PINTURA E ACABAMENTO (MICRÔMETRO & ESTRUTURA DO CARRO)
-    // ==========================================
-    const paintPanels = [
-        "Capô", "Para-lama Dianteiro Esq.", "Porta Dianteira Esq.", "Porta Traseira Esq.",
-        "Para-lama Traseiro Esq.", "Teto", "Para-lama Traseiro Dir.", "Porta Traseira Dir.",
-        "Porta Dianteira Dir.", "Para-lama Dianteiro Dir.", "Tampa Traseira"
-    ];
-
-    const paintRowsHtml = paintPanels.map((p, idx) => {
-        const val = parseFloat(dataSec4[`painel_${idx}`]) || 0;
-        const isRepaint = val > 150;
-        return `
-            <div style="display: flex; justify-content: space-between; font-size: 10.5px; border-bottom: 1px solid rgba(0,0,0,0.04); padding: 5px 0;">
-                <span style="font-weight: 600; color: #0A1F3D;">${p}</span>
-                <span style="font-family: monospace; font-weight: 700; color: ${isRepaint ? '#B8642B' : '#0A1F3D'}">${val ? val + ' µm' : '112 µm'}</span>
-            </div>
-        `;
-    }).join('');
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">IV</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Pintura e Acabamento<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Medição de Espessura</span></h3>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 260px 1fr; gap: 30px; margin-top: 15px;">
-                <!-- Esquema visual do carro -->
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 20px;">
-                    <!-- Vetor do carro simulado -->
-                    <div style="width: 130px; height: 320px; border: 1.5px solid #a3aab8; border-radius: 20px; position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 15px 0; background: #faf9f6;">
-                        <!-- Capo -->
-                        <div style="width: 70px; height: 55px; border: 1px solid #C9A961; border-radius: 8px; background: rgba(201, 169, 97, 0.05); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#C9A961;">CAPÔ</div>
-                        <!-- Teto -->
-                        <div style="width: 80px; height: 95px; border: 1px solid #0A1F3D; border-radius: 6px; background: rgba(10,31,61,0.02); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#0A1F3D;">TETO</div>
-                        <!-- Mala -->
-                        <div style="width: 70px; height: 40px; border: 1px solid #0A1F3D; border-radius: 4px; background: rgba(10,31,61,0.02); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color:#0A1F3D;">MALA</div>
-                    </div>
-                </div>
-
-                <!-- Tabela de Micragem -->
-                <div style="display: flex; flex-direction: column; justify-content: space-between;">
-                    <div style="display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #a3aab8; border-bottom: 1.5px solid #0A1F3D; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span>Painel</span>
-                            <span>Espessura</span>
-                        </div>
-                        <div style="display: flex; flex-direction: column; margin-top: 5px;">
-                            ${paintRowsHtml}
-                        </div>
-                    </div>
-
-                    <!-- Observação do Vistoriador -->
-                    <div style="border: 1px solid rgba(0,0,0,0.08); border-radius: 4px; padding: 12px; font-size: 10px; background: #ffffff; margin-top: 15px;">
-                        <strong style="font-size: 8px; color: #a3aab8; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Observação do Vistoriador</strong>
-                        <p style="margin: 0; color: #0A1F3D; font-weight: 500;">
-                            Repinturas identificadas no painel da lateral direita traseira e portas correspondentes. Não foi detectada presença de massa poliéster ou alterações estruturais.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(5)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 6: COMPARTIMENTO DO MOTOR E ESTRUTURAS
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">V</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Compartimento do Motor<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">e Estruturas</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 18px; margin-top: 10px;">
-                <!-- Bloco 1 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('torre_amort_diant_esq') ? `<img src="${getFotoUrl('torre_amort_diant_esq')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Torre do amortecedor lado esquerdo</strong>
-                        <p style="color: #a3aab8; margin: 0;">Ponto de solda de fábrica íntegro. Sem sinais de reparo, corte ou deformação.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 2 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('painel_corta_fogo') ? `<img src="${getFotoUrl('painel_corta_fogo')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Painel Corta-Fogo</strong>
-                        <p style="color: #a3aab8; margin: 0;">Estrutura íntegra. Soldas originais preservadas.</p>
-                    </div>
-                </div>
-
-                <!-- Bloco 3 -->
-                <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; padding-bottom: 16px;">
-                    <div style="width: 100%; height: 135px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                        ${getFotoUrl('torre_amort_diant_dir') ? `<img src="${getFotoUrl('torre_amort_diant_dir')}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
-                        <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 4px; text-transform: uppercase;">Torre do amortecedor lado direito</strong>
-                        <p style="color: #a3aab8; margin: 0;">Ponto de solda de fábrica íntegro. Sem sinais de reparo, corte ou deformação.</p>
-                    </div>
-                </div>
-            </div>
-
-            ${getFooterStyle(6)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 7: PESQUISA DOCUMENTAL (RESUMO DAS CONSULTAS)
-    // ==========================================
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">VI</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Pesquisa Documental<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Resumo das Consultas</span></h3>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; margin-top: 10px;">
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">SITUAÇÃO CADASTRAL (SENATRAN)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">REGULAR</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">RESTRIÇÃO ADMINISTRATIVA (RENAJUD)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">RESTRIÇÃO JUDICIAL</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">ALIENAÇÃO FIDUCIÁRIA</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">DÉBITOS (IPVA / LICENCIAMENTO / MULTAS)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">HISTÓRICO DE ROUBO E FURTO</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">INDÍCIO DE SINISTRO (BASE SEGURADORAS)</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.03);">
-                    <span style="font-weight: 600; color: #0a1f3d;">HISTÓRICO DE LEILÃO</span>
-                    <span style="font-weight: 700; color: #6b8a3e;">NADA CONSTA</span>
-                </div>
-            </div>
-
-            <!-- Fonte das Consultas Card -->
-            <div style="background: rgba(10, 31, 61, 0.02); border: 1px solid rgba(10, 31, 61, 0.06); border-radius: 4px; padding: 16px; margin-top: 30px; font-size: 10px; line-height: 1.5; color: #a3aab8;">
-                <strong style="color: #0A1F3D; font-size: 11px; display: block; margin-bottom: 6px; text-transform: uppercase;">Fonte das Consultas</strong>
-                <span>SENATRAN • DETRAN/SC • RENAJUD • BIN (BASE SEGURADORAS) • SINESP • INFOSEG • BASE PROPRIETÁRIA CERTIVE</span><br>
-                <span style="margin-top: 10px; display: block;">Data das consultas: ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')} às 08:52</span>
-            </div>
-
-            ${getFooterStyle(7)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 8: REGISTRO FOTOGRÁFICO VISTORIA GERAL (GRID DE FOTOS)
-    // ==========================================
-    const gridCodes = [
-        'frente_45_dir', 'traseira_45_esq', 'painel_hodometro',
-        'crlv_documento', 'placa_dianteira', 'motor_vista_geral'
-    ];
-
-    const gridPhotosHtml = gridCodes.map(code => {
-        const url = getFotoUrl(code);
-        return `
-            <div style="width: 100%; height: 115px; border-radius: 4px; overflow: hidden; background: #eef1f5; border: 1px solid rgba(0,0,0,0.05);">
-                ${url ? `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-            </div>
-        `;
-    }).join('');
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; font-family: 'Outfit', sans-serif;">
-            ${headerStyle}
-            
-            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; margin-top: 10px;">
-                <span style="font-family: 'Times New Roman', Times, serif; font-style: italic; font-size: 32px; color: #C9A961; font-weight: 700; line-height: 1;">VII</span>
-                <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Registro Fotográfico<br><span style="font-size: 11px; color:#a3aab8; font-weight: 600;">Vistoria Geral</span></h3>
-                </div>
-            </div>
-
-            <!-- Grid com 6 fotos principais -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px;">
-                ${gridPhotosHtml}
-            </div>
-
-            <!-- QR Code do Laudo -->
-            <div style="display: flex; justify-content: center; align-items: center; flex-direction: column; margin-top: 60px;">
-                <div style="width: 100px; height: 100px; border: 1.5px solid #C9A961; border-radius: 4px; padding: 6px; background: white; display: flex; align-items: center; justify-content: center;">
-                    <div id="laudo-preview-qrcode" style="width: 100%; height: 100%;"></div>
-                </div>
-                <span style="font-size: 7.5px; color: #a3aab8; font-weight: 600; text-transform: uppercase; margin-top: 10px; letter-spacing: 0.5px;">QR Code de Autenticidade do Laudo</span>
-            </div>
-
-            ${getFooterStyle(8)}
-        </div>
-    `;
-
-    // ==========================================
-    // PÁGINA 9: PARECER FINAL & ASSINATURAS (MODELO COROLLA)
-    // ==========================================
-    const hashLaudo = cautelar.hashLaudo || 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
-
-    html += `
-        <div class="laudo-pdf-page" style="width: 794px; height: 1122px; padding: 40px; background: #FAF9F6; color: #0F1824; box-shadow: 0 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Outfit', sans-serif;">
-            <div>
-                ${headerStyle}
-                
-                <div style="text-align: center; margin-top: 15px; margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; font-weight: 800; color: #0A1F3D; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Parecer Final</h3>
-                </div>
-
-                <!-- Box de Parecer Final Premium Dourado/Escuro -->
-                <div style="background: #050E1A; color: white; padding: 30px; border-radius: 6px; border: 1.5px solid #C9A961; text-align: center; margin-bottom: 30px;">
-                    <!-- Logo interna pequena -->
-                    <div style="width: 32px; height: 32px; border: 1.5px solid #C9A961; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
-                        <span style="color:#C9A961; font-size:14px; font-weight:900;">C</span>
-                    </div>
-                    
-                    <p style="font-size: 11px; line-height: 1.6; color: rgba(255,255,255,0.7); max-width: 500px; margin: 0 auto 16px auto; font-weight: 400;">
-                        Com base em todas as verificações e pesquisas realizadas, certifico que o veículo vistoriado apresenta condições compatíveis com sua idade e uso, não havendo indícios de sinistro, remarcação de chassi, restrições ou irregularidades relevantes.
-                    </p>
-                    
-                    <h2 style="font-size: 32px; font-weight: 800; color: #C9A961; margin: 0; text-transform: uppercase; letter-spacing: 1px;">CONFORME</h2>
-                    <span style="font-size: 8.5px; font-weight: 600; color: #C9A961; letter-spacing: 1px; text-transform: uppercase;">PARA AQUISIÇÃO</span>
-                </div>
-
-                <!-- Rodapé de Localização e Data -->
-                <div style="text-align: center; font-size: 11px; font-weight: 700; color: #0a1f3d; margin-bottom: 40px;">
-                    São José/SC, ${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}.
-                </div>
-
-                <!-- Assinatura Vistoriador -->
-                <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-top: 10px;">
-                    <div style="width: 260px; height: 65px; border-bottom: 1.5px solid #0a1f3d; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                        ${signatureVistoriador ? `<img src="${signatureVistoriador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
-                    </div>
-                    <span style="font-size: 11px; font-weight: 800; color: #0a1f3d; margin-top: 6px; text-transform: uppercase;">${escHtml(db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins')}</span>
-                    <span style="font-size: 8.5px; color: #a3aab8; font-weight: 700; text-transform: uppercase; margin-top: 2px;">VISTORIADOR</span>
-                    <span style="font-size: 8px; font-family: monospace; color: #a3aab8; margin-top: 2px;">REGISTRO ECV ${cautelar.vistoriadorId ? '417.734.562-9' + cautelar.vistoriadorId : '417.734.562-91'}</span>
-                </div>
-            </div>
-
-            <!-- Assinatura do Selo de Cautelar Rodapé -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1.5px solid #C9A961; padding-top: 15px; margin-top: 20px;">
-                <div style="max-width: 480px; font-family: 'Outfit', sans-serif; font-size: 9px; color: #a3aab8; font-weight: 500; line-height: 1.5;">
-                    <strong style="color: #0a1f3d; font-size: 9.5px; text-transform: uppercase;">Validação Criptográfica do Laudo:</strong><br>
-                    <span style="font-family: monospace; font-size: 8px; color: #a3aab8; word-break: break-all; font-weight: 400;">${hashLaudo}</span>
-                </div>
-                <!-- Selo Dourado Pequeno no Canto -->
-                <div style="width: 70px; height: 70px; border: 1px solid #C9A961; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
-                    <span style="color:#C9A961; font-size:13px; font-weight:900; line-height: 1;">C</span>
-                    <span style="font-size: 5px; font-weight: 800; color:#C9A961; text-transform: uppercase; margin-top: 1px;">CERTIVE</span>
-                </div>
-            </div>
-
-            ${getFooterStyle(9)}
-        </div>
-    `;
-
-    previewContainer.innerHTML = html;
-
-    // Gerar o QR Code no preview de forma assíncrona na página 8
-    setTimeout(() => {
-        const qrDiv = document.getElementById('laudo-preview-qrcode');
-        if (qrDiv) {
-            qrDiv.innerHTML = '';
-            const validationUrl = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${hashLaudo}`;
-            new QRCode(qrDiv, {
-                text: validationUrl,
-                width: 88,
-                height: 88,
-                colorDark : "#050e1a",
-                colorLight : "#faf9f6",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-        }
-    }, 100);
-}
 
 // Função auxiliar para converter imagens de vistoria em Base64 compactado para o GPT-4o Vision
 async function imageToAiBase64(url) {
@@ -14054,8 +13413,6 @@ async function gerarLaudoFinalPdf() {
         return;
     }
 
-    if (!confirm("Emitir a versão final deste laudo? O PDF será guardado no servidor com código de verificação e não poderá ser alterado.")) return;
-
     const emitirBtn = document.querySelector("button[onclick='gerarLaudoFinalPdf()']");
     const originalText = emitirBtn ? emitirBtn.innerHTML : "";
     const etapa = texto => {
@@ -14071,10 +13428,10 @@ async function gerarLaudoFinalPdf() {
 
     try {
         // 0. Fotos ainda no aparelho: tenta enviar antes; se não subirem, avisa.
+        // Os avisos das conferências vão juntos numa única confirmação
+        const avisos = [];
         const pendentesAparelho = await cautelarFotosPendentesAntesDoLaudo(cautelar.id);
-        if (pendentesAparelho > 0 && !confirm(`${pendentesAparelho} foto(s) desta vistoria ainda não foram enviadas deste aparelho e ficarão fora do laudo.\n\nDeseja gerar o laudo mesmo assim?`)) {
-            return liberar();
-        }
+        if (pendentesAparelho > 0) avisos.push(`${pendentesAparelho} foto(s) ainda não enviadas deste aparelho ficarão fora do laudo.`);
 
         // 0.1 Fotos obrigatórias conferidas no servidor
         const obrigatoriasFaltando = await cautelarFotosObrigatoriasFaltando(cautelar.id);
@@ -14090,7 +13447,10 @@ async function gerarLaudoFinalPdf() {
         // 0.2 Fotos de identificação: conferência final da posição
         etapa('CONFERINDO FOTOS...');
         const incertas = await cautelarConferirOrientacaoFotos(cautelar.id, (feitas, total) => etapa(`CONFERINDO FOTOS ${feitas}/${total}...`));
-        if (incertas.length && !confirm(`A posição destas fotos de identificação não pôde ser confirmada automaticamente:\n\n- ${incertas.join('\n- ')}\n\nConfira-as na pré-visualização (e gire, se preciso). Deseja emitir o laudo mesmo assim?`)) {
+        if (incertas.length) avisos.push(`Posição não confirmada automaticamente (confira na pré-visualização): ${incertas.join(', ')}.`);
+
+        if (!confirm("Emitir a versão final deste laudo? O PDF será guardado no servidor com código de verificação e não poderá ser alterado." +
+            (avisos.length ? `\n\nAtenção:\n- ${avisos.join('\n- ')}` : ''))) {
             return liberar();
         }
 
@@ -14573,8 +13933,8 @@ async function generateAndUploadInvoicePDF(f) {
 
     // Créditos e descontos aplicados nesta fatura
     const creditosAbatidos = (db.parceiros_creditos || []).filter(c => c.faturaId === f.id);
-    const totalCreditos = creditosAbatidos.reduce((sum, c) => sum + c.valor, 0);
-    const totalBruto = oss.reduce((sum, o) => sum + o.valor, 0);
+    const totalCreditos = creditosAbatidos.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
+    const totalBruto = oss.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     let creditosHtml = '';
     if (creditosAbatidos.length > 0) {

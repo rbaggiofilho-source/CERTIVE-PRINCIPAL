@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <!-- Só carrega scripts/dados de origens conhecidas: dificulta roubo de dados em caso de XSS -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' blob: data: https://*.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' blob: data: https://*.supabase.co; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>Certive Vistorias — Sistema de Gestão Premium</title>
     <meta name="description" content="Sistema de Gestão integrado para Certive Vistorias. Controle de OS, Caixa, Faturamento de Parceiros e Contas a Pagar.">
     
@@ -18,10 +18,11 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png?v=2">
 
     <link rel="stylesheet" href="styles.css?v=20260901_menu">
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="js/vendor/remixicon-3.5.0/remixicon.css" rel="stylesheet">
+    <!-- Bibliotecas hospedadas no próprio site, com versão fixa (js/vendor) -->
+    <script src="js/vendor/jspdf-2.5.1.umd.min.js"></script>
+    <script src="js/vendor/pdf-lib-1.17.1.min.js"></script>
+    <script src="js/vendor/marked-18.0.14.umd.js"></script>
     <style>
         /* Correção de Layout Forçada (Bypass de Cache de CSS) */
         @media (min-width: 1201px) {
@@ -2907,11 +2908,10 @@
         alert(errorMsg);
     };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="js/vendor/supabase-js-2.117.2.js"></script>
+<script src="js/vendor/html2pdf-0.10.1.bundle.min.js"></script>
+<script src="js/vendor/qrcodejs-1.0.0.min.js"></script>
+<script src="js/vendor/pdfjs-3.11.174.min.js"></script>
 <script src="js/vendor/purify.min.js"></script>
 <script src="supabase-config.js?v=20260823-push"></script>
     <!-- MODAL: EDITAR OPERADOR -->
@@ -3000,10 +3000,9 @@
         </div>
     </div>
 
-<script src="supabase-db.js?v=20260928-fase2"></script>
-<script src="app_v8.js?v=20260928-fase3"></script>
-<script src="svg_templates.js"></script>
-<script src="laudo_pdf_v2.js?v=8.7.0"></script>
+<script src="supabase-db.js?v=20260928-fase4"></script>
+<script src="app_v8.js?v=20260928-fase4"></script>
+<script src="laudo_pdf_v2.js?v=9.0.0"></script>
 <script src="js/laudo_certive.js?v=3.1.0"></script>
 <script>
   if ('serviceWorker' in navigator) {

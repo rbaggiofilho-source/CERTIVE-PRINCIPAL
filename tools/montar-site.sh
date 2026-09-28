@@ -9,14 +9,12 @@ mkdir -p "$DESTINO"
 ARQUIVOS=(
   CNAME .nojekyll manifest.webmanifest
   index.html app.html consulta-laudo.html privacidade.html termos.html curso.html
-  app_v8.js supabase-config.js supabase-db.js svg_templates.js laudo_pdf_v2.js sw.js
+  app_v8.js supabase-config.js supabase-db.js laudo_pdf_v2.js sw.js
   styles.css site.css
-  Certive_Template_Editavel.pdf Certive_Template_Field_Map.json
 )
 PASTAS=(icons assets js/vendor)
 
 for f in "${ARQUIVOS[@]}"; do cp "$f" "$DESTINO/"; done
-for f in pagina_*.png; do cp "$f" "$DESTINO/"; done
 mkdir -p "$DESTINO/js"
 cp js/laudo_certive.js "$DESTINO/js/"
 for d in "${PASTAS[@]}"; do mkdir -p "$DESTINO/$(dirname "$d")"; cp -r "$d" "$DESTINO/$d"; done

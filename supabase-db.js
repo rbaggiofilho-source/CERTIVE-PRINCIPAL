@@ -253,7 +253,7 @@ const CAMPOS_PESADOS = {
 
 const COLUNAS_LEVES = {
     contas_pagar: 'id,unidadeId,descricao,tipo,vencimento,valor,observacoes,pago,pagoEm,recorrente,frequencia,recorrenciaGrupoId,codigoBarras,categoria,fornecedor,criadoPor,competencia,"temAnexo","temComprovante"',
-    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,veiculoTipo,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato"',
+    ordens_servico: 'id,numero,criadoEm,criadoPor,unidadeId,clienteTipo,parceiroId,clienteNome,clienteCpfCnpj,clienteCelular,clienteEndereco,placa,renavam,servicoId,servicoNome,valor,observacoes,pago,formaPagamento,detranRegistrado,docVeiculoApresentado,docIdentificacaoApresentado,status,finalizadoEm,finalizadoPor,canceladoEm,canceladoPor,reapresentacaoOrigemID,respostaDetranNet,respostaShopping,reapresentadaData,faturaId,osFinalidade,veiculoChassi,veiculoMarcaModelo,veiculoAno,veiculoTipo,contratoHash,contratoAceitoEm,parcelas,statusNfse,numeroNfse,dataNfse,"temContrato","pagamentoDividido"',
     caixa_diario: 'id,unidadeId,data,status,abertoPor,fechadoPor,fechadoEm,saldoAbertura,"saldoEspécieInformado","temRelatorioDetran"'
 };
 
@@ -299,7 +299,7 @@ async function comRetentativa(fn, descricao, tentativas = 3) {
 // resto em silêncio; por isso a leitura é feita em páginas.
 const SB_PAGINA = 1000;
 
-async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Infinity) {
+async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Infinity, filtro = null) {
     const colunas = COLUNAS_LEVES[table] || '*';
     return comRetentativa(async () => {
         const todos = [];
@@ -308,6 +308,7 @@ async function sbSelectAll(table, orderBy = 'id', ascending = true, limite = Inf
                 .from(table)
                 .select(colunas)
                 .order(orderBy, { ascending });
+            if (filtro) q = filtro(q);
             // Desempate estável para a paginação não pular nem repetir linhas
             if (orderBy !== 'id' && table !== 'portarias_uf') q = q.order('id', { ascending: true });
             const { data, error } = await q.range(de, Math.min(de + SB_PAGINA, limite) - 1);
@@ -407,6 +408,63 @@ async function sbSelectWhere(table, filters) {
 
 // ---- DATABASE LOADER ----
 
+// ---- JANELA DE CARGA ----
+// A carga inicial traz os últimos JANELA_MESES meses de OS, caixa e faturas,
+// mais tudo o que ainda está em aberto (OS não concluídas ou sem fatura, faturas
+// não pagas, caixas abertos). Sem isso a carga crescia sem limite a cada mês.
+// O histórico completo é buscado sob demanda (carregarHistoricoCompleto).
+const JANELA_MESES = 13;
+window.historicoCompleto = false;
+
+function inicioJanelaCarga() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - JANELA_MESES);
+    return d.toISOString().slice(0, 10);
+}
+window.inicioJanelaCarga = inicioJanelaCarga;
+
+function juntarPorId(...listas) {
+    const mapa = new Map();
+    listas.forEach(l => (l || []).forEach(r => mapa.set(r.id, r)));
+    return [...mapa.values()].sort((a, b) => a.id - b.id);
+}
+
+async function carregarTabelasComJanela(completo) {
+    const corte = inicioJanelaCarga();
+    if (completo) {
+        return Promise.all([
+            sbSelectAll('ordens_servico', 'id', true),
+            sbSelectAll('caixa_diario', 'id', true),
+            sbSelectAll('caixa_movimentos', 'id', true),
+            sbSelectAll('faturas', 'id', true)
+        ]);
+    }
+    const [osRecentes, osAbertas, osSemFatura, cxRecentes, cxAbertos, movRecentes, fatRecentes, fatAbertas] = await Promise.all([
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.gte('criadoEm', corte)),
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.lt('criadoEm', corte).in('status', ['aberta', 'em_execucao', 'paga'])),
+        sbSelectAll('ordens_servico', 'id', true, Infinity, q => q.lt('criadoEm', corte).eq('formaPagamento', 'faturamento').is('faturaId', null)),
+        sbSelectAll('caixa_diario', 'id', true, Infinity, q => q.gte('data', corte)),
+        sbSelectAll('caixa_diario', 'id', true, Infinity, q => q.lt('data', corte).eq('status', 'aberto')),
+        sbSelectAll('caixa_movimentos', 'id', true, Infinity, q => q.gte('data', corte)),
+        sbSelectAll('faturas', 'id', true, Infinity, q => q.gte('criadoEm', corte)),
+        sbSelectAll('faturas', 'id', true, Infinity, q => q.lt('criadoEm', corte).eq('pago', false))
+    ]);
+    return [juntarPorId(osRecentes, osAbertas, osSemFatura), juntarPorId(cxRecentes, cxAbertos), movRecentes, juntarPorId(fatRecentes, fatAbertas)];
+}
+
+// Traz o histórico anterior à janela (BI, histórico e relatórios de períodos antigos)
+async function carregarHistoricoCompleto() {
+    if (window.historicoCompleto) return false;
+    const [os, cx, mov, fat] = await carregarTabelasComJanela(true);
+    db.ordens_servico = juntarPorId(db.ordens_servico, os.map(r => normalizeRecord('ordens_servico', r)));
+    db.caixa_diario = juntarPorId(db.caixa_diario, cx.map(r => normalizeRecord('caixa_diario', r)));
+    db.caixa_movimentos = juntarPorId(db.caixa_movimentos, mov.map(r => normalizeRecord('caixa_movimentos', r)));
+    db.faturas = juntarPorId(db.faturas, fat.map(r => normalizeRecord('faturas', r)));
+    window.historicoCompleto = true;
+    return true;
+}
+window.carregarHistoricoCompleto = carregarHistoricoCompleto;
+
 /**
  * Load ALL tables from Supabase into the global `db` object.
  * This replaces the old loadDatabase() that read from localStorage.
@@ -440,11 +498,8 @@ async function loadAllFromSupabase() {
             taxas_referencia,
             operadores,
             parceiros,
-            ordens_servico,
-            caixa_diario,
-            caixa_movimentos,
+            [ordens_servico, caixa_diario, caixa_movimentos, faturas],
             contas_pagar,
-            faturas,
             auditoria,
             portarias_uf,
             metas_despesas,
@@ -456,11 +511,8 @@ async function loadAllFromSupabase() {
             sbSelectAll('taxas_referencia'),
             sbSelectAll('operadores'),
             sbSelectAll('parceiros'),
-            sbSelectAll('ordens_servico', 'id', true),
-            sbSelectAll('caixa_diario', 'id', true),
-            sbSelectAll('caixa_movimentos', 'id', true),
+            carregarTabelasComJanela(false),
             sbSelectAll('contas_pagar', 'id', true),
-            sbSelectAll('faturas', 'id', true),
             sbSelectAll('auditoria', 'id', false, 1000), // Most recent first
             sbSelectAll('portarias_uf', 'uf'),
             sbSelectAll('metas_despesas'),
