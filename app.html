@@ -2252,11 +2252,10 @@
                             </div>
                             <div class="panel-card-body">
                                 <form id="config-chatgpt-form" onsubmit="submitConfigChatGPT(event)">
-                                    <div class="form-group">
-                                        <label for="cfg-openai-key">Chave de API da OpenAI (API Key)</label>
-                                        <input type="password" id="cfg-openai-key" placeholder="sk-proj-..." required style="font-family: monospace;">
-                                        <small style="color: var(--text-secondary); display: block; margin-top: 4px;">
-                                            Sua chave fica gravada com segurança no banco de dados e só é enviada diretamente nas requisições.
+                                    <div class="form-group" style="padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);">
+                                        <strong><i class="ri-shield-keyhole-line"></i> Credencial protegida no servidor</strong>
+                                        <small style="color: var(--text-secondary); display: block; margin-top: 6px; line-height:1.5;">
+                                            A credencial usada para gerar laudos não é armazenada nem exibida no navegador. O administrador da infraestrutura deve cadastrá-la como segredo da função do servidor.
                                         </small>
                                     </div>
                                     <div class="form-group">
@@ -3102,10 +3101,10 @@
         </div>
     </div>
 
-<script src="supabase-db.js?v=20260927-syncfix"></script>
-<script src="app_v8.js?v=20260927-syncfix"></script>
+<script src="supabase-db.js?v=20260927-laudo"></script>
+<script src="app_v8.js?v=20260928-laudo"></script>
 <script src="svg_templates.js"></script>
-<script src="laudo_pdf_v2.js?v=8.4.2"></script>
+<script src="laudo_pdf_v2.js?v=8.5.0"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
