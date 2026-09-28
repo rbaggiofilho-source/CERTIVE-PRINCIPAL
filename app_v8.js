@@ -1317,9 +1317,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.6.1';
+const APP_VERSION = '9.6.2';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.6.2',
+        data: '2026-09-28',
+        titulo: 'O relatório do DETRAN nunca mais é descartado no fechamento',
+        resumo: 'Quando o relatório do DETRAN vinha assinado digitalmente, o sistema não conseguia juntar os PDFs e acabava guardando só o comprovante do caixa — perdendo justamente o relatório do DETRAN. Corrigido: agora os PDFs assinados são lidos e mesclados normalmente e, no caso raro de a junção ainda falhar, o sistema guarda o relatório do DETRAN (o documento insubstituível) em vez do comprovante do caixa, que pode ser refeito a qualquer momento.',
+        mudancas: [
+            {
+                area: 'Fechamento de caixa',
+                titulo: 'Relatório do DETRAN preservado mesmo assinado digitalmente',
+                oQueMudou: 'A leitura do PDF do DETRAN passou a aceitar arquivos assinados/protegidos, então a mesclagem com o comprovante do caixa funciona e os dois documentos ficam salvos juntos. Se por algum motivo a mesclagem ainda falhar, o sistema guarda o relatório do DETRAN, não mais só o comprovante do caixa.',
+                comoUsar: 'Nada muda no uso: anexe o relatório do DETRAN normalmente ao fechar o caixa. O documento agora fica sempre guardado.'
+            }
+        ]
+    },
     {
         versao: '9.6.1',
         data: '2026-09-27',
@@ -5561,17 +5575,24 @@ async function submitFecharCaixa(event) {
                 const copiedPages1 = await mergedPdf.copyPages(cashierDoc, cashierDoc.getPageIndices());
                 copiedPages1.forEach((page) => mergedPdf.addPage(page));
 
-                const uploadedDoc = await PDFDocument.load(uploadedPdfBytes);
+                // O relatório do DETRAN costuma vir assinado digitalmente/cifrado.
+                // Sem ignoreEncryption o pdf-lib lança e a mesclagem falha, fazendo
+                // o sistema descartar justamente o relatório do DETRAN. Com a flag,
+                // a mesclagem passa e os DOIS documentos ficam preservados.
+                const uploadedDoc = await PDFDocument.load(uploadedPdfBytes, { ignoreEncryption: true });
                 const copiedPages2 = await mergedPdf.copyPages(uploadedDoc, uploadedDoc.getPageIndices());
                 copiedPages2.forEach((page) => mergedPdf.addPage(page));
 
                 const mergedPdfBytes = await mergedPdf.save();
                 base64Pdf = uint8ArrayToBase64(mergedPdfBytes);
             } catch (pdfMergeError) {
-                console.warn("Falha ao mesclar PDFs (provavelmente por assinatura digital/proteção). Salvando apenas o PDF do Caixa.", pdfMergeError);
-                // Fallback: usa apenas o PDF do caixa para não travar o fechamento
-                base64Pdf = uint8ArrayToBase64(cashierPdfBytes);
-                showToast("Nota: O PDF do DETRAN está protegido por assinatura digital. Caixa fechado anexando apenas o PDF do Caixa.", "warning");
+                console.warn("Falha ao mesclar PDFs. Preservando o relatório do DETRAN, que é o documento insubstituível.", pdfMergeError);
+                // O comprovante do caixa é gerado pelo sistema e pode ser refeito a
+                // qualquer momento; o relatório do DETRAN, não. Por isso, na falha
+                // da mesclagem, guardamos o relatório do DETRAN (e não o comprovante
+                // do caixa) para nunca perder a evidência da conferência.
+                base64Pdf = uint8ArrayToBase64(new Uint8Array(uploadedPdfBytes));
+                showToast("Nota: não foi possível mesclar os PDFs (relatório do DETRAN assinado digitalmente). O caixa foi fechado guardando o relatório do DETRAN.", "warning");
             }
 
             // Check final size in characters (approx 1.33MB base64 corresponds to 1MB binary)
