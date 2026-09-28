@@ -15,6 +15,7 @@
     'use strict';
 
     const PAG = { w: 794, h: 1123 };
+    const MODELO = 'LCAV v1.0'; // versão do modelo de laudo: mudar ao alterar o layout
     const A4_PT = { w: 595.28, h: 841.89 };
 
     const COR = {
@@ -269,6 +270,25 @@
         if (alerta.length) t += ` Foram registrados os seguintes pontos de atenção: ${alerta.slice(0, 8).join('; ')}.`;
         else t += ' Não foram constatados indícios de sinistro estrutural, remarcação de chassi ou irregularidades de identificação.';
         return t;
+    }
+
+    // Recomendações objetivas ao comprador, a partir das constatações registradas
+    function recomendacoes(D) {
+        const r = [];
+        const chassiMotor = D.d2.chassiOriginal === false || D.d2.motorOriginal === false;
+        if (chassiMotor) r.push('Não prosseguir com a aquisição antes de consulta ao DETRAN e perícia oficial da numeração de identificação.');
+        if (D.d3.indicioBatida === 'sim' && D.d3.deformacaoEstrutural === 'sim') r.push('Realizar avaliação estrutural especializada antes da aquisição, em razão da deformação constatada.');
+        const estrutura = D.estrutura.some(e => e.status !== 'original' && e.status !== 'nao_aplicavel') || D.itensPintura.some(i => i.reparo === 'sim');
+        if (estrutura) r.push('Solicitar ao vendedor a documentação dos reparos estruturais realizados (notas fiscais e oficina responsável).');
+        if (D.d3.indicioBatida === 'sim') r.push('Realizar alinhamento, balanceamento e inspeção da suspensão em oficina de confiança, em razão dos indícios de batida.');
+        if (D.d3.indicioEnchente === 'sim') r.push('Avaliar a parte elétrica, os módulos eletrônicos e os pontos de corrosão, em razão dos indícios de enchente.');
+        if (D.itensPintura.some(i => ['REPINTURA', 'REPINTURA COM MASSA', 'AVARIADO'].includes(i.classe))) r.push('Considerar as peças repintadas na negociação e solicitar o histórico de funilaria e pintura.');
+        if (D.etiquetas.some(e => e.status === 'danificada' || e.status === 'ausente')) r.push('Confirmar com o vendedor a origem das avarias nas etiquetas de identificação.');
+        if (D.vidros.some(v => !v.original || v.desbaste)) r.push('Solicitar comprovação da troca ou do reparo dos vidros com divergência na gravação.');
+        if (D.d6.reparoMotor === 'sim') r.push('Solicitar o histórico de manutenção e reparos do compartimento do motor.');
+        if (D.d7.intervencaoQuadros === 'sim') r.push('Solicitar a documentação dos reparos nos quadros de porta.');
+        if (!D.campos['document.approved_items']) r.push('Confirmar a situação documental do veículo (débitos, restrições e gravames) nos órgãos oficiais.');
+        return r;
     }
 
     function resumoParecer(parecer) {
@@ -771,7 +791,7 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
     function pagina(D, numeral, titulo, subtitulo, corpo) {
         return `<section class="pg">${cabecalho(D, numeral, titulo, subtitulo)}
 <div class="corpo${numeral ? '' : ' cont'}">${corpo}</div>
-<div class="rodape"><span>CERTIVE VISTORIAS &nbsp;·&nbsp; LAUDO CAUTELAR</span>${D.hash ? `<span class="hash">Autenticação ${esc(String(D.hash).slice(0, 32))}</span>` : ''}<span class="pagnum">PÁG. 00 DE 00</span></div></section>`;
+<div class="rodape"><span>CERTIVE VISTORIAS &nbsp;·&nbsp; LAUDO CAUTELAR &nbsp;·&nbsp; ${MODELO}</span>${D.hash ? `<span class="hash">Autenticação ${esc(String(D.hash).slice(0, 32))}</span>` : ''}<span class="pagnum">PÁG. 00 DE 00</span></div></section>`;
     }
 
     // Linhas [rótulo, valor, html?]: valor em HTML só quando o terceiro item é true
@@ -833,18 +853,20 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
         ]);
         return pagina(D, 'I', 'IDENTIFICAÇÃO DO VEÍCULO', 'Dados cadastrais e da vistoria', `
 <div class="lin">
-  <div class="card" style="flex:1.12;overflow:hidden;align-self:flex-start">${veiculo}</div>
+  <div class="col" style="flex:1.12">
+    <div class="card" style="overflow:hidden">${veiculo}</div>
+    <div>${rotulo('Dados da vistoria')}<div class="card" style="overflow:hidden">${vistoria}</div></div>
+  </div>
   <div class="col" style="flex:1">
     ${fotoHtml(F, 'frente_45_dir', 'Vista frontal 45° — lado direito', { altura: 196 })}
     ${fotoHtml(F, 'traseira_45_esq', 'Vista traseira 45° — lado esquerdo', { altura: 196 })}
   </div>
 </div>
-<div>${rotulo('Dados da vistoria')}<div class="card" style="overflow:hidden">${vistoria}</div></div>
-<div class="fotos c3" style="--fh:170px">
+<div>${rotulo('Registro de identificação')}<div class="fotos c3" style="--fh:250px">
   ${fotoHtml(F, 'placa_dianteira', 'Placa dianteira')}
   ${fotoHtml(F, 'painel_hodometro', 'Painel / hodômetro')}
   ${fotoHtml(F, 'crlv_documento', 'Documento do veículo')}
-</div>`);
+</div></div>`);
     }
 
     function listaHtml(itens, cls, vazio, max) {
@@ -1042,6 +1064,7 @@ ${D.d7.observacao ? `<div class="nota">Observação: ${esc(textoVistoriador(D.d7
 </div>
 <div>${rotulo('Fundamentação')}<div class="card fund"><div class="t">${esc(texto)}</div></div></div>
 ${obs ? `<div>${rotulo('Observações do vistoriador')}<div class="card fund"><div class="t">${esc(obs)}</div></div></div>` : ''}
+${(() => { const rec = recomendacoes(D); return rec.length ? `<div>${rotulo('Recomendações ao comprador')}<div class="card lista">${rec.map((t, i) => `<div class="li"><span class="bola" style="background:${COR.navy};flex:0 0 auto">${i + 1}</span><span>${esc(t)}</span></div>`).join('')}</div></div>` : ''; })()}
 <div style="font-size:10.5px;font-weight:700;color:${COR.navy}">${esc(D.cidade)}, ${esc(dataExtenso(D.dataEmissao))}.</div>
 <div class="assin">
   <div class="card ass"><div class="img"${assinatura ? ` style="background-image:url('${assinatura}')"` : ''}></div>
