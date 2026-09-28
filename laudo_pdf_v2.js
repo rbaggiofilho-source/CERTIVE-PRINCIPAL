@@ -850,12 +850,15 @@ async function slicePageFromGrid(pageIndex) {
  * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
  * Preenchimento nativo do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib AcroForm.
  */
-// O laudo oficial é desenhado por js/laudo_certive.js (gerarLaudoCertive). A versão
-// abaixo, que preenchia o PDF modelo antigo (imagem de um laudo de exemplo), fica só
-// como referência e não é mais chamada.
+// O laudo oficial é SEMPRE o modelo padrão desenhado por js/laudo_certive.js
+// (gerarLaudoCertive, modelo LCAV). Se ele não carregou, a emissão para com erro:
+// nunca cai em outro modelo. A versão abaixo, que preenchia o PDF modelo antigo,
+// fica só como referência e não é chamada.
 async function generateInspectionReport(cautelarId) {
-    if (typeof gerarLaudoCertive === 'function') return gerarLaudoCertive(cautelarId);
-    return generateInspectionReportModeloAntigo(cautelarId);
+    if (typeof gerarLaudoCertive !== 'function') {
+        throw new Error('O modelo oficial do laudo não carregou. Verifique a conexão e recarregue a página antes de emitir.');
+    }
+    return gerarLaudoCertive(cautelarId);
 }
 
 async function generateInspectionReportModeloAntigo(cautelarId) {
