@@ -850,7 +850,15 @@ async function slicePageFromGrid(pageIndex) {
  * GERAÇÃO DE PDF OFICIAL DO LAUDO CAUTELAR
  * Preenchimento nativo do PDF editável (Certive_Template_Editavel.pdf) via pdf-lib AcroForm.
  */
+// O laudo oficial é desenhado por js/laudo_certive.js (gerarLaudoCertive). A versão
+// abaixo, que preenchia o PDF modelo antigo (imagem de um laudo de exemplo), fica só
+// como referência e não é mais chamada.
 async function generateInspectionReport(cautelarId) {
+    if (typeof gerarLaudoCertive === 'function') return gerarLaudoCertive(cautelarId);
+    return generateInspectionReportModeloAntigo(cautelarId);
+}
+
+async function generateInspectionReportModeloAntigo(cautelarId) {
     // Cautelares encerradas não vêm na carga inicial: busca seções e fotos
     if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
     const cautelar = db.cautelares.find(c => c.id === cautelarId);
