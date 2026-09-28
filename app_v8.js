@@ -15274,7 +15274,9 @@ FECHAMENTO
 }
 
 async function solicitarLaudoAoServidor(cautelarId) {
-    if (!window.useSupabase || !window.supabaseClient) {
+    // supabaseClient é declarado com "let" em supabase-config.js: não fica em window.
+    // Checar window.supabaseClient fazia o laudo nunca chegar ao servidor.
+    if (!window.useSupabase || typeof supabaseClient === 'undefined' || !supabaseClient) {
         throw new Error("A emissão do laudo requer conexão com o servidor.");
     }
     const { data, error } = await supabaseClient.functions.invoke('gerar-laudo', {
