@@ -15,8 +15,10 @@ create index if not exists idx_laudos_gerados_cautelar_criado
   on public.laudos_gerados ("cautelarId", "criadoEm" desc);
 
 alter table public.laudos_gerados enable row level security;
+drop policy if exists laudos_gerados_select_autenticado on public.laudos_gerados;
 create policy laudos_gerados_select_autenticado on public.laudos_gerados
   for select to authenticated using (true);
 
-revoke insert, update, delete on public.laudos_gerados from anon, authenticated;
+revoke select, insert, update, delete on public.laudos_gerados from anon;
+revoke insert, update, delete on public.laudos_gerados from authenticated;
 grant select on public.laudos_gerados to authenticated;
