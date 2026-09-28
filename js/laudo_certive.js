@@ -1,85 +1,73 @@
 /**
- * LAUDO CAUTELAR CERTIVE — gerador do PDF oficial.
+ * Laudo Cautelar Certive — modelo oficial.
  *
- * O laudo é desenhado inteiramente pelo sistema (pdf-lib), página por página, com a
- * identidade visual Certive (azul-marinho, dourado, numeração romana). Não depende
- * de um PDF modelo: o modelo antigo era a imagem de um laudo de exemplo já
- * preenchido e os dados reais ficavam por cima dele.
+ * O laudo é montado em HTML/CSS (páginas A4 de 794 x 1123 px), seguindo o layout
+ * padrão aprovado (capa escura + seções I a IX com faixa azul, numerais dourados,
+ * cartões de status, tabelas e registro fotográfico). Cada clique em "gerar laudo"
+ * monta um laudo novo com os dados atuais da vistoria, as fotos e os textos
+ * redigidos pelo agente no servidor (laudos_gerados.resposta).
  *
- * Fontes do conteúdo, nesta ordem:
- *   1. constatações do vistoriador (seções 1 a 8 da captura) e as fotos por slot;
- *   2. textos redigidos pelo agente de laudo no servidor (cautelar.dadosIaConfeccionado,
- *      quando existir): listas do resumo, parecer técnico e texto do parecer final;
- *   3. textos padrão montados aqui a partir das constatações.
- *
- * Tamanho A4 (595 × 842 pt). As funções usam coordenadas a partir do TOPO da página.
+ * - Pré-visualização: o próprio HTML, na tela de finalização.
+ * - PDF oficial: cada página é rasterizada em alta resolução (html2canvas) e
+ *   gravada em um PDF A4 (pdf-lib). API mantida: gerarLaudoCertive(id) -> bytes.
  */
 (function (global) {
     'use strict';
 
-    const A4 = { w: 595.28, h: 841.89 };
-    const MARGEM = 40;
+    const PAG = { w: 794, h: 1123 };
+    const A4_PT = { w: 595.28, h: 841.89 };
+
     const COR = {
-        navy: [10, 31, 61],
-        navy2: [16, 42, 79],
-        gold: [201, 169, 97],
-        goldEscuro: [168, 134, 64],
-        creme: [250, 248, 243],
-        cremeEscuro: [242, 238, 229],
-        tinta: [15, 24, 36],
-        cinza: [107, 114, 128],
-        linha: [226, 222, 215],
-        branco: [255, 255, 255],
-        verde: [47, 107, 63],
-        ambar: [184, 100, 43],
-        vermelho: [139, 38, 53],
-        repintura: [201, 169, 97],
-        neutro: [150, 142, 128]
+        navy: '#0A1F3D', gold: '#C9A961', creme: '#FAF8F3',
+        verde: '#2F6B3F', ambar: '#B8642B', vermelho: '#8B2635', neutro: '#9A9284'
     };
 
     const PARECER = {
-        conforme: { texto: 'CONFORME', cor: COR.verde },
-        com_ressalvas: { texto: 'CONFORME COM RESSALVA', cor: COR.ambar },
-        nao_conforme: { texto: 'NÃO CONFORME', cor: COR.vermelho }
+        conforme: { texto: 'CONFORME', curto: 'CONFORME', cls: 'ok' },
+        com_ressalvas: { texto: 'CONFORME COM RESSALVA', curto: 'COM RESSALVA', cls: 'ress' },
+        nao_conforme: { texto: 'NÃO CONFORME', curto: 'NÃO CONFORME', cls: 'nc' }
     };
 
     const CORES_PINTURA = {
         'ORIGINAL': COR.verde,
-        'REPINTURA': COR.repintura,
+        'REPINTURA': COR.gold,
         'REPINTURA COM MASSA': COR.ambar,
         'AVARIADO': COR.vermelho,
         'NÃO SE APLICA': COR.neutro,
         'NÃO APLICÁVEL': COR.neutro,
         'NÃO AVALIADO': COR.neutro
     };
+    const ROTULO_PINTURA = {
+        'ORIGINAL': 'Original', 'REPINTURA': 'Repintura', 'REPINTURA COM MASSA': 'Repintura c/ massa',
+        'AVARIADO': 'Avariado', 'NÃO SE APLICA': 'Não se aplica', 'NÃO AVALIADO': 'Não avaliado'
+    };
 
     const ROTULO_ESTRUTURA = {
-        original: { t: 'Original', cor: COR.verde },
-        reparo_aparente: { t: 'Indícios de reparo', cor: COR.ambar },
-        substituicao: { t: 'Indícios de substituição', cor: COR.vermelho },
-        indicio_avaria: { t: 'Indício de avaria', cor: COR.ambar },
-        nao_aplicavel: { t: 'Não se aplica', cor: COR.neutro }
+        original: { t: 'Original', cls: 'ok' },
+        reparo_aparente: { t: 'Indícios de reparo', cls: 'ress' },
+        substituicao: { t: 'Indícios de substituição', cls: 'nc' },
+        indicio_avaria: { t: 'Indício de avaria', cls: 'ress' },
+        nao_aplicavel: { t: 'Não se aplica', cls: 'na' }
     };
 
     const ROTULO_ETIQUETA = {
-        preservada: { t: 'Preservada', cor: COR.verde },
-        danificada: { t: 'Danificada', cor: COR.ambar },
-        ausente: { t: 'Ausente', cor: COR.vermelho }
+        preservada: { t: 'Preservada', cls: 'ok' },
+        danificada: { t: 'Danificada', cls: 'ress' },
+        ausente: { t: 'Ausente', cls: 'nc' }
     };
 
-    // Caracteres fora do WinAnsi (fontes padrão do PDF) quebram o pdf-lib
-    const WINANSI_EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
-    function limpar(texto) {
-        return String(texto ?? '')
-            .replace(/[→⇒]/g, '->')
-            .replace(/[✓✔]/g, '')
-            .replace(/\t/g, ' ')
-            .split('')
-            .filter(ch => ch === '\n' || (ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) <= 255) || WINANSI_EXTRA.includes(ch))
-            .join('');
-    }
+    const CONSERVACAO = { excelente: 'Excelente', bom: 'Bom', regular: 'Regular', mau: 'Mau' };
 
-    function rgb(c) { return PDFLib.rgb(c[0] / 255, c[1] / 255, c[2] / 255); }
+    // Fotos em que a leitura importa: mostradas inteiras (sem corte)
+    const SLOTS_LEITURA = /^(chassi_|motor_gravado|etiqueta_|vidro_|placa_|painel_hodometro|crlv_)/;
+
+    // ------------------------------------------------------------------
+    // Utilidades
+    // ------------------------------------------------------------------
+    function esc(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    }
+    function limpar(v) { return String(v ?? '').trim(); }
 
     function dataBR(iso, comHora) {
         if (!iso) return 'Não informado';
@@ -97,7 +85,31 @@
 
     function formatarKm(v) {
         const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.'));
-        return isNaN(n) || n <= 0 ? 'Não informado' : `${n.toLocaleString('pt-BR')} km`;
+        return isNaN(n) || n <= 0 ? '' : `${n.toLocaleString('pt-BR')} km`;
+    }
+
+    // Textos digitados todo em maiúsculas viram frase normal ("INDÍCIOS DE SOLDA" -> "Indícios de solda")
+    function textoVistoriador(t) {
+        const s = String(t || '').trim();
+        const letras = s.replace(/[^A-Za-zÀ-ÿ]/g, '');
+        if (!letras) return s;
+        const maiusculas = letras.replace(/[^A-ZÀ-Þ]/g, '').length;
+        if (maiusculas / letras.length < 0.7) return s;
+        return s.toLowerCase().replace(/(^|[.!?]\s+)([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase());
+    }
+
+    function capitalizar(t) {
+        const s = String(t || '').toLowerCase();
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // Nome do slot sem prefixos técnicos, em caixa normal
+    function nomeCurto(nome) {
+        return capitalizar(String(nome || '')
+            .replace('GRAVAÇÃO VIDRO ', '').replace('GRAVAÇÃO ', '')
+            .replace(' (MOTORISTA)', '').replace(' (ESTRUTURA)', '')
+            .replace('FOTO DO MEDIDOR MINIPA EM USO (EVIDÊNCIA)', 'MEDIDOR DE ESPESSURA EM USO')
+            .replace('PAINEL DE INSTRUMENTOS COM HODÔMETRO', 'PAINEL / HODÔMETRO'));
     }
 
     // ------------------------------------------------------------------
@@ -119,21 +131,21 @@
         const ia = cautelar.dadosIaConfeccionado || {};
         const campos = ia.campos || ia.fields || {};
 
-        const d1 = sec(1), d2 = sec(2), d3 = sec(3), d4 = sec(4), d6 = sec(6), d7 = sec(7), d8 = sec(8);
+        const d1 = sec(1), d2 = sec(2), d3 = sec(3), d4 = sec(4), d5 = sec(5), d6 = sec(6), d7 = sec(7), d8 = sec(8);
 
-        const marcaModelo = String(os.veiculoMarcaModelo || '').trim();
+        const marcaModelo = String(os.veiculoMarcaModelo || campos['vehicle.brand_model'] || '').trim();
         const tipos = { hatch: 'Hatch', sedan: 'Sedan', suv: 'SUV', pickup: 'Pick-up', van: 'Van / Utilitário', minivan: 'Minivan', cupe: 'Cupê', outro: 'Outro' };
-        const tipo = d1.tipoVeiculo || os.veiculoTipo || '';
+        const tipo = String(d1.tipoVeiculo || os.veiculoTipo || ia.silhueta || '').toLowerCase();
         const normalizar = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         const chassiLido = String(d2.chassiLido || '').toUpperCase();
         const chassiCadastro = String(os.veiculoChassi || '').toUpperCase();
-        const chassiConfere = !chassiCadastro ? null : normalizar(chassiLido) === normalizar(chassiCadastro);
+        const chassiConfere = !chassiCadastro || !chassiLido ? null : normalizar(chassiLido) === normalizar(chassiCadastro);
 
         const parecerFinal = cautelar.parecerFinal || cautelar.parecerConsolidado || d8.parecerFinal || d8.parecerPreliminar || 'conforme';
 
-        // Pintura (19 peças na ordem da vistoria)
+        const porNumeroIa = Object.fromEntries((ia.pintura_marcadores || []).map(m => [Number(m.numero), String(m.classificacao || '').toUpperCase()]));
         const itensPintura = (global.CAUTELAR_PINTURA_ITENS || []).map((it, i) => {
-            let classe = String(d4[`pint_${it.codigo}_classe`] || '').toUpperCase() || 'NÃO AVALIADO';
+            let classe = String(d4[`pint_${it.codigo}_classe`] || '').toUpperCase() || porNumeroIa[i + 1] || 'NÃO AVALIADO';
             if (classe === 'NÃO APLICÁVEL') classe = 'NÃO SE APLICA';
             return {
                 numero: i + 1, codigo: it.codigo, nome: it.nome, tipo: it.tipo,
@@ -159,7 +171,6 @@
             { nome: 'Etiqueta ETA da coluna / batente da porta', status: d2.eta_coluna || '' }
         ];
 
-        // Status por área (constatação do vistoriador; o agente pode ter refinado)
         const pior = lista => lista.includes('nao_conforme') ? 'nao_conforme' : (lista.includes('com_ressalvas') ? 'com_ressalvas' : 'conforme');
         const deCampo = v => {
             const t = String(v || '').toUpperCase();
@@ -176,25 +187,23 @@
             itensPintura.some(i => i.reparo === 'sim') ? 'com_ressalvas' : 'conforme'
         ]);
         const stIdent = deCampo(campos['identification.status']) || pior([
-            etiquetas.some(e => e.status === 'ausente') ? 'com_ressalvas' : 'conforme',
-            etiquetas.some(e => e.status === 'danificada') ? 'com_ressalvas' : 'conforme',
+            etiquetas.some(e => e.status === 'ausente' || e.status === 'danificada') ? 'com_ressalvas' : 'conforme',
             vidros.some(v => !v.original || v.desbaste) ? 'com_ressalvas' : 'conforme'
         ]);
         const stPintura = deCampo(campos['paint.status']) || (
-            itensPintura.some(i => i.classe === 'AVARIADO' || i.classe === 'REPINTURA COM MASSA' || i.classe === 'REPINTURA') ? 'com_ressalvas' : 'conforme');
-        const stMotor = deCampo(campos['engine.status']) || (d6.reparoMotor === 'sim' || d6.corMotorOk === 'nao' ? 'com_ressalvas' : 'conforme');
+            itensPintura.some(i => ['AVARIADO', 'REPINTURA COM MASSA', 'REPINTURA'].includes(i.classe)) ? 'com_ressalvas' : 'conforme');
+        const stMotor = deCampo(campos['engine.status']) || (
+            d2.motorOriginal === false ? 'nao_conforme' : (d6.reparoMotor === 'sim' || d6.corMotorOk === 'nao' ? 'com_ressalvas' : 'conforme'));
         const stChassi = deCampo(campos['chassis.status']) || pior([
-            d2.chassiOriginal === false || d2.motorOriginal === false ? 'nao_conforme' : 'conforme',
+            d2.chassiOriginal === false ? 'nao_conforme' : 'conforme',
             chassiConfere === false ? 'com_ressalvas' : 'conforme'
         ]);
 
         return {
             cautelar, os, unidade, vistoriador, ia, campos, fotos, foto, meta,
-            d1, d2, d3, d4, d6, d7, d8,
-            marca: marcaModelo.includes('/') ? marcaModelo.split('/')[0].trim() : '',
-            modelo: marcaModelo.includes('/') ? marcaModelo.split('/').slice(1).join('/').trim() : marcaModelo,
+            d1, d2, d3, d4, d5, d6, d7, d8,
             marcaModelo: marcaModelo || 'Não informado',
-            tipo: tipos[tipo] || 'Não informado', tipoCodigo: tipo || 'sedan',
+            tipo: tipos[tipo] || 'Não informado', tipoCodigo: tipos[tipo] ? tipo : 'sedan',
             chassiLido: chassiLido || 'Não informado', chassiCadastro, chassiConfere,
             motorLido: String(d2.motorLido || '').toUpperCase() || 'Não informado',
             parecerFinal: PARECER[parecerFinal] ? parecerFinal : 'conforme',
@@ -207,41 +216,48 @@
         };
     }
 
-    // Listas e textos padrão (usados quando o agente não redigiu)
+    // Constatações que tornam o item "não conforme" (e não apenas ponto de atenção)
+    const RX_NAO_CONFORME = /((chassi|motor)[^;]*n[ãa]o originais?)|com deforma|ind[íi]cios de substitui|remarca|adultera/i;
+
     function listasResumo(D) {
         const ok = [], alerta = [];
         const linhas = t => String(t || '').split('\n').map(l => l.replace(/^[•\-\*]\s*/, '').trim()).filter(Boolean);
         if (D.campos['summary.approved_items'] || D.campos['summary.alert_items']) {
-            return { ok: linhas(D.campos['summary.approved_items']), alerta: linhas(D.campos['summary.alert_items']) };
+            ok.push(...linhas(D.campos['summary.approved_items']));
+            alerta.push(...linhas(D.campos['summary.alert_items']));
+        } else {
+            if (D.d2.chassiOriginal !== false) ok.push('Gravação do chassi com características originais');
+            else alerta.push('Gravação do chassi com características não originais');
+            if (D.d2.motorOriginal !== false) ok.push('Gravação do motor com características originais');
+            else alerta.push('Gravação do motor com características não originais');
+            if (D.chassiConfere === false) alerta.push(`Chassi lido diverge do cadastro da O.S. (${D.chassiCadastro})`);
+            D.etiquetas.forEach(e => {
+                if (e.status === 'preservada') ok.push(`${e.nome}: preservada`);
+                else if (e.status) alerta.push(`${e.nome}: ${(ROTULO_ETIQUETA[e.status]?.t || e.status).toLowerCase()}`);
+            });
+            if (D.d3.indicioEnchente === 'sim') alerta.push('Indícios de enchente constatados');
+            else ok.push('Sem indícios de enchente');
+            if (D.d3.indicioBatida === 'sim') {
+                alerta.push(D.d3.deformacaoEstrutural === 'sim' ? 'Indícios de batida com deformação estrutural' : 'Indícios de batida sem deformação estrutural');
+            } else ok.push('Sem indícios de batida');
+            const estruturais = D.estrutura.filter(e => e.status !== 'original' && e.status !== 'nao_aplicavel');
+            estruturais.forEach(e => alerta.push(`${capitalizar(e.nome.replace(' (ESTRUTURA)', ''))}: ${ROTULO_ESTRUTURA[e.status]?.t.toLowerCase()}`));
+            if (!estruturais.length) ok.push('Pontos estruturais avaliados sem indícios de reparo');
+            D.itensPintura.filter(i => i.reparo === 'sim').forEach(i => alerta.push(`${i.nome}: indícios de reparo estrutural`));
+            const pintadas = D.itensPintura.filter(i => ['REPINTURA', 'REPINTURA COM MASSA', 'AVARIADO'].includes(i.classe));
+            if (pintadas.length) alerta.push(`Pintura: ${pintadas.length} peça(s) com repintura ou avaria`);
+            else ok.push('Pintura original nas peças avaliadas');
+            const vidrosProblema = D.vidros.filter(v => !v.original || v.desbaste);
+            if (vidrosProblema.length) vidrosProblema.forEach(v => alerta.push(`Vidro ${nomeCurto(v.nome).toLowerCase()}: ${!v.original ? 'gravação divergente (vidro trocado)' : 'desbaste/polimento na gravação'}`));
+            else ok.push('Gravações dos vidros originais');
+            if (D.d6.reparoMotor === 'sim') alerta.push('Sinais de reparo no compartimento do motor');
+            else ok.push('Compartimento do motor sem sinais de reparo estrutural');
+            if (D.d7.intervencaoQuadros === 'sim') alerta.push('Intervenção ou soldas nos quadros de porta');
+            else ok.push('Quadros de porta sem sinais de intervenção');
         }
-        if (D.d2.chassiOriginal !== false) ok.push('Gravação do chassi com características originais');
-        else alerta.push('Gravação do chassi com características NÃO originais');
-        if (D.d2.motorOriginal !== false) ok.push('Gravação do motor com características originais');
-        else alerta.push('Gravação do motor com características NÃO originais');
-        if (D.chassiConfere === false) alerta.push(`Chassi lido diverge do cadastro da O.S. (${D.chassiCadastro})`);
-        D.etiquetas.forEach(e => {
-            if (e.status === 'preservada') ok.push(`${e.nome}: preservada`);
-            else if (e.status) alerta.push(`${e.nome}: ${ROTULO_ETIQUETA[e.status]?.t.toLowerCase() || e.status}`);
-        });
-        if (D.d3.indicioEnchente === 'sim') alerta.push('Indícios de enchente constatados');
-        else ok.push('Sem indícios de enchente');
-        if (D.d3.indicioBatida === 'sim') {
-            alerta.push(D.d3.deformacaoEstrutural === 'sim' ? 'Indícios de batida COM deformação estrutural' : 'Indícios de batida sem deformação estrutural');
-        } else ok.push('Sem indícios de batida');
-        D.estrutura.filter(e => e.status !== 'original' && e.status !== 'nao_aplicavel')
-            .forEach(e => alerta.push(`${e.nome}: ${ROTULO_ESTRUTURA[e.status]?.t.toLowerCase()}`));
-        D.itensPintura.filter(i => i.reparo === 'sim').forEach(i => alerta.push(`${i.nome}: indícios de reparo estrutural`));
-        const pintadas = D.itensPintura.filter(i => ['REPINTURA', 'REPINTURA COM MASSA', 'AVARIADO'].includes(i.classe));
-        if (pintadas.length) alerta.push(`Pintura: ${pintadas.length} peça(s) com repintura/avaria`);
-        else ok.push('Pintura original nas peças avaliadas');
-        const vidrosProblema = D.vidros.filter(v => !v.original || v.desbaste);
-        if (vidrosProblema.length) vidrosProblema.forEach(v => alerta.push(`${v.nome.replace('GRAVAÇÃO ', '')}: ${!v.original ? 'gravação não original' : 'desbaste/polimento'}`));
-        else ok.push('Gravações dos vidros originais');
-        if (D.d6.reparoMotor === 'sim') alerta.push('Sinais de reparo no compartimento do motor');
-        else ok.push('Compartimento do motor sem sinais de reparo estrutural');
-        if (D.d7.intervencaoQuadros === 'sim') alerta.push('Intervenção/soldas nos quadros de porta');
-        else ok.push('Quadros de porta sem sinais de intervenção');
-        return { ok, alerta };
+        const naoConformes = alerta.filter(t => RX_NAO_CONFORME.test(t));
+        const atencao = alerta.filter(t => !RX_NAO_CONFORME.test(t));
+        return { ok, alerta, atencao, naoConformes };
     }
 
     function textoParecerFinal(D) {
@@ -250,680 +266,864 @@
         const { alerta } = listasResumo(D);
         let t = `Com base nas verificações realizadas no veículo ${D.marcaModelo !== 'Não informado' ? D.marcaModelo + ', ' : ''}placa ${D.os.placa}, ` +
             `o parecer técnico desta vistoria cautelar é ${p}.`;
-        if (alerta.length) t += ` Foram registrados os seguintes pontos de atenção: ${alerta.slice(0, 6).join('; ')}.`;
+        if (alerta.length) t += ` Foram registrados os seguintes pontos de atenção: ${alerta.slice(0, 8).join('; ')}.`;
         else t += ' Não foram constatados indícios de sinistro estrutural, remarcação de chassi ou irregularidades de identificação.';
-        const obs = D.d8.observacaoFinal || D.d8.observacao;
-        if (obs) t += ` Observações do vistoriador: ${obs}.`;
         return t;
     }
 
+    function resumoParecer(parecer) {
+        if (parecer === 'nao_conforme') return 'Com base nas verificações realizadas, foram constatadas não conformidades que comprometem a segurança da aquisição do veículo.';
+        if (parecer === 'com_ressalvas') return 'Com base nas verificações realizadas, o veículo apresenta pontos de atenção que devem ser considerados na decisão de aquisição.';
+        return 'Com base nas verificações realizadas, o veículo apresenta as condições descritas neste laudo para sua utilização e aquisição.';
+    }
+
     // ------------------------------------------------------------------
-    // Imagens
+    // Imagens (convertidas em data URL: sem bloqueio de origem na captura)
     // ------------------------------------------------------------------
-    async function carregarFotoJpg(url, maxLado = 1100) {
+    const cacheFotos = new Map();
+    async function carregarFotoDataUrl(url, maxLado = 1400) {
         if (!url) return null;
+        const chave = `${url}|${maxLado}`;
+        if (cacheFotos.has(chave)) return cacheFotos.get(chave);
+        const tarefa = (async () => {
+            try {
+                const resp = await fetch(url, { cache: 'force-cache' });
+                if (!resp.ok) return null;
+                const bmp = await createImageBitmap(await resp.blob());
+                const escala = Math.min(1, maxLado / Math.max(bmp.width, bmp.height));
+                const w = Math.max(1, Math.round(bmp.width * escala)), h = Math.max(1, Math.round(bmp.height * escala));
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+                if (bmp.close) bmp.close();
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+                canvas.width = 0; canvas.height = 0;
+                return { url: dataUrl, w, h };
+            } catch (e) {
+                console.warn('Foto indisponível para o laudo:', url, e);
+                return null;
+            }
+        })();
+        cacheFotos.set(chave, tarefa);
+        const r = await tarefa;
+        if (!r) cacheFotos.delete(chave);
+        return r;
+    }
+
+    // Foto da capa mesclada ao azul do fundo (bordas esfumadas desenhadas no próprio arquivo)
+    async function comporFotoCapa(foto) {
+        if (!foto) return null;
         try {
-            const resp = await fetch(url, { cache: 'force-cache' });
-            if (!resp.ok) return null;
-            const blob = await resp.blob();
-            const bmp = await createImageBitmap(blob);
-            const escala = Math.min(1, maxLado / Math.max(bmp.width, bmp.height));
+            const img = new Image();
+            img.src = foto.url;
+            await img.decode();
+            const W = 800, H = 864;
             const canvas = document.createElement('canvas');
-            canvas.width = Math.round(bmp.width * escala);
-            canvas.height = Math.round(bmp.height * escala);
-            canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-            if (bmp.close) bmp.close();
-            const saida = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+            canvas.width = W; canvas.height = H;
+            const ctx = canvas.getContext('2d');
+            // Escurece a foto para o tom da capa
+            const esc = Math.max(W / img.width, H / img.height);
+            ctx.drawImage(img, (W - img.width * esc) / 2, (H - img.height * esc) / 2, img.width * esc, img.height * esc);
+            ctx.fillStyle = 'rgba(10,31,61,.28)'; ctx.fillRect(0, 0, W, H);
+            // Máscara: bordas somem por transparência (sem "caixa" visível sobre o fundo)
+            const mascara = document.createElement('canvas');
+            mascara.width = W; mascara.height = H;
+            const m = mascara.getContext('2d');
+            // elipse inscrita no quadro: chega a transparência total antes das bordas
+            const r = m.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+            r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.5, 'rgba(0,0,0,.95)'); r.addColorStop(.97, 'rgba(0,0,0,0)');
+            m.fillStyle = r;
+            m.save(); m.translate(W / 2, H / 2); m.scale(1, H / W); m.translate(-W / 2, -H / 2);
+            m.fillRect(-W, -H, W * 3, H * 3); m.restore();
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.drawImage(mascara, 0, 0);
+            mascara.width = 0; mascara.height = 0;
+            const url = canvas.toDataURL('image/png');
             canvas.width = 0; canvas.height = 0;
-            return saida ? new Uint8Array(await saida.arrayBuffer()) : null;
+            return { url, w: W, h: H };
         } catch (e) {
-            console.warn('Foto indisponível para o laudo:', url, e);
+            console.warn('Foto da capa indisponível:', e);
             return null;
         }
     }
 
-    function dataUrlParaBytes(dataUrl) {
-        const b64 = String(dataUrl).split(',')[1] || '';
-        const bin = atob(b64);
-        const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-        return out;
+    async function carregarFotos(D) {
+        const mapa = {};
+        const fila = D.fotos.filter(f => f.url_original || f.url_thumb);
+        let i = 0;
+        const trabalhador = async () => {
+            while (i < fila.length) {
+                const f = fila[i++];
+                const r = await carregarFotoDataUrl(f.url_original || f.url_thumb) ||
+                    (f.url_thumb ? await carregarFotoDataUrl(f.url_thumb) : null);
+                if (r) mapa[f.slotCodigo] = r;
+            }
+        };
+        await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
+        const capa = await comporFotoCapa(mapa.frente_45_dir || mapa.traseira_45_esq);
+        if (capa) Object.defineProperty(mapa, '__capa', { value: capa, enumerable: false });
+        return mapa;
+    }
+
+    function gerarQrDataUrl(texto) {
+        return new Promise(resolve => {
+            if (typeof QRCode === 'undefined') return resolve(null);
+            try {
+                const div = document.createElement('div');
+                div.style.cssText = 'position:fixed;left:-9999px;top:0';
+                document.body.appendChild(div);
+                new QRCode(div, { text: texto, width: 256, height: 256, colorDark: COR.navy, colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+                setTimeout(() => {
+                    const canvas = div.querySelector('canvas');
+                    const img = div.querySelector('img');
+                    const url = canvas ? canvas.toDataURL('image/png') : (img && img.src) || null;
+                    div.remove();
+                    resolve(url);
+                }, 60);
+            } catch (e) { resolve(null); }
+        });
+    }
+
+    function urlConsulta(hash) {
+        const origem = (global.location && /^https?:/.test(global.location.protocol)) ? global.location.origin : 'https://certive.com.br';
+        return `${origem}/consulta-laudo.html?hash=${encodeURIComponent(hash)}`;
     }
 
     // ------------------------------------------------------------------
-    // Motor de desenho
+    // Vetores (logo, ícones, selo, silhueta)
     // ------------------------------------------------------------------
-    class Pagina {
-        constructor(L, page) { this.L = L; this.p = page; }
-        Y(top, altura = 0) { return A4.h - top - altura; }
-        ret(x, top, w, h, cor, borda, espessura = 0.6) {
-            this.p.drawRectangle({ x, y: this.Y(top, h), width: w, height: h, color: cor ? rgb(cor) : undefined, borderColor: borda ? rgb(borda) : undefined, borderWidth: borda ? espessura : 0 });
-        }
-        linha(x1, t1, x2, t2, cor = COR.linha, esp = 0.6) {
-            this.p.drawLine({ start: { x: x1, y: this.Y(t1) }, end: { x: x2, y: this.Y(t2) }, thickness: esp, color: rgb(cor) });
-        }
-        texto(t, x, top, { tam = 9, fonte = 'reg', cor = COR.tinta, alinhar = 'esq', larg = null } = {}) {
-            const f = this.L.f[fonte];
-            const s = limpar(t);
-            let px = x;
-            if (alinhar !== 'esq') {
-                const w = f.widthOfTextAtSize(s, tam);
-                px = alinhar === 'dir' ? x - w : x + ((larg || 0) - w) / 2;
-            }
-            this.p.drawText(s, { x: px, y: this.Y(top) - tam * 0.8, size: tam, font: f, color: rgb(cor) });
-        }
-        quebrar(t, largura, tam, fonte = 'reg') {
-            const f = this.L.f[fonte];
-            const saida = [];
-            limpar(t).split('\n').forEach(par => {
-                const palavras = par.split(/\s+/).filter(Boolean);
-                let atual = '';
-                palavras.forEach(p => {
-                    const tent = atual ? atual + ' ' + p : p;
-                    if (f.widthOfTextAtSize(tent, tam) <= largura) atual = tent;
-                    else {
-                        if (atual) saida.push(atual);
-                        // palavra maior que a linha: corta
-                        let resto = p;
-                        while (f.widthOfTextAtSize(resto, tam) > largura && resto.length > 1) {
-                            let n = resto.length;
-                            while (n > 1 && f.widthOfTextAtSize(resto.slice(0, n), tam) > largura) n--;
-                            saida.push(resto.slice(0, n));
-                            resto = resto.slice(n);
-                        }
-                        atual = resto;
-                    }
-                });
-                if (atual) saida.push(atual);
-                if (!palavras.length) saida.push('');
-            });
-            return saida;
-        }
-        // Corta o texto com reticências para caber na largura
-        caber(t, largura, tam, fonte = 'reg') {
-            const f = this.L.f[fonte];
-            let s = limpar(t);
-            if (f.widthOfTextAtSize(s, tam) <= largura) return s;
-            while (s.length > 1 && f.widthOfTextAtSize(s + '...', tam) > largura) s = s.slice(0, -1);
-            return s.trimEnd() + '...';
-        }
-        paragrafo(t, x, top, largura, { tam = 9, fonte = 'reg', cor = COR.tinta, entre = 1.35, maxLinhas = 999 } = {}) {
-            const linhas = this.quebrar(t, largura, tam, fonte);
-            const usar = linhas.slice(0, maxLinhas);
-            if (linhas.length > maxLinhas && usar.length) usar[usar.length - 1] = usar[usar.length - 1].replace(/.{0,3}$/, '...');
-            usar.forEach((l, i) => this.texto(l, x, top + i * tam * entre, { tam, fonte, cor }));
-            return top + usar.length * tam * entre;
-        }
-        pill(t, x, top, { cor = COR.verde, tam = 7.5, alinhar = 'esq', solido = true } = {}) {
-            const f = this.L.f.bold;
-            const s = limpar(t);
-            const w = f.widthOfTextAtSize(s, tam) + 12;
-            const h = tam + 7;
-            const px = alinhar === 'dir' ? x - w : (alinhar === 'centro' ? x - w / 2 : x);
-            this.p.drawRectangle({ x: px, y: this.Y(top, h), width: w, height: h, color: solido ? rgb(cor) : rgb(COR.branco), borderColor: rgb(cor), borderWidth: 0.8 });
-            this.p.drawText(s, { x: px + 6, y: this.Y(top, h) + (h - tam * 0.72) / 2, size: tam, font: f, color: solido ? rgb(COR.branco) : rgb(cor) });
-            return w;
-        }
-        async foto(slot, x, top, w, h, legenda) {
-            this.ret(x, top, w, h, [22, 28, 38]);
-            const f = this.L.D.foto(slot);
-            const bytes = f ? await this.L.imagem(f.url_original || f.url_thumb) : null;
-            if (bytes) {
-                try {
-                    const img = await this.L.doc.embedJpg(bytes);
-                    // "contain": mostra a foto inteira (números de chassi/etiquetas não podem ser cortados)
-                    const esc = Math.min(w / img.width, h / img.height);
-                    const iw = img.width * esc, ih = img.height * esc;
-                    this.p.drawImage(img, { x: x + (w - iw) / 2, y: this.Y(top, h) + (h - ih) / 2, width: iw, height: ih });
-                } catch (e) {
-                    console.warn('Falha ao embutir foto', slot, e);
-                }
-            } else {
-                this.texto('Foto não registrada', x, top + h / 2 - 4, { tam: 7, cor: [170, 176, 186], alinhar: 'centro', larg: w });
-            }
-            if (legenda) {
-                this.ret(x, top + h, w, 13, COR.cremeEscuro);
-                this.texto(this.caber(legenda, w - 8, 6.2, 'bold'), x + 4, top + h + 3.5, { tam: 6.2, fonte: 'bold', cor: COR.navy });
-            }
-        }
+    function svgLogo(tam = 44, corCarro = COR.navy) {
+        return `<svg width="${tam}" height="${Math.round(tam * 1.12)}" viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="lgOuro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F1DC9E"/><stop offset=".45" stop-color="#C9A961"/><stop offset="1" stop-color="#8E6F2E"/></linearGradient></defs>
+<path d="M32 3 L59 12.5 V34 C59 52 46.5 64.5 32 70 C17.5 64.5 5 52 5 34 V12.5 Z" fill="none" stroke="url(#lgOuro)" stroke-width="4.2" stroke-linejoin="round"/>
+<path d="M32 10 L52.5 17.2 V34 C52.5 48 43 58 32 62.6 C21 58 11.5 48 11.5 34 V17.2 Z" fill="none" stroke="url(#lgOuro)" stroke-width="1.4" opacity=".75"/>
+<path d="M17.5 45 L20.5 36.2 C21.3 34 23 32.8 25.2 32.8 H38.8 C41 32.8 42.7 34 43.5 36.2 L46.5 45 V51.5 H42 V48.6 H22 V51.5 H17.5 Z" fill="url(#lgOuro)"/>
+<path d="M23 38.5 L24.3 35.8 C24.6 35.2 25.1 34.9 25.8 34.9 H38.2 C38.9 34.9 39.4 35.2 39.7 35.8 L41 38.5 Z" fill="${corCarro}"/>
+<rect x="20.5" y="41.3" width="5.2" height="2.6" rx="1.2" fill="${corCarro}"/><rect x="38.3" y="41.3" width="5.2" height="2.6" rx="1.2" fill="${corCarro}"/>
+<rect x="28.2" y="42.2" width="7.6" height="1.6" rx=".8" fill="${corCarro}"/>
+<path d="M22 26 L32 21.5 L42 26" fill="none" stroke="url(#lgOuro)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
     }
 
-    class Laudo {
-        constructor(doc, fontes, D) {
-            this.doc = doc; this.f = fontes; this.D = D; this.paginas = [];
-            this.cacheImg = new Map();
+    function logoHtml(escala = 1) {
+        return `<div class="logo" style="--e:${escala}">${svgLogo(38 * escala)}
+<div class="logo-txt"><div class="logo-nome">CERTIVE</div><div class="logo-sub">VISTORIAS</div></div></div>`;
+    }
+
+    const ICONES = {
+        escudo: '<path d="M12 2.6l7.6 2.9v5.9c0 4.9-3.2 8.6-7.6 10-4.4-1.4-7.6-5.1-7.6-10V5.5z"/><path d="M8.4 12.1l2.5 2.5 4.8-5"/>',
+        lupa: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.2 5.2"/><path d="M8 10.5h5M10.5 8v5"/>',
+        identificacao: '<path d="M5.5 2.8h8.7L18.5 7v14.2h-13z"/><path d="M14 2.8V7h4.5"/><circle cx="11" cy="13.3" r="3"/><path d="M13.2 15.5l3 3"/>',
+        rolo: '<rect x="3.5" y="3.5" width="13.5" height="5.5" rx="1.2"/><path d="M17 6.2h2.8v5.6h-8.4v3"/><rect x="10" y="14.8" width="2.8" height="6.4" rx="1"/>',
+        motor: '<path d="M3 10.5h2.2V8.2h3.2V6.3h6.3v1.9h2.1l2.3 2.3H21v6.1h-1.9l-2.3 2.3H8.1l-2.1-2.1H3z"/><path d="M10 11.5l-1.2 2.6h2.6l-1.2 2.6"/>',
+        engrenagem: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5"/><circle cx="12" cy="12" r="6.4"/>',
+        carro: '<path d="M3.2 15.2l1.9-4.9c.4-1.1 1.3-1.7 2.4-1.7h9c1.1 0 2 .6 2.4 1.7l1.9 4.9v3.3H3.2z"/><path d="M3.2 15.2h17.6"/><circle cx="7.3" cy="18.5" r="1.9"/><circle cx="16.7" cy="18.5" r="1.9"/><path d="M7 8.6l1.4-3.2h7.2L17 8.6"/>',
+        vidro: '<path d="M4 19.5L6.8 5.2h10.4L20 19.5z"/><path d="M9 9.5l3.5-2.3M9.6 13.2l6-4"/>',
+        banco: '<path d="M8.2 2.8h4.6c1 0 1.6.8 1.4 1.8L13 11.6h4c1 0 1.7.9 1.5 1.9l-.7 3.7H7.6z"/><path d="M9.2 17.2v4M16.2 17.2v4"/>',
+        gota: '<path d="M12 2.8s6.3 6.9 6.3 11.4a6.3 6.3 0 0 1-12.6 0C5.7 9.7 12 2.8 12 2.8z"/><path d="M8.8 14.6c.3 1.6 1.5 2.7 3.1 2.9"/>',
+        colisao: '<path d="M2.8 16.8l1.6-4.2c.4-1 1.2-1.5 2.2-1.5h5.6c1 0 1.8.5 2.2 1.5l1.6 4.2v2.7H2.8z"/><circle cx="6.4" cy="19.5" r="1.4"/><circle cx="12.4" cy="19.5" r="1.4"/><path d="M18.6 3.2l.6 2.6 2.4-1-1.3 2.3 2.4 1-2.6.6.9 2.5-2.2-1.5-1.3 2.2-.5-2.6"/>',
+        alerta: '<path d="M12 3.2l9.6 16.6H2.4z"/><path d="M12 9.6v5M12 17.4v.4"/>',
+        relatorio: '<path d="M6 2.8h8.2L18.4 7v14.2H6z"/><path d="M14 2.8V7h4.4"/><path d="M8.8 13.6l2.1 2.1 4.1-4.3"/>'
+    };
+
+    function icone(nome, cor = '#fff', tam = 24, espessura = 1.7) {
+        return `<svg width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="${espessura}" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${ICONES[nome] || ''}</svg>`;
+    }
+
+    function marcaStatus(cls, tam = 16) {
+        const cor = cls === 'ok' ? COR.verde : (cls === 'nc' ? COR.vermelho : COR.ambar);
+        if (cls === 'ok') return `<svg width="${tam}" height="${tam}" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7.5" fill="${cor}"/><path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        if (cls === 'nc') return `<svg width="${tam}" height="${tam}" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7.5" fill="${cor}"/><path d="M5.3 5.3l5.4 5.4M10.7 5.3l-5.4 5.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+        return `<svg width="${tam}" height="${tam}" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.2l7.2 13H.8z" fill="${cor}" stroke="${cor}" stroke-width="1.2" stroke-linejoin="round"/><path d="M8 5.8v4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="12" r=".95" fill="#fff"/></svg>`;
+    }
+
+    // Escudo grande do parecer: visto (conforme), exclamação (ressalva) ou X (não conforme)
+    function svgEscudoParecer(parecer, tam = 96) {
+        const cor = parecer === 'nao_conforme' ? '#D0606F' : (parecer === 'com_ressalvas' ? '#E6A95C' : '#E9CF8C');
+        const dentro = parecer === 'nao_conforme'
+            ? `<path d="M24 25l16 16M40 25L24 41" stroke="${cor}" stroke-width="5" stroke-linecap="round"/>`
+            : (parecer === 'com_ressalvas'
+                ? `<path d="M32 20v15" stroke="${cor}" stroke-width="5.4" stroke-linecap="round"/><circle cx="32" cy="44" r="3.2" fill="${cor}"/>`
+                : `<path d="M21.5 33.5l7.2 7.2 14-14.5" fill="none" stroke="${cor}" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>`);
+        return `<svg width="${tam}" height="${Math.round(tam * 1.12)}" viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="lgEsc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3DFA4"/><stop offset=".5" stop-color="#C9A961"/><stop offset="1" stop-color="#8C6C2B"/></linearGradient></defs>
+<path d="M32 3 L59 12.5 V34 C59 52 46.5 64.5 32 70 C17.5 64.5 5 52 5 34 V12.5 Z" fill="#0f2a52" stroke="url(#lgEsc)" stroke-width="3.6" stroke-linejoin="round"/>
+<path d="M32 10 L52.5 17.2 V34 C52.5 48 43 58 32 62.6 C21 58 11.5 48 11.5 34 V17.2 Z" fill="none" stroke="url(#lgEsc)" stroke-width="1.2" opacity=".7"/>
+${dentro}</svg>`;
+    }
+
+    function svgSelo(cidade, ano, tam = 176) {
+        const topo = 'CERTIVE VISTORIAS';
+        const base = `${String(cidade || '').toUpperCase()} • ${ano}`;
+        return `<svg width="${tam}" height="${tam}" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="lgSelo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3DFA4"/><stop offset=".5" stop-color="#C9A961"/><stop offset="1" stop-color="#8C6C2B"/></linearGradient>
+<radialGradient id="rgSelo" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#16345F"/><stop offset="1" stop-color="#081830"/></radialGradient>
+<path id="arcoTopo" d="M 28 100 A 72 72 0 0 1 172 100"/>
+<path id="arcoBase" d="M 22 100 A 78 78 0 0 0 178 100"/>
+</defs>
+<circle cx="100" cy="100" r="96" fill="url(#rgSelo)" stroke="url(#lgSelo)" stroke-width="3"/>
+<circle cx="100" cy="100" r="89" fill="none" stroke="url(#lgSelo)" stroke-width="1"/>
+<circle cx="100" cy="100" r="58" fill="none" stroke="url(#lgSelo)" stroke-width="1.6"/>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="13" letter-spacing="3" fill="#E3C986"><textPath href="#arcoTopo" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.5" letter-spacing="2" fill="#E3C986" dominant-baseline="hanging"><textPath href="#arcoBase" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
+<text x="100" y="129" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="7.4" letter-spacing="1.6" fill="#E3C986" text-anchor="middle">LAUDO CAUTELAR</text>
+<g transform="translate(75 49) scale(.78)">
+<path d="M32 3 L59 12.5 V34 C59 52 46.5 64.5 32 70 C17.5 64.5 5 52 5 34 V12.5 Z" fill="none" stroke="url(#lgSelo)" stroke-width="3.6" stroke-linejoin="round"/>
+<path d="M17.5 45 L20.5 36.2 C21.3 34 23 32.8 25.2 32.8 H38.8 C41 32.8 42.7 34 43.5 36.2 L46.5 45 V51.5 H42 V48.6 H22 V51.5 H17.5 Z" fill="url(#lgSelo)"/>
+<path d="M23 38.5 L24.3 35.8 C24.6 35.2 25.1 34.9 25.8 34.9 H38.2 C38.9 34.9 39.4 35.2 39.7 35.8 L41 38.5 Z" fill="#0A1F3D"/>
+<path d="M22 26 L32 21.5 L42 26" fill="none" stroke="url(#lgSelo)" stroke-width="2.2" stroke-linecap="round"/>
+</g>
+<circle cx="14" cy="100" r="2.4" fill="#E3C986"/><circle cx="186" cy="100" r="2.4" fill="#E3C986"/>
+</svg>`;
+    }
+
+    // Proporções da vista superior por tipo de carroceria (frações do comprimento)
+    const CARROCERIAS = {
+        hatch: { L: 430, W: 150, capo: .27, para: .38, teto: .80, vigia: .88 },
+        sedan: { L: 470, W: 150, capo: .28, para: .37, teto: .66, vigia: .76 },
+        suv: { L: 462, W: 160, capo: .26, para: .35, teto: .84, vigia: .90 },
+        pickup: { L: 486, W: 162, capo: .25, para: .33, teto: .56, vigia: .59, cacamba: true },
+        van: { L: 480, W: 158, capo: .12, para: .21, teto: .94, vigia: .96 },
+        minivan: { L: 470, W: 156, capo: .19, para: .29, teto: .87, vigia: .92 },
+        cupe: { L: 450, W: 150, capo: .31, para: .41, teto: .66, vigia: .77, duasPortas: true },
+        outro: { L: 470, W: 150, capo: .28, para: .37, teto: .66, vigia: .76 }
+    };
+
+    /**
+     * Vista superior do veículo (frente para cima; lado esquerdo do desenho =
+     * lado do motorista). Retorna o SVG e a posição (%) de cada marcador 1–19.
+     */
+    function silhueta(tipo) {
+        const c = CARROCERIAS[tipo] || CARROCERIAS.sedan;
+        const VW = 240, VH = 520, cx = VW / 2;
+        const y0 = (VH - c.L) / 2, y1 = y0 + c.L, L = c.L;
+        const x0 = cx - c.W / 2, x1 = cx + c.W / 2;
+        const Y = f => y0 + L * f;
+        const yCapo = Y(c.capo), yPara = Y(c.para), yTeto = Y(c.teto), yVigia = Y(c.vigia);
+        const yParaChoqueD = Y(.045), yParaChoqueT = Y(.955);
+        const eixoD = Y(.17), eixoT = Y(.80);
+        const rF = c.W * .30, rT = c.W * .20;
+        const yA = yCapo + (yPara - yCapo) * .45;
+        const yB = c.duasPortas ? yTeto - (yTeto - yPara) * .15 : yPara + (yTeto - yPara) * .52;
+        const yC = yTeto;
+        const roda = (x, y) => `<rect x="${x - 7}" y="${y - 27}" width="14" height="54" rx="5" fill="#1d232b"/>`;
+
+        let corpo = `
+<defs>
+<linearGradient id="svLat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9ba3ad"/><stop offset=".13" stop-color="#e2e6ea"/><stop offset=".5" stop-color="#fbfcfd"/><stop offset=".87" stop-color="#e2e6ea"/><stop offset="1" stop-color="#9ba3ad"/></linearGradient>
+<linearGradient id="svVidro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2533"/><stop offset="1" stop-color="#3f5068"/></linearGradient>
+<linearGradient id="svVidro2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#1a2533"/><stop offset="1" stop-color="#3f5068"/></linearGradient>
+<linearGradient id="svTeto" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cfd5dc"/><stop offset=".5" stop-color="#f4f6f8"/><stop offset="1" stop-color="#cfd5dc"/></linearGradient>
+<filter id="svSombra" x="-30%" y="-10%" width="160%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+</defs>
+<rect x="${x0 - 2}" y="${y0 + 8}" width="${c.W + 4}" height="${L - 8}" rx="${rT}" fill="#0A1F3D" opacity=".22" filter="url(#svSombra)"/>
+${roda(x0 + 3, eixoD)}${roda(x1 - 3, eixoD)}${roda(x0 + 3, eixoT)}${roda(x1 - 3, eixoT)}
+<path d="M ${x0 + rF} ${y0} L ${x1 - rF} ${y0} Q ${x1} ${y0} ${x1} ${y0 + rF} L ${x1} ${y1 - rT} Q ${x1} ${y1} ${x1 - rT} ${y1} L ${x0 + rT} ${y1} Q ${x0} ${y1} ${x0} ${y1 - rT} L ${x0} ${y0 + rF} Q ${x0} ${y0} ${x0 + rF} ${y0} Z" fill="url(#svLat)" stroke="#7d8793" stroke-width="1.3"/>
+<path d="M ${x0 + 16} ${yParaChoqueD} Q ${cx} ${yParaChoqueD - 7} ${x1 - 16} ${yParaChoqueD}" fill="none" stroke="#9aa3ae" stroke-width="1"/>
+<path d="M ${x0 + 14} ${yParaChoqueT} Q ${cx} ${yParaChoqueT + 6} ${x1 - 14} ${yParaChoqueT}" fill="none" stroke="#9aa3ae" stroke-width="1"/>
+<path d="M ${x0 + 9} ${y0 + 14} Q ${x0 + 14} ${y0 + 5} ${x0 + 30} ${y0 + 4} L ${x0 + 34} ${y0 + 12} Q ${x0 + 18} ${y0 + 14} ${x0 + 9} ${y0 + 14} Z" fill="#f4f1e2" stroke="#8d96a1" stroke-width=".8"/>
+<path d="M ${x1 - 9} ${y0 + 14} Q ${x1 - 14} ${y0 + 5} ${x1 - 30} ${y0 + 4} L ${x1 - 34} ${y0 + 12} Q ${x1 - 18} ${y0 + 14} ${x1 - 9} ${y0 + 14} Z" fill="#f4f1e2" stroke="#8d96a1" stroke-width=".8"/>
+<path d="M ${x0 + 6} ${y1 - 13} L ${x0 + 30} ${y1 - 4} L ${x0 + 16} ${y1 - 3} Q ${x0 + 7} ${y1 - 5} ${x0 + 6} ${y1 - 13} Z" fill="#a3242f"/>
+<path d="M ${x1 - 6} ${y1 - 13} L ${x1 - 30} ${y1 - 4} L ${x1 - 16} ${y1 - 3} Q ${x1 - 7} ${y1 - 5} ${x1 - 6} ${y1 - 13} Z" fill="#a3242f"/>
+<path d="M ${cx - c.W * .2} ${Y(.07)} Q ${cx - c.W * .22} ${(Y(.07) + yCapo) / 2} ${cx - c.W * .24} ${yCapo - 4}" fill="none" stroke="#b8c0c9" stroke-width="1.1"/>
+<path d="M ${cx + c.W * .2} ${Y(.07)} Q ${cx + c.W * .22} ${(Y(.07) + yCapo) / 2} ${cx + c.W * .24} ${yCapo - 4}" fill="none" stroke="#b8c0c9" stroke-width="1.1"/>
+<path d="M ${x0 + 11} ${yCapo + 2} Q ${cx} ${yCapo - 12} ${x1 - 11} ${yCapo + 2} L ${x1 - 19} ${yPara} Q ${cx} ${yPara - 7} ${x0 + 19} ${yPara} Z" fill="url(#svVidro)" stroke="#5c6878" stroke-width=".8"/>
+<rect x="${x0 + 19}" y="${yPara - 1}" width="${c.W - 38}" height="${yTeto - yPara + 2}" rx="12" fill="url(#svTeto)" stroke="#a4adb8" stroke-width=".9"/>
+<path d="M ${x0 + 8} ${yA + 8} L ${x0 + 15} ${yPara + 2} L ${x0 + 15} ${yTeto - 4} L ${x0 + 8} ${yTeto + 6} Z" fill="url(#svVidro)" opacity=".92"/>
+<path d="M ${x1 - 8} ${yA + 8} L ${x1 - 15} ${yPara + 2} L ${x1 - 15} ${yTeto - 4} L ${x1 - 8} ${yTeto + 6} Z" fill="url(#svVidro)" opacity=".92"/>
+<ellipse cx="${x0 - 7}" cy="${yA + 4}" rx="9" ry="5.5" fill="url(#svLat)" stroke="#7d8793" stroke-width="1"/>
+<ellipse cx="${x1 + 7}" cy="${yA + 4}" rx="9" ry="5.5" fill="url(#svLat)" stroke="#7d8793" stroke-width="1"/>
+<path d="M ${x0} ${yA} L ${x0 + 9} ${yA + 2} M ${x1} ${yA} L ${x1 - 9} ${yA + 2}" stroke="#8a939e" stroke-width="1"/>
+<path d="M ${x0} ${yB} L ${x0 + 12} ${yB} M ${x1} ${yB} L ${x1 - 12} ${yB}" stroke="#8a939e" stroke-width="1.2"/>
+<path d="M ${x0} ${yC + 7} L ${x0 + 10} ${yC + 5} M ${x1} ${yC + 7} L ${x1 - 10} ${yC + 5}" stroke="#8a939e" stroke-width="1"/>
+<rect x="${x0 + 3}" y="${(yA + yB) / 2 - 1}" width="7" height="2.2" rx="1" fill="#8a939e"/><rect x="${x1 - 10}" y="${(yA + yB) / 2 - 1}" width="7" height="2.2" rx="1" fill="#8a939e"/>`;
+        if (!c.duasPortas) corpo += `<rect x="${x0 + 3}" y="${(yB + yC) / 2 - 1}" width="7" height="2.2" rx="1" fill="#8a939e"/><rect x="${x1 - 10}" y="${(yB + yC) / 2 - 1}" width="7" height="2.2" rx="1" fill="#8a939e"/>`;
+
+        if (c.cacamba) {
+            const yCab = yVigia + 4, yFim = Y(.93);
+            corpo += `
+<path d="M ${x0 + 19} ${yTeto} L ${x1 - 19} ${yTeto} L ${x1 - 17} ${yVigia} L ${x0 + 17} ${yVigia} Z" fill="url(#svVidro2)"/>
+<rect x="${x0 + 8}" y="${yCab + 4}" width="${c.W - 16}" height="${yFim - yCab - 4}" rx="4" fill="#d3d8de" stroke="#8a939e" stroke-width="1.1"/>
+<rect x="${x0 + 14}" y="${yCab + 10}" width="${c.W - 28}" height="${yFim - yCab - 16}" rx="3" fill="#c3c9d0"/>
+${[.2, .4, .6, .8].map(f => `<path d="M ${x0 + 18 + (c.W - 36) * f} ${yCab + 14} V ${yFim - 10}" stroke="#aab2bc" stroke-width="2"/>`).join('')}
+<path d="M ${x0 + 8} ${yFim + 3} H ${x1 - 8}" stroke="#8a939e" stroke-width="1.2"/>`;
+        } else {
+            corpo += `
+<path d="M ${x0 + 19} ${yTeto} L ${x1 - 19} ${yTeto} L ${x1 - 15} ${yVigia} Q ${cx} ${yVigia + 6} ${x0 + 15} ${yVigia} Z" fill="url(#svVidro2)" stroke="#5c6878" stroke-width=".8"/>
+<path d="M ${x0 + 12} ${yVigia + 8} Q ${cx} ${yVigia + 14} ${x1 - 12} ${yVigia + 8}" fill="none" stroke="#a4adb8" stroke-width="1"/>`;
         }
-        async imagem(url) {
-            if (!url) return null;
-            if (!this.cacheImg.has(url)) this.cacheImg.set(url, await carregarFotoJpg(url));
-            return this.cacheImg.get(url);
-        }
-        nova(fundo = COR.creme) {
-            const page = this.doc.addPage([A4.w, A4.h]);
-            const P = new Pagina(this, page);
-            P.ret(0, 0, A4.w, A4.h, fundo);
-            this.paginas.push(P);
-            return P;
-        }
-        logo(P, x, top, escala = 1, claro = false) {
-            // Escudo com marca de verificação (vetor)
-            const escudo = 'M 12 0 L 24 5 L 24 14 C 24 22 18 28 12 31 C 6 28 0 22 0 14 L 0 5 Z';
-            P.p.drawSvgPath(escudo, { x, y: P.Y(top), scale: escala, color: rgb(COR.gold) });
-            P.p.drawSvgPath('M 6 15 L 10.5 19.5 L 18.5 10.5', { x, y: P.Y(top), scale: escala, borderColor: rgb(claro ? COR.navy : COR.branco), borderWidth: 2.4 * escala });
-            P.texto('CERTIVE', x + 30 * escala, top + 3 * escala, { tam: 15 * escala, fonte: 'bold', cor: claro ? COR.branco : COR.navy });
-            P.texto('V I S T O R I A S', x + 30.5 * escala, top + 20 * escala, { tam: 6.5 * escala, fonte: 'bold', cor: COR.gold });
-        }
-        cabecalho(P, numeral, titulo, subtitulo) {
-            this.logo(P, MARGEM, 30, 0.95);
-            P.texto('DOSSIÊ', A4.w - MARGEM, 30, { tam: 7, fonte: 'bold', cor: COR.cinza, alinhar: 'dir' });
-            P.texto(this.D.cautelar.dossieNumero || '', A4.w - MARGEM, 40, { tam: 11, fonte: 'bold', cor: COR.navy, alinhar: 'dir' });
-            P.texto(`Placa ${this.D.os.placa}`, A4.w - MARGEM, 54, { tam: 7.5, cor: COR.cinza, alinhar: 'dir' });
-            P.linha(MARGEM, 72, A4.w - MARGEM, 72, COR.gold, 1);
-            if (numeral) {
-                P.texto(numeral, MARGEM, 86, { tam: 34, fonte: 'serifItalico', cor: COR.gold });
-                const xTitulo = MARGEM + this.f.serifItalico.widthOfTextAtSize(numeral, 34) + 12;
-                P.texto(titulo, xTitulo, 94, { tam: 16, fonte: 'bold', cor: COR.navy });
-                if (subtitulo) P.texto(subtitulo, xTitulo, 113, { tam: 8, cor: COR.cinza });
-            }
-            return 135;
-        }
-        rodapes() {
-            const total = this.paginas.length;
-            this.paginas.forEach((P, i) => {
-                if (i === 0) return;
-                P.linha(MARGEM, A4.h - 34, A4.w - MARGEM, A4.h - 34, COR.linha, 0.6);
-                P.texto('CERTIVE VISTORIAS  ·  LAUDO CAUTELAR', MARGEM, A4.h - 27, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-                if (this.D.hash) P.texto(`Autenticação: ${String(this.D.hash).slice(0, 28)}`, A4.w / 2, A4.h - 27, { tam: 6, cor: COR.cinza, alinhar: 'centro', larg: 0 });
-                P.texto(`PÁG. ${String(i + 1).padStart(2, '0')} DE ${String(total).padStart(2, '0')}`, A4.w - MARGEM, A4.h - 27, { tam: 6.5, fonte: 'bold', cor: COR.cinza, alinhar: 'dir' });
-            });
-        }
-        // Linha de rótulo/valor
-        kv(P, x, top, w, rotulo, valor, { tamValor = 10, fonteValor = 'bold' } = {}) {
-            P.texto(rotulo.toUpperCase(), x, top, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-            const fim = P.paragrafo(valor || 'Não informado', x, top + 10, w, { tam: tamValor, fonte: fonteValor, cor: COR.tinta, maxLinhas: 2 });
-            P.linha(x, fim + 4, x + w, fim + 4);
-            return fim + 12;
-        }
-        caixaTitulo(P, x, top, w, titulo, cor = COR.navy) {
-            P.ret(x, top, w, 18, cor);
-            P.texto(titulo.toUpperCase(), x + 8, top + 5.5, { tam: 7.5, fonte: 'bold', cor: COR.branco });
-            return top + 18;
-        }
-        lista(P, x, top, w, itens, marcador, corMarcador, maxAltura) {
-            let y = top;
-            for (const item of itens) {
-                const linhas = P.quebrar(item, w - 14, 8.2);
-                if (maxAltura && y + linhas.length * 11 > top + maxAltura) {
-                    P.texto('(demais itens no registro do sistema)', x + 12, y, { tam: 7, cor: COR.cinza });
-                    break;
-                }
-                P.p.drawCircle({ x: x + 4, y: P.Y(y + 4), size: 2.2, color: rgb(corMarcador) });
-                linhas.forEach((l, i) => P.texto(l, x + 12, y + i * 11, { tam: 8.2 }));
-                y += linhas.length * 11 + 3;
-            }
-            return y;
-        }
+
+        // Marcadores (percentual do quadro)
+        const P = (x, y) => [+(x / VW * 100).toFixed(2), +(y / VH * 100).toFixed(2)];
+        const xp = x0 + 16, xc = x0 + 24, xpD = x1 - 16, xcD = x1 - 24;
+        const yPortaD = (yA + yB) / 2, yPortaT = (yB + yC) / 2;
+        const yParalamaD = (Y(.06) + yA) / 2 + 8;
+        const traseiraReta = ['hatch', 'suv', 'van', 'minivan'].includes(tipo);
+        const yParalamaT = c.cacamba ? Y(.78) : (yC + Y(.95)) / 2 + (traseiraReta ? 0 : 6);
+        const yTampa = c.cacamba ? Y(.905) : (traseiraReta ? Y(.925) : (yVigia + Y(.955)) / 2 + 4);
+        const pos = {
+            1: P(cx, y0 + 12), 2: P(cx, (Y(.07) + yCapo) / 2 + 4),
+            3: P(xp, yParalamaD), 4: P(xc, yA + 11), 5: P(xp, yPortaD + 10), 6: P(xc, yB),
+            7: P(xp, yPortaT + (c.duasPortas ? -2 : 4)), 8: P(xc, yC + 4), 9: P(xp, yParalamaT),
+            10: P(cx, yTampa), 11: P(cx, y1 - 11),
+            12: P(xpD, yParalamaT), 13: P(xcD, yC + 4), 14: P(xpD, yPortaT + (c.duasPortas ? -2 : 4)), 15: P(xcD, yB),
+            16: P(xpD, yPortaD + 10), 17: P(xcD, yA + 11), 18: P(xpD, yParalamaD),
+            19: P(cx, (yPara + yTeto) / 2)
+        };
+        return { svg: `<svg viewBox="0 0 ${VW} ${VH}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${corpo}</svg>`, pos };
+    }
+
+    // ------------------------------------------------------------------
+    // Estilos
+    // ------------------------------------------------------------------
+    const CSS = `
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#d9d4c9}
+body{font-family:'Montserrat',Arial,Helvetica,sans-serif;color:#18233a;-webkit-font-smoothing:antialiased}
+body.tela{padding:1px 0}
+body.tela .pg{margin:18px auto;box-shadow:0 6px 24px rgba(10,31,61,.18)}
+body.captura{background:transparent}
+body.captura .pg{margin:0}
+.pg{width:${PAG.w}px;height:${PAG.h}px;position:relative;overflow:hidden;background:${COR.creme};page-break-after:always;break-after:page}
+@page{size:A4;margin:0}
+@media print{html,body{background:none}body.tela .pg{margin:0;box-shadow:none}}
+
+/* Cabeçalho */
+.topo{position:absolute;left:0;top:0;right:0;height:66px;background:linear-gradient(90deg,#081a34 0%,#0A1F3D 55%,#10294f 100%);display:flex;align-items:center;justify-content:space-between;padding:0 34px}
+.topo-ouro{position:absolute;left:0;right:0;top:66px;height:3px;background:linear-gradient(90deg,#8E6F2E,#C9A961 30%,#EBD59A 50%,#C9A961 70%,#8E6F2E)}
+.topo-dir{display:flex;align-items:center;gap:22px}
+.topo-bloco{display:flex;flex-direction:column;gap:3px}
+.topo-bloco .r{font-size:7.5px;letter-spacing:1.6px;color:#C9A961;font-weight:600}
+.topo-bloco .v{font-size:12.5px;letter-spacing:.6px;color:#fff;font-weight:700}
+.topo-sep{width:1px;height:30px;background:rgba(201,169,97,.5)}
+.logo{display:flex;align-items:center;gap:calc(9px * var(--e))}
+.logo-nome{font-weight:800;font-size:calc(17px * var(--e));letter-spacing:calc(2.2px * var(--e));line-height:1;color:#fff}
+.logo-sub{font-weight:600;font-size:calc(7px * var(--e));letter-spacing:calc(4.2px * var(--e));color:#C9A961;margin-top:calc(4px * var(--e))}
+
+/* Título da seção */
+.titulo{position:absolute;left:34px;right:34px;top:90px;display:flex;align-items:center;gap:18px}
+.numeral{font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-style:italic;font-weight:700;font-size:62px;line-height:1;color:#C9A961;min-width:44px;text-align:center}
+.titulo h1{font-size:21px;font-weight:800;color:${COR.navy};letter-spacing:.6px;line-height:1.1}
+.titulo .sub{font-size:9.5px;color:#6b7280;letter-spacing:2px;font-weight:500;margin-top:5px;text-transform:uppercase}
+.corpo{position:absolute;left:34px;right:34px;top:176px;bottom:58px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.corpo.cont{top:96px}
+.rodape{position:absolute;left:34px;right:34px;bottom:22px;border-top:1px solid #E3DDD0;padding-top:9px;display:flex;justify-content:space-between;align-items:center;font-size:7.5px;letter-spacing:1.5px;color:#8a8f98;font-weight:600}
+.rodape .hash{letter-spacing:.4px;font-weight:500;color:#a0a4ab}
+
+/* Blocos */
+.rot{font-size:10px;font-weight:800;color:${COR.navy};letter-spacing:1.3px;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.rot i{display:block;width:3px;height:12px;background:#C9A961;border-radius:1px}
+.card{background:#fff;border:1px solid #E6E0D4;border-radius:8px;box-shadow:0 1px 3px rgba(10,31,61,.05)}
+.lin{display:flex;gap:16px}
+.col{display:flex;flex-direction:column;gap:14px}
+
+/* Tabelas */
+table{border-collapse:collapse;width:100%}
+.kv td{padding:6.5px 12px;border-bottom:1px solid #EEE8DC;font-size:10.5px;vertical-align:middle}
+.kv tr:last-child td{border-bottom:0}
+.kv td.r{font-size:8.2px;letter-spacing:1px;color:#6b7280;font-weight:700;width:38%;text-transform:uppercase;background:#FBFAF6}
+.kv-largo .kv td.r{width:52%}
+.kv td.v{font-weight:600;color:${COR.navy};letter-spacing:.2px}
+.tab{border-radius:8px;overflow:hidden;border:1px solid #E6E0D4;background:#fff}
+.tab th{background:${COR.navy};color:#fff;font-size:8px;letter-spacing:1.2px;font-weight:700;text-transform:uppercase;padding:8px 10px;text-align:left}
+.tab td{font-size:var(--ft,10px);padding:var(--pt,6.5px) 10px;border-top:1px solid #EFE9DE;color:#1f2a3d;vertical-align:middle}
+.tab tr:nth-child(even) td{background:#FAF8F3}
+.tab td.c,.tab th.c{text-align:center}
+.tab td.b{font-weight:700;color:${COR.navy}}
+.tab td.mono,.mono{font-family:'Roboto Mono','Courier New',monospace;letter-spacing:.5px}
+
+/* Status */
+.st{display:inline-block;font-size:8px;font-weight:800;letter-spacing:1px;padding:4px 9px;border-radius:20px;text-transform:uppercase;white-space:nowrap;line-height:1.2}
+.st.ok{background:#E5F0E8;color:${COR.verde}}
+.st.ress{background:#F7EADF;color:${COR.ambar}}
+.st.nc{background:#F4E2E6;color:${COR.vermelho}}
+.st.na{background:#EFEDE8;color:#7c7568}
+.tx-ok{color:${COR.verde}}.tx-ress{color:${COR.ambar}}.tx-nc{color:${COR.vermelho}}
+
+/* Fotos */
+.fotos{display:grid;gap:12px}
+.fotos.c2{grid-template-columns:1fr 1fr}.fotos.c3{grid-template-columns:1fr 1fr 1fr}
+.foto{display:flex;flex-direction:column;gap:6px;min-width:0}
+.foto .img{height:var(--fh,130px);border-radius:6px;background-color:#121821;background-position:center;background-repeat:no-repeat;background-size:cover;border:1px solid #d9d3c6;position:relative}
+.foto .img.leitura{background-size:contain}
+.foto .img.vazia{background:#EFEBE2;display:flex;align-items:center;justify-content:center;font-size:8.5px;color:#9a9284;letter-spacing:1px;font-weight:600}
+.foto .leg{font-size:8.8px;color:#2b3547;font-weight:600;letter-spacing:.2px;line-height:1.25}
+.foto .leg small{display:block;font-weight:500;color:#8a8f98;font-size:7.6px;margin-top:2px}
+.foto .num{position:absolute;left:0;top:0;background:${COR.navy};color:#fff;font-size:10px;font-weight:800;padding:4px 8px;border-radius:5px 0 6px 0}
+
+/* Capa */
+.capa{background:radial-gradient(ellipse at 78% 62%,#173a68 0%,#0c2447 38%,#07172e 75%,#050f20 100%)}
+.capa .moldura{position:absolute;left:16px;top:16px;right:16px;bottom:16px;border:1px solid rgba(201,169,97,.55)}
+.capa .moldura2{position:absolute;left:22px;top:22px;right:22px;bottom:22px;border:1px solid rgba(201,169,97,.16)}
+.capa .foto-capa{position:absolute;right:17px;top:318px;width:500px;height:540px;background-size:100% 100%}
+.capa .lema{position:absolute;left:52px;top:52px;font-size:8.5px;letter-spacing:3.6px;color:#c9d0db;line-height:1.9;font-weight:500}
+.capa .num-laudo{position:absolute;right:52px;top:52px;text-align:right}
+.capa .num-laudo .r{font-size:8px;letter-spacing:2.4px;color:#C9A961;font-weight:600}
+.capa .num-laudo .v{font-size:13px;letter-spacing:1px;color:#fff;font-weight:700;margin-top:4px}
+.capa .marca{position:absolute;left:52px;top:112px;width:310px;display:flex;flex-direction:column;align-items:center}
+.capa .marca .n{font-size:40px;font-weight:800;color:#fff;letter-spacing:5px;margin-top:14px;line-height:1}
+.capa .marca .s{font-size:12px;font-weight:600;color:#C9A961;letter-spacing:10px;margin-top:8px;padding-left:10px}
+.capa h1{position:absolute;left:52px;top:348px;font-size:66px;font-weight:800;color:#fff;line-height:1;letter-spacing:1px}
+.capa .h2{position:absolute;left:54px;top:488px;font-size:22px;font-weight:700;color:#D9BD74;letter-spacing:1.4px}
+.capa .desc{position:absolute;left:54px;top:534px;width:330px;font-size:9.5px;letter-spacing:2.6px;color:#d6dce6;line-height:1.75;font-weight:500}
+.capa .itens{position:absolute;left:54px;top:604px;display:flex;flex-direction:column;gap:12px}
+.capa .item{display:flex;align-items:center;gap:14px;font-size:8.6px;letter-spacing:2.2px;color:#cfd6e1;font-weight:600;line-height:1.35}
+.capa .item .ic{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,97,.45);border-radius:50%}
+.capa .veic{position:absolute;left:54px;top:935px;display:flex;gap:28px}
+.capa .veic .r{font-size:7.5px;letter-spacing:2px;color:#C9A961;font-weight:600}
+.capa .veic .v{font-size:12px;color:#fff;font-weight:700;letter-spacing:.8px;margin-top:4px}
+.capa .local{position:absolute;left:54px;top:1010px;font-size:9px;letter-spacing:1.8px;color:#d6dce6;font-weight:600;line-height:1.7}
+.capa .selo{position:absolute;right:46px;top:895px}
+
+/* Resumo */
+.areas{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.area{padding:16px 6px 13px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
+.area .circ{width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(10,31,61,.22)}
+.area .circ.ok{background:radial-gradient(circle at 35% 30%,#4f9a62,#2F6B3F 60%,#224f2e)}
+.area .circ.ress{background:radial-gradient(circle at 35% 30%,#e3a15a,#C9782E 60%,#9c5520)}
+.area .circ.nc{background:radial-gradient(circle at 35% 30%,#c4505f,#8B2635 60%,#6a1a27)}
+.area .n{font-size:9.5px;font-weight:800;color:${COR.navy};letter-spacing:.8px}
+.lista{padding:14px 16px;display:flex;flex-direction:column;gap:7px}
+.lista .cab{font-size:9px;font-weight:800;letter-spacing:1.1px;display:flex;align-items:center;gap:8px;margin-bottom:4px;text-transform:uppercase}
+.lista .li{display:flex;gap:9px;align-items:flex-start;font-size:var(--fl,9.6px);line-height:1.4;color:#243047}
+.lista .li svg{flex:0 0 auto;margin-top:1px}
+.lista .vazio{font-size:9.3px;color:#8a8f98;font-style:italic}
+.caixa-parecer{background:linear-gradient(135deg,#0c2447,#0A1F3D 60%,#081a34);border:1.5px solid #C9A961;border-radius:10px;padding:22px 26px;display:flex;align-items:center;gap:24px}
+.caixa-parecer .r{font-size:9px;letter-spacing:2.2px;color:#C9A961;font-weight:700}
+.caixa-parecer .p{font-size:29px;font-weight:800;color:#E6CB86;letter-spacing:.8px;margin-top:6px;line-height:1.1}
+.caixa-parecer .d{font-size:10px;color:#d3d9e3;line-height:1.6;margin-top:9px;max-width:470px}
+
+.criterios{padding:14px 18px;display:flex;flex-direction:column;gap:9px}
+.criterios .rot{margin-bottom:2px}
+.crit{display:flex;gap:14px;align-items:center;font-size:9.4px;color:#3a4558;line-height:1.45}
+.crit .st{min-width:112px;text-align:center}
+
+/* Estrutura */
+.indic{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.indic .card{display:flex;align-items:center;gap:13px;padding:13px 14px}
+.indic .circ{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.indic .circ.ok{background:#E5F0E8}.indic .circ.nc{background:#F4E2E6}
+.indic .r{font-size:8.4px;font-weight:800;letter-spacing:1px;color:${COR.navy};line-height:1.3}
+.indic .v{font-size:10px;font-weight:700;margin-top:4px;letter-spacing:.4px}
+.analise{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;background:#FBF7EC;border:1px solid #EADFC4}
+.analise .circ{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#dcc07c,#C9A961 55%,#a4843f);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.analise .t{font-size:9.8px;line-height:1.6;color:#243047}
+.analise .t b{display:flex;align-items:center;gap:10px;font-size:9.5px;letter-spacing:1.2px;color:${COR.navy};margin-bottom:5px}
+
+/* Pintura */
+.diagrama{position:relative;width:250px;height:540px;flex:0 0 auto}
+.diagrama .sil{position:absolute;left:0;top:10px;width:250px;height:520px}
+.diagrama .dir{position:absolute;left:0;right:0;text-align:center;font-size:8px;letter-spacing:2.4px;color:#8a8f98;font-weight:700}
+.mk{position:absolute;width:21px;height:21px;margin:-10.5px 0 0 -10.5px;border-radius:50%;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.bola{display:inline-flex;width:18px;height:18px;border-radius:50%;color:#fff;font-size:8.5px;font-weight:800;align-items:center;justify-content:center}
+.legenda{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;padding:11px 14px}
+.legenda div{display:flex;align-items:center;gap:8px;font-size:9px;color:#2b3547;font-weight:500}
+.legenda i{display:block;width:11px;height:11px;border-radius:50%}
+.nota{font-size:8.8px;color:#5b6270;line-height:1.5}
+.nota b{color:${COR.vermelho}}
+
+/* Parecer final */
+.pf{padding:26px 28px}
+.pf .p{font-size:34px}
+.fund{padding:14px 18px}
+.fund .t{font-size:10.2px;line-height:1.7;color:#243047;text-align:justify}
+.assin{display:flex;gap:16px;align-items:stretch}
+.assin .card{padding:14px 18px}
+.assin .ass{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
+.assin .ass .img{height:78px;background-size:contain;background-repeat:no-repeat;background-position:left bottom;border-bottom:1px solid #1f2a3d;margin-bottom:8px}
+.assin .ass .n{font-size:11px;font-weight:800;color:${COR.navy}}
+.assin .ass .c{font-size:8.6px;color:#6b7280;letter-spacing:.8px;margin-top:3px}
+.assin .qr{width:262px;display:flex;gap:12px;align-items:center}
+.assin .qr .q{width:96px;height:96px;background-size:contain;background-repeat:no-repeat;flex:0 0 auto}
+.assin .qr .t{font-size:7.8px;color:#6b7280;line-height:1.5;letter-spacing:.3px;word-break:break-all}
+.assin .qr .t .url{display:block;margin-top:8px;word-break:normal}
+.assin .qr .t b{display:block;color:${COR.navy};font-size:8.4px;letter-spacing:1px;margin-bottom:4px;word-break:normal}
+.alcance{font-size:8.4px;line-height:1.6;color:#5b6270;padding:12px 16px;background:#F3EFE6;border-radius:8px}
+.alcance b{color:${COR.navy};letter-spacing:1px;font-size:8.6px;display:block;margin-bottom:3px}
+
+/* Compactação automática quando o conteúdo não cabe na página */
+.pg.compacto .corpo{gap:11px}
+.pg.compacto{--ft:9.2px;--pt:5px;--fl:9px}
+.pg.compacto .fotos{gap:9px}
+.pg.compacto2{--ft:8.6px;--pt:3.8px;--fl:8.4px}
+`;
+
+    // ------------------------------------------------------------------
+    // Blocos de HTML
+    // ------------------------------------------------------------------
+    function statusSpan(parecer) {
+        const p = PARECER[parecer] || PARECER.conforme;
+        return `<span class="st ${p.cls}">${p.curto}</span>`;
+    }
+
+    function rotulo(t) { return `<div class="rot"><i></i>${esc(t)}</div>`; }
+
+    function fotoHtml(F, slot, legenda, opcoes = {}) {
+        const f = F[slot];
+        const leitura = SLOTS_LEITURA.test(slot) || opcoes.leitura;
+        const extra = opcoes.info ? `<small>${esc(opcoes.info)}</small>` : '';
+        const num = opcoes.numero ? `<span class="num">${opcoes.numero}</span>` : '';
+        const alt = opcoes.altura ? `--fh:${opcoes.altura}px;` : '';
+        const img = f
+            ? `<div class="img${leitura ? ' leitura' : ''}" style="${alt}background-image:url('${f.url}')">${num}</div>`
+            : `<div class="img vazia" style="${alt}">FOTO NÃO REGISTRADA${num}</div>`;
+        return `<div class="foto">${img}${legenda ? `<div class="leg">${esc(legenda)}${extra}</div>` : ''}</div>`;
+    }
+
+    function cabecalho(D, numeral, titulo, subtitulo) {
+        return `<div class="topo">${logoHtml(1)}
+<div class="topo-dir"><div class="topo-bloco"><span class="r">DOSSIÊ</span><span class="v">${esc(D.cautelar.dossieNumero || '—')}</span></div>
+<div class="topo-sep"></div><div class="topo-bloco"><span class="r">PLACA</span><span class="v">${esc(D.os.placa || '—')}</span></div></div></div><div class="topo-ouro"></div>
+${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>${esc(titulo)}</h1><div class="sub">${esc(subtitulo)}</div></div></div>` : ''}`;
+    }
+
+    function pagina(D, numeral, titulo, subtitulo, corpo) {
+        return `<section class="pg">${cabecalho(D, numeral, titulo, subtitulo)}
+<div class="corpo${numeral ? '' : ' cont'}">${corpo}</div>
+<div class="rodape"><span>CERTIVE VISTORIAS &nbsp;·&nbsp; LAUDO CAUTELAR</span>${D.hash ? `<span class="hash">Autenticação ${esc(String(D.hash).slice(0, 32))}</span>` : ''}<span class="pagnum">PÁG. 00 DE 00</span></div></section>`;
+    }
+
+    // Linhas [rótulo, valor, html?]: valor em HTML só quando o terceiro item é true
+    function kv(linhas) {
+        return `<table class="kv">${linhas.filter(Boolean).map(([r, v, html]) =>
+            `<tr><td class="r">${esc(r)}</td><td class="v">${html ? v : esc(v || 'Não informado')}</td></tr>`).join('')}</table>`;
+    }
+
+    function chipEtiqueta(status) {
+        const st = ROTULO_ETIQUETA[status] || { t: 'Não avaliada', cls: 'na' };
+        return `<span class="st ${st.cls}">${st.t}</span>`;
     }
 
     // ------------------------------------------------------------------
     // Páginas
     // ------------------------------------------------------------------
-    async function paginaCapa(L) {
-        const D = L.D;
-        const P = L.nova(COR.navy);
-        P.ret(18, 18, A4.w - 36, A4.h - 36, null, COR.gold, 0.8);
-        L.logo(P, 56, 64, 1.6, true);
-        P.texto('LAUDO', 56, 250, { tam: 46, fonte: 'bold', cor: COR.branco });
-        P.texto('CAUTELAR', 56, 300, { tam: 46, fonte: 'bold', cor: COR.branco });
-        P.texto('DE AQUISIÇÃO VEICULAR', 58, 356, { tam: 15, fonte: 'bold', cor: COR.gold });
-        P.linha(58, 382, 200, 382, COR.gold, 1.2);
-        P.texto('Análise físico-estrutural e de identificação veicular', 58, 392, { tam: 10, cor: [205, 212, 224] });
-
-        // Selo "aprovado" só quando o parecer não é "não conforme"
-        if (D.parecerFinal !== 'nao_conforme') {
-            try {
-                const resp = await fetch('icons/selo_procedencia.png');
-                if (resp.ok) {
-                    const selo = await L.doc.embedPng(new Uint8Array(await resp.arrayBuffer()));
-                    P.p.drawImage(selo, { x: A4.w - 56 - 150, y: P.Y(470, 150), width: 150, height: 150 });
-                }
-            } catch (e) { /* selo é opcional */ }
-        }
-
-        const top = 640;
-        P.linha(56, top - 14, A4.w - 56, top - 14, [60, 80, 110], 0.6);
-        const col = (x, rotulo, valor, w) => {
-            P.texto(rotulo, x, top, { tam: 6.5, fonte: 'bold', cor: COR.gold });
-            P.paragrafo(valor, x, top + 11, w, { tam: 10, fonte: 'bold', cor: COR.branco, maxLinhas: 2 });
-        };
-        col(56, 'VEÍCULO', D.marcaModelo, 170);
-        col(236, 'PLACA', D.os.placa, 90);
-        col(336, 'DOSSIÊ', D.cautelar.dossieNumero || '', 100);
-        col(446, 'VISTORIA', dataBR(D.dataVistoria), 100);
-        P.texto('PARECER TÉCNICO', 56, top + 52, { tam: 6.5, fonte: 'bold', cor: COR.gold });
-        P.pill(PARECER[D.parecerFinal].texto, 56, top + 64, { cor: PARECER[D.parecerFinal].cor, tam: 9 });
-        P.texto(`${D.cidade}  ·  ${dataExtenso(D.dataEmissao)}`, 56, A4.h - 60, { tam: 8, cor: [205, 212, 224] });
-        P.texto(limpar(D.unidade.razao_social || 'Certive Vistorias'), A4.w - 56, A4.h - 60, { tam: 8, cor: [205, 212, 224], alinhar: 'dir' });
+    function paginaCapa(D, F) {
+        const itens = [
+            ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>VEICULAR'], ['rolo', 'PINTURA E<br>ACABAMENTO'],
+            ['motor', 'MOTOR E<br>CHASSI'], ['vidro', 'VIDROS E<br>GRAVAÇÕES'], ['banco', 'INTERIOR E<br>QUADROS DE PORTA']
+        ];
+        const fotoCapa = F.__capa;
+        const ano = new Date(D.dataEmissao || Date.now()).getFullYear();
+        return `<section class="pg capa">
+${fotoCapa ? `<div class="foto-capa" style="background-image:url('${fotoCapa.url}')"></div>` : ''}
+<div class="moldura"></div><div class="moldura2"></div>
+<div class="lema">SEGURANÇA<br>INFORMAÇÃO<br>PROCEDÊNCIA</div>
+<div class="num-laudo"><div class="r">LAUDO Nº</div><div class="v">${esc(D.cautelar.dossieNumero || '—')}</div></div>
+<div class="marca">${svgLogo(118)}<div class="n">CERTIVE</div><div class="s">VISTORIAS</div></div>
+<h1>LAUDO<br>CAUTELAR</h1>
+<div class="h2">DE AQUISIÇÃO VEICULAR</div>
+<div class="desc">ANÁLISE FÍSICO-ESTRUTURAL E DE IDENTIFICAÇÃO VEICULAR</div>
+<div class="itens">${itens.map(([ic, t]) => `<div class="item"><span class="ic">${icone(ic, '#C9A961', 17, 1.6)}</span><span>${t}</span></div>`).join('')}</div>
+<div class="veic"><div><div class="r">PLACA</div><div class="v">${esc(D.os.placa)}</div></div>${D.marcaModelo !== 'Não informado' ? `<div><div class="r">VEÍCULO</div><div class="v">${esc(D.marcaModelo)}</div></div>` : ''}<div><div class="r">VISTORIA</div><div class="v">${esc(dataBR(D.dataVistoria))}</div></div></div>
+<div class="local">${esc(D.cidade.toUpperCase())}<br>${esc(dataExtenso(D.dataEmissao).toUpperCase())}</div>
+<div class="selo">${svgSelo(D.cidade, ano)}</div>
+</section>`;
     }
 
-    async function paginaIdentificacao(L) {
-        const D = L.D;
-        const P = L.nova();
-        let top = L.cabecalho(P, 'I', 'IDENTIFICAÇÃO DO VEÍCULO', 'Dados constatados no veículo e no cadastro da ordem de serviço');
-        const xE = MARGEM, wE = 235, xD = MARGEM + wE + 20, wD = A4.w - MARGEM - xD;
-        let y = top;
-        y = L.kv(P, xE, y, wE, 'Marca / modelo', D.marcaModelo);
-        y = L.kv(P, xE, y, wE, 'Tipo de carroceria', D.tipo);
-        y = L.kv(P, xE, y, wE, 'Ano fabricação / modelo', D.os.veiculoAno || 'Não informado');
-        y = L.kv(P, xE, y, wE, 'Placa', D.os.placa);
-        y = L.kv(P, xE, y, wE, 'Chassi (lido no veículo)', D.chassiLido, { tamValor: 9.5 });
-        y = L.kv(P, xE, y, wE, 'Motor (lido no veículo)', D.motorLido, { tamValor: 9.5 });
-        y = L.kv(P, xE, y, wE, 'Renavam', D.os.renavam || 'Não informado');
-        y = L.kv(P, xE, y, wE, 'Quilometragem (painel)', formatarKm(D.d1.quilometragem));
-        const conserva = { excelente: 'Excelente', bom: 'Bom', regular: 'Regular', mau: 'Mau' };
-        y = L.kv(P, xE, y, wE, 'Estado geral de conservação', conserva[D.d1.estadoConservacao] || 'Não informado');
-        L.kv(P, xE, y, wE, 'Placa confere com o documento', D.d1.placaConfere === 'nao' ? 'NÃO' : 'Sim');
-
-        await P.foto('frente_45_dir', xD, top, wD, 150, 'FRENTE 45° — LADO DIREITO');
-        await P.foto('traseira_45_esq', xD, top + 172, wD, 150, 'TRASEIRA 45° — LADO ESQUERDO');
-
-        const boxTop = 560;
-        L.caixaTitulo(P, MARGEM, boxTop, A4.w - 2 * MARGEM, 'Dados da vistoria');
-        P.ret(MARGEM, boxTop + 18, A4.w - 2 * MARGEM, 58, COR.branco, COR.linha);
-        const c = (x, r, v) => { P.texto(r, x, boxTop + 28, { tam: 6.5, fonte: 'bold', cor: COR.cinza }); P.paragrafo(v, x, boxTop + 39, 120, { tam: 8.5, fonte: 'bold', maxLinhas: 3 }); };
-        c(MARGEM + 10, 'DATA / HORA', dataBR(D.dataVistoria, true));
-        c(MARGEM + 140, 'LOCAL', D.unidade.nome || D.cidade);
-        c(MARGEM + 270, 'VISTORIADOR', D.vistoriador.nome || 'Não informado');
-        c(MARGEM + 400, 'CREDENCIAMENTO', D.unidade.credenciamento || 'Não informado');
-
-        const fTop = 655, fw = (A4.w - 2 * MARGEM - 20) / 3;
-        await P.foto('placa_dianteira', MARGEM, fTop, fw, 95, 'PLACA DIANTEIRA');
-        await P.foto('painel_hodometro', MARGEM + fw + 10, fTop, fw, 95, 'PAINEL / HODÔMETRO');
-        await P.foto('crlv_documento', MARGEM + 2 * (fw + 10), fTop, fw, 95, 'DOCUMENTO DO VEÍCULO');
+    function paginaIdentificacao(D, F) {
+        const veiculo = kv([
+            ['Marca / modelo', D.marcaModelo],
+            ['Tipo', D.tipo],
+            ['Ano fab. / modelo', D.os.veiculoAno || D.campos['vehicle.year']],
+            D.campos['vehicle.color'] ? ['Cor', D.campos['vehicle.color']] : null,
+            ['Placa', D.os.placa],
+            ['Chassi', `<span class="mono">${esc(D.chassiLido)}</span>`, true],
+            ['Motor', `<span class="mono">${esc(D.motorLido)}</span>`, true],
+            ['Renavam', D.os.renavam || D.campos['vehicle.renavam']],
+            D.campos['vehicle.fuel'] ? ['Combustível', D.campos['vehicle.fuel']] : null,
+            ['Km informado', formatarKm(D.d1.quilometragem)],
+            ['Conservação', CONSERVACAO[D.d1.estadoConservacao]],
+            D.d1.placaConfere === 'nao' ? ['Placa x documento', '<span class="st nc">Não confere</span>', true] : null
+        ]);
+        const vistoria = kv([
+            ['Data / hora', dataBR(D.dataVistoria, true)],
+            ['Local', [D.unidade.nome, D.unidade.endereco].filter(Boolean).join(' — ') || D.cidade],
+            ['Vistoriador', D.vistoriador.nome],
+            ['Credenciamento', D.unidade.credenciamento]
+        ]);
+        return pagina(D, 'I', 'IDENTIFICAÇÃO DO VEÍCULO', 'Dados cadastrais e da vistoria', `
+<div class="lin">
+  <div class="card" style="flex:1.12;overflow:hidden;align-self:flex-start">${veiculo}</div>
+  <div class="col" style="flex:1">
+    ${fotoHtml(F, 'frente_45_dir', 'Vista frontal 45° — lado direito', { altura: 196 })}
+    ${fotoHtml(F, 'traseira_45_esq', 'Vista traseira 45° — lado esquerdo', { altura: 196 })}
+  </div>
+</div>
+<div>${rotulo('Dados da vistoria')}<div class="card" style="overflow:hidden">${vistoria}</div></div>
+<div class="fotos c3" style="--fh:170px">
+  ${fotoHtml(F, 'placa_dianteira', 'Placa dianteira')}
+  ${fotoHtml(F, 'painel_hodometro', 'Painel / hodômetro')}
+  ${fotoHtml(F, 'crlv_documento', 'Documento do veículo')}
+</div>`);
     }
 
-    function paginaResumo(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'II', 'RESUMO DA ANÁLISE', 'Situação de cada área avaliada e principais constatações');
+    function listaHtml(itens, cls, vazio, max) {
+        if (!itens.length) return `<div class="vazio">${esc(vazio)}</div>`;
+        let h = itens.slice(0, max).map(t => `<div class="li">${marcaStatus(cls, 15)}<span>${esc(t)}</span></div>`).join('');
+        if (itens.length > max) h += `<div class="vazio">+ ${itens.length - max} ponto(s) detalhado(s) nas seções seguintes</div>`;
+        return h;
+    }
+
+    function paginaResumo(D) {
         const areas = [
-            ['ESTRUTURA', D.status.estrutura], ['IDENTIFICAÇÃO', D.status.identificacao],
-            ['PINTURA', D.status.pintura], ['MOTOR', D.status.motor], ['CHASSI', D.status.chassi]
+            ['ESTRUTURA', D.status.estrutura, 'escudo'], ['IDENTIFICAÇÃO', D.status.identificacao, 'identificacao'],
+            ['PINTURA', D.status.pintura, 'rolo'], ['MOTOR', D.status.motor, 'engrenagem'], ['CHASSI', D.status.chassi, 'carro']
         ];
-        const gap = 8, w = (A4.w - 2 * MARGEM - gap * 4) / 5;
-        areas.forEach(([nome, st], i) => {
-            const x = MARGEM + i * (w + gap);
+        const L = listasResumo(D);
+        const pf = PARECER[D.parecerFinal];
+        return pagina(D, 'II', 'RESUMO DA ANÁLISE', 'Visão geral do laudo', `
+<div class="areas">${areas.map(([n, st, ic]) => {
             const p = PARECER[st] || PARECER.conforme;
-            P.ret(x, top, w, 62, COR.branco, COR.linha);
-            P.ret(x, top, w, 4, p.cor);
-            P.texto(nome, x, top + 14, { tam: 7.5, fonte: 'bold', cor: COR.navy, alinhar: 'centro', larg: w });
-            const txt = st === 'com_ressalvas' ? 'COM RESSALVA' : p.texto;
-            P.texto(txt, x, top + 36, { tam: 7.5, fonte: 'bold', cor: p.cor, alinhar: 'centro', larg: w });
-        });
-
-        const { ok, alerta } = listasResumo(D);
-        let y = top + 82;
-        y = L.caixaTitulo(P, MARGEM, y, A4.w - 2 * MARGEM, 'Itens conformes', COR.verde);
-        y = L.lista(P, MARGEM + 8, y + 10, A4.w - 2 * MARGEM - 16, ok.length ? ok : ['Nenhum item registrado'], '•', COR.verde, 230);
-        y += 12;
-        y = L.caixaTitulo(P, MARGEM, y, A4.w - 2 * MARGEM, 'Pontos de atenção', COR.ambar);
-        y = L.lista(P, MARGEM + 8, y + 10, A4.w - 2 * MARGEM - 16, alerta.length ? alerta : ['Nenhum ponto de atenção registrado'], '•', COR.ambar, A4.h - 130 - y);
-
-        const pf = PARECER[D.parecerFinal];
-        P.ret(MARGEM, A4.h - 110, A4.w - 2 * MARGEM, 56, COR.navy);
-        P.texto('PARECER TÉCNICO FINAL', MARGEM + 14, A4.h - 99, { tam: 7, fonte: 'bold', cor: COR.gold });
-        P.texto(pf.texto, MARGEM + 14, A4.h - 84, { tam: 17, fonte: 'bold', cor: COR.branco });
-        P.pill(pf.texto, A4.w - MARGEM - 14, A4.h - 92, { cor: pf.cor, tam: 8, alinhar: 'dir' });
+            return `<div class="card area"><div class="circ ${p.cls}">${icone(ic, '#fff', 30, 1.7)}</div><div class="n">${n}</div>${statusSpan(st)}</div>`;
+        }).join('')}</div>
+<div class="lin" style="align-items:flex-start">
+  <div class="col" style="flex:1">
+    <div class="card lista"><div class="cab tx-ok">${marcaStatus('ok', 16)} Pontos conformes</div>${listaHtml(L.ok, 'ok', 'Nenhum item registrado.', 10)}</div>
+    <div class="card lista"><div class="cab tx-nc">${marcaStatus('nc', 16)} Pontos não conformes</div>${listaHtml(L.naoConformes, 'nc', 'Nenhuma não conformidade constatada.', 6)}</div>
+  </div>
+  <div class="col" style="flex:1">
+    <div class="card lista"><div class="cab tx-ress">${marcaStatus('ress', 16)} Pontos de atenção / ressalvas</div>${listaHtml(L.atencao, 'ress', 'Nenhum ponto de atenção registrado.', 12)}</div>
+  </div>
+</div>
+<div class="caixa-parecer">${svgEscudoParecer(D.parecerFinal, 88)}
+  <div><div class="r">PARECER TÉCNICO</div><div class="p">${pf.texto}</div><div class="d">${esc(resumoParecer(D.parecerFinal))}</div></div>
+</div>
+<div class="card criterios" style="margin-top:auto">
+  <div class="rot"><i></i>Critérios de classificação</div>
+  <div class="crit"><span class="st ok">Conforme</span><span>Nenhuma irregularidade constatada no item avaliado.</span></div>
+  <div class="crit"><span class="st ress">Com ressalva</span><span>Constatações que não impedem a aquisição, mas devem ser consideradas na negociação e na manutenção.</span></div>
+  <div class="crit"><span class="st nc">Não conforme</span><span>Constatações que comprometem a segurança, a identificação ou a procedência do veículo.</span></div>
+</div>`);
     }
 
-    async function paginaEstrutura(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'III', 'ANÁLISE ESTRUTURAL', 'Longarinas, torres de amortecedor, painel corta-fogo e assoalho');
-        const perg = [
-            ['Indícios de enchente', D.d3.indicioEnchente === 'sim' ? 'SIM' : 'NÃO', D.d3.indicioEnchente === 'sim'],
-            ['Indícios de batida', D.d3.indicioBatida === 'sim' ? 'SIM' : 'NÃO', D.d3.indicioBatida === 'sim'],
-            ['Deformação estrutural', D.d3.indicioBatida === 'sim' ? (D.d3.deformacaoEstrutural === 'sim' ? 'SIM' : 'NÃO') : 'NÃO', D.d3.deformacaoEstrutural === 'sim']
+    function regiaoEstrutural(codigo) {
+        if (/painel_corta_fogo/.test(codigo)) return 'Compartimento do motor';
+        if (/assoalho/.test(codigo)) return 'Porta-malas';
+        if (/_diant_/.test(codigo)) return 'Compartimento dianteiro';
+        if (/_tras_/.test(codigo)) return 'Compartimento traseiro';
+        return '—';
+    }
+
+    function paginaEstrutura(D, F) {
+        const sim = v => v === 'sim';
+        const indic = [
+            ['gota', 'INDÍCIOS DE<br>ENCHENTE', sim(D.d3.indicioEnchente)],
+            ['colisao', 'INDÍCIOS DE<br>BATIDA', sim(D.d3.indicioBatida)],
+            ['alerta', 'DEFORMAÇÃO<br>ESTRUTURAL', sim(D.d3.deformacaoEstrutural) && sim(D.d3.indicioBatida)]
         ];
-        const w3 = (A4.w - 2 * MARGEM - 16) / 3;
-        perg.forEach(([r, v, ruim], i) => {
-            const x = MARGEM + i * (w3 + 8);
-            P.ret(x, top, w3, 34, COR.branco, COR.linha);
-            P.texto(r.toUpperCase(), x + 8, top + 7, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-            P.texto(v, x + 8, top + 18, { tam: 11, fonte: 'bold', cor: ruim ? COR.vermelho : COR.verde });
-        });
-        let y = top + 46;
-        y = L.caixaTitulo(P, MARGEM, y, A4.w - 2 * MARGEM, 'Avaliação por ponto estrutural');
-        D.estrutura.forEach((e, i) => {
+        const nomeEst = e => capitalizar(e.nome.replace(' (ESTRUTURA)', ''));
+        const linhas = D.estrutura.map(e => {
             const st = ROTULO_ESTRUTURA[e.status] || ROTULO_ESTRUTURA.original;
-            P.ret(MARGEM, y, A4.w - 2 * MARGEM, 17, i % 2 ? COR.creme : COR.branco);
-            P.texto(e.nome, MARGEM + 8, y + 5, { tam: 7.6 });
-            if (e.obs) P.texto(e.obs, MARGEM + 260, y + 5, { tam: 7, cor: COR.cinza });
-            P.texto(st.t, A4.w - MARGEM - 8, y + 5, { tam: 7.6, fonte: 'bold', cor: st.cor, alinhar: 'dir' });
-            y += 17;
-        });
-        const obs = [D.d3.obsEnchente, D.d3.obsBatida, D.d3.observacao].filter(Boolean).join(' ');
-        y += 8;
-        if (obs) { P.texto('OBSERVAÇÕES', MARGEM, y, { tam: 6.5, fonte: 'bold', cor: COR.cinza }); y = P.paragrafo(obs, MARGEM, y + 10, A4.w - 2 * MARGEM, { tam: 8, maxLinhas: 3 }) + 6; }
-        P.texto('PARECER ESTRUTURAL', MARGEM, y, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-        P.pill((PARECER[D.status.estrutura] || PARECER.conforme).texto, MARGEM + 90, y - 3, { cor: (PARECER[D.status.estrutura] || PARECER.conforme).cor });
-        y += 22;
-        const cols = 5, gap = 6, fw = (A4.w - 2 * MARGEM - gap * (cols - 1)) / cols, fh = 70;
-        for (let i = 0; i < D.estrutura.length; i++) {
-            const e = D.estrutura[i];
-            const x = MARGEM + (i % cols) * (fw + gap);
-            const t = y + Math.floor(i / cols) * (fh + 20);
-            if (t + fh + 13 > A4.h - 45) break;
-            await P.foto(e.codigo, x, t, fw, fh, e.nome.replace('TORRE DO AMORTECEDOR', 'TORRE AMORT.').replace(' (ESTRUTURA)', ''));
-        }
+            return `<tr><td class="b">${esc(nomeEst(e))}</td><td>${regiaoEstrutural(e.codigo)}</td><td><span class="st ${st.cls}">${st.t}</span></td><td>${esc(e.obs || '—')}</td></tr>`;
+        }).join('');
+        const originais = D.estrutura.filter(e => e.status === 'original').length;
+        const outros = D.estrutura.filter(e => e.status !== 'original' && e.status !== 'nao_aplicavel');
+        let analise = `Foram avaliados ${D.estrutura.length} pontos estruturais: ${originais} sem indícios de reparo` +
+            (outros.length ? ` e ${outros.length} com constatações (${outros.map(e => nomeEst(e).toLowerCase() + ' — ' + ROTULO_ESTRUTURA[e.status].t.toLowerCase()).join('; ')}).` : '.');
+        if (sim(D.d3.indicioBatida)) analise += sim(D.d3.deformacaoEstrutural) ? ' Há indícios de batida com deformação estrutural.' : ' Há indícios de batida, sem deformação estrutural.';
+        const colunas = D.itensPintura.filter(i => i.reparo === 'sim');
+        if (colunas.length) analise += ` Colunas com indícios de reparo estrutural: ${colunas.map(i => i.nome.toLowerCase()).join(', ')}.`;
+        const obs = [D.d3.obsEnchente, D.d3.obsBatida, D.d3.observacao].filter(Boolean).map(textoVistoriador).join(' ');
+        if (obs) analise += ` Observações do vistoriador: ${obs}`;
+        const comFoto = D.estrutura.filter(e => F[e.codigo]);
+        const fotos = (comFoto.length ? comFoto : D.estrutura).slice(0, 6);
+        return pagina(D, 'III', 'ANÁLISE ESTRUTURAL', 'Carroceria e região do chassi', `
+<div class="indic">${indic.map(([ic, r, ruim]) => `<div class="card"><div class="circ ${ruim ? 'nc' : 'ok'}">${icone(ic, ruim ? COR.vermelho : COR.verde, 24, 1.8)}</div><div><div class="r">${r}</div><div class="v ${ruim ? 'tx-nc' : 'tx-ok'}">${ruim ? 'CONSTATADO' : 'NÃO CONSTATADO'}</div></div></div>`).join('')}</div>
+<div>${rotulo('Pontos estruturais avaliados')}
+<table class="tab" style="--pt:5.4px;--ft:9.6px"><thead><tr><th>Item</th><th>Região</th><th style="width:150px">Status</th><th>Observações</th></tr></thead><tbody>${linhas}</tbody></table></div>
+<div class="card analise"><div class="circ">${icone('relatorio', '#fff', 24, 1.8)}</div><div class="t"><b>ANÁLISE TÉCNICA ${statusSpan(D.status.estrutura)}</b>${esc(analise)}</div></div>
+<div>${rotulo('Registro fotográfico — estrutura')}
+<div class="fotos c3" style="--fh:104px">${fotos.map(e => fotoHtml(F, e.codigo, nomeEst(e))).join('')}</div></div>`);
     }
 
-    async function paginaPintura(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'IV', 'PINTURA E ACABAMENTO', 'Medição de espessura (µm) e classificação feita pelo vistoriador');
-        // Diagrama do veículo (vista superior) com os marcadores 1–19
-        const dx = MARGEM + 10, dw = 170, dy = top + 20, dh = 330;
-        await desenharDiagrama(L, P, dx, dy, dw, dh);
-
-        // Tabela
-        const tx = MARGEM + 210, tw = A4.w - MARGEM - tx;
-        let y = top;
-        P.ret(tx, y, tw, 16, COR.navy);
-        P.texto('Nº', tx + 6, y + 5, { tam: 7, fonte: 'bold', cor: COR.branco });
-        P.texto('PEÇA', tx + 26, y + 5, { tam: 7, fonte: 'bold', cor: COR.branco });
-        P.texto('µm', tx + tw - 112, y + 5, { tam: 7, fonte: 'bold', cor: COR.branco, alinhar: 'dir' });
-        P.texto('CONDIÇÃO', tx + tw - 6, y + 5, { tam: 7, fonte: 'bold', cor: COR.branco, alinhar: 'dir' });
-        y += 16;
-        D.itensPintura.forEach((it, i) => {
+    function paginaPintura(D, F) {
+        const sil = silhueta(D.tipoCodigo);
+        const marcadores = D.itensPintura.map(it => {
+            const p = sil.pos[it.numero];
+            if (!p) return '';
+            // posição relativa ao quadro da silhueta (250 x 520, deslocado 10px)
+            return `<div class="mk" style="left:${(p[0] * 2.5).toFixed(1)}px;top:${(10 + p[1] * 5.2).toFixed(1)}px;background:${CORES_PINTURA[it.classe] || COR.neutro}">${it.numero}</div>`;
+        }).join('');
+        const linhas = D.itensPintura.map(it => {
             const cor = CORES_PINTURA[it.classe] || COR.neutro;
-            P.ret(tx, y, tw, 17, i % 2 ? COR.creme : COR.branco);
-            P.p.drawCircle({ x: tx + 11, y: P.Y(y + 8.5), size: 6, color: rgb(cor) });
-            P.texto(String(it.numero), tx + 11, y + 5.3, { tam: 6, fonte: 'bold', cor: COR.branco, alinhar: 'centro', larg: 0 });
-            P.texto(it.nome + (it.reparo === 'sim' ? ' *' : ''), tx + 26, y + 5, { tam: 7.6, cor: it.reparo === 'sim' ? COR.vermelho : COR.tinta, fonte: it.reparo === 'sim' ? 'bold' : 'reg' });
-            P.texto(it.tipo === 'plastico' ? '—' : (it.um || '—'), tx + tw - 112, y + 5, { tam: 7.6, alinhar: 'dir', cor: COR.cinza });
-            const rot = it.classe === 'REPINTURA COM MASSA' ? 'Repintura c/ massa' : it.classe.charAt(0) + it.classe.slice(1).toLowerCase();
-            P.texto(rot, tx + tw - 6, y + 5, { tam: 7.6, fonte: 'bold', cor, alinhar: 'dir' });
-            y += 17;
-        });
-        // Legenda
-        y += 8;
-        let lx = tx;
-        [['Original', COR.verde], ['Repintura', COR.repintura], ['Repint. c/ massa', COR.ambar], ['Avariado', COR.vermelho], ['Não se aplica', COR.neutro]].forEach(([t, c]) => {
-            P.p.drawCircle({ x: lx + 4, y: P.Y(y + 4), size: 3.5, color: rgb(c) });
-            P.texto(t, lx + 11, y + 1, { tam: 6.8, cor: COR.cinza });
-            lx += L.f.reg.widthOfTextAtSize(t, 6.8) + 22;
-        });
-        if (D.itensPintura.some(i => i.reparo === 'sim')) {
-            y += 14;
-            P.texto('* Coluna com indícios de reparo estrutural', tx, y, { tam: 7, fonte: 'bold', cor: COR.vermelho });
-        }
-        if (D.d4.observacao) {
-            y += 18;
-            P.texto('OBSERVAÇÕES', tx, y, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-            P.paragrafo(D.d4.observacao, tx, y + 10, tw, { tam: 8, maxLinhas: 3 });
-        }
-
-        // Etiquetas ETA
-        let ey = 560;
-        ey = L.caixaTitulo(P, MARGEM, ey, A4.w - 2 * MARGEM, 'Etiquetas ETA');
-        D.etiquetas.forEach((e, i) => {
-            const st = ROTULO_ETIQUETA[e.status] || { t: 'Não avaliada', cor: COR.neutro };
-            P.ret(MARGEM, ey, A4.w - 2 * MARGEM, 18, i % 2 ? COR.creme : COR.branco);
-            P.texto(e.nome, MARGEM + 8, ey + 5.5, { tam: 8 });
-            P.texto(st.t.toUpperCase(), A4.w - MARGEM - 8, ey + 5.5, { tam: 8, fonte: 'bold', cor: st.cor, alinhar: 'dir' });
-            ey += 18;
-        });
-        if (D.d2.observacao) { ey += 4; ey = P.paragrafo(`Observação: ${D.d2.observacao}`, MARGEM, ey, A4.w - 2 * MARGEM, { tam: 7.8, cor: COR.cinza, maxLinhas: 2 }); }
-        const fw = (A4.w - 2 * MARGEM - 10) / 2;
-        await P.foto('etiqueta_eta', MARGEM, ey + 8, fw, 110, 'ETIQUETA ETA — COMPARTIMENTO DO MOTOR');
-        await P.foto('medidor_pintura_uso', MARGEM + fw + 10, ey + 8, fw, 110, 'MEDIDOR DE ESPESSURA EM USO');
+            const um = it.tipo === 'plastico' ? '—' : (it.um || '—');
+            return `<tr><td class="c"><span class="bola" style="background:${cor}">${it.numero}</span></td><td${it.reparo === 'sim' ? ' class="b tx-nc"' : ''}>${esc(it.nome)}${it.reparo === 'sim' ? ' *' : ''}</td><td class="c">${esc(um)}</td><td style="color:${cor};font-weight:700">${ROTULO_PINTURA[it.classe] || capitalizar(it.classe)}</td></tr>`;
+        }).join('');
+        const legenda = [['Original de fábrica', COR.verde], ['Repintura', COR.gold], ['Repintura com massa', COR.ambar], ['Avariado', COR.vermelho], ['Plástico / não se aplica', COR.neutro]];
+        const etiquetas = D.etiquetas.map(e => `<tr><td>${esc(e.nome)}</td><td>${chipEtiqueta(e.status)}</td></tr>`).join('');
+        const notas = [];
+        if (D.itensPintura.some(i => i.reparo === 'sim')) notas.push('<b>*</b> Coluna com indícios de reparo estrutural.');
+        if (D.d4.observacao) notas.push(`Observação: ${esc(textoVistoriador(D.d4.observacao))}`);
+        if (D.d2.observacao) notas.push(`Etiquetas: ${esc(textoVistoriador(D.d2.observacao))}`);
+        return pagina(D, 'IV', 'PINTURA E ACABAMENTO', 'Medição de espessura e classificação por peça', `
+<div class="lin" style="gap:18px">
+  <div class="diagrama"><div class="dir" style="top:-2px">FRENTE</div><div class="sil">${sil.svg}</div>${marcadores}<div class="dir" style="bottom:-4px">TRASEIRA</div></div>
+  <div class="col" style="flex:1;gap:12px">
+    <table class="tab" style="--pt:3.5px;--ft:9.4px"><thead><tr><th class="c" style="width:40px">Nº</th><th>Peça</th><th class="c" style="width:74px">Espessura <span style="text-transform:none">(µm)</span></th><th style="width:118px">Condição</th></tr></thead><tbody>${linhas}</tbody></table>
+    <div class="card legenda">${legenda.map(([t, c]) => `<div><i style="background:${c}"></i>${t}</div>`).join('')}</div>
+    ${notas.length ? `<div class="nota">${notas.join('<br>')}</div>` : ''}
+  </div>
+</div>
+<div class="lin" style="gap:16px;align-items:flex-start">
+  <div style="flex:1.1">${rotulo('Etiquetas e acabamentos')}<table class="tab"><thead><tr><th>Item</th><th style="width:112px">Status</th></tr></thead><tbody>${etiquetas}</tbody></table></div>
+  <div class="fotos c2" style="flex:1;--fh:112px">${fotoHtml(F, 'etiqueta_eta', 'Etiqueta ETA — motor')}${fotoHtml(F, 'medidor_pintura_uso', 'Medidor de espessura em uso')}</div>
+</div>`);
     }
 
-    // Posições (% da caixa do veículo) dos marcadores 1–19 na vista superior
-    const POS_MARCADORES = {
-        1: [50, 2], 2: [50, 17], 3: [8, 20], 4: [8, 33], 5: [8, 43], 6: [8, 53], 7: [8, 62], 8: [8, 72], 9: [8, 84],
-        10: [50, 90], 11: [50, 98.5], 12: [92, 84], 13: [92, 72], 14: [92, 62], 15: [92, 53], 16: [92, 43], 17: [92, 33],
-        18: [92, 20], 19: [50, 55]
-    };
-
-    async function desenharDiagrama(L, P, x, top, w, h) {
-        const D = L.D;
-        const porNumero = Object.fromEntries(((D.ia && D.ia.pintura_marcadores) || []).map(m => [Number(m.numero), String(m.classificacao || '').toUpperCase()]));
-        let posicoes = POS_MARCADORES;
-        let desenhou = false;
-        // Silhueta específica do tipo de veículo, quando existir (assets/silhuetas/<tipo>.png)
-        try {
-            const [img, mapa] = await Promise.all([
-                fetch(`assets/silhuetas/${D.tipoCodigo}.png`),
-                fetch('assets/silhuetas/marcadores.json')
-            ]);
-            if (img.ok && mapa.ok) {
-                const png = await L.doc.embedPng(new Uint8Array(await img.arrayBuffer()));
-                const esc = Math.min(w / png.width, h / png.height);
-                P.p.drawImage(png, { x: x + (w - png.width * esc) / 2, y: P.Y(top, h) + (h - png.height * esc) / 2, width: png.width * esc, height: png.height * esc });
-                const coords = (await mapa.json())[D.tipoCodigo] || {};
-                if (Object.keys(coords).length) posicoes = Object.fromEntries(Object.entries(coords).map(([k, v]) => [k, [Number(v.x), Number(v.y)]]));
-                desenhou = true;
-            }
-        } catch (e) { /* usa o desenho vetorial */ }
-
-        if (!desenhou) {
-            // Vista superior genérica em vetor
-            const cx = x + w / 2, bw = w * 0.62, bx = cx - bw / 2;
-            const corCarro = rgb([214, 218, 224]), borda = rgb([120, 128, 140]);
-            const T = pct => top + h * pct / 100;
-            P.p.drawRectangle({ x: bx, y: P.Y(T(96)), width: bw, height: T(96) - T(4), color: corCarro, borderColor: borda, borderWidth: 1 });
-            // para-choques
-            P.p.drawRectangle({ x: bx + 6, y: P.Y(T(5)), width: bw - 12, height: T(5) - T(1), color: rgb([190, 196, 205]), borderColor: borda, borderWidth: 0.6 });
-            P.p.drawRectangle({ x: bx + 6, y: P.Y(T(99)), width: bw - 12, height: T(99) - T(95), color: rgb([190, 196, 205]), borderColor: borda, borderWidth: 0.6 });
-            // para-brisa, teto, vigia
-            P.p.drawRectangle({ x: bx + 8, y: P.Y(T(38)), width: bw - 16, height: T(38) - T(30), color: rgb([70, 84, 104]) });
-            P.p.drawRectangle({ x: bx + 10, y: P.Y(T(70)), width: bw - 20, height: T(70) - T(38), color: rgb([228, 231, 236]), borderColor: borda, borderWidth: 0.5 });
-            P.p.drawRectangle({ x: bx + 8, y: P.Y(T(78)), width: bw - 16, height: T(78) - T(70), color: rgb([70, 84, 104]) });
-            // linhas das portas
-            [[38, 49], [49, 62], [62, 72]].forEach(([a]) => {
-                P.linha(bx, T(a), bx + 8, T(a), [120, 128, 140], 0.6);
-                P.linha(bx + bw - 8, T(a), bx + bw, T(a), [120, 128, 140], 0.6);
-            });
-            P.linha(bx + 4, T(28), bx + bw - 4, T(28), [150, 158, 170], 0.5);
-            P.linha(bx + 4, T(82), bx + bw - 4, T(82), [150, 158, 170], 0.5);
-            P.texto('FRENTE', x, top - 12, { tam: 6.5, fonte: 'bold', cor: COR.cinza, alinhar: 'centro', larg: w });
-            P.texto('TRASEIRA', x, top + h + 6, { tam: 6.5, fonte: 'bold', cor: COR.cinza, alinhar: 'centro', larg: w });
-            P.texto('Vista superior  ·  esquerda = lado do motorista', x, top + h + 16, { tam: 6, cor: COR.cinza, alinhar: 'centro', larg: w });
-        }
-
-        D.itensPintura.forEach(it => {
-            const pos = posicoes[it.numero] || posicoes[String(it.numero)];
-            if (!pos) return;
-            const classe = porNumero[it.numero] || it.classe;
-            const cor = CORES_PINTURA[classe] || COR.neutro;
-            const mx = x + w * pos[0] / 100, my = top + h * pos[1] / 100;
-            P.p.drawCircle({ x: mx, y: P.Y(my), size: 7.5, color: rgb(cor), borderColor: rgb(COR.branco), borderWidth: 1 });
-            P.texto(String(it.numero), mx, my - 3.2, { tam: 6.5, fonte: 'bold', cor: COR.branco, alinhar: 'centro', larg: 0 });
-        });
+    function paginaVidros(D, F) {
+        const linhas = D.vidros.map(v => {
+            const cls = !v.original ? 'nc' : (v.desbaste ? 'ress' : 'ok');
+            const st = !v.original ? 'Divergente' : (v.desbaste ? 'Com ressalva' : 'Conforme');
+            return `<tr><td class="b">${esc(nomeCurto(v.nome))}</td><td class="${v.original ? 'tx-ok' : 'tx-nc'}" style="font-weight:700">${v.original ? 'Original' : 'Não original'}</td><td class="mono">${esc(v.lida || '—')}</td><td class="c ${v.desbaste ? 'tx-nc' : ''}" style="font-weight:700">${v.desbaste ? 'Sim' : 'Não'}</td><td><span class="st ${cls}">${st}</span></td></tr>`;
+        }).join('');
+        const leituras = [...new Set(D.vidros.map(v => (v.lida || '').replace(/\s/g, '').toUpperCase()).filter(Boolean))];
+        const alerta = leituras.length > 1 ? `<div class="card" style="padding:10px 14px;background:#FBF1E8;border-color:#E9C9A8;font-size:9.6px;color:${COR.ambar};font-weight:700;display:flex;gap:10px;align-items:center">${marcaStatus('ress', 16)} Há gravações com números diferentes entre os vidros.</div>` : '';
+        const obs = D.d5.observacao ? `<div class="nota">Observação: ${esc(textoVistoriador(D.d5.observacao))}</div>` : '';
+        const ident = kv([
+            ['Etiqueta ETA — motor', chipEtiqueta(D.d2.eta_motor), true],
+            ['Etiqueta ETA — coluna', chipEtiqueta(D.d2.eta_coluna), true]
+        ]);
+        return pagina(D, 'V', 'IDENTIFICAÇÃO E VIDROS', 'Gravações e componentes', `
+<div>${rotulo('Vidros')}
+<table class="tab"><thead><tr><th>Vidro</th><th>Gravação</th><th>Número lido</th><th class="c">Desbaste</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table></div>
+${alerta}${obs}
+<div>${rotulo('Etiquetas de identificação')}<div class="card" style="overflow:hidden">${ident}</div></div>
+<div>${rotulo('Registro fotográfico')}
+<div class="fotos c3" style="--fh:150px">${D.vidros.map(v => fotoHtml(F, v.codigo, nomeCurto(v.nome), { info: v.lida ? `Gravação: ${v.lida}` : '' })).join('')}</div></div>`);
     }
 
-    async function paginaVidros(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'V', 'IDENTIFICAÇÃO E VIDROS', 'Gravação do número do chassi nos vidros');
-        let y = top;
-        const tw = A4.w - 2 * MARGEM;
-        P.ret(MARGEM, y, tw, 16, COR.navy);
-        [['VIDRO', 8, 'esq'], ['GRAVAÇÃO', 250, 'esq'], ['NÚMERO LIDO', 330, 'esq'], ['DESBASTE / POLIMENTO', tw - 8, 'dir']].forEach(([t, dx, al]) =>
-            P.texto(t, MARGEM + dx, y + 5, { tam: 7, fonte: 'bold', cor: COR.branco, alinhar: al }));
-        y += 16;
-        D.vidros.forEach((v, i) => {
-            P.ret(MARGEM, y, tw, 18, i % 2 ? COR.creme : COR.branco);
-            P.texto(v.nome.replace('GRAVAÇÃO VIDRO ', '').replace('GRAVAÇÃO ', ''), MARGEM + 8, y + 5.5, { tam: 7.8 });
-            P.texto(v.original ? 'Original' : 'Não original', MARGEM + 250, y + 5.5, { tam: 7.8, fonte: 'bold', cor: v.original ? COR.verde : COR.vermelho });
-            P.texto(v.lida || '—', MARGEM + 330, y + 5.5, { tam: 7.8, cor: COR.tinta });
-            P.texto(v.desbaste ? 'SIM' : 'Não', MARGEM + tw - 8, y + 5.5, { tam: 7.8, fonte: 'bold', cor: v.desbaste ? COR.vermelho : COR.verde, alinhar: 'dir' });
-            y += 18;
-        });
-        const leituras = [...new Set(D.vidros.map(v => (v.lida || '').replace(/\s/g, '')).filter(Boolean))];
-        if (leituras.length > 1) {
-            y += 6;
-            P.ret(MARGEM, y, tw, 20, [252, 243, 232], COR.ambar);
-            P.texto('Atenção: há gravações com números diferentes entre os vidros.', MARGEM + 8, y + 6, { tam: 8, fonte: 'bold', cor: COR.ambar });
-            y += 20;
-        }
-        if (D.d5 && D.d5.observacao) { y += 8; y = P.paragrafo(`Observação: ${D.d5.observacao}`, MARGEM, y, tw, { tam: 8, cor: COR.cinza, maxLinhas: 2 }); }
-        y += 16;
-        const cols = 3, gap = 8, fw = (tw - gap * 2) / cols, fh = 150;
-        for (let i = 0; i < D.vidros.length; i++) {
-            const v = D.vidros[i];
-            await P.foto(v.codigo, MARGEM + (i % cols) * (fw + gap), y + Math.floor(i / cols) * (fh + 22), fw, fh,
-                v.nome.replace('GRAVAÇÃO VIDRO ', '').replace('GRAVAÇÃO ', '').replace(' (MOTORISTA)', '').slice(0, 34));
-        }
-    }
-
-    async function paginaMotorChassi(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'VI', 'MOTOR E CHASSI', 'Numeração de identificação e compartimento do motor');
-        const tw = A4.w - 2 * MARGEM, w2 = (tw - 12) / 2;
-        let yE = top, yD = top;
-        yE = L.kv(P, MARGEM, yE, w2, 'Chassi lido no veículo', D.chassiLido, { tamValor: 9.5 });
-        const conferencia = D.chassiConfere === null ? 'Chassi não informado no cadastro da O.S.' : (D.chassiConfere ? 'Confere com o cadastro da O.S.' : `DIVERGENTE do cadastro (${D.chassiCadastro})`);
-        yE = L.kv(P, MARGEM, yE, w2, 'Conferência com o cadastro', conferencia, { tamValor: 8.5 });
-        yE = L.kv(P, MARGEM, yE, w2, 'Gravação do chassi', D.d2.chassiOriginal === false ? 'NÃO ORIGINAL' : 'Original');
-        yD = L.kv(P, MARGEM + w2 + 12, yD, w2, 'Motor lido no veículo', D.motorLido, { tamValor: 9.5 });
-        yD = L.kv(P, MARGEM + w2 + 12, yD, w2, 'Gravação do motor', D.d2.motorOriginal === false ? 'NÃO ORIGINAL' : 'Original');
-        yD = L.kv(P, MARGEM + w2 + 12, yD, w2, 'Compartimento do motor',
-            `${D.d6.reparoMotor === 'sim' ? 'Com sinais de reparo/troca de estruturas' : 'Sem sinais de reparo estrutural'}; cor original ${D.d6.corMotorOk === 'nao' ? 'NÃO preservada' : 'preservada'}`, { tamValor: 8.5 });
-        let y = Math.max(yE, yD) + 4;
-        const cols = 3, gap = 8, fw = (tw - gap * 2) / cols, fh = 118;
-        const fotos = [
-            ['chassi_gravado', 'CHASSI GRAVADO'], ['chassi_secundario', 'CHASSI — PLAQUETA/SECUNDÁRIO'], ['motor_gravado', 'NÚMERO DO MOTOR'],
-            ['motor_vista_geral', 'COMPARTIMENTO DO MOTOR'], ['motor_painel_corta_fogo', 'PAINEL CORTA-FOGO'], ['motor_batentes_dobradicas', 'BATENTES DO CAPÔ']
+    function paginaMotorChassi(D, F) {
+        const conf = D.chassiConfere === null ? esc(D.chassiCadastro ? 'Leitura não informada' : 'Chassi não informado no cadastro da O.S.')
+            : (D.chassiConfere ? '<span class="st ok">Confere com o cadastro</span>' : `<span class="st nc">Diverge do cadastro</span> &nbsp;<span class="mono">${esc(D.chassiCadastro)}</span>`);
+        const orig = v => v === false ? '<span class="st nc">Não original</span>' : '<span class="st ok">Original</span>';
+        const tabela = kv([
+            ['Chassi lido', `<span class="mono">${esc(D.chassiLido)}</span>`, true],
+            ['Conferência cadastral', conf, true],
+            ['Gravação do chassi', orig(D.d2.chassiOriginal), true],
+            ['Motor lido', `<span class="mono">${esc(D.motorLido)}</span>`, true],
+            ['Gravação do motor', orig(D.d2.motorOriginal), true],
+            ['Compartimento do motor', D.d6.reparoMotor === 'sim' ? '<span class="st ress">Sinais de reparo</span>' : '<span class="st ok">Sem sinais de reparo</span>', true],
+            ['Cor original do compartimento', D.d6.corMotorOk === 'nao' ? '<span class="st ress">Não preservada</span>' : '<span class="st ok">Preservada</span>', true]
+        ]);
+        const st = [D.status.motor, D.status.chassi];
+        const pior = st.includes('nao_conforme') ? 'nao_conforme' : (st.includes('com_ressalvas') ? 'com_ressalvas' : 'conforme');
+        const partes = [
+            `Chassi lido no veículo: ${D.chassiLido}; gravação com características ${D.d2.chassiOriginal === false ? 'NÃO originais' : 'originais'}.`,
+            `Motor lido: ${D.motorLido}; gravação com características ${D.d2.motorOriginal === false ? 'NÃO originais' : 'originais'}.`,
+            D.d6.reparoMotor === 'sim' ? 'O compartimento do motor apresenta sinais de reparo ou troca de estruturas.' : 'O compartimento do motor não apresenta sinais de reparo estrutural.',
+            D.d6.corMotorOk === 'nao' ? 'A cor original do compartimento não está preservada.' : ''
         ];
-        for (let i = 0; i < fotos.length; i++) {
-            await P.foto(fotos[i][0], MARGEM + (i % cols) * (fw + gap), y + Math.floor(i / cols) * (fh + 22), fw, fh, fotos[i][1]);
-        }
-        y += 2 * (fh + 22) + 6;
-        const st = PARECER[pior2(D.status.motor, D.status.chassi)];
-        L.caixaTitulo(P, MARGEM, y, tw, 'Parecer técnico — motor e chassi');
-        const obs = D.campos['technical.observation'] || [D.d2.observacao, D.d6.observacao].filter(Boolean).join(' ') || 'Sem observações técnicas adicionais.';
-        const maxL = Math.max(2, Math.floor((A4.h - 70 - (y + 50)) / 11));
-        const nL = Math.min(maxL, P.quebrar(obs, tw - 20, 8.2).length);
-        P.ret(MARGEM, y + 18, tw, 44 + nL * 11, COR.branco, COR.linha);
-        P.pill(st.texto, MARGEM + 10, y + 28, { cor: st.cor });
-        P.paragrafo(obs, MARGEM + 10, y + 50, tw - 20, { tam: 8.2, maxLinhas: maxL });
+        const texto = D.campos['technical.observation'] || [partes.filter(Boolean).join(' '), textoVistoriador(D.d6.observacao)].filter(Boolean).join(' ');
+        const fotos = [
+            ['chassi_gravado', 'Gravação do chassi'], ['chassi_secundario', 'Chassi — plaquetas / secundário'], ['motor_gravado', 'Gravação do motor'],
+            ['motor_vista_geral', 'Compartimento do motor'], ['motor_painel_corta_fogo', 'Painel corta-fogo'], ['motor_batentes_dobradicas', 'Batentes do capô']
+        ];
+        return pagina(D, 'VI', 'MOTOR E CHASSI', 'Identificação e conferência', `
+<div class="card" style="overflow:hidden">${tabela}</div>
+<div>${rotulo('Parecer técnico')}
+<div class="card analise"><div class="circ">${icone('relatorio', '#fff', 24, 1.8)}</div><div class="t"><b>MOTOR E CHASSI ${statusSpan(pior)}</b>${esc(texto)}</div></div></div>
+<div>${rotulo('Registro fotográfico')}
+<div class="fotos c3" style="--fh:172px">${fotos.map(([s, t]) => fotoHtml(F, s, t)).join('')}</div></div>`);
     }
-    function pior2(a, b) { return [a, b].includes('nao_conforme') ? 'nao_conforme' : ([a, b].includes('com_ressalvas') ? 'com_ressalvas' : 'conforme'); }
 
-    async function paginaQuadros(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'VII', 'QUADROS DE PORTA E INTERIOR', 'Avaliação do quadro de porta por inteiro e conservação interna');
-        const tw = A4.w - 2 * MARGEM, w2 = (tw - 12) / 2;
-        L.kv(P, MARGEM, top, w2, 'Intervenção / soldas nos quadros de porta', D.d7.intervencaoQuadros === 'sim' ? 'SIM — ver observações' : 'Não constatada');
-        const conserva = { excelente: 'Excelente', bom: 'Bom', regular: 'Regular', mau: 'Mau' };
-        L.kv(P, MARGEM + w2 + 12, top, w2, 'Conservação do interior', conserva[D.d7.conservacaoInterior] || 'Não informado');
-        let y = top + 42;
-        if (D.d7.observacao) y = P.paragrafo(`Observação: ${D.d7.observacao}`, MARGEM, y, tw, { tam: 8, cor: COR.cinza, maxLinhas: 3 }) + 6;
-        const fw = (tw - 10) / 2, fh = 240;
+    function paginaQuadros(D, F) {
         const q = (global.CAUTELAR_SLOTS && global.CAUTELAR_SLOTS[7]) || [];
-        for (let i = 0; i < q.length; i++) {
-            await P.foto(q[i].codigo, MARGEM + (i % 2) * (fw + 10), y + Math.floor(i / 2) * (fh + 22), fw, fh, q[i].nome);
-        }
+        const interv = D.d7.intervencaoQuadros === 'sim';
+        const bloco = (titulo, linhas) => `<div class="tab kv-largo" style="flex:1"><table><thead><tr><th colspan="2">${titulo}</th></tr></thead></table>${kv(linhas)}</div>`;
+        return pagina(D, 'VII', 'QUADROS DE PORTA E INTERIOR', 'Acabamentos e conservação', `
+<div class="lin">
+  ${bloco('Quadros de porta', [['Intervenção identificada', interv ? '<span class="st nc">Sim — soldas / intervenção</span>' : '<span class="st ok">Não constatada</span>', true]])}
+  ${bloco('Interior', [['Conservação geral', CONSERVACAO[D.d7.conservacaoInterior] || 'Não informado']])}
+</div>
+${D.d7.observacao ? `<div class="nota">Observação: ${esc(textoVistoriador(D.d7.observacao))}</div>` : ''}
+<div>${rotulo('Registro fotográfico')}
+<div class="fotos c2" style="--fh:322px">${q.map(s => fotoHtml(F, s.codigo, capitalizar(s.nome))).join('')}</div></div>`);
     }
 
-    async function paginaParecer(L) {
-        const D = L.D;
-        const P = L.nova();
-        const top = L.cabecalho(P, 'VIII', 'PARECER FINAL', 'Conclusão técnica da vistoria cautelar');
+    function paginaParecer(D, extras) {
         const pf = PARECER[D.parecerFinal];
-        const tw = A4.w - 2 * MARGEM;
         const texto = textoParecerFinal(D);
-        const nLinhas = Math.min(18, P.quebrar(texto, tw - 44, 9.2).length);
-        const hCaixa = Math.max(170, 100 + nLinhas * 9.2 * 1.45);
-        P.ret(MARGEM, top, tw, hCaixa, COR.navy);
-        P.ret(MARGEM, top, 6, hCaixa, pf.cor);
-        P.texto('PARECER TÉCNICO', MARGEM + 22, top + 20, { tam: 7.5, fonte: 'bold', cor: COR.gold });
-        P.texto(pf.texto, MARGEM + 22, top + 34, { tam: 22, fonte: 'bold', cor: COR.branco });
-        P.linha(MARGEM + 22, top + 70, MARGEM + 140, top + 70, COR.gold, 1);
-        P.paragrafo(texto, MARGEM + 22, top + 84, tw - 44, { tam: 9.2, cor: [226, 231, 239], entre: 1.45, maxLinhas: 18 });
-
-        let y = top + hCaixa + 22;
-        const obs = D.d8.observacaoFinal || D.d8.observacao;
-        if (obs) {
-            P.texto('OBSERVAÇÕES DO VISTORIADOR', MARGEM, y, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-            y = P.paragrafo(obs, MARGEM, y + 10, tw, { tam: 8.5, maxLinhas: 4 }) + 12;
-        }
-        P.texto(`${D.cidade}, ${dataExtenso(D.dataEmissao)}.`, MARGEM, y, { tam: 9, fonte: 'bold', cor: COR.navy });
-        y += 26;
-
-        // Assinatura do vistoriador
-        const assinatura = D.d8.signatureBase64;
-        if (assinatura && String(assinatura).startsWith('data:image/png')) {
-            try {
-                const png = await L.doc.embedPng(dataUrlParaBytes(assinatura));
-                const esc = Math.min(200 / png.width, 70 / png.height);
-                P.p.drawImage(png, { x: MARGEM, y: P.Y(y, png.height * esc), width: png.width * esc, height: png.height * esc });
-            } catch (e) { console.warn('Assinatura inválida', e); }
-        }
-        P.linha(MARGEM, y + 74, MARGEM + 220, y + 74, COR.tinta, 0.6);
-        P.texto(D.vistoriador.nome || 'Vistoriador', MARGEM, y + 80, { tam: 9, fonte: 'bold' });
-        P.texto(`Vistoriador responsável${D.unidade.credenciamento ? '  ·  ' + D.unidade.credenciamento : ''}`, MARGEM, y + 92, { tam: 7.5, cor: COR.cinza });
-
-        // Autenticidade
-        const ax = A4.w - MARGEM - 170;
-        P.ret(ax, y, 170, 110, COR.branco, COR.linha);
-        P.texto('AUTENTICIDADE', ax + 10, y + 10, { tam: 6.5, fonte: 'bold', cor: COR.cinza });
-        if (D.hash && typeof getQrCodeDataUrl === 'function') {
-            try {
-                const url = `https://rbaggiofilho-source.github.io/CERTIVE-PRINCIPAL/consulta-laudo.html?hash=${D.hash}`;
-                const qr = await getQrCodeDataUrl(url);
-                if (qr) {
-                    const png = await L.doc.embedPng(dataUrlParaBytes(qr));
-                    P.p.drawImage(png, { x: ax + 10, y: P.Y(y + 24, 72), width: 72, height: 72 });
-                }
-            } catch (e) { /* QR opcional */ }
-        }
-        P.paragrafo('Confira a autenticidade deste laudo pelo QR Code ou pelo código abaixo.', ax + 90, y + 26, 72, { tam: 6.5, cor: COR.cinza, maxLinhas: 6 });
-        P.paragrafo(D.hash || '', ax + 10, y + 98, 150, { tam: 5.5, cor: COR.cinza, maxLinhas: 2 });
-
-        // Nota de alcance
-        const nota = 'Este laudo atesta as condições constatadas no veículo na data e hora da vistoria, pelo método visual e de medição descrito, ' +
-            'não abrangendo vícios ocultos, avaliação mecânica ou eventos posteriores à inspeção. ' +
-            (D.campos['document.approved_items'] ? '' : 'Esta vistoria não inclui pesquisa documental em bases externas.');
-        P.paragrafo(nota, MARGEM, A4.h - 92, tw, { tam: 6.8, cor: COR.cinza, maxLinhas: 4 });
+        const obs = textoVistoriador(D.d8.observacaoFinal || D.d8.observacao);
+        const assinatura = D.d8.signatureBase64 && String(D.d8.signatureBase64).startsWith('data:image') ? D.d8.signatureBase64 : null;
+        return pagina(D, 'VIII', 'PARECER FINAL', 'Conclusão técnica', `
+<div class="caixa-parecer pf">${svgEscudoParecer(D.parecerFinal, 100)}
+  <div><div class="r">PARECER TÉCNICO</div><div class="p">${pf.texto}</div><div class="d">${esc(resumoParecer(D.parecerFinal))}</div></div>
+</div>
+<div>${rotulo('Fundamentação')}<div class="card fund"><div class="t">${esc(texto)}</div></div></div>
+${obs ? `<div>${rotulo('Observações do vistoriador')}<div class="card fund"><div class="t">${esc(obs)}</div></div></div>` : ''}
+<div style="font-size:10.5px;font-weight:700;color:${COR.navy}">${esc(D.cidade)}, ${esc(dataExtenso(D.dataEmissao))}.</div>
+<div class="assin">
+  <div class="card ass"><div class="img"${assinatura ? ` style="background-image:url('${assinatura}')"` : ''}></div>
+    <div class="n">${esc(D.vistoriador.nome || 'Vistoriador responsável')}</div>
+    <div class="c">VISTORIADOR TÉCNICO${D.unidade.credenciamento ? ' &nbsp;·&nbsp; ' + esc(D.unidade.credenciamento) : ''}</div>
+    ${D.unidade.razao_social ? `<div class="c">${esc(D.unidade.razao_social)}${D.unidade.cnpj ? ' — CNPJ ' + esc(D.unidade.cnpj) : ''}</div>` : ''}</div>
+  <div class="card qr">${extras.qr ? `<div class="q" style="background-image:url('${extras.qr}')"></div>` : ''}
+    <div class="t"><b>CÓDIGO DE AUTENTICAÇÃO</b>${esc(D.hash || 'Gerado na emissão do laudo')}<span class="url">Confira a autenticidade em<br>certive.com.br/consulta-laudo</span></div></div>
+</div>
+<div class="alcance"><b>ALCANCE DO LAUDO</b>Este laudo tem caráter técnico e informativo e retrata as condições constatadas no veículo na data e hora da vistoria, pelo método visual e de medição descrito. Não substitui avaliações mecânicas especializadas, não abrange vícios ocultos nem eventos posteriores à inspeção${D.campos['document.approved_items'] ? '' : ' e não inclui pesquisa documental em bases externas'}.</div>`);
     }
 
-    async function paginasRegistroFotografico(L) {
-        const D = L.D;
-        const todos = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n]).filter(sl => D.foto(sl.codigo));
-        const porPagina = 12, cols = 3;
+    function paginasRegistro(D, F) {
+        const todos = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n]).filter(sl => F[sl.codigo]);
+        const porPagina = 12;
+        const saida = [];
         for (let p = 0; p * porPagina < todos.length; p++) {
-            const P = L.nova();
-            const top = L.cabecalho(P, p === 0 ? 'IX' : '', p === 0 ? 'REGISTRO FOTOGRÁFICO' : '', p === 0 ? 'Fotos da vistoria com data, hora e localização' : '');
-            const y0 = p === 0 ? top : 90;
-            const tw = A4.w - 2 * MARGEM, gap = 8, fw = (tw - gap * (cols - 1)) / cols;
-            const fh = (A4.h - 60 - y0) / 4 - 32;
             const lote = todos.slice(p * porPagina, (p + 1) * porPagina);
-            for (let i = 0; i < lote.length; i++) {
-                const sl = lote[i];
-                const x = MARGEM + (i % cols) * (fw + gap);
-                const t = y0 + Math.floor(i / cols) * (fh + 32);
-                await P.foto(sl.codigo, x, t, fw, fh, sl.nome.slice(0, 40));
+            const html = `<div class="fotos c3" style="--fh:${p === 0 ? 150 : 170}px;row-gap:14px">${lote.map((sl, i) => {
                 const m = D.meta(sl.codigo);
-                const info = [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps ? `${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
-                if (info) P.texto(info, x + 4, t + fh + 15, { tam: 5.8, cor: COR.cinza });
-            }
+                const info = [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps && m.gps.latitude ? `GPS ${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
+                return fotoHtml(F, sl.codigo, nomeCurto(sl.nome), { numero: p * porPagina + i + 1, info });
+            }).join('')}</div>`;
+            saida.push(p === 0
+                ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Acervo completo da vistoria', html)
+                : pagina(D, '', '', '', html));
         }
+        return saida;
+    }
+
+    function montarHtml(D, F, extras = {}) {
+        const paginas = [
+            paginaCapa(D, F), paginaIdentificacao(D, F), paginaResumo(D), paginaEstrutura(D, F),
+            paginaPintura(D, F), paginaVidros(D, F), paginaMotorChassi(D, F), paginaQuadros(D, F),
+            paginaParecer(D, extras), ...paginasRegistro(D, F)
+        ];
+        return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Laudo Cautelar ${esc(D.os.placa)} — ${esc(D.cautelar.dossieNumero || '')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<style>${CSS}</style></head><body class="${extras.modo || 'tela'}">${paginas.join('\n')}</body></html>`;
+    }
+
+    // Numera as páginas e compacta as que passaram do limite
+    function ajustarPaginas(doc) {
+        const pgs = [...doc.querySelectorAll('.pg')];
+        pgs.forEach((pg, i) => {
+            const n = pg.querySelector('.pagnum');
+            if (n) n.textContent = `PÁG. ${String(i + 1).padStart(2, '0')} DE ${String(pgs.length).padStart(2, '0')}`;
+            const corpo = pg.querySelector('.corpo');
+            if (!corpo) return;
+            const estourou = () => corpo.scrollHeight > corpo.clientHeight + 1;
+            if (estourou()) pg.classList.add('compacto');
+            if (estourou()) pg.classList.add('compacto2');
+            // Último recurso: reduz as fotos da página até caber
+            let guarda = 0;
+            while (estourou() && guarda++ < 12) {
+                corpo.querySelectorAll('.fotos, .foto .img').forEach(g => {
+                    const atual = parseFloat(getComputedStyle(g).getPropertyValue('--fh')) || 130;
+                    g.style.setProperty('--fh', `${Math.max(64, atual - 12)}px`);
+                });
+            }
+        });
     }
 
     // ------------------------------------------------------------------
-    // Entrada pública
+    // Montagem
     // ------------------------------------------------------------------
-    async function gerarLaudoCertive(cautelarId, opcoes = {}) {
-        if (typeof PDFLib === 'undefined') throw new Error('Biblioteca de PDF não carregada. Verifique a conexão e recarregue.');
+    async function prepararLaudo(cautelarId, opcoes = {}) {
         if (typeof garantirDetalhesCautelar === 'function') await garantirDetalhesCautelar(cautelarId);
         const cautelar = db.cautelares.find(c => c.id === cautelarId);
-        // Conteúdo gerado no servidor, quando o navegador atual não tem (outro aparelho)
+        // Texto redigido no servidor, quando este aparelho ainda não o tem
         if (cautelar && !cautelar.dadosIaConfeccionado && global.useSupabase && typeof supabaseClient !== 'undefined' && supabaseClient) {
             try {
                 const { data } = await supabaseClient.from('laudos_gerados').select('id, resposta')
@@ -932,42 +1132,101 @@
             } catch (e) { console.warn('Laudo gerado no servidor indisponível:', e); }
         }
         const D = montarDados(cautelarId);
-        // Pré-visualização: parecer e observação ainda não gravados, vindos da tela da mesa
         if (opcoes.parecerFinal && PARECER[opcoes.parecerFinal]) D.parecerFinal = opcoes.parecerFinal;
         if (opcoes.obsFinal !== undefined) D.d8 = Object.assign({}, D.d8, { observacaoFinal: opcoes.obsFinal });
-        D.d5 = (db.cautelares_secoes.find(s => s.cautelarId === cautelarId && s.numeroSecao === 5)?.dadosJson) || {};
+        const [F, qr] = await Promise.all([
+            carregarFotos(D),
+            D.hash ? gerarQrDataUrl(urlConsulta(D.hash)) : Promise.resolve(null)
+        ]);
+        return { D, F, qr, html: montarHtml(D, F, { qr, modo: opcoes.modo }) };
+    }
 
-        const doc = await PDFLib.PDFDocument.create();
-        doc.setTitle(`Laudo Cautelar ${D.os.placa} — ${D.cautelar.dossieNumero || ''}`);
-        doc.setAuthor('Certive Vistorias');
-        doc.setCreator('Sistema Certive');
-        const fontes = {
-            reg: await doc.embedFont(PDFLib.StandardFonts.Helvetica),
-            bold: await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),
-            serifItalico: await doc.embedFont(PDFLib.StandardFonts.TimesRomanBoldItalic)
-        };
-        const L = new Laudo(doc, fontes, D);
-        await paginaCapa(L);
-        await paginaIdentificacao(L);
-        paginaResumo(L);
-        await paginaEstrutura(L);
-        await paginaPintura(L);
-        await paginaVidros(L);
-        await paginaMotorChassi(L);
-        await paginaQuadros(L);
-        await paginaParecer(L);
-        await paginasRegistroFotografico(L);
-        L.rodapes();
-        return await doc.save();
+    function carregarIframe(iframe, html) {
+        return new Promise((resolve, reject) => {
+            const tempo = setTimeout(() => reject(new Error('Tempo esgotado ao montar o laudo.')), 30000);
+            iframe.onload = async () => {
+                clearTimeout(tempo);
+                const doc = iframe.contentDocument;
+                try { if (doc.fonts && doc.fonts.ready) await Promise.race([doc.fonts.ready, new Promise(r => setTimeout(r, 6000))]); } catch (_) { /* segue com a fonte padrão */ }
+                ajustarPaginas(doc);
+                resolve(doc);
+            };
+            iframe.srcdoc = html;
+        });
+    }
+
+    function carregarScriptNoIframe(iframe, src) {
+        return new Promise((resolve, reject) => {
+            const doc = iframe.contentDocument;
+            const s = doc.createElement('script');
+            s.src = new URL(src, global.location.href).href;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Não foi possível carregar o gerador de páginas do laudo.'));
+            doc.head.appendChild(s);
+        });
+    }
+
+    function dataUrlParaBytes(dataUrl) {
+        const bin = atob(String(dataUrl).split(',')[1] || '');
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+    }
+
+    /**
+     * Gera o PDF oficial do laudo. Devolve os bytes do PDF (Uint8Array).
+     * opcoes: { parecerFinal, obsFinal, escala, progresso(feitas, total) }
+     */
+    async function gerarLaudoCertive(cautelarId, opcoes = {}) {
+        if (typeof PDFLib === 'undefined') throw new Error('Biblioteca de PDF não carregada. Verifique a conexão e recarregue.');
+        const { D, html } = await prepararLaudo(cautelarId, Object.assign({}, opcoes, { modo: 'captura' }));
+
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.style.cssText = `position:fixed;left:-12000px;top:0;width:${PAG.w}px;height:${PAG.h}px;border:0`;
+        document.body.appendChild(iframe);
+        try {
+            const doc = await carregarIframe(iframe, html);
+            await carregarScriptNoIframe(iframe, 'js/vendor/html2canvas.min.js');
+            const win = iframe.contentWindow;
+            const movel = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+            const escala = opcoes.escala || (movel ? 2.2 : 2.8);
+
+            const pdf = await PDFLib.PDFDocument.create();
+            pdf.setTitle(`Laudo Cautelar ${D.os.placa} — ${D.cautelar.dossieNumero || ''}`);
+            pdf.setAuthor('Certive Vistorias');
+            pdf.setCreator('Sistema Certive');
+            pdf.setSubject('Laudo cautelar de aquisição veicular');
+
+            const pgs = [...doc.querySelectorAll('.pg')];
+            for (let i = 0; i < pgs.length; i++) {
+                const canvas = await win.html2canvas(pgs[i], {
+                    scale: escala, backgroundColor: COR.creme, useCORS: true, logging: false,
+                    width: PAG.w, height: PAG.h, windowWidth: PAG.w, windowHeight: PAG.h, scrollX: 0, scrollY: 0,
+                    onclone: clone => {
+                        // Só a página capturada fica no clone (mais rápido e com menos memória)
+                        clone.querySelectorAll('.pg').forEach((p, j) => { if (j !== i) p.remove(); });
+                    }
+                });
+                const jpg = canvas.toDataURL('image/jpeg', 0.9);
+                canvas.width = 0; canvas.height = 0;
+                const img = await pdf.embedJpg(dataUrlParaBytes(jpg));
+                const pagina = pdf.addPage([A4_PT.w, A4_PT.h]);
+                pagina.drawImage(img, { x: 0, y: 0, width: A4_PT.w, height: A4_PT.h });
+                if (typeof opcoes.progresso === 'function') opcoes.progresso(i + 1, pgs.length);
+            }
+            return await pdf.save();
+        } finally {
+            iframe.remove();
+        }
     }
 
     global.gerarLaudoCertive = gerarLaudoCertive;
 
     // ------------------------------------------------------------------
-    // Pré-visualização na tela de finalização: mostra o próprio PDF oficial
-    // (substitui a prévia antiga, montada sobre as imagens do modelo de exemplo)
+    // Pré-visualização na tela de finalização (o próprio HTML do laudo)
     // ------------------------------------------------------------------
-    let previewTimer = null, previewUrl = null, previewSeq = 0;
+    let previewTimer = null, previewSeq = 0;
     function atualizarPreviewLaudoCertive() {
         const container = document.getElementById('laudo-preview-container');
         if (!container) return;
@@ -982,20 +1241,26 @@
             try {
                 const parecer = document.getElementById('caut-final-parecer');
                 const obs = document.getElementById('caut-final-obs');
-                const bytes = await gerarLaudoCertive(cautelarId, {
+                const { html } = await prepararLaudo(cautelarId, {
                     parecerFinal: parecer ? parecer.value : undefined,
-                    obsFinal: obs ? obs.value : undefined
+                    obsFinal: obs ? obs.value : undefined,
+                    modo: 'tela'
                 });
-                if (seq !== previewSeq) return; // chegou uma atualização mais nova
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                previewUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-                container.innerHTML = `<iframe title="Pré-visualização do laudo" src="${previewUrl}#view=FitH" style="width:100%;height:calc(100vh - 140px);min-height:600px;border:1px solid #d1d5db;border-radius:6px;background:#fff;"></iframe>`;
+                if (seq !== previewSeq) return;
+                const larguraTotal = PAG.w + 40;
+                const escala = Math.min(1, Math.max(280, (container.clientWidth || larguraTotal) - 2) / larguraTotal);
+                container.innerHTML = `<div class="laudo-preview-moldura" style="width:100%;overflow:hidden;border:1px solid #d1d5db;border-radius:6px;background:#d9d4c9"><iframe title="Pré-visualização do laudo" style="width:${larguraTotal}px;border:0;transform:scale(${escala});transform-origin:0 0;display:block"></iframe></div>`;
+                const iframe = container.querySelector('iframe');
+                const doc = await carregarIframe(iframe, html);
+                const altura = doc.documentElement.scrollHeight;
+                iframe.style.height = `${altura}px`;
+                container.querySelector('.laudo-preview-moldura').style.height = `${Math.ceil(altura * escala)}px`;
             } catch (e) {
                 console.error('Falha na pré-visualização do laudo:', e);
-                container.innerHTML = `<div style="padding:20px;color:#991b1b;font-family:sans-serif;">Não foi possível montar a pré-visualização: ${limpar(e.message || e)}</div>`;
+                container.innerHTML = `<div style="padding:20px;color:#991b1b;font-family:sans-serif;">Não foi possível montar a pré-visualização: ${esc(e.message || e)}</div>`;
             }
-        }, 900);
+        }, 700);
     }
     global.atualizarPreviewLaudo = atualizarPreviewLaudoCertive;
-    global._laudoCertiveInterno = { montarDados, listasResumo, textoParecerFinal, limpar };
+    global._laudoCertiveInterno = { montarDados, listasResumo, textoParecerFinal, limpar, montarHtml, prepararLaudo, silhueta, ajustarPaginas };
 })(window);
