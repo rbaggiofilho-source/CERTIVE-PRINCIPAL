@@ -375,31 +375,48 @@
     // ------------------------------------------------------------------
     // Emblema oficial: escudo dourado com a frente do carro e o "visto" cruzando o escudo
     let seqSvg = 0;
-    // Brasão Certive (mesmo desenho do selo de procedência): escudo de borda dupla,
-    // frente do carro em contorno e o visto atravessando a borda direita. Traço em relevo.
+    // Dourado metálico: faixas alternadas de brilho e sombra, como metal polido
+    function gradOuro(id, x2 = 1, y2 = 1) {
+        return `<linearGradient id="${id}" x1="0" y1="0" x2="${x2}" y2="${y2}">
+<stop offset="0" stop-color="#8A6420"/><stop offset=".14" stop-color="#E9C66E"/><stop offset=".26" stop-color="#FFF3C2"/>
+<stop offset=".38" stop-color="#D6A443"/><stop offset=".52" stop-color="#9C7224"/><stop offset=".64" stop-color="#E8C263"/>
+<stop offset=".76" stop-color="#FFEBA8"/><stop offset=".88" stop-color="#C4912F"/><stop offset="1" stop-color="#7A561A"/></linearGradient>`;
+    }
+
+    // Brasão Certive (desenho do selo de procedência): escudo clássico; cobertura em arco
+    // sobre o carro (o veículo "dentro da vistoria"); frente de carro europeu moderno;
+    // e o visto de aprovação atravessando o carro e a borda do escudo. Traço em relevo.
     function svgLogo(tam = 44, fundo = COR.navy) {
         const id = `lgOuro${++seqSvg}`;
         const tracos = [
-            // [caminho, espessura]
-            ['M160 366 C92 336 16 272 16 180 V27 Q16 12 31 12 H289 Q304 12 304 27 V180 C304 272 228 336 160 366 Z', 17],
-            ['M292 58 H82 Q60 58 60 80 V150', 12],
-            ['M100 142 C114 120 134 112 160 112 C186 112 206 120 220 142', 9],
-            ['M38 170 C40 154 56 144 78 142 H242 C264 144 280 154 282 170 L280 188 C279 196 272 202 262 202 H58 C48 202 41 196 40 188 Z', 9],
-            ['M52 162 L102 174 M268 162 L218 174', 8],
-            ['M130 186 H190', 7],
-            ['M72 202 V214 M248 202 V214', 9]
+            // escudo
+            ['M22 22 C80 14 260 14 318 22 V150 C318 262 250 332 170 370 C90 332 22 262 22 150 Z', 18],
+            // cobertura
+            ['M72 146 V74 Q72 60 86 60 H254 Q268 60 268 74 V128', 13],
+            // cabine / para-brisa
+            ['M112 150 L126 121 C129 115 134 112 141 112 H199 C206 112 211 115 214 121 L228 150', 9],
+            // carroceria
+            ['M64 158 C96 149 244 149 276 158 L281 190 C282 200 276 207 266 207 H74 C64 207 58 200 59 190 Z', 9],
+            // faróis angulosos
+            ['M68 170 L116 178 L108 188 L72 184 Z M272 170 L224 178 L232 188 L268 184 Z', 5.5],
+            // grade e entrada de ar
+            ['M130 186 H210 M112 199 H228', 5.5],
+            // retrovisores e rodas
+            ['M60 160 L44 155 M280 160 L296 155', 7],
+            ['M80 207 V217 M260 207 V217', 12]
         ];
-        const visto = 'M104 262 L162 334 L336 72';
-        const relevo = (d, w) => `<path d="${d}" fill="none" stroke="#6b4a12" stroke-width="${w + 3}" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 3)"/>`;
+        const visto = 'M120 250 L174 318 L338 88';
+        const relevo = (d, w) => `<path d="${d}" fill="none" stroke="#4a320b" stroke-opacity=".85" stroke-width="${w + 3}" stroke-linecap="round" stroke-linejoin="round" transform="translate(2.5 3.5)"/>`;
         const ouro = (d, w) => `<path d="${d}" fill="none" stroke="url(#${id})" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-        const brilho = (d, w) => `<path d="${d}" fill="none" stroke="#FFF1C4" stroke-opacity=".45" stroke-width="${Math.max(1.2, w * .18)}" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1 -1.5)"/>`;
+        const brilho = (d, w) => `<path d="${d}" fill="none" stroke="#FFF6D6" stroke-opacity=".55" stroke-width="${Math.max(1.2, w * .16)}" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1.2 -1.8)"/>`;
         return `<svg width="${tam}" height="${Math.round(tam * 380 / 340)}" viewBox="0 0 340 380" xmlns="http://www.w3.org/2000/svg">
-<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCE7A8"/><stop offset=".3" stop-color="#EBC061"/><stop offset=".6" stop-color="#CD9534"/><stop offset=".85" stop-color="#A9761F"/><stop offset="1" stop-color="#E3B458"/></linearGradient></defs>
+<defs>${gradOuro(id)}</defs>
 ${tracos.map(([d, w]) => relevo(d, w)).join('')}
 ${tracos.map(([d, w]) => ouro(d, w)).join('')}
 ${tracos.map(([d, w]) => brilho(d, w)).join('')}
-<path d="${visto}" fill="none" stroke="${fundo}" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
-${relevo(visto, 22)}${ouro(visto, 22)}${brilho(visto, 22)}
+<path d="${visto}" fill="none" stroke="${fundo}" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+${relevo(visto, 26)}${ouro(visto, 26)}
+${brilho(visto, 26)}
 </svg>`;
     }
 
@@ -452,23 +469,38 @@ ${dentro}</svg>`;
     }
 
     // Selo circular: "CERTIVE VISTORIAS • CAUTELAR" em cima, cidade e data embaixo, emblema no centro
+    // Selo (desenho do selo de procedência): anel dourado, "LAUDO CAUTELAR" no alto,
+    // semicírculo interno com dois traços curtos de cada lado, brasão, nome e estrelas.
     function svgSelo(cidade, ano, tam = 200) {
         const id = `lgSelo${++seqSvg}`;
-        const topo = 'CERTIVE VISTORIAS • LAUDO CAUTELAR';
+        const C = 200, cy = 212;
+        const pt = (r, g) => [(C + r * Math.cos(g * Math.PI / 180)).toFixed(1), (cy - r * Math.sin(g * Math.PI / 180)).toFixed(1)];
+        const arco = (r, g1, g2) => { const [x1, y1] = pt(r, g1), [x2, y2] = pt(r, g2); return `M ${x1} ${y1} A ${r} ${r} 0 ${Math.abs(g1 - g2) > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
+        const estrela = (x, y, r) => {
+            const p = [];
+            for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * .42 : r, g = -90 + i * 36; p.push(`${(x + rr * Math.cos(g * Math.PI / 180)).toFixed(1)},${(y + rr * Math.sin(g * Math.PI / 180)).toFixed(1)}`); }
+            return `<polygon points="${p.join(' ')}" fill="url(#${id})"/>`;
+        };
         const base = `${String(cidade || '').toUpperCase()} • ${ano}`;
-        return `<svg width="${tam}" height="${tam}" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        return `<svg width="${tam}" height="${tam}" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
 <defs>
-<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3A0"/><stop offset=".4" stop-color="#E8B650"/><stop offset=".7" stop-color="#C98E2A"/><stop offset="1" stop-color="#8F621C"/></linearGradient>
-<radialGradient id="${id}r" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#132a4d"/><stop offset="1" stop-color="#070f1f"/></radialGradient>
-<path id="${id}t" d="M 100 178 A 78 78 0 1 1 100.01 178"/>
-<path id="${id}b" d="M 12 100 A 88 88 0 0 0 188 100"/>
+${gradOuro(id)}
+<radialGradient id="${id}r" cx=".5" cy=".4" r=".62"><stop offset="0" stop-color="#17325b"/><stop offset="1" stop-color="#081326"/></radialGradient>
+<path id="${id}t" d="M 48 200 A 152 152 0 0 1 352 200"/>
+<path id="${id}b" d="M 38 200 A 162 162 0 0 0 362 200"/>
 </defs>
-<circle cx="100" cy="100" r="95" fill="url(#${id}r)" stroke="url(#${id})" stroke-width="7"/>
-<circle cx="100" cy="100" r="66" fill="none" stroke="url(#${id})" stroke-width="3.2"/>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.2" letter-spacing=".9" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(topo)}</textPath></text>
-<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="11.5" letter-spacing="1.4" fill="url(#${id})"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
-<circle cx="24" cy="100" r="2.6" fill="#E8B650"/><circle cx="176" cy="100" r="2.6" fill="#E8B650"/>
-<g transform="translate(56 50) scale(.26)">${svgLogo(340, '#0f2442').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+<circle cx="200" cy="200" r="193" fill="url(#${id}r)"/>
+<circle cx="200" cy="200" r="190" fill="none" stroke="#4a320b" stroke-width="12" transform="translate(1.5 2)"/>
+<circle cx="200" cy="200" r="190" fill="none" stroke="url(#${id})" stroke-width="11"/>
+<circle cx="200" cy="200" r="176" fill="none" stroke="url(#${id})" stroke-width="2.4"/>
+<text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="36" letter-spacing="2.5" fill="url(#${id})"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">LAUDO CAUTELAR</textPath></text>
+<path d="${arco(128, 200, -20)}" fill="none" stroke="url(#${id})" stroke-width="8" stroke-linecap="round"/>
+<path d="${arco(143, 200, 152)} ${arco(143, 28, -20)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
+<path d="${arco(157, 200, 160)} ${arco(157, 20, -20)}" fill="none" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
+<g transform="translate(135 102) scale(.38)">${svgLogo(340, '#12294c').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>
+<text x="200" y="291" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="25" letter-spacing=".5" fill="url(#${id})">CERTIVE VISTORIAS</text>
+${[-2, -1, 0, 1, 2].map(i => estrela(200 + i * 30, 318, 11)).join('')}
+<text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="17" letter-spacing="2" fill="url(#${id})"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${esc(base)}</textPath></text>
 </svg>`;
     }
 
