@@ -1198,6 +1198,9 @@
                             <button class="btn btn-secondary btn-sm" type="button" onclick="limparFiltrosFaturas()" style="margin-left:auto;">
                                 <i class="ri-filter-off-line"></i> Limpar filtros
                             </button>
+                            <button class="btn btn-primary btn-sm" type="button" onclick="gerarRelatorioFaturasEmAberto()" title="PDF com todas as faturas não pagas (dinheiro a receber)">
+                                <i class="ri-file-download-line"></i> Relatório em aberto (PDF)
+                            </button>
                         </div>
                     </div>
 
@@ -3001,7 +3004,7 @@
     </div>
 
 <script src="supabase-db.js?v=20260928-fase4"></script>
-<script src="app_v8.js?v=20260928-ordem-cautelar"></script>
+<script src="app_v8.js?v=20260928-rel-faturas"></script>
 <script src="laudo_pdf_v2.js?v=9.0.0"></script>
 <script src="js/laudo_certive.js?v=3.1.0"></script>
 <script>

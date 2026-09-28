@@ -2632,6 +2632,181 @@ function gerarRelatorioHistorico() {
     logAudit("Relatório Histórico", `Gerou relatório do histórico (${list.length} registros).`);
 }
 
+// ==========================================================
+// RELATÓRIO DE FATURAS EM ABERTO ("dinheiro na rua")
+// ----------------------------------------------------------
+// Todas as faturas não pagas da unidade, de qualquer mês, agrupadas por
+// parceiro, com o total a receber e há quanto tempo cada uma está em aberto.
+// Respeita só o filtro de parceiro da tela (o mês não importa: fatura antiga
+// não paga também é dinheiro na rua).
+// ==========================================================
+function gerarRelatorioFaturasEmAberto() {
+    if (!window.jspdf) { showToast("Biblioteca de PDF não carregada. Recarregue a página.", "error"); return; }
+    const elParc = document.getElementById('fat-filtro-parceiro');
+    const fParceiro = elParc && elParc.value ? parseInt(elParc.value) : null;
+
+    const hoje = diaSP();
+    const diasEmAberto = f => {
+        const ini = diaSP(f.criadoEm);
+        if (!ini) return 0;
+        return Math.max(0, Math.round((Date.parse(hoje + 'T12:00:00Z') - Date.parse(ini + 'T12:00:00Z')) / 86400000));
+    };
+    const abertas = (db.faturas || [])
+        .filter(f => f.unidadeId === activeUnitId && !f.pago && Number(f.valorTotal) > 0)
+        .filter(f => !fParceiro || f.parceiroId === fParceiro);
+    if (!abertas.length) { showToast("Não há faturas em aberto" + (fParceiro ? " para este parceiro." : "."), "info"); return; }
+
+    const nomeParceiro = id => { const p = db.parceiros.find(x => x.id === id); return p ? p.nome : 'Parceiro removido'; };
+    const total = abertas.reduce((t, f) => somaCentavos(t, f.valorTotal), 0);
+
+    // Por parceiro, do maior valor em aberto para o menor
+    const grupos = {};
+    abertas.forEach(f => { (grupos[f.parceiroId] = grupos[f.parceiroId] || []).push(f); });
+    const parceiros = Object.keys(grupos).map(id => {
+        const lista = grupos[id].sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
+        return { id: Number(id), nome: nomeParceiro(Number(id)), lista, total: lista.reduce((t, f) => somaCentavos(t, f.valorTotal), 0) };
+    }).sort((a, b) => b.total - a.total);
+
+    // Tempo em aberto (desde a emissão)
+    const faixas = [
+        { rotulo: 'Até 15 dias', de: 0, ate: 15, cor: [46, 125, 50] },
+        { rotulo: '16 a 30 dias', de: 16, ate: 30, cor: [212, 160, 23] },
+        { rotulo: '31 a 60 dias', de: 31, ate: 60, cor: [230, 110, 30] },
+        { rotulo: 'Mais de 60 dias', de: 61, ate: Infinity, cor: [183, 28, 28] }
+    ].map(fx => {
+        const itens = abertas.filter(f => { const d = diasEmAberto(f); return d >= fx.de && d <= fx.ate; });
+        return { ...fx, qtd: itens.length, valor: itens.reduce((t, f) => somaCentavos(t, f.valorTotal), 0) };
+    });
+    const maisAntiga = Math.max(...abertas.map(diasEmAberto));
+    const comAsaas = abertas.filter(f => f.asaas_url || f.asaas_payment_id);
+    const unidade = db.unidades.find(u => u.id === activeUnitId) || {};
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = 210, M = 14, D = W - M;
+    const NAVY = [10, 31, 61], OURO = [212, 160, 23], TXT = [28, 33, 43], CINZA = [110, 118, 130], LINHA = [226, 229, 234], FUNDO = [246, 247, 249];
+    const cor = (c, tipo = 'text') => tipo === 'text' ? doc.setTextColor(...c) : tipo === 'fill' ? doc.setFillColor(...c) : doc.setDrawColor(...c);
+    const fonte = (tam, peso = 'normal') => { doc.setFont('helvetica', peso); doc.setFontSize(tam); };
+
+    // Cabeçalho
+    const cabecalho = (primeira) => {
+        cor(NAVY, 'fill'); doc.rect(0, 0, W, primeira ? 34 : 18, 'F');
+        cor(OURO, 'fill'); doc.rect(0, primeira ? 34 : 18, W, 0.9, 'F');
+        cor([255, 255, 255]); fonte(primeira ? 16 : 11, 'bold');
+        doc.text('CERTIVE VISTORIAS', M, primeira ? 14 : 11.5);
+        cor(OURO); fonte(primeira ? 10 : 8, 'bold');
+        doc.text('RELATÓRIO DE FATURAS EM ABERTO', primeira ? M : D, primeira ? 21 : 11.5, primeira ? {} : { align: 'right' });
+        if (primeira) {
+            cor([200, 208, 222]); fonte(8.5);
+            doc.text(`${unidade.nome || 'Unidade'}${fParceiro ? '  ·  Parceiro: ' + nomeParceiro(fParceiro) : ''}`, M, 27.5);
+            doc.text(`Posição em ${formatDateBr(hoje)} às ${horaSP().slice(0, 5)}`, D, 27.5, { align: 'right' });
+        }
+    };
+    cabecalho(true);
+    let y = 44;
+
+    // Indicadores
+    const cartoes = [
+        { rotulo: 'TOTAL A RECEBER', valor: formatCurrency(total), destaque: true },
+        { rotulo: 'FATURAS EM ABERTO', valor: String(abertas.length) },
+        { rotulo: 'PARCEIROS', valor: String(parceiros.length) },
+        { rotulo: 'MAIS ANTIGA', valor: `${maisAntiga} dia${maisAntiga === 1 ? '' : 's'}` }
+    ];
+    const larg = [64, 38, 38, 42], gap = (D - M - larg.reduce((a, b) => a + b, 0)) / 3;
+    let x = M;
+    cartoes.forEach((c, i) => {
+        cor(c.destaque ? NAVY : FUNDO, 'fill'); doc.roundedRect(x, y, larg[i], 22, 2, 2, 'F');
+        if (c.destaque) { cor(OURO, 'fill'); doc.rect(x, y + 20.6, larg[i], 1.4, 'F'); }
+        cor(c.destaque ? OURO : CINZA); fonte(7, 'bold'); doc.text(c.rotulo, x + 4, y + 7);
+        cor(c.destaque ? [255, 255, 255] : TXT); fonte(c.destaque ? 15 : 13, 'bold'); doc.text(c.valor, x + 4, y + 16.5);
+        x += larg[i] + gap;
+    });
+    y += 30;
+
+    // Tempo em aberto: barra proporcional + legenda
+    cor(TXT); fonte(9, 'bold'); doc.text('TEMPO EM ABERTO (desde a emissão)', M, y); y += 4;
+    let bx = M;
+    faixas.forEach(fx => {
+        if (!fx.valor) return;
+        const w = (D - M) * (fx.valor / total);
+        cor(fx.cor, 'fill'); doc.rect(bx, y, w, 5, 'F'); bx += w;
+    });
+    y += 10;
+    const colW = (D - M) / 4;
+    faixas.forEach((fx, i) => {
+        const cx = M + i * colW;
+        cor(fx.cor, 'fill'); doc.rect(cx, y - 3, 3, 3, 'F');
+        cor(TXT); fonte(8, 'bold'); doc.text(fx.rotulo, cx + 5, y - 0.4);
+        cor(CINZA); fonte(8); doc.text(`${formatCurrency(fx.valor)} · ${fx.qtd} fatura${fx.qtd === 1 ? '' : 's'}`, cx + 5, y + 4);
+    });
+    y += 9;
+    cor(CINZA); fonte(7.5);
+    doc.text(`${comAsaas.length} de ${abertas.length} faturas com cobrança gerada no Asaas (${formatCurrency(comAsaas.reduce((t, f) => somaCentavos(t, f.valorTotal), 0))}).`, M, y);
+    y += 8;
+
+    // Tabela por parceiro
+    const col = { cod: M + 2, comp: M + 22, emis: M + 66, dias: M + 96, cob: M + 116, env: M + 138, val: D - 2 };
+    const cabecTabela = () => {
+        cor(NAVY, 'fill'); doc.rect(M, y, D - M, 7, 'F');
+        cor([255, 255, 255]); fonte(7, 'bold');
+        doc.text('FATURA', col.cod, y + 4.7); doc.text('COMPETÊNCIA', col.comp, y + 4.7); doc.text('EMITIDA EM', col.emis, y + 4.7);
+        doc.text('DIAS', col.dias, y + 4.7); doc.text('COBRANÇA', col.cob, y + 4.7); doc.text('ENVIADA', col.env, y + 4.7);
+        doc.text('VALOR', col.val, y + 4.7, { align: 'right' });
+        y += 7;
+    };
+    const novaPagina = () => { doc.addPage(); cabecalho(false); y = 26; cabecTabela(); };
+    cabecTabela();
+
+    parceiros.forEach(p => {
+        if (y > 262) novaPagina();
+        // faixa do parceiro
+        cor([236, 240, 247], 'fill'); doc.rect(M, y, D - M, 7.5, 'F');
+        cor(OURO, 'fill'); doc.rect(M, y, 1.2, 7.5, 'F');
+        cor(NAVY); fonte(8.5, 'bold'); doc.text(truncarTexto(p.nome.toUpperCase(), 60), M + 4, y + 5);
+        doc.text(`${p.lista.length} fatura${p.lista.length === 1 ? '' : 's'}  ·  ${formatCurrency(p.total)}`, col.val, y + 5, { align: 'right' });
+        y += 7.5;
+        p.lista.forEach((f, i) => {
+            if (y > 278) novaPagina();
+            if (i % 2 === 1) { cor(FUNDO, 'fill'); doc.rect(M, y, D - M, 6.2, 'F'); }
+            const dias = diasEmAberto(f);
+            const corDias = (faixas.find(fx => dias >= fx.de && dias <= fx.ate) || faixas[0]).cor;
+            cor(TXT); fonte(8, 'bold'); doc.text(f.codigo || `#${f.id}`, col.cod, y + 4.2);
+            fonte(8);
+            const comp = f.periodoInicio ? `${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim || f.periodoInicio)}` : '—';
+            doc.text(comp, col.comp, y + 4.2);
+            doc.text(formatDateBr(f.criadoEm), col.emis, y + 4.2);
+            cor(corDias); fonte(8, 'bold'); doc.text(String(dias), col.dias, y + 4.2);
+            cor(TXT); fonte(8); doc.text(f.asaas_url || f.asaas_payment_id ? 'Asaas' : '—', col.cob, y + 4.2);
+            doc.text(f.notificacao_zap ? 'WhatsApp' : '—', col.env, y + 4.2);
+            fonte(8, 'bold'); doc.text(formatCurrency(f.valorTotal), col.val, y + 4.2, { align: 'right' });
+            y += 6.2;
+        });
+        cor(LINHA, 'draw'); doc.setLineWidth(0.2); doc.line(M, y, D, y);
+        y += 2;
+    });
+
+    // Total geral
+    if (y > 268) novaPagina();
+    y += 3;
+    cor(NAVY, 'fill'); doc.roundedRect(M, y, D - M, 11, 1.5, 1.5, 'F');
+    cor([255, 255, 255]); fonte(9.5, 'bold'); doc.text(`TOTAL A RECEBER  ·  ${abertas.length} fatura${abertas.length === 1 ? '' : 's'}`, M + 4, y + 7.2);
+    cor(OURO); fonte(12, 'bold'); doc.text(formatCurrency(total), D - 4, y + 7.4, { align: 'right' });
+
+    // Rodapé em todas as páginas
+    const paginas = doc.getNumberOfPages();
+    for (let i = 1; i <= paginas; i++) {
+        doc.setPage(i);
+        cor(LINHA, 'draw'); doc.setLineWidth(0.2); doc.line(M, 287, D, 287);
+        cor(CINZA); fonte(7);
+        doc.text(`Gerado por ${currentSession ? currentSession.nome : 'Sistema'} em ${formatDateTimeBr(new Date().toISOString())}`, M, 291.5);
+        doc.text(`Página ${i} de ${paginas}`, D, 291.5, { align: 'right' });
+    }
+
+    doc.save(`faturas_em_aberto_${hoje}.pdf`);
+    showToast(`Relatório gerado: ${abertas.length} faturas em aberto, ${formatCurrency(total)} a receber.`, "success");
+    logAudit("Relatório Faturas em Aberto", `Gerou relatório de faturas em aberto: ${abertas.length} faturas, ${formatCurrency(total)}.`);
+}
+
 function gerarRelatorioContas() {
     if (!window.jspdf) { showToast("Biblioteca de PDF não carregada. Recarregue a página.", "error"); return; }
     if (!contasCompetenciaSel) contasCompetenciaSel = hojeLocalStr().substring(0, 7);
