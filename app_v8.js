@@ -10123,8 +10123,8 @@ function filterCautelares() {
         });
     });
 
-    // Ordenação FIFO (mais antiga primeiro)
-    listData.sort((a, b) => a.criadoEmRaw - b.criadoEmRaw);
+    // Mais recente primeiro
+    listData.sort((a, b) => b.criadoEmRaw - a.criadoEmRaw);
 
     // Renderiza a lista
     const tbody = document.getElementById('cautelar-list-tbody');
