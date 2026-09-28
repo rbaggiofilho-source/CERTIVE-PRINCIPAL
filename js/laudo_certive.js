@@ -652,6 +652,12 @@ table{border-collapse:collapse;width:100%}
 .foto .leg small{display:block;font-weight:500;color:#8a8f98;font-size:7.6px;margin-top:2px}
 .foto .num{position:absolute;left:0;top:0;background:${COR.navy};color:#fff;font-size:10px;font-weight:800;padding:4px 8px;border-radius:5px 0 6px 0}
 
+.destaque .img{border-width:2px}
+.destaque.nc .img{border-color:${COR.vermelho}}.destaque.ress .img{border-color:${COR.ambar}}
+.destaque .tag{position:absolute;left:10px;top:10px;font-size:8px;font-weight:800;letter-spacing:1.2px;color:#fff;padding:5px 10px;border-radius:20px}
+.destaque.nc .tag{background:${COR.vermelho}}.destaque.ress .tag{background:${COR.ambar}}
+.destaque .leg{font-size:10px}.destaque .leg small{font-size:8.6px;color:#5b6270}
+
 /* Capa */
 .capa{background:radial-gradient(ellipse at 78% 62%,#173a68 0%,#0c2447 38%,#07172e 75%,#050f20 100%)}
 .capa .moldura{position:absolute;left:16px;top:16px;right:16px;bottom:16px;border:1px solid rgba(201,169,97,.55)}
@@ -927,14 +933,15 @@ ${fotoCapa ? `<div class="foto-capa" style="background-image:url('${fotoCapa.url
         const obs = [D.d3.obsEnchente, D.d3.obsBatida, D.d3.observacao].filter(Boolean).map(textoVistoriador).join(' ');
         if (obs) analise += ` Observações do vistoriador: ${obs}`;
         const comFoto = D.estrutura.filter(e => F[e.codigo]);
-        const fotos = (comFoto.length ? comFoto : D.estrutura).slice(0, 6);
+        const prioridade = e => (e.status === 'original' || e.status === 'nao_aplicavel' ? 1 : 0);
+        const fotos = (comFoto.length ? comFoto : D.estrutura).slice().sort((a, b) => prioridade(a) - prioridade(b)).slice(0, 6);
         return pagina(D, 'III', 'ANÁLISE ESTRUTURAL', 'Carroceria e região do chassi', `
 <div class="indic">${indic.map(([ic, r, ruim]) => `<div class="card"><div class="circ ${ruim ? 'nc' : 'ok'}">${icone(ic, ruim ? COR.vermelho : COR.verde, 24, 1.8)}</div><div><div class="r">${r}</div><div class="v ${ruim ? 'tx-nc' : 'tx-ok'}">${ruim ? 'CONSTATADO' : 'NÃO CONSTATADO'}</div></div></div>`).join('')}</div>
 <div>${rotulo('Pontos estruturais avaliados')}
 <table class="tab" style="--pt:5.4px;--ft:9.6px"><thead><tr><th>Item</th><th>Região</th><th style="width:150px">Status</th><th>Observações</th></tr></thead><tbody>${linhas}</tbody></table></div>
 <div class="card analise"><div class="circ">${icone('relatorio', '#fff', 24, 1.8)}</div><div class="t"><b>ANÁLISE TÉCNICA ${statusSpan(D.status.estrutura)}</b>${esc(analise)}</div></div>
 <div>${rotulo('Registro fotográfico — estrutura')}
-<div class="fotos c3" style="--fh:104px">${fotos.map(e => fotoHtml(F, e.codigo, nomeEst(e))).join('')}</div></div>`);
+<div class="fotos c3" style="--fh:128px">${fotos.map(e => fotoHtml(F, e.codigo, nomeEst(e))).join('')}</div></div>`);
     }
 
     function paginaPintura(D, F) {
@@ -1024,7 +1031,7 @@ ${alerta}${obs}
 <div>${rotulo('Parecer técnico')}
 <div class="card analise"><div class="circ">${icone('relatorio', '#fff', 24, 1.8)}</div><div class="t"><b>MOTOR E CHASSI ${statusSpan(pior)}</b>${esc(texto)}</div></div></div>
 <div>${rotulo('Registro fotográfico')}
-<div class="fotos c3" style="--fh:172px">${fotos.map(([s, t]) => fotoHtml(F, s, t)).join('')}</div></div>`);
+<div class="fotos c3" style="--fh:196px">${fotos.map(([s, t]) => fotoHtml(F, s, t)).join('')}</div></div>`);
     }
 
     function paginaQuadros(D, F) {
@@ -1061,23 +1068,59 @@ ${obs ? `<div>${rotulo('Observações do vistoriador')}<div class="card fund"><d
   <div class="card qr">${extras.qr ? `<div class="q" style="background-image:url('${extras.qr}')"></div>` : ''}
     <div class="t"><b>CÓDIGO DE AUTENTICAÇÃO</b>${esc(D.hash || 'Gerado na emissão do laudo')}<span class="url">Confira a autenticidade em<br>certive.com.br/consulta-laudo</span></div></div>
 </div>
-<div class="alcance"><b>ALCANCE DO LAUDO</b>Este laudo tem caráter técnico e informativo e retrata as condições constatadas no veículo na data e hora da vistoria, pelo método visual e de medição descrito. Não substitui avaliações mecânicas especializadas, não abrange vícios ocultos nem eventos posteriores à inspeção${D.campos['document.approved_items'] ? '' : ' e não inclui pesquisa documental em bases externas'}.</div>`);
+<div class="alcance" style="margin-top:auto"><b>ALCANCE DO LAUDO</b>Este laudo tem caráter técnico e informativo e retrata as condições constatadas no veículo na data e hora da vistoria, pelo método visual e de medição descrito. Não substitui avaliações mecânicas especializadas, não abrange vícios ocultos nem eventos posteriores à inspeção${D.campos['document.approved_items'] ? '' : ' e não inclui pesquisa documental em bases externas'}.</div>`);
+    }
+
+    // Fotos dos pontos com constatação, em tamanho grande, com o motivo do destaque
+    function destaquesFotograficos(D, F) {
+        const lista = [];
+        const add = (slot, titulo, motivo, cls) => { if (F[slot] && !lista.some(d => d.slot === slot)) lista.push({ slot, titulo, motivo, cls }); };
+        if (D.d2.chassiOriginal === false) add('chassi_gravado', 'Gravação do chassi', 'Características não originais', 'nc');
+        if (D.d2.motorOriginal === false) add('motor_gravado', 'Gravação do motor', 'Características não originais', 'nc');
+        D.estrutura.filter(e => e.status !== 'original' && e.status !== 'nao_aplicavel').forEach(e =>
+            add(e.codigo, capitalizar(e.nome.replace(' (ESTRUTURA)', '')), ROTULO_ESTRUTURA[e.status].t + (e.obs ? ` — ${textoVistoriador(e.obs)}` : ''), ROTULO_ESTRUTURA[e.status].cls));
+        if (D.d6.reparoMotor === 'sim') add('motor_vista_geral', 'Compartimento do motor', 'Sinais de reparo ou troca de estruturas', 'ress');
+        if (D.d2.eta_motor === 'danificada' || D.d2.eta_motor === 'ausente') add('etiqueta_eta', 'Etiqueta ETA do motor', D.d2.eta_motor === 'ausente' ? 'Etiqueta ausente' : 'Etiqueta danificada', D.d2.eta_motor === 'ausente' ? 'nc' : 'ress');
+        D.vidros.filter(v => !v.original || v.desbaste).forEach(v =>
+            add(v.codigo, `Vidro ${nomeCurto(v.nome).toLowerCase()}`, !v.original ? 'Gravação divergente (vidro trocado)' : `Desbaste / polimento na gravação${v.lida ? ' — lido: ' + v.lida : ''}`, !v.original ? 'nc' : 'ress'));
+        if (D.d7.intervencaoQuadros === 'sim') ((global.CAUTELAR_SLOTS || {})[7] || []).forEach(q => add(q.codigo, capitalizar(q.nome), 'Intervenção / soldas no quadro de porta', 'nc'));
+        return lista;
+    }
+
+    function blocoDestaques(F, itens) {
+        return `<div class="fotos c2" style="--fh:250px;row-gap:16px">${itens.map(d =>
+            `<div class="foto destaque ${d.cls}"><div class="img${SLOTS_LEITURA.test(d.slot) ? ' leitura' : ''}" style="background-image:url('${F[d.slot].url}')"><span class="tag">${d.cls === 'nc' ? 'NÃO CONFORME' : 'PONTO DE ATENÇÃO'}</span></div>
+<div class="leg">${esc(d.titulo)}<small>${esc(d.motivo)}</small></div></div>`).join('')}</div>`;
     }
 
     function paginasRegistro(D, F) {
-        const todos = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n]).filter(sl => F[sl.codigo]);
-        const porPagina = 12;
         const saida = [];
-        for (let p = 0; p * porPagina < todos.length; p++) {
-            const lote = todos.slice(p * porPagina, (p + 1) * porPagina);
-            const html = `<div class="fotos c3" style="--fh:${p === 0 ? 150 : 170}px;row-gap:14px">${lote.map((sl, i) => {
-                const m = D.meta(sl.codigo);
-                const info = [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps && m.gps.latitude ? `GPS ${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
-                return fotoHtml(F, sl.codigo, nomeCurto(sl.nome), { numero: p * porPagina + i + 1, info });
-            }).join('')}</div>`;
-            saida.push(p === 0
-                ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Acervo completo da vistoria', html)
-                : pagina(D, '', '', '', html));
+        const destaques = destaquesFotograficos(D, F);
+        const todos = Object.keys(global.CAUTELAR_SLOTS || {}).flatMap(n => global.CAUTELAR_SLOTS[n]).filter(sl => F[sl.codigo]);
+        const galeria = (lote, inicio, altura) => `<div class="fotos c3" style="--fh:${altura}px;row-gap:16px">${lote.map((sl, i) => {
+            const m = D.meta(sl.codigo);
+            const info = [m.timestamp ? dataBR(m.timestamp, true) : '', m.gps && m.gps.latitude ? `GPS ${Number(m.gps.latitude).toFixed(5)}, ${Number(m.gps.longitude).toFixed(5)}` : ''].filter(Boolean).join('  ·  ');
+            return fotoHtml(F, sl.codigo, nomeCurto(sl.nome), { numero: inicio + i + 1, info });
+        }).join('')}</div>`;
+        const rotAcervo = '<div class="rot"><i></i>Acervo completo</div>';
+        let usadas = 0;
+        // Destaques (até 4 por página); a primeira página completa o espaço com o início do acervo
+        for (let p = 0; p * 4 < destaques.length; p++) {
+            const lote = destaques.slice(p * 4, (p + 1) * 4);
+            let html = `${p === 0 ? '<div class="rot"><i></i>Pontos com constatação em destaque</div>' : ''}${blocoDestaques(F, lote)}`;
+            const ultima = (p + 1) * 4 >= destaques.length;
+            if (ultima) {
+                const linhas = Math.ceil(lote.length / 2) <= 1 ? 2 : 1;
+                const extra = todos.slice(0, linhas * 3);
+                if (extra.length) { html += rotAcervo + galeria(extra, 0, 180); usadas = extra.length; }
+            }
+            saida.push(saida.length === 0 ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Destaques e acervo completo da vistoria', html) : pagina(D, '', '', '', html));
+        }
+        const porPagina = 9;
+        for (let inicio = usadas; inicio < todos.length; inicio += porPagina) {
+            const primeira = saida.length === 0;
+            const html = `${inicio === 0 ? rotAcervo : ''}${galeria(todos.slice(inicio, inicio + porPagina), inicio, primeira ? 196 : 222)}`;
+            saida.push(primeira ? pagina(D, 'IX', 'REGISTRO FOTOGRÁFICO', 'Acervo completo da vistoria', html) : pagina(D, '', '', '', html));
         }
         return saida;
     }
