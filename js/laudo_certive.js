@@ -422,7 +422,8 @@
         lupa: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.2 5.2"/><path d="M8 10.5h5M10.5 8v5"/>',
         documento: '<path d="M6 2.8h8.2L18.4 7v14.2H6z"/><path d="M14 2.8V7h4.4"/><path d="M8.8 11.2h6.8M8.8 14.3h6.8M8.8 17.4h4"/>',
         identificacao: '<path d="M5.5 2.8h8.7L18.5 7v14.2h-13z"/><path d="M14 2.8V7h4.5"/><circle cx="11" cy="13.3" r="3"/><path d="M13.2 15.5l3 3"/>',
-        rolo: '<rect x="3.5" y="3.5" width="13.5" height="5.5" rx="1.2"/><path d="M17 6.2h2.8v5.6h-8.4v3"/><rect x="10" y="14.8" width="2.8" height="6.4" rx="1"/>',
+        // pistola de pintura automotiva (caneca por gravidade, bico à esquerda, cabo e gatilho)
+        pistola: '<path d="M6.2 9.2H16a2.4 2.4 0 0 1 0 4.8H6.2z"/><path d="M3.2 9.9h3v3.4h-3z"/><path d="M1.2 10.3l-.6-.7M1.2 12.9l-.6.7M1 11.6H.3"/><path d="M10.2 9.2V7.4"/><path d="M8.2 7.4h4l-.8-4.4H9z"/><path d="M14.4 14l2.3 7.2h3l-1.9-7.4"/><path d="M12.3 14c-.5 2.2-.2 3.7.9 4.9"/>',
         motor: '<path d="M3 10.5h2.2V8.2h3.2V6.3h6.3v1.9h2.1l2.3 2.3H21v6.1h-1.9l-2.3 2.3H8.1l-2.1-2.1H3z"/><path d="M10 11.5l-1.2 2.6h2.6l-1.2 2.6"/>',
         engrenagem: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5"/><circle cx="12" cy="12" r="6.4"/>',
         carro: '<path d="M3.2 15.2l1.9-4.9c.4-1.1 1.3-1.7 2.4-1.7h9c1.1 0 2 .6 2.4 1.7l1.9 4.9v3.3H3.2z"/><path d="M3.2 15.2h17.6"/><circle cx="7.3" cy="18.5" r="1.9"/><circle cx="16.7" cy="18.5" r="1.9"/><path d="M7 8.6l1.4-3.2h7.2L17 8.6"/>',
@@ -849,7 +850,7 @@ ${numeral ? `<div class="titulo"><div class="numeral">${numeral}</div><div><h1>$
     // ------------------------------------------------------------------
     function paginaCapa(D, extras = {}) {
         const itens = [
-            ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>E PROCEDÊNCIA'], ['rolo', 'PINTURA E<br>ACABAMENTO'],
+            ['escudo', 'ANÁLISE<br>ESTRUTURAL'], ['lupa', 'IDENTIFICAÇÃO<br>E PROCEDÊNCIA'], ['pistola', 'PINTURA E<br>ACABAMENTO'],
             ['motor', 'MOTOR E<br>COMPONENTES'], ['documento', 'VIDROS E<br>GRAVAÇÕES'], ['carro', 'INTERIOR E<br>QUADROS DE PORTA']
         ];
         const ano = new Date(D.dataEmissao || Date.now()).getFullYear();
@@ -918,7 +919,7 @@ ${extras.carroCapa ? `<div class="carro" style="background-image:url('${extras.c
     function paginaResumo(D) {
         const areas = [
             ['ESTRUTURA', D.status.estrutura, 'escudo'], ['IDENTIFICAÇÃO', D.status.identificacao, 'identificacao'],
-            ['PINTURA', D.status.pintura, 'rolo'], ['MOTOR', D.status.motor, 'engrenagem'], ['CHASSI', D.status.chassi, 'carro']
+            ['PINTURA', D.status.pintura, 'pistola'], ['MOTOR', D.status.motor, 'engrenagem'], ['CHASSI', D.status.chassi, 'carro']
         ];
         const L = listasResumo(D);
         const pf = PARECER[D.parecerFinal];
