@@ -312,7 +312,8 @@
         if (cacheFotos.has(chave)) return cacheFotos.get(chave);
         const tarefa = (async () => {
             try {
-                const resp = await fetch(url, { cache: 'force-cache' });
+                const endereco = typeof global.urlArmazenamento === 'function' ? await global.urlArmazenamento(url) : url;
+                const resp = await fetch(endereco, { cache: 'force-cache' });
                 if (!resp.ok) return null;
                 const bmp = await createImageBitmap(await resp.blob());
                 const escala = Math.min(1, maxLado / Math.max(bmp.width, bmp.height));

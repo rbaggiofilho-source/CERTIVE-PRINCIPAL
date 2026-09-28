@@ -42,6 +42,16 @@ const SLOTS_LEITURA = new Set([
 // Limite de duração da Edge Function (~150 s no plano gratuito): uma tentativa longa
 // e a segunda só se ainda houver tempo de sobra.
 const PRAZO_TOTAL_MS = 140_000;
+
+// Os arquivos não são públicos: a OpenAI recebe um link temporário de cada foto
+const RE_STORAGE = /\/storage\/v1\/object\/(?:public|sign)\/([^/?#]+)\/([^?#]+)/;
+// deno-lint-ignore no-explicit-any
+async function linkTemporario(db: any, url: string): Promise<string> {
+  const m = url.match(RE_STORAGE);
+  if (!m) return url;
+  const { data } = await db.storage.from(m[1]).createSignedUrl(decodeURIComponent(m[2]), 3600);
+  return data?.signedUrl || url;
+}
 const MIN_PARA_REPETIR_MS = 45_000;
 
 function json(body: unknown, status = 200) {
@@ -169,7 +179,7 @@ Deno.serve(async (req) => {
     const conteudo: Record<string, unknown>[] = [{ type: "input_text", text: `Gere o laudo cautelar conforme o prompt. Pacote completo da vistoria:\n${JSON.stringify(pacote)}` }];
     for (const foto of fotosPacote.filter((f) => /^https?:\/\//.test(f.url_original || ""))) {
       conteudo.push({ type: "input_text", text: `FOTO ${foto.id} — SLOT ${foto.slotCodigo}` });
-      conteudo.push({ type: "input_image", image_url: foto.url_original, detail: SLOTS_LEITURA.has(foto.slotCodigo) ? "high" : "low" });
+      conteudo.push({ type: "input_image", image_url: await linkTemporario(db, foto.url_original), detail: SLOTS_LEITURA.has(foto.slotCodigo) ? "high" : "low" });
     }
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) throw new Error("Segredos do gerador de laudos não configurados no servidor.");

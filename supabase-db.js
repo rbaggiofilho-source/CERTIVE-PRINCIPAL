@@ -1059,3 +1059,67 @@ window.addEventListener('offline', () => {
     updateSyncIndicatorUI();
 });
 
+
+// ==========================================
+// ARQUIVOS PRIVADOS (fotos das cautelares, PDFs de faturas)
+// Os buckets não são públicos: o banco guarda o endereço "público" do arquivo
+// (formato antigo), e aqui ele é trocado por um link temporário assinado.
+// ==========================================
+const _linksAssinados = new Map();
+const RE_ARQUIVO_STORAGE = /\/storage\/v1\/object\/(?:public|sign)\/([^/?#]+)\/([^?#]+)/;
+
+/**
+ * Link temporário para um arquivo do Storage. Aceita o endereço guardado no banco
+ * (público, com ?v=...) e devolve um link assinado válido por `validadeSeg` segundos.
+ * Endereços de fora do Storage voltam sem alteração.
+ */
+async function urlArmazenamento(url, validadeSeg = 3600) {
+    if (!url || typeof url !== 'string') return url;
+    const m = url.match(RE_ARQUIVO_STORAGE);
+    if (!m || typeof supabaseClient === 'undefined' || !supabaseClient) return url;
+    const bucket = m[1];
+    const caminho = decodeURIComponent(m[2]);
+    const chave = `${bucket}/${caminho}|${validadeSeg}`;
+    const guardado = _linksAssinados.get(chave);
+    if (guardado && guardado.expira > Date.now() + 120000) return guardado.url;
+    const { data, error } = await supabaseClient.storage.from(bucket).createSignedUrl(caminho, validadeSeg);
+    if (error || !data || !data.signedUrl) {
+        console.warn('Link temporário indisponível:', caminho, error);
+        return url;
+    }
+    _linksAssinados.set(chave, { url: data.signedUrl, expira: Date.now() + validadeSeg * 1000 });
+    return data.signedUrl;
+}
+window.urlArmazenamento = urlArmazenamento;
+
+// Toda <img>, <iframe> ou <a> que aparecer na tela apontando para um arquivo do
+// Storage recebe o link temporário (as telas continuam usando o endereço guardado).
+(function iniciarLinksTemporarios() {
+    const ATRIBUTOS = { IMG: 'src', IFRAME: 'src', A: 'href', EMBED: 'src', OBJECT: 'data' };
+    const trocar = (el) => {
+        const attr = ATRIBUTOS[el.tagName];
+        if (!attr) return;
+        const valor = el.getAttribute(attr);
+        if (!valor || !/\/storage\/v1\/object\/public\//.test(valor)) return;
+        if (el.dataset.arquivoOriginal === valor) return;
+        el.dataset.arquivoOriginal = valor;
+        urlArmazenamento(valor).then(assinado => {
+            if (assinado && assinado !== valor && el.getAttribute(attr) === valor) el.setAttribute(attr, assinado);
+        });
+    };
+    const varrer = (raiz) => {
+        if (!raiz || raiz.nodeType !== 1) return;
+        trocar(raiz);
+        raiz.querySelectorAll && raiz.querySelectorAll('img[src*="/storage/v1/object/public/"],iframe[src*="/storage/v1/object/public/"],a[href*="/storage/v1/object/public/"],embed[src*="/storage/v1/object/public/"]').forEach(trocar);
+    };
+    const observar = () => {
+        varrer(document.body);
+        new MutationObserver(mudancas => {
+            for (const m of mudancas) {
+                if (m.type === 'attributes') trocar(m.target);
+                else m.addedNodes.forEach(varrer);
+            }
+        }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'href', 'data'] });
+    };
+    if (document.body) observar(); else document.addEventListener('DOMContentLoaded', observar);
+})();

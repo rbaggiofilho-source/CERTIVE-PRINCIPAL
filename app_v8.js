@@ -1,3 +1,10 @@
+// Escape de texto digitado por usuários antes de montar HTML (evita XSS:
+// um nome de cliente com <script> ou <img onerror> não pode virar código na tela).
+function escHtml(valor) {
+    return String(valor == null ? '' : valor).replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[c]);
+}
+window.escHtml = escHtml;
+
 // ==========================================
 // CERTIVE VISTORIAS — CORE ENGINE (app.js)
 // ==========================================
@@ -42,893 +49,19 @@ window.modoDiaReaberto = localStorage.getItem('certive_modoDiaReaberto') === 'tr
 window.dataDiaReaberto = localStorage.getItem('certive_dataDiaReaberto');
 window.caixaReabertoId = localStorage.getItem('certive_caixaReabertoId') ? parseInt(localStorage.getItem('certive_caixaReabertoId')) : null;
 
-// Initialize Database in localStorage
-function initDatabase() {
-    // One-time simulation of reproved OS for user testing
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_simulado_reprovado')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.ordens_servico) {
-                const exists = tempDb.ordens_servico.find(o => o.placa === "REPRO99");
-                if (!exists) {
-                    const osId = tempDb.ordens_servico.length + 2000;
-                    const num = "OS-" + String(osId).padStart(4, '0');
-                    const simulatedOS = {
-                        id: osId,
-                        numero: num,
-                        criadoEm: "2026-06-09T14:00:00.000Z",
-                        criadoPor: "Ana Atendente",
-                        unidadeId: 1, // Matriz São José
-                        clienteTipo: "particular",
-                        parceiroId: null,
-                        clienteNome: "SIMULADO REPROVADO",
-                        clienteCpfCnpj: "11122233344",
-                        clienteCelular: "48999998888",
-                        placa: "REPRO99",
-                        renavam: "12345678901",
-                        servicoId: 1,
-                        servicoNome: "Vistoria de Transferência — Pequeno Porte",
-                        valor: 150.00,
-                        pago: true,
-                        formaPagamento: "pix",
-                        detranRegistrado: true,
-                        docVeiculoApresentado: true,
-                        docIdentificacaoApresentado: true,
-                        status: "concluida_reprovada",
-                        finalizadoEm: "2026-06-09T14:30:00.000Z",
-                        finalizadoPor: "Ana Atendente",
-                        canceladoEm: null,
-                        canceladoPor: null,
-                        reapresentacaoOrigemID: null
-                    };
-                    tempDb.ordens_servico.unshift(simulatedOS);
+// Os dados vêm SEMPRE do banco (loadAllFromSupabase). Nada de dados de clientes,
+// caixa ou financeiro fica gravado no navegador: num computador compartilhado de
+// balcão, o próximo usuário não pode ver o que o anterior acessou. As fotos da
+// vistoria ainda não enviadas ficam no IndexedDB (CautelarOfflineDB) até subirem.
+function saveDatabase() { /* sem cópia local do banco */ }
 
-                    if (tempDb.caixa_movimentos) {
-                        tempDb.caixa_movimentos.push({
-                            id: tempDb.caixa_movimentos.length + 2000,
-                            caixaId: 91,
-                            tipo: "entrada",
-                            valor: 150.00,
-                            descricao: `Serviço Vistoria de Transferência (Placa: REPRO99)`,
-                            formaPagamento: "pix",
-                            data: "2026-06-09T14:00:00.000Z",
-                            operador: "Ana Atendente",
-                            osId: osId,
-                            faturaId: null
-                        });
-                    }
-                    localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                    localStorage.setItem('certive_simulado_reprovado', 'true');
-                }
-            }
-        } catch (e) {
-            console.error("Error seeding simulated OS:", e);
-        }
-    }
-    // One-time correction to reopen today's closed cash drawer for testing
-    const tempLocalDate = new Date();
-    const tempYear = tempLocalDate.getFullYear();
-    const tempMonth = String(tempLocalDate.getMonth() + 1).padStart(2, '0');
-    const tempDay = String(tempLocalDate.getDate()).padStart(2, '0');
-    const tempTodayStr = `${tempYear}-${tempMonth}-${tempDay}`;
-
-    if (localStorage.getItem('certive_db') && !localStorage.getItem('certive_reopened_v3')) {
-        try {
-            const tempDb = JSON.parse(localStorage.getItem('certive_db'));
-            if (tempDb.caixa_diario) {
-                tempDb.caixa_diario.forEach(cd => {
-                    if (cd.data === tempTodayStr && cd.status === "fechado") {
-                        cd.status = "aberto";
-                        cd.fechadoPor = null;
-                        cd.fechadoEm = null;
-                    }
-                });
-                localStorage.setItem('certive_db', JSON.stringify(tempDb));
-                localStorage.setItem('certive_reopened_v3', 'true');
-            }
-        } catch (e) {
-            console.error("One-time reopen error:", e);
-        }
-    }
-
-    const isSeeded = localStorage.getItem('certive_db_seeded');
-    let dbValid = false;
-    if (isSeeded) {
-        try {
-            loadDatabase();
-            if (db && db.operadores && db.operadores.length > 0 && db.unidades && db.unidades.length > 0) {
-                dbValid = true;
-            }
-        } catch (e) {
-            dbValid = false;
-        }
-    }
-    
-    if (!isSeeded || !dbValid) {
-        // 1. Seed Units (Filiais)
-        db.unidades = [
-            { 
-                id: 1, 
-                nome: "Certive Matriz — São José", 
-                endereco: "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700",
-                razao_social: "Certive Vistorias Automotivas Ltda",
-                cnpj: "45.890.122/0001-08",
-                credenciamento: "ECV-2023-091",
-                cidade: "São José",
-                uf: "SC",
-                canal_ouvidoria: "ouvidoria@certive.com.br"
-            },
-            { 
-                id: 2, 
-                nome: "Certive Filial — Palhoça", 
-                endereco: "Avenida Atílio Pagani, 850, Palhoça - SC",
-                razao_social: "Certive Vistorias Automotivas Ltda",
-                cnpj: "45.890.122/0002-99",
-                credenciamento: "ECV-2023-142",
-                cidade: "Palhoça",
-                uf: "SC",
-                canal_ouvidoria: "ouvidoria@certive.com.br"
-            }
-        ];
-
-        // Seed Portarias lookup by UF
-        db.portarias_uf = {
-            "SC": "Portaria DETRAN-SC nº 465/2023",
-            "SP": "Portaria DETRAN-SP nº 123/2023",
-            "PR": "Portaria DETRAN-PR nº 789/2023"
-        };
-
-        // 2. Seed Services
-        db.servicos = [
-            { id: 1, categoria: "Transferência", nome: "Vistoria de Transferência — Pequeno Porte", porte: "Pequeno", precoBalcao: 150.00 },
-            { id: 2, categoria: "Transferência", nome: "Vistoria de Transferência — Médio Porte", porte: "Médio", precoBalcao: 200.00 },
-            { id: 3, categoria: "Transferência", nome: "Vistoria de Transferência — Grande Porte", porte: "Grande", precoBalcao: 280.00 },
-            { id: 4, categoria: "Cautelar", nome: "Vistoria Cautelar", porte: "N/A", precoBalcao: 180.00 },
-            { id: 5, categoria: "Pesquisa", nome: "Pesquisa Veicular", porte: "N/A", precoBalcao: 120.00 },
-            { id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 }
-        ];
-
-        // 3. Seed Reference Tax / Fees (DETRAN-SC / Custos de Terceiros)
-        db.taxas_referencia = [
-            { servicoId: 1, taxa: 27.00, tax: 27.00 }, // Transferência Pequeno
-            { servicoId: 2, taxa: 27.00, tax: 27.00 }, // Transferência Médio
-            { servicoId: 3, taxa: 27.00, tax: 27.00 }, // Transferência Grande
-            { servicoId: 4, taxa: 10.00, tax: 10.00 }, // Cautelar
-            { servicoId: 5, taxa: 5.00, tax: 5.00 },  // Pesquisa
-            { servicoId: 6, taxa: 0.00, tax: 0.00 }   // Exótico
-        ];
-
-        // 4. Seed Operators (estrutura mínima para modo offline).
-        // ⚠️ As senhas NÃO ficam mais no código — o login é pelo Supabase Auth,
-        // que guarda as senhas criptografadas no servidor.
-        db.operadores = [
-            { id: 1, nome: "Ricardo Administrador", login: "admin", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 2, nome: "Ana Atendente", login: "atendente", funcao: "Atendente", unidadeId: 1, permissoes: ["abertura_os", "caixa", "registrar_cautelar", "finalizar_cautelar"], ativo: true },
-            { id: 3, nome: "Carlos Financeiro", login: "financeiro", funcao: "Analista Financeiro", unidadeId: 1, permissoes: ["caixa", "faturamento", "contas"], ativo: true },
-            { id: 4, nome: "Jonas Kroll", login: "Jkroll", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 5, nome: "Romano Gonzales Mendes", login: "Rgmendes", funcao: "Gerente Geral", unidadeId: 1, permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true },
-            { id: 6, nome: "Pedro Vistoriador Júnior", login: "vistoriador", funcao: "Vistoriador de Campo", unidadeId: 1, permissoes: ["registrar_cautelar"], ativo: true },
-            { id: 7, nome: "Silvio Vistoriador Sênior", login: "senior", funcao: "Vistoriador Sênior", unidadeId: 1, permissoes: ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"], ativo: true }
-        ];
-
-        // 5. Seed Partners (Parceiros Conveniados)
-        db.parceiros = [
-            { 
-                id: 1, 
-                nome: "Autocentro Veículos", 
-                cnpj: "12.345.678/0001-90", 
-                responsavel: "Marcos Almeida",
-                telefone: "(48) 3222-1111", 
-                usaFaturamento: true,
-                observacoes: "Parceiro prioritário da região de São José.",
-                tabelaPrecos: { 1: 130.00, 2: 180.00, 3: 250.00, 4: 150.00, 5: 100.00 } // Preços especiais
-            },
-            { 
-                id: 2, 
-                nome: "Despachante Silva", 
-                cnpj: "98.765.432/0001-10", 
-                responsavel: "Roberto Silva",
-                telefone: "(48) 3333-4444", 
-                usaFaturamento: true,
-                observacoes: "Pagamento faturado quinzenalmente.",
-                tabelaPrecos: { 1: 140.00, 2: 190.00, 3: 260.00, 4: 160.00, 5: 110.00 }
-            },
-            { 
-                id: 3, 
-                nome: "Giga Car Multimarcas", 
-                cnpj: "11.222.333/0001-44", 
-                responsavel: "Carlos Giga",
-                telefone: "(48) 3444-5555", 
-                usaFaturamento: false, // Só paga no balcão
-                observacoes: "Não aceita faturamento. Pagamentos somente à vista.",
-                tabelaPrecos: { 1: 135.00, 2: 185.00, 3: 255.00, 4: 155.00, 5: 105.00 }
-            }
-        ];
-
-        // Empty arrays for seed logic
-        db.ordens_servico = [];
-        db.caixa_diario = [];
-        db.caixa_movimentos = [];
-        db.contas_pagar = [];
-        db.faturas = [];
-        db.auditoria = [];
-        db.metas_despesas = {
-            1: {
-                "Aluguel": 3000.00,
-                "Água / Luz / Internet": 500.00,
-                "Impostos / Taxas": 1500.00,
-                "Material de Escritório": 300.00,
-                "Serviços de Terceiros": 2000.00,
-                "Outros": 600.00
-            },
-            2: {
-                "Aluguel": 2000.00,
-                "Água / Luz / Internet": 400.00,
-                "Impostos / Taxas": 1000.00,
-                "Material de Escritório": 200.00,
-                "Serviços de Terceiros": 1500.00,
-                "Outros": 400.00
-            }
-        };
-
-        // Run Historical Seed Generator
-        seedHistoricalData();
-
-        // Save to LocalStorage
-        saveDatabase();
-        localStorage.setItem('certive_db_seeded', 'true');
-    } else {
-        loadDatabase();
-        // Force update of Unit details and lookup portarias
-        if (!db.portarias_uf) {
-            db.portarias_uf = {
-                "SC": "Portaria DETRAN-SC nº 465/2023",
-                "SP": "Portaria DETRAN-SP nº 123/2023",
-                "PR": "Portaria DETRAN-PR nº 789/2023"
-            };
-        }
-        if (db.unidades) {
-            db.unidades.forEach(async u => {
-                if (u.id === 1) {
-                    u.nome = "Certive Matriz — São José";
-                    u.endereco = "Rodovia BR 101 SN BOX 10, Anexo ao Mundo Car Mais Shopping, Bairro Kobrasol - São José CEP 88102-700";
-                    u.razao_social = "Certive Vistorias Automotivas Ltda";
-                    u.cnpj = "45.890.122/0001-08";
-                    u.credenciamento = "ECV-2023-091";
-                    u.cidade = "São José";
-                    u.uf = "SC";
-                    u.canal_ouvidoria = "ouvidoria@certive.com.br";
-                    if (window.useSupabase) {
-                        try {
-                            await sbUpdate('unidades', u.id, { endereco: u.endereco });
-                        } catch (e) {
-                            console.error("Erro ao atualizar endereço da matriz no Supabase:", e);
-                        }
-                    }
-                } else if (u.id === 2) {
-                    u.nome = "Certive Filial — Palhoça";
-                    u.endereco = "Avenida Atílio Pagani, 850, Palhoça - SC";
-                    u.razao_social = "Certive Vistorias Automotivas Ltda";
-                    u.cnpj = "45.890.122/0002-99";
-                    u.credenciamento = "ECV-2023-142";
-                    u.cidade = "Palhoça";
-                    u.uf = "SC";
-                    u.canal_ouvidoria = "ouvidoria@certive.com.br";
-                }
-            });
-        }
-        saveDatabase();
-        // Force migration check for partner fields
-        if (db.parceiros) {
-            db.parceiros.forEach(p => {
-                if (p.responsavel === undefined) p.responsavel = "NÃO CADASTRADO";
-                if (p.observacoes === undefined) p.observacoes = "";
-            });
-        }
-        // Force migration check for OS fields
-        if (db.ordens_servico) {
-            db.ordens_servico.forEach(o => {
-                if (o.observacoes === undefined) o.observacoes = "NÃO INFORMADA";
-                if (o.statusNfse === undefined) o.statusNfse = "Não solicitada";
-                if (o.numeroNfse === undefined) o.numeroNfse = null;
-                if (o.dataNfse === undefined) o.dataNfse = null;
-            });
-        }
-        // Force migration check for faturas fields
-        if (db.faturas) {
-            db.faturas.forEach(f => {
-                if (f.statusBoleto === undefined) f.statusBoleto = "Não gerado";
-                if (f.boletoVencimento === undefined) f.boletoVencimento = null;
-                if (f.boletoCodigoDeBarras === undefined) f.boletoCodigoDeBarras = null;
-            });
-        }
-        // Force migration check for accounts payable fields
-        if (db.contas_pagar) {
-            db.contas_pagar.forEach(c => {
-                if (c.observacoes === undefined) c.observacoes = "";
-                if (c.anexo === undefined) c.anexo = null;
-                if (c.comprovante === undefined) c.comprovante = null;
-
-                // Migrate category
-                if (c.categoria === undefined) {
-                    if (c.descricao.includes("Aluguel")) {
-                        c.categoria = "Aluguel";
-                    } else if (c.descricao.includes("Celesc") || c.descricao.includes("Energia") || c.descricao.includes("Luz") || c.descricao.includes("Água") || c.descricao.includes("Internet")) {
-                        c.categoria = "Água / Luz / Internet";
-                    } else if (c.descricao.includes("DETRAN") || c.descricao.includes("Taxa")) {
-                        c.categoria = "Impostos / Taxas";
-                    } else {
-                        c.categoria = "Outros";
-                    }
-                }
-
-                // Migrate provider
-                if (c.fornecedor === undefined) {
-                    if (c.descricao.includes("Aluguel")) {
-                        c.fornecedor = c.unidadeId === 1 ? "Imobiliária Matriz" : "Imobiliária Filial";
-                    } else if (c.descricao.includes("Celesc")) {
-                        c.fornecedor = "Celesc";
-                    } else if (c.descricao.includes("DETRAN")) {
-                        c.fornecedor = "DETRAN-SC";
-                    } else {
-                        c.fornecedor = "Outros";
-                    }
-                }
-            });
-        }
-        if (!db.metas_despesas) {
-            db.metas_despesas = {
-                1: {
-                    "Aluguel": 3000.00,
-                    "Água / Luz / Internet": 500.00,
-                    "Impostos / Taxas": 1500.00,
-                    "Material de Escritório": 300.00,
-                    "Serviços de Terceiros": 2000.00,
-                    "Outros": 600.00
-                },
-                2: {
-                    "Aluguel": 2000.00,
-                    "Água / Luz / Internet": 400.00,
-                    "Impostos / Taxas": 1000.00,
-                    "Material de Escritório": 200.00,
-                    "Serviços de Terceiros": 1500.00,
-                    "Outros": 400.00
-                }
-            };
-        }
-        // Force migration check for services (ID 6 - Carros exóticos)
-        if (db.servicos) {
-            const hasExotic = db.servicos.find(s => s.id === 6);
-            if (!hasExotic) {
-                db.servicos.push({ id: 6, categoria: "Exótico", nome: "Carros exóticos", porte: "N/A", precoBalcao: 0.00 });
-            }
-        }
-        // Force migration check for reference taxes (ID 6 - Carros exóticos)
-        if (db.taxas_referencia) {
-            const hasExoticTax = db.taxas_referencia.find(t => t.servicoId === 6);
-            if (!hasExoticTax) {
-                db.taxas_referencia.push({ servicoId: 6, taxa: 0.00 });
-            }
-        }
-        saveDatabase();
-    }
-}
-
-function saveDatabase() {
-    // Limpeza preventiva de Base64 de alta resolução para evitar QuotaExceededError
-    if (db && db.cautelares_fotos && db.cautelares_fotos.length > 0) {
-        db.cautelares_fotos.forEach(f => {
-            if (f.urlOriginal && f.urlOriginal.startsWith('data:image') && f.urlOriginal.length > 50000) {
-                f.urlOriginal = '';
-            }
-            if (f.url_original && f.url_original.startsWith('data:image') && f.url_original.length > 50000) {
-                f.url_original = '';
-            }
-            if (f.urlThumb && f.urlThumb.startsWith('data:image') && f.urlThumb.length > 50000) {
-                f.urlThumb = '';
-            }
-            if (f.url_thumb && f.url_thumb.startsWith('data:image') && f.url_thumb.length > 50000) {
-                f.url_thumb = '';
-            }
-        });
-    }
-
-    try {
-        localStorage.setItem('certive_db', JSON.stringify(db));
-    } catch (e) {
-        if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-            console.warn("localStorage quota exceeded! Starting database optimization...");
-            
-            // 1. Limpa auditoria antiga (mantém apenas as últimas 50 entradas)
-            if (db.auditoria && db.auditoria.length > 50) {
-                db.auditoria = db.auditoria.slice(-50);
-            }
-            
-            // 2. Otimização de fotos: remove Base64 local se a foto já tiver URL pública na nuvem (http/https)
-            if (db.cautelares_fotos && db.cautelares_fotos.length > 0) {
-                let cleanedCount = 0;
-                db.cautelares_fotos.forEach(f => {
-                    const isUploaded = (f.urlOriginal && f.urlOriginal.startsWith('http')) || (f.url_original && f.url_original.startsWith('http'));
-                    if (isUploaded) {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) {
-                            f.urlThumb = '';
-                            cleanedCount++;
-                        }
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) {
-                            f.urlOriginal = '';
-                        }
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) {
-                            f.url_thumb = '';
-                            cleanedCount++;
-                        }
-                        if (f.url_original && f.url_original.startsWith('data:image')) {
-                            f.url_original = '';
-                        }
-                    }
-                });
-                console.log(`Cleaned ${cleanedCount} Base64 thumbnails from cache.`);
-            }
-            
-            // 3. Limpa Base64 de fotos de vistorias finalizadas/concluídas
-            const activeCautelarIds = (db.cautelares || [])
-                .filter(c => c.status !== 'finalizado' && c.status !== 'concluido')
-                .map(c => c.id);
-            
-            if (db.cautelares_fotos) {
-                db.cautelares_fotos.forEach(f => {
-                    const secao = (db.cautelares_secoes || []).find(s => s.id === f.secaoId);
-                    const parentId = secao ? secao.cautelarId : null;
-                    
-                    if (parentId && !activeCautelarIds.includes(parentId)) {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
-                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
-                    }
-                });
-            }
-
-            // 4. Tenta salvar novamente após a otimização
-            try {
-                localStorage.setItem('certive_db', JSON.stringify(db));
-                console.log("Database saved successfully after optimization!");
-            } catch (retryErr) {
-                console.error("Soft cleanup failed, executing aggressive database truncation...", retryErr);
-                
-                // Limpeza agressiva: zera toda a auditoria e limpa TODOS os Base64 locais
-                db.auditoria = [];
-                if (db.cautelares_fotos) {
-                    db.cautelares_fotos.forEach(f => {
-                        if (f.urlThumb && f.urlThumb.startsWith('data:image')) f.urlThumb = '';
-                        if (f.urlOriginal && f.urlOriginal.startsWith('data:image')) f.urlOriginal = '';
-                        if (f.url_thumb && f.url_thumb.startsWith('data:image')) f.url_thumb = '';
-                        if (f.url_original && f.url_original.startsWith('data:image')) f.url_original = '';
-                    });
-                }
-                
-                // Remove vistorias finalizadas antigas do banco local
-                if (db.cautelares && db.cautelares.length > 5) {
-                    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-                    db.cautelares = db.cautelares.filter(c => {
-                        const date = new Date(c.criadoEm || c.criado_em).getTime();
-                        return c.status !== 'finalizado' || date > sevenDaysAgo;
-                    });
-                }
-
-                try {
-                    localStorage.setItem('certive_db', JSON.stringify(db));
-                    console.log("Database saved successfully after aggressive cleanup!");
-                } catch (aggErr) {
-                    console.error("Critical: LocalStorage database write failed even after aggressive truncation!", aggErr);
-                }
-            }
-        } else {
-            console.error("Error writing to localStorage:", e);
-        }
-    }
-}
-
-function loadDatabase() {
-    db = JSON.parse(localStorage.getItem('certive_db') || '{}');
-    db.unidades = db.unidades || [];
-    db.servicos = db.servicos || [];
-    db.taxas_referencia = db.taxas_referencia || [];
-    db.operadores = db.operadores || [];
-    db.parceiros = db.parceiros || [];
-    db.ordens_servico = db.ordens_servico || [];
-    db.caixa_diario = db.caixa_diario || [];
-    db.caixa_movimentos = db.caixa_movimentos || [];
-    db.contas_pagar = db.contas_pagar || [];
-    db.faturas = db.faturas || [];
-    db.auditoria = db.auditoria || [];
-    db.solicitantes_parceiros = db.solicitantes_parceiros || [];
-    db.cautelares = db.cautelares || [];
-    db.cautelares_secoes = db.cautelares_secoes || [];
-    db.cautelares_fotos = db.cautelares_fotos || [];
-    db.cautelares_pesquisas = db.cautelares_pesquisas || [];
-
-    // Garantir permissões das cautelares nos perfis locais (migração de LocalStorage/Supabase)
-    let dbUpdated = false;
-    db.operadores.forEach(op => {
-        op.permissoes = op.permissoes || [];
-        if (op.funcao === "Gerente Geral") {
-            const required = ["registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"];
-            required.forEach(p => {
-                if (!op.permissoes.includes(p)) {
-                    op.permissoes.push(p);
-                    dbUpdated = true;
-                }
-            });
-        } else if (op.funcao === "Atendente") {
-            const required = ["registrar_cautelar", "finalizar_cautelar"];
-            required.forEach(p => {
-                if (!op.permissoes.includes(p)) {
-                    op.permissoes.push(p);
-                    dbUpdated = true;
-                }
-            });
-        } else if (op.funcao === "Vistoriador de Campo" || op.funcao === "Vistoriador Sênior") {
-            if (!op.permissoes.includes("registrar_cautelar")) {
-                op.permissoes.push("registrar_cautelar");
-                dbUpdated = true;
-            }
-            if (op.funcao === "Vistoriador Sênior" && !op.permissoes.includes("finalizar_cautelar")) {
-                op.permissoes.push("finalizar_cautelar");
-                dbUpdated = true;
-            }
-        }
-    });
-
-    if (dbUpdated) {
-        saveDatabase();
-    }
-
-    // Complementary Cautelares seed for testing
-    if (db.cautelares.length === 0) {
-        setTimeout(() => {
-            if (typeof seedCautelares === 'function') seedCautelares();
-        }, 100);
-    }
-}
-
-// Seed 30 Days of realistic business data
-function seedHistoricalData() {
-    const totalDays = 30;
-    const today = new Date();
-    
-    // Generate dates starting from 30 days ago
-    let datePointer = new Date();
-    datePointer.setDate(today.getDate() - totalDays);
-
-    let osIdCounter = 1;
-    let movIdCounter = 1;
-    let fatIdCounter = 1;
-    let contaIdCounter = 1;
-
-    // Fixed expense templates
-    db.contas_pagar.push(
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Aluguel Comercial - Matriz", tipo: "fixo", vencimento: "2026-05-10", valor: 2500.00, pago: true, pagoEm: "2026-05-09", categoria: "Aluguel", fornecedor: "Imobiliária Matriz" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Aluguel Comercial - Filial", tipo: "fixo", vencimento: "2026-05-10", valor: 1800.00, pago: true, pagoEm: "2026-05-10", categoria: "Aluguel", fornecedor: "Imobiliária Filial" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Energia Elétrica Celesc - Matriz", tipo: "fixo", vencimento: "2026-05-15", valor: 450.00, pago: true, pagoEm: "2026-05-14", categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Energia Elétrica Celesc - Filial", tipo: "fixo", vencimento: "2026-05-15", valor: 310.00, pago: true, pagoEm: "2026-05-15", categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Aluguel Comercial - Matriz", tipo: "fixo", vencimento: "2026-06-10", valor: 2500.00, pago: true, pagoEm: "2026-06-09", categoria: "Aluguel", fornecedor: "Imobiliária Matriz" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Aluguel Comercial - Filial", tipo: "fixo", vencimento: "2026-06-10", valor: 1800.00, pago: false, pagoEm: null, categoria: "Aluguel", fornecedor: "Imobiliária Filial" },
-        { id: contaIdCounter++, unidadeId: 1, descricao: "Energia Elétrica Celesc - Matriz", tipo: "fixo", vencimento: "2026-06-15", valor: 420.00, pago: false, pagoEm: null, categoria: "Água / Luz / Internet", fornecedor: "Celesc" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: "Energia Elétrica Celesc - Filial", tipo: "fixo", vencimento: "2026-06-15", valor: 290.00, pago: false, pagoEm: null, categoria: "Água / Luz / Internet", fornecedor: "Celesc" }
-    );
-
-    // Track unbilled partner OSs for bulk invoicing
-    let pendingPartnerOSs = [];
-
-    // Loop through past days to create OSs and Cash Drawer movements
-    for (let d = 0; d < totalDays; d++) {
-        // Don't seed future data
-        if (datePointer > today) break;
-
-        const dateStr = datePointer.toISOString().split('T')[0];
-        
-        // Skip Sundays (non-working day)
-        if (datePointer.getDay() === 0) {
-            datePointer.setDate(datePointer.getDate() + 1);
-            continue;
-        }
-
-        // Daily Cash Drawer structure per unit active on that day
-        const units = [1, 2];
-        units.forEach(unitId => {
-            const caixaId = d * 10 + unitId;
-            let cashDrawer = {
-                id: caixaId,
-                unidadeId: unitId,
-                data: dateStr,
-                status: "fechado",
-                abertoPor: "Ana Atendente",
-                fechadoPor: "Carlos Financeiro",
-                saldoAbertura: 200.00,
-                saldoEspécieInformado: 0,
-                fechadoEm: dateStr + "T18:00:00.000Z"
-            };
-
-            // Seed 1 to 4 OSs per unit per day
-            const osCount = Math.floor(Math.random() * 3) + 1; // 1 to 3 OSs
-            let totalEntradas = 0;
-            let totalSaidas = 0;
-            let cashBalance = 200.00; // Starts with opening float
-
-            for (let i = 0; i < osCount; i++) {
-                const osId = osIdCounter++;
-                const isParticular = Math.random() < 0.6; // 60% Particular
-                const service = db.servicos[Math.floor(Math.random() * db.servicos.length)];
-                
-                let val = service.precoBalcao;
-                let clientNome = "";
-                let cpfCnpj = "";
-                let cel = "(48) 9" + Math.floor(10000000 + Math.random() * 90000000);
-                let partnerId = null;
-                let pagamento = "pix";
-
-                if (isParticular) {
-                    // Small price negotiation mock for particulars
-                    val = val - (Math.random() < 0.3 ? 10.00 : 0);
-                    clientNome = ["Marcos Souza", "Juliana Costa", "Renato Abreu", "Fabio Santos", "Carla Dias", "Fernando Lima"][Math.floor(Math.random() * 6)];
-                    cpfCnpj = Math.floor(10000000000 + Math.random() * 90000000000).toString();
-                    pagamento = ["pix", "debito", "credito", "especie"][Math.floor(Math.random() * 4)];
-                } else {
-                    // Partner client
-                    const partner = db.parceiros[Math.floor(Math.random() * db.parceiros.length)];
-                    partnerId = partner.id;
-                    val = partner.tabelaPrecos[service.id];
-                    clientNome = partner.nome;
-                    cpfCnpj = partner.cnpj;
-                    pagamento = partner.usaFaturamento && Math.random() < 0.85 ? "faturamento" : "pix";
-                }
-
-                // Random status (90% approved, 8% reproved, 2% cancelled)
-                let status = "concluida_aprovada";
-                const randStatus = Math.random();
-                if (randStatus < 0.08) {
-                    status = "concluida_reprovada";
-                } else if (randStatus < 0.10) {
-                    status = "cancelada";
-                }
-
-                const createdTime = dateStr + "T" + String(9 + i*2).padStart(2, '0') + ":30:00.000Z";
-                
-                let os = {
-                    id: osId,
-                    numero: "OS-" + String(osId).padStart(4, '0'),
-                    criadoEm: createdTime,
-                    criadoPor: "Ana Atendente",
-                    unidadeId: unitId,
-                    clienteTipo: isParticular ? "particular" : "parceiro",
-                    parceiroId: partnerId,
-                    clienteNome: clientNome,
-                    clienteCpfCnpj: cpfCnpj,
-                    clienteCelular: cel,
-                    placa: ["MCG", "OKD", "QJZ", "RAH", "BRA"][Math.floor(Math.random() * 5)] + String(Math.floor(1000 + Math.random() * 9000)),
-                    renavam: String(Math.floor(10000000000 + Math.random() * 90000000000)),
-                    servicoId: service.id,
-                    servicoNome: service.nome,
-                    valor: val,
-                    observacoes: ["FIAT UNO 2012 BRANCO", "RENAULT SANDERO 2015 PRATA", "VW GOL 2018 VERMELHO", "CHEVROLET ONIX 2021 PRETO", "HYUNDAI HB20 2019 CINZA"][Math.floor(Math.random() * 5)],
-                    pago: pagamento !== "faturamento" && status !== "cancelada",
-                    formaPagamento: pagamento,
-                    detranRegistrado: Math.random() < 0.9,
-                    docVeiculoApresentado: true,
-                    docIdentificacaoApresentado: true,
-                    status: status,
-                    finalizadoEm: status.startsWith("concluida") ? createdTime : null,
-                    finalizadoPor: status.startsWith("concluida") ? "Ana Atendente" : null,
-                    canceladoEm: status === "cancelada" ? createdTime : null,
-                    canceladoPor: status === "cancelada" ? "Ana Atendente" : null,
-                    reapresentacaoOrigemID: null
-                };
-
-                db.ordens_servico.push(os);
-
-                // Financial entry if paid immediately
-                if (os.pago && status !== "cancelada") {
-                    let mov = {
-                        id: movIdCounter++,
-                        caixaId: caixaId,
-                        tipo: "entrada",
-                        valor: val,
-                        descricao: `Serviço ${service.nome.split(' — ')[0]} (Placa: ${os.placa})`,
-                        formaPagamento: pagamento,
-                        data: createdTime,
-                        operador: "Ana Atendente",
-                        osId: osId,
-                        faturaId: null
-                    };
-                    db.caixa_movimentos.push(mov);
-                    totalEntradas += val;
-                    if (pagamento === "especie") cashBalance += val;
-                }
-
-                // If partner billed, save for billing simulation
-                if (pagamento === "faturamento" && status === "concluida_aprovada") {
-                    pendingPartnerOSs.push(os);
-                }
-
-                // Seed Transferência reproval re-inspection logic (within 30 days)
-                if (status === "concluida_reprovada" && service.categoria === "Transferência" && Math.random() < 0.7) {
-                    // Re-inspected 3 days later
-                    let reInspectDate = new Date(datePointer);
-                    reInspectDate.setDate(reInspectDate.getDate() + 3);
-                    
-                    if (reInspectDate <= today) {
-                        const reInspectDateStr = reInspectDate.toISOString().split('T')[0];
-                        const reId = osIdCounter++;
-                        let reOs = {
-                            id: reId,
-                            numero: "OS-" + String(reId).padStart(4, '0'),
-                            criadoEm: reInspectDateStr + "T14:15:00.000Z",
-                            criadoPor: "Ana Atendente",
-                            unidadeId: unitId,
-                            clienteTipo: os.clienteTipo,
-                            parceiroId: os.parceiroId,
-                            clienteNome: os.clienteNome,
-                            clienteCpfCnpj: os.clienteCpfCnpj,
-                            clienteCelular: os.clienteCelular,
-                            placa: os.placa,
-                            renavam: os.renavam,
-                            servicoId: os.servicoId,
-                            servicoNome: os.servicoNome,
-                            valor: 0.00, // Free
-                            pago: true,
-                            formaPagamento: "isento",
-                            detranRegistrado: true,
-                            docVeiculoApresentado: true,
-                            docIdentificacaoApresentado: true,
-                            status: "concluida_aprovada",
-                            finalizadoEm: reInspectDateStr + "T14:45:00.000Z",
-                            finalizadoPor: "Ana Atendente",
-                            canceladoEm: null,
-                            canceladoPor: null,
-                            reapresentacaoOrigemID: os.id
-                        };
-                        db.ordens_servico.push(reOs);
-                        
-                        // Update original OS status to "reapresentada"
-                        os.status = "concluida_reprovada"; // maintains historical reproval indicator
-                    }
-                }
-            }
-
-            // Seed manual daily small cash outflows (e.g. coffee, office cleaning) on some days
-            if (Math.random() < 0.25) {
-                const outflowVal = Math.floor(15 + Math.random() * 40);
-                let mov = {
-                    id: movIdCounter++,
-                    caixaId: caixaId,
-                    tipo: "saida",
-                    valor: outflowVal,
-                    descricao: "Despesas miúdas de limpeza / copa",
-                    formaPagamento: "especie",
-                    data: dateStr + "T16:00:00.000Z",
-                    operador: "Ana Atendente",
-                    osId: null,
-                    faturaId: null
-                };
-                db.caixa_movimentos.push(mov);
-                totalSaidas += outflowVal;
-                cashBalance -= outflowVal;
-            }
-
-            // Finalize daily cash drawer calculations
-            cashDrawer.saldoEspécieInformado = Math.round(cashBalance * 100) / 100;
-            db.caixa_diario.push(cashDrawer);
-        });
-
-        // Advance Date Pointer
-        datePointer.setDate(datePointer.getDate() + 1);
-    }
-
-    // Seed Billed Invoices (Faturas) for Partner 1 and 2 in late May
-    const mayOSsPartner1 = pendingPartnerOSs.filter(o => o.parceiroId === 1 && new Date(o.criadoEm) < new Date("2026-06-01"));
-    const mayOSsPartner2 = pendingPartnerOSs.filter(o => o.parceiroId === 2 && new Date(o.criadoEm) < new Date("2026-06-01"));
-
-    if (mayOSsPartner1.length > 0) {
-        const fatId = fatIdCounter++;
-        const totalVal = mayOSsPartner1.reduce((sum, o) => sum + o.valor, 0);
-        let fat = {
-            id: fatId,
-            codigo: "FAT-" + String(fatId).padStart(4, '0'),
-            parceiroId: 1,
-            unidadeId: 1,
-            periodoInicio: "2026-05-15",
-            periodoFim: "2026-05-31",
-            valorTotal: totalVal,
-            ordensIds: mayOSsPartner1.map(o => o.id),
-            pago: true,
-            pagoEm: "2026-06-02T10:00:00.000Z",
-            criadoEm: "2026-06-01T08:30:00.000Z",
-            criadoPor: "Carlos Financeiro"
-        };
-        db.faturas.push(fat);
-        mayOSsPartner1.forEach(o => o.faturaId = fatId);
-
-        // Inject payment of this May invoice as an inflow in June 2nd Cashier
-        const june2ndMatrizCaixa = db.caixa_diario.find(c => c.unidadeId === 1 && c.data === "2026-06-02");
-        if (june2ndMatrizCaixa) {
-            db.caixa_movimentos.push({
-                id: movIdCounter++,
-                caixaId: june2ndMatrizCaixa.id,
-                tipo: "entrada",
-                valor: totalVal,
-                descricao: `Recebimento Fatura ${fat.codigo} — Autocentro Veículos`,
-                formaPagamento: "pix",
-                data: "2026-06-02T10:00:00.000Z",
-                operador: "Carlos Financeiro",
-                osId: null,
-                faturaId: fatId
-            });
-        }
-    }
-
-    if (mayOSsPartner2.length > 0) {
-        const fatId = fatIdCounter++;
-        const totalVal = mayOSsPartner2.reduce((sum, o) => sum + o.valor, 0);
-        let fat = {
-            id: fatId,
-            codigo: "FAT-" + String(fatId).padStart(4, '0'),
-            parceiroId: 2,
-            unidadeId: 1,
-            periodoInicio: "2026-05-15",
-            periodoFim: "2026-05-31",
-            valorTotal: totalVal,
-            ordensIds: mayOSsPartner2.map(o => o.id),
-            pago: true,
-            pagoEm: "2026-06-03T14:30:00.000Z",
-            criadoEm: "2026-06-01T09:00:00.000Z",
-            criadoPor: "Carlos Financeiro"
-        };
-        db.faturas.push(fat);
-        mayOSsPartner2.forEach(o => o.faturaId = fatId);
-
-        // Inject payment into June 3rd Cashier
-        const june3rdMatrizCaixa = db.caixa_diario.find(c => c.unidadeId === 1 && c.data === "2026-06-03");
-        if (june3rdMatrizCaixa) {
-            db.caixa_movimentos.push({
-                id: movIdCounter++,
-                caixaId: june3rdMatrizCaixa.id,
-                tipo: "entrada",
-                valor: totalVal,
-                descricao: `Recebimento Fatura ${fat.codigo} — Despachante Silva`,
-                formaPagamento: "pix",
-                data: "2026-06-03T14:30:00.000Z",
-                operador: "Carlos Financeiro",
-                osId: null,
-                faturaId: fatId
-            });
-        }
-    }
-
-    // Seed May Variable Accounts Payable (DETRAN consolidated tax)
-    const mayOSCountUnit1 = db.ordens_servico.filter(o => o.unidadeId === 1 && new Date(o.criadoEm) < new Date("2026-06-01") && o.status.startsWith("concluida")).length;
-    const mayOSCountUnit2 = db.ordens_servico.filter(o => o.unidadeId === 2 && new Date(o.criadoEm) < new Date("2026-06-01") && o.status.startsWith("concluida")).length;
-
-    db.contas_pagar.push(
-        { id: contaIdCounter++, unidadeId: 1, descricao: `Taxas DETRAN-SC — Consolidação Maio/2026`, tipo: "variavel", vencimento: "2026-06-10", valor: mayOSCountUnit1 * 27.00, pago: true, pagoEm: "2026-06-08", categoria: "Impostos / Taxas", fornecedor: "DETRAN-SC" },
-        { id: contaIdCounter++, unidadeId: 2, descricao: `Taxas DETRAN-SC — Consolidação Maio/2026`, tipo: "variavel", vencimento: "2026-06-10", valor: mayOSCountUnit2 * 27.00, pago: true, pagoEm: "2026-06-09", categoria: "Impostos / Taxas", fornecedor: "DETRAN-SC" }
-    );
-
-    // Auto-open today's cash drawer for testing if it's currently June 11, 2026 (based on meta)
-    const todayStr = "2026-06-11";
-    [1, 2].forEach(unitId => {
-        db.caixa_diario.push({
-            id: 1000 + unitId,
-            unidadeId: unitId,
-            data: todayStr,
-            status: "aberto",
-            abertoPor: "Ana Atendente",
-            fechadoPor: null,
-            saldoAbertura: 200.00,
-            saldoEspécieInformado: 0,
-            fechadoEm: null
-        });
+// Remove cópias locais deixadas por versões antigas (banco inteiro, dados de demonstração)
+function limparDadosLocaisAntigos() {
+    ['certive_db', 'certive_db_seeded', 'certive_simulado_reprovado', 'certive_reopened_v3'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) { /* modo privado */ }
     });
 }
+limparDadosLocaisAntigos();
 
 // Helper formatting functions
 function parseDividedPayment(obsText) {
@@ -984,8 +117,11 @@ function formatDateTimeBr(isoString) {
 }
 
 function renderMarkdown(text) {
-    if (window.marked && (typeof window.marked.parse === 'function' || typeof window.marked === 'function')) {
-        return typeof window.marked.parse === 'function' ? window.marked.parse(text) : window.marked(text);
+    // O texto do contrato leva dados digitados (nome, endereço...): o HTML gerado
+    // passa pelo DOMPurify. Sem ele, usa o conversor simples abaixo, que escapa tudo.
+    if (window.DOMPurify && window.marked && (typeof window.marked.parse === 'function' || typeof window.marked === 'function')) {
+        const html = typeof window.marked.parse === 'function' ? window.marked.parse(text || '') : window.marked(text || '');
+        return window.DOMPurify.sanitize(html);
     }
     
     // Fallback simple markdown parser to support offline use without throwing errors
@@ -1225,8 +361,30 @@ async function handleLogin(event) {
     }
 }
 
-async function handleLogout() {
-    logAudit("Logout", `Efetuou logout do sistema.`);
+// Encerra a sessão após um período sem uso (computador de balcão compartilhado)
+const LOGOUT_INATIVIDADE_MIN = 45;
+(function vigiarInatividade() {
+    let ultimoUso = Date.now();
+    const marcar = () => { ultimoUso = Date.now(); };
+    ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev => document.addEventListener(ev, marcar, { passive: true, capture: true }));
+    setInterval(() => {
+        if (!currentSession) return;
+        // Não derruba no meio da captura de fotos (vistoria em andamento)
+        if (document.getElementById('cautelar-camera-overlay')) return;
+        if (Date.now() - ultimoUso > LOGOUT_INATIVIDADE_MIN * 60000) {
+            ultimoUso = Date.now();
+            showToast("Sessão encerrada por inatividade.", "warning");
+            handleLogout(true);
+        }
+    }, 60000);
+})();
+
+async function handleLogout(porInatividade = false) {
+    // Alterações ainda não enviadas ao servidor se perderiam ao sair
+    let pendentes = 0;
+    try { pendentes = (JSON.parse(localStorage.getItem('certive_sync_queue') || '[]') || []).length; } catch (e) { /* ignora */ }
+    if (pendentes > 0 && !porInatividade && !confirm(`Há ${pendentes} alteração(ões) ainda não enviadas ao servidor. Se sair agora, elas podem se perder. Sair mesmo assim?`)) return;
+    logAudit("Logout", porInatividade ? `Sessão encerrada por inatividade.` : `Efetuou logout do sistema.`);
     try {
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
             await supabaseClient.auth.signOut();
@@ -1234,9 +392,17 @@ async function handleLogout() {
     } catch (e) {
         console.warn("Erro ao encerrar sessão no servidor:", e);
     }
-    sessionStorage.removeItem('certive_session');
+    // Nada do usuário anterior fica no navegador
+    try {
+        sessionStorage.clear();
+        ['certive_modoDiaReaberto', 'certive_dataDiaReaberto', 'certive_caixaReabertoId'].forEach(k => localStorage.removeItem(k));
+    } catch (e) { /* modo privado */ }
+    window.modoDiaReaberto = false;
+    window.dataDiaReaberto = null;
+    window.caixaReabertoId = null;
     currentSession = null;
-    checkSession();
+    // Descarta da memória os dados carregados (recarrega a página limpa)
+    location.reload();
 }
 
 function enforceOperatorPermissions() {
@@ -1267,7 +433,7 @@ function enforceOperatorPermissions() {
 
 function renderUnitSelectorOptions() {
     const select = document.getElementById('topbar-unit-select');
-    select.innerHTML = db.unidades.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+    select.innerHTML = db.unidades.map(u => `<option value="${u.id}">${escHtml(u.nome)}</option>`).join('');
 }
 
 function changeActiveUnit(unitId) {
@@ -1592,13 +758,13 @@ function renderAtualizacoes() {
                 </span>
             </div>
             <div class="panel-card-body">
-                <h4 style="margin: 0 0 6px 0; font-size: 16px;">${rel.titulo}</h4>
+                <h4 style="margin: 0 0 6px 0; font-size: 16px;">${escHtml(rel.titulo)}</h4>
                 <p style="margin: 0 0 18px 0; color: var(--text-secondary); max-width: 70ch;">${rel.resumo}</p>
 
                 ${rel.mudancas.map(m => `
                 <div style="border-left: 3px solid var(--border); padding: 0 0 0 14px; margin-bottom: 18px;">
                     <div style="font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px;">${m.area}</div>
-                    <div style="font-weight: 700; margin-bottom: 6px;">${m.titulo}</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">${escHtml(m.titulo)}</div>
                     <div style="color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; max-width: 74ch;">
                         <div style="margin-bottom: 6px;"><strong style="color: var(--text-primary);">O que mudou:</strong> ${m.oQueMudou}</div>
                         <div><strong style="color: var(--text-primary);">Como usar:</strong> ${m.comoUsar}</div>
@@ -1786,7 +952,7 @@ function loadPartnersDropdown() {
     // Ordenação alfabética obrigatória (Item B)
     const list = [...db.parceiros].sort((a, b) => a.nome.localeCompare(b.nome));
     select.innerHTML = '<option value="">Selecione o parceiro...</option>' + 
-        list.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        list.map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 }
 
 function loadPartnerServices(partnerId) {
@@ -1838,7 +1004,7 @@ function loadPartnerRecurringSolicitors(partnerId) {
     list.sort((a, b) => a.nome.localeCompare(b.nome));
 
     select.innerHTML = '<option value="">SELECIONE UM SOLICITANTE RECORRENTE...</option>' +
-        list.map(s => `<option value="${s.id}">${s.nome.toUpperCase()} (CPF/CNPJ: ${s.cpf})</option>`).join('');
+        list.map(s => `<option value="${s.id}">${s.nome.toUpperCase()} (CPF/CNPJ: ${escHtml(s.cpf)})</option>`).join('');
 
     group.style.display = 'block';
     btnDelete.style.display = 'none';
@@ -2329,15 +1495,15 @@ function renderOSPipeline() {
 
         return `
             <tr>
-                <td><strong style="color: var(--accent);">${os.numero}</strong></td>
+                <td><strong style="color: var(--accent);">${escHtml(os.numero)}</strong></td>
                 <td>${time}</td>
                 <td>
-                    <strong>${os.clienteNome}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${os.placa}</small>
+                    <strong>${escHtml(os.clienteNome)}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
-                <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase; font-size: 11px;">${escHtml(os.formaPagamento)}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
@@ -2404,9 +1570,9 @@ function openConcludeVistoriaModal(osId) {
     
     document.getElementById('detalhes-os-body').innerHTML = `
         <div style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
-            <h4 style="font-size: 14px; margin-bottom: 6px;">Veículo Placa: <strong>${os.placa}</strong></h4>
-            <p style="font-size: 12px; color: var(--text-secondary);">${os.servicoNome}</p>
-            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Cliente: ${os.clienteNome}</p>
+            <h4 style="font-size: 14px; margin-bottom: 6px;">Veículo Placa: <strong>${escHtml(os.placa)}</strong></h4>
+            <p style="font-size: 12px; color: var(--text-secondary);">${escHtml(os.servicoNome)}</p>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Cliente: ${escHtml(os.clienteNome)}</p>
         </div>
         
         ${questionHtml}
@@ -2524,7 +1690,7 @@ function openOSDetailsModal(id) {
         <div class="timeline">
             <div class="timeline-item done">
                 <div class="tl-title">Ficha Registrada</div>
-                <div class="tl-time">${formatDateTimeBr(os.criadoEm)} por ${os.criadoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.criadoEm)} por ${escHtml(os.criadoPor)}</div>
             </div>
     `;
 
@@ -2550,7 +1716,7 @@ function openOSDetailsModal(id) {
         timelineHtml += `
             <div class="timeline-item done">
                 <div class="tl-title">Laudo emitido: ${os.status === 'concluida_aprovada' ? 'APROVADO' : 'REPROVADO'}</div>
-                <div class="tl-time">${formatDateTimeBr(os.finalizadoEm)} por ${os.finalizadoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.finalizadoEm)} por ${escHtml(os.finalizadoPor)}</div>
             </div>
         `;
     }
@@ -2559,7 +1725,7 @@ function openOSDetailsModal(id) {
         timelineHtml += `
             <div class="timeline-item cancelled">
                 <div class="tl-title">O.S. Cancelada</div>
-                <div class="tl-time">${formatDateTimeBr(os.canceladoEm)} por ${os.canceladoPor}</div>
+                <div class="tl-time">${formatDateTimeBr(os.canceladoEm)} por ${escHtml(os.canceladoPor)}</div>
             </div>
         `;
     }
@@ -2578,7 +1744,7 @@ function openOSDetailsModal(id) {
                 if (rechecked) {
                     recheckBannerHtml = `
                         <div style="background: var(--success-bg); border: 1px solid var(--success); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; color: var(--text-primary); font-size: 13px;">
-                            <i class="ri-checkbox-circle-line"></i> Reapresentação já efetuada na ordem <strong>${rechecked.numero}</strong>.
+                            <i class="ri-checkbox-circle-line"></i> Reapresentação já efetuada na ordem <strong>${escHtml(rechecked.numero)}</strong>.
                         </div>
                     `;
                 } else {
@@ -2611,19 +1777,19 @@ function openOSDetailsModal(id) {
     document.getElementById('detalhes-os-body').innerHTML = `
         ${recheckBannerHtml}
         <div class="detail-grid">
-            <div class="detail-item"><label>Número da OS</label><strong>${os.numero}</strong></div>
+            <div class="detail-item"><label>Número da OS</label><strong>${escHtml(os.numero)}</strong></div>
             <div class="detail-item"><label>Status Atual</label><span style="font-weight: 700; color: var(--accent);">${statusMap[os.status]}</span></div>
             <div class="detail-item"><label>Tipo de Cliente</label><span>${os.clienteTipo.toUpperCase()}</span></div>
-            <div class="detail-item"><label>Placa do Veículo</label><strong>${os.placa}</strong></div>
-            <div class="detail-item"><label>Renavam</label><span>${os.renavam}</span></div>
-            <div class="detail-item"><label>Solicitante</label><span>${os.clienteNome}</span></div>
-            <div class="detail-item"><label>CPF / CNPJ</label><span>${os.clienteCpfCnpj}</span></div>
-            <div class="detail-item"><label>Celular</label><span>${os.clienteCelular}</span></div>
-            <div class="detail-item"><label>Serviço Executado</label><span>${os.servicoNome}</span></div>
+            <div class="detail-item"><label>Placa do Veículo</label><strong>${escHtml(os.placa)}</strong></div>
+            <div class="detail-item"><label>Renavam</label><span>${escHtml(os.renavam)}</span></div>
+            <div class="detail-item"><label>Solicitante</label><span>${escHtml(os.clienteNome)}</span></div>
+            <div class="detail-item"><label>CPF / CNPJ</label><span>${escHtml(os.clienteCpfCnpj)}</span></div>
+            <div class="detail-item"><label>Celular</label><span>${escHtml(os.clienteCelular)}</span></div>
+            <div class="detail-item"><label>Serviço Executado</label><span>${escHtml(os.servicoNome)}</span></div>
             <div class="detail-item"><label>Valor Final</label><strong style="color: var(--success);">${formatCurrency(os.valor)}</strong></div>
             <div class="detail-item"><label>Cobrança</label><span>${cobrancaLabel}</span></div>
             <div class="detail-item"><label>DETRAN-SC Registrada</label><span>${os.detranRegistrado ? '🟢 Registrada' : '🔴 Não Registrada'}</span></div>
-            <div class="detail-item"><label>Status NFS-e</label><span style="font-weight: 700; color: ${os.statusNfse === 'Emitida' ? 'var(--success)' : (os.statusNfse === 'Pendente de emissão' ? 'var(--warning)' : 'var(--text-secondary)')};">${os.statusNfse || 'Não solicitada'}</span></div>
+            <div class="detail-item"><label>Status NFS-e</label><span style="font-weight: 700; color: ${os.statusNfse === 'Emitida' ? 'var(--success)' : (os.statusNfse === 'Pendente de emissão' ? 'var(--warning)' : 'var(--text-secondary)')};">${escHtml(os.statusNfse || 'Não solicitada')}</span></div>
             <div class="detail-item"><label>Detalhes NFS-e</label><span>${os.numeroNfse ? `Nº ${os.numeroNfse} (${formatDateBr(os.dataNfse)})` : '—'}</span></div>
             <div class="detail-item" style="grid-column: span 2;"><label>Observações do Veículo (Modelo, Ano, Cor)</label><span>${removeDividedPaymentTag(os.observacoes) || '—'}</span></div>
         </div>
@@ -3228,15 +2394,15 @@ function renderHistorico() {
 
         return `
             <tr>
-                <td><strong style="color: var(--accent);">${os.numero}</strong></td>
+                <td><strong style="color: var(--accent);">${escHtml(os.numero)}</strong></td>
                 <td>${date} ${time}</td>
                 <td>
-                    <strong>${os.clienteNome}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${os.placa}</small>
+                    <strong>${escHtml(os.clienteNome)}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
-                <td><span style="text-transform: uppercase; font-size: 11px;">${os.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase; font-size: 11px;">${escHtml(os.formaPagamento)}</span></td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right; padding-right: 20px;">
                     <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
@@ -4295,7 +3461,7 @@ async function renderCaixaPage() {
     // Populate Partner Dropdown in Cash Inflow
     const partnerSelect = document.getElementById('mov-parceiro-select');
     partnerSelect.innerHTML = '<option value="">Selecione...</option>' + 
-        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 
     if (activeCaixa) {
         statusBadgeContainer.innerHTML = `<span class="badge badge-done"><span class="badge-dot"></span> Caixa Aberto</span>`;
@@ -4496,10 +3662,10 @@ function renderCaixaMovimentos(activeCaixa) {
             <tr>
                 <td>${time}</td>
                 <td>
-                    <strong>${m.descricao}</strong>
+                    <strong>${escHtml(m.descricao)}</strong>
                     ${isSystem ? `<br><small style="color: var(--accent);">Integrado pelo Sistema</small>` : ''}
                 </td>
-                <td><span style="text-transform: uppercase;">${m.formaPagamento}</span></td>
+                <td><span style="text-transform: uppercase;">${escHtml(m.formaPagamento)}</span></td>
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${valEntrada}</td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSaida}</td>
                 <td>
@@ -4557,7 +3723,7 @@ function adjustMovNatureza(natureza) {
         const falta = Number(c.valor) - jaPago;
         const venc = c.vencimento ? String(c.vencimento).substring(8, 10) + '/' + String(c.vencimento).substring(5, 7) : '';
         const parcial = jaPago > 0 ? ` — já pago ${formatCurrency(jaPago)}, falta ${formatCurrency(falta)}` : '';
-        return `<option value="${c.id}">${c.descricao} (venc. ${venc}) — ${formatCurrency(c.valor)}${parcial}</option>`;
+        return `<option value="${c.id}">${escHtml(c.descricao)} (venc. ${venc}) — ${formatCurrency(c.valor)}${parcial}</option>`;
     }).join('');
 
     if (abertas.length === 0) {
@@ -5335,7 +4501,7 @@ function renderPendencias() {
             <td style="padding: 10px 14px; white-space: nowrap;">
                 <span style="font-size: 11px; font-weight: 700; color: ${cor};">${ROTULO_PENDENCIA[p.tipo] || p.tipo}</span>
             </td>
-            <td style="padding: 10px 14px;">${p.descricao || ''}</td>
+            <td style="padding: 10px 14px;">${escHtml(p.descricao || '')}</td>
             <td style="padding: 10px 14px; white-space: nowrap;">${det}</td>
             <td style="padding: 10px 14px; white-space: nowrap;">${p.detectadaPor || '—'}</td>
             <td style="padding: 10px 14px; text-align: center; font-weight: ${reincidente ? '800' : '400'}; color: ${reincidente ? 'var(--danger)' : 'inherit'};">
@@ -5962,10 +5128,10 @@ function printCaixaById(caixaId) {
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
-                <td style="padding: 6px;">${m.descricao}${obsText}</td>
+                <td style="padding: 6px;">${escHtml(m.descricao)}${obsText}</td>
                 <td style="padding: 6px;"><strong>${plate}</strong></td>
                 <td style="padding: 6px;">${clientType}</td>
-                <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
+                <td style="padding: 6px; text-transform: uppercase;">${escHtml(m.formaPagamento)}</td>
                 <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(m.valor)}</td>
             </tr>
         `;
@@ -5981,8 +5147,8 @@ function printCaixaById(caixaId) {
         return `
             <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
                 <td style="padding: 6px;">${time}</td>
-                <td style="padding: 6px;">${m.descricao}</td>
-                <td style="padding: 6px; text-transform: uppercase;">${m.formaPagamento}</td>
+                <td style="padding: 6px;">${escHtml(m.descricao)}</td>
+                <td style="padding: 6px; text-transform: uppercase;">${escHtml(m.formaPagamento)}</td>
                 <td style="padding: 6px; text-align: right; color: #ef4444; font-weight: 600;">${formatCurrency(m.valor)}</td>
             </tr>
         `;
@@ -6004,8 +5170,8 @@ function printCaixaById(caixaId) {
 
         <div style="margin-bottom: 24px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; border-bottom: 1px solid #000; padding-bottom: 16px;">
             <div>
-                <strong>Unidade Operacional:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Unidade Operacional:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Data de Movimentação:</strong> ${formatDateBr(c.data)}
             </div>
             <div>
@@ -6205,7 +5371,7 @@ function renderFaturamentoPage() {
 function loadFatPartnersFilter() {
     const select = document.getElementById('fat-parceiro-filter');
     select.innerHTML = '<option value="">Todos os parceiros...</option>' + 
-        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+        db.parceiros.filter(p => p.usaFaturamento).map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
 }
 
 function getUnbilledOSs() {
@@ -6248,16 +5414,16 @@ function renderFatPendentes() {
         return `
             <tr>
                 <td><input type="checkbox" name="fat-select-os" value="${o.id}" onchange="updateFatSelectedSummary()"></td>
-                <td><strong>${o.numero}</strong></td>
+                <td><strong>${escHtml(o.numero)}</strong></td>
                 <td>${formatDateTimeBr(o.criadoEm)}</td>
                 <td>${partner ? partner.nome : '—'}</td>
                 <td>
-                    <strong>${o.placa}</strong><br>
+                    <strong>${escHtml(o.placa)}</strong><br>
                     <small style="color: var(--text-secondary); font-weight: 500;">${removeDividedPaymentTag(o.observacoes) || '—'}</small>
                 </td>
                 <td>${o.servicoNome.split(' — ')[0]}</td>
                 <td style="text-align: right; color: var(--success); font-weight: 600;">${formatCurrency(o.valor)}</td>
-                <td>${o.criadoPor}</td>
+                <td>${escHtml(o.criadoPor)}</td>
             </tr>
         `;
     }).join('');
@@ -6738,7 +5904,7 @@ function popularFiltroParceirosFaturas(faturasDaUnidade) {
         .sort((a, b) => a.nome.localeCompare(b.nome));
     const atual = el.value;
     const novo = '<option value="">Todos</option>' +
-        opcoes.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+        opcoes.map(o => `<option value="${o.id}">${escHtml(o.nome)}</option>`).join('');
     if (el.innerHTML !== novo) {
         el.innerHTML = novo;
         el.value = atual;   // preserva a escolha ao re-renderizar
@@ -6865,14 +6031,14 @@ function renderFatFaturas() {
 
         return `
             <tr>
-                <td><strong>${f.codigo}</strong></td>
+                <td><strong>${escHtml(f.codigo)}</strong></td>
                 <td>${partner ? partner.nome : '<span style="color:var(--text-muted);">Parceiro removido</span>'}</td>
                 <td style="white-space: nowrap;">
                     ${formatDateBr(f.periodoInicio)}${f.periodoInicio !== f.periodoFim ? ' a ' + formatDateBr(f.periodoFim) : ''}
                 </td>
                 <td style="white-space: nowrap;">
                     ${formatDateBr(f.criadoEm)}
-                    <div style="font-size: 11px; color: var(--text-muted);">${f.criadoPor || '—'}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">${escHtml(f.criadoPor || '—')}</div>
                 </td>
                 <td style="text-align: center; font-weight: 600;">${f.ordensIds.length}</td>
                 <td style="text-align: right; font-weight: 700; color: ${f.pago ? 'var(--success)' : 'var(--text-primary)'};">${formatCurrency(f.valorTotal)}</td>
@@ -7156,7 +6322,7 @@ function renderBaixasPendentes() {
                 <td style="padding: 10px 14px;"><strong>${inv ? inv.codigo : ('#' + b.faturaId)}</strong></td>
                 <td style="padding: 10px 14px; white-space: nowrap;">${formatDateBr(b.dataPagamento)}</td>
                 <td style="padding: 10px 14px; text-align: right; font-weight: 600;">${formatCurrency(b.valor)}</td>
-                <td style="padding: 10px 14px;">${b.criadoPor || '—'}</td>
+                <td style="padding: 10px 14px;">${escHtml(b.criadoPor || '—')}</td>
                 <td style="padding: 10px 14px; text-align: right;">${acao}</td>
             </tr>
         `;
@@ -7224,10 +6390,10 @@ function printInvoiceById(invoiceId) {
 
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
-            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
-            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
+            <td style="padding: 6px;"><strong>${escHtml(o.numero)}</strong></td>
+            <td style="padding: 6px;"><strong>${escHtml(o.placa)}</strong></td>
+            <td style="padding: 6px;">${escHtml(o.veiculoMarcaModelo || '—')}</td>
+            <td style="padding: 6px; text-align: center;">${escHtml(o.veiculoAno || '—')}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -7247,26 +6413,26 @@ function printInvoiceById(invoiceId) {
                     <p style="font-size: 10px; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Faturamento de Parceiros — Demonstrativo de Cobrança</p>
                 </div>
             </div>
-            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px; color:${CERTIVE_NAVY}; border-color:${CERTIVE_NAVY};">FATURA ${f.codigo}</div>
+            <div class="print-logo-dummy" style="font-size: 16px; padding: 6px 12px; color:${CERTIVE_NAVY}; border-color:${CERTIVE_NAVY};">FATURA ${escHtml(f.codigo)}</div>
         </div>
 
         <div style="margin-bottom: 24px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; border-bottom: 1px solid #000; padding-bottom: 16px;">
             <div>
-                <strong>Prestador:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Prestador:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
             </div>
             <div>
-                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
-                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
-                <strong>Responsável:</strong> ${partner.responsavel || '—'}<br>
-                <strong>Contato:</strong> ${partner.telefone}
+                <strong>Tomador (Parceiro):</strong> ${escHtml(partner.nome)}<br>
+                <strong>CPF/CNPJ:</strong> ${escHtml(partner.cnpj)}<br>
+                <strong>Responsável:</strong> ${escHtml(partner.responsavel || '—')}<br>
+                <strong>Contato:</strong> ${escHtml(partner.telefone)}
             </div>
         </div>
 
         <div style="margin-bottom: 20px; font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
-                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${escHtml(f.criadoPor)}<br>
                 <strong>Status de Pagamento:</strong> ${f.pago ? `PAGO EM ${formatDateBr(f.pagoEm)}` : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right;">
@@ -7548,8 +6714,8 @@ function renderContasGerais() {
 
         const obsHtml = c.observacoes
             ? `<br><small style="color: var(--text-secondary); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px;">
-                <i class="ri-barcode-line" style="font-size: 12px;"></i> ${c.observacoes}
-                <button onclick="copyToClipboard('${c.observacoes}')" title="Copiar código de barras" style="background: none; border: none; padding: 2px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; font-size: 11px;">
+                <i class="ri-barcode-line" style="font-size: 12px;"></i> ${escHtml(c.observacoes)}
+                <button onclick="copyToClipboard('${escHtml(c.observacoes)}')" title="Copiar código de barras" style="background: none; border: none; padding: 2px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; font-size: 11px;">
                     <i class="ri-file-copy-line"></i>
                 </button>
                </small>`
@@ -7573,12 +6739,12 @@ function renderContasGerais() {
                 <td><span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap;">${mesLabelPt(competenciaMes(c))}</span></td>
                 <td><strong>${formatDateBr(c.vencimento)}</strong></td>
                 <td>
-                    <strong>${c.descricao}</strong>
+                    <strong>${escHtml(c.descricao)}</strong>
                     ${obsHtml}
-                    ${(c.fornecedor || c.categoria) ? `<br><small style="color:var(--text-muted); font-size:11px;">${c.fornecedor || ''}${(c.fornecedor && c.categoria) ? ' · ' : ''}${c.categoria || ''}</small>` : ''}
+                    ${(c.fornecedor || c.categoria) ? `<br><small style="color:var(--text-muted); font-size:11px;">${escHtml(c.fornecedor || '')}${(c.fornecedor && c.categoria) ? ' · ' : ''}${escHtml(c.categoria || '')}</small>` : ''}
                 </td>
                 <td><span class="badge badge-progress">${(c.tipo || '').toUpperCase()}</span></td>
-                <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${c.criadoPor || 'Sistema'}</span></td>
+                <td><span style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">${escHtml(c.criadoPor || 'Sistema')}</span></td>
                 <td style="text-align: right; color: var(--danger); font-weight: 600;">${formatCurrency(c.valor)}</td>
                 <td>${statusBadge}</td>
                 <td style="text-align: center;">${anexoHtml}</td>
@@ -7809,7 +6975,7 @@ function payExpense(id) {
     document.getElementById('detalhes-os-body').innerHTML = `
         <div class="form-group" style="margin-bottom: 16px;">
             <label style="font-weight:600;">Descrição da Despesa</label>
-            <input type="text" value="${expense.descricao}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
+            <input type="text" value="${escHtml(expense.descricao)}" readonly style="width:100%; padding:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius-sm);">
         </div>
         <div class="form-group" style="margin-bottom: 16px;">
             <label style="font-weight:600;">Valor</label>
@@ -8148,8 +7314,8 @@ function renderAssessorTab() {
             
             return `
                 <tr>
-                    <td><strong>${v.fornecedor}</strong></td>
-                    <td><span class="badge badge-secondary" style="font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);">${v.categoria}</span></td>
+                    <td><strong>${escHtml(v.fornecedor)}</strong></td>
+                    <td><span class="badge badge-secondary" style="font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);">${escHtml(v.categoria)}</span></td>
                     <td style="text-align: right; font-weight: 600;">${formatCurrency(v.gastoAtual)}</td>
                     <td style="text-align: right; ${varStyle}">${varSign}${formatCurrency(v.diffNominal)}${pctText}</td>
                 </tr>
@@ -8262,7 +7428,7 @@ function renderAiInsights() {
         <div style="color: var(--text-primary); font-size: 13px;">
             <p style="margin-bottom: 12px; font-weight: 500;">
                 <i class="ri-user-smile-line" style="color: var(--accent); font-size: 16px; margin-right: 6px; vertical-align: middle;"></i> 
-                Olá, Ricardo! Analisei os lançamentos de contas a pagar da unidade <strong>${db.unidades.find(u => u.id === activeUnitId)?.nome || 'Unidade'}</strong> e aqui estão as minhas observações inteligentes:
+                Olá, Ricardo! Analisei os lançamentos de contas a pagar da unidade <strong>${escHtml(db.unidades.find(u => u.id === activeUnitId)?.nome || 'Unidade')}</strong> e aqui estão as minhas observações inteligentes:
             </p>
             <ul style="list-style-type: none; padding-left: 0; display: flex; flex-direction: column; gap: 10px;">
     `;
@@ -8275,7 +7441,7 @@ function renderAiInsights() {
             insightsHtml += `
                 <li style="background: rgba(239, 68, 68, 0.05); border-left: 4px solid var(--danger); padding: 10px 14px; border-radius: 0 6px 6px 0;">
                     <strong style="color: var(--danger);"><i class="ri-error-warning-fill"></i> ALERTA DE ORÇAMENTO ESTOURADO:</strong> 
-                    A categoria <strong>${item.categoria}</strong> atingiu <strong>${formatCurrency(item.gasto)}</strong>, superando a meta definida de <strong>${formatCurrency(item.meta)}</strong> em <strong>${formatCurrency(item.excesso)}</strong> (+${((item.excesso/item.meta)*100).toFixed(1)}%). 
+                    A categoria <strong>${escHtml(item.categoria)}</strong> atingiu <strong>${formatCurrency(item.gasto)}</strong>, superando a meta definida de <strong>${formatCurrency(item.meta)}</strong> em <strong>${formatCurrency(item.excesso)}</strong> (+${((item.excesso/item.meta)*100).toFixed(1)}%). 
                     <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Revise os contratos de fornecedores ativos nessa categoria e verifique se houve lançamentos duplicados ou pontuais não planejados neste mês.</div>
                 </li>
             `;
@@ -8288,7 +7454,7 @@ function renderAiInsights() {
             insightsHtml += `
                 <li style="background: rgba(212, 160, 23, 0.05); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0;">
                     <strong style="color: var(--accent);"><i class="ri-pulse-line"></i> AUMENTO DE CUSTOS:</strong> 
-                    Os gastos na categoria <strong>${item.categoria}</strong> subiram <strong>${item.aumentoPct.toFixed(1)}%</strong> em relação ao mês anterior (de <strong>${formatCurrency(item.anterior)}</strong> para <strong>${formatCurrency(item.atual)}</strong>, uma alta de <strong>${formatCurrency(item.aumentoNominal)}</strong>).
+                    Os gastos na categoria <strong>${escHtml(item.categoria)}</strong> subiram <strong>${item.aumentoPct.toFixed(1)}%</strong> em relação ao mês anterior (de <strong>${formatCurrency(item.anterior)}</strong> para <strong>${formatCurrency(item.atual)}</strong>, uma alta de <strong>${formatCurrency(item.aumentoNominal)}</strong>).
                     <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Recomendação: Negocie prazos ou tarifas com fornecedores para mitigar essa escalada. Priorize auditoria de consumo caso envolva serviços de utilidades públicas (Água/Luz/Internet).</div>
                 </li>
             `;
@@ -8313,7 +7479,7 @@ function renderAiInsights() {
         insightsHtml += `
             <li style="background: rgba(59, 130, 246, 0.05); border-left: 4px solid #3b82f6; padding: 10px 14px; border-radius: 0 6px 6px 0;">
                 <strong style="color: #3b82f6;"><i class="ri-information-fill"></i> DETRAN-SC CONSOLIDAÇÃO:</strong> 
-                Identifiquei o lançamento de despesa variável <strong>${detranExpense.descricao}</strong> no valor de <strong>${formatCurrency(detranExpense.valor)}</strong>.
+                Identifiquei o lançamento de despesa variável <strong>${escHtml(detranExpense.descricao)}</strong> no valor de <strong>${formatCurrency(detranExpense.valor)}</strong>.
                 <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">Nota: Esta despesa reflete as taxas cobradas pelo portal DETRAN-SC. Certifique-se de que os valores foram devidamente auditados contra o faturamento total antes do pagamento final.</div>
             </li>
         `;
@@ -8795,7 +7961,7 @@ function renderBI() {
                     const badgeBg = ap.margin > 0.01 ? 'var(--success-bg)' : (ap.margin < -0.01 ? 'var(--danger-bg)' : 'var(--warning-bg)');
                     return `
                         <tr>
-                            <td><strong>${ap.partner.nome}</strong></td>
+                            <td><strong>${escHtml(ap.partner.nome)}</strong></td>
                             <td style="text-align: center;">${ap.count}</td>
                             <td style="text-align: right;">${formatCurrency(ap.avgRevenue)}</td>
                             <td style="text-align: right; color: var(--text-secondary);">${formatCurrency(avgCostPerOS)}</td>
@@ -8812,7 +7978,7 @@ function renderBI() {
             if (selectPartner) {
                 const activeList = db.parceiros.filter(p => nonCancelledOSs.some(o => o.parceiroId === p.id));
                 const currentSel = selectPartner.value;
-                selectPartner.innerHTML = activeList.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+                selectPartner.innerHTML = activeList.map(p => `<option value="${p.id}">${escHtml(p.nome)}</option>`).join('');
                 if (activeList.length === 0) {
                     selectPartner.innerHTML = '<option value="">Sem parceiros ativos</option>';
                 } else {
@@ -9340,7 +8506,7 @@ function renderConfigPrecos() {
 
     precosContainer.innerHTML = db.servicos.map(s => `
         <div class="form-group">
-            <label>${s.nome}</label>
+            <label>${escHtml(s.nome)}</label>
             <input type="number" step="0.01" name="cfg-svc-${s.id}" value="${s.precoBalcao.toFixed(2)}" required>
         </div>
     `).join('');
@@ -9491,13 +8657,13 @@ function renderConfigParceiros() {
         tbody.innerHTML = sortedPartners.map(p => `
             <tr>
                 <td>
-                    <strong>${p.nome}</strong>
+                    <strong>${escHtml(p.nome)}</strong>
                     ${p.parceiroShopping ? '<span class="badge badge-waiting" style="font-size: 10px; padding: 2px 6px; margin-left: 6px;">Shopping</span>' : ''}
                 </td>
-                <td>${p.cnpj}</td>
+                <td>${escHtml(p.cnpj)}</td>
                 <td>
-                    <strong>${p.responsavel || '—'}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">TEL: ${p.telefone}</small>
+                    <strong>${escHtml(p.responsavel || '—')}</strong><br>
+                    <small style="color: var(--text-secondary); font-weight: 500;">TEL: ${escHtml(p.telefone)}</small>
                 </td>
                 <td>${p.usaFaturamento ? '🟢 Sim (Mensal)' : '🔴 Não (Balcão)'}</td>
                 <td style="text-align: right; padding-right: 20px;">
@@ -9648,7 +8814,7 @@ function openEditPartnerMatrix(partnerId) {
         const currentPrice = partner.tabelaPrecos[s.id] || s.precoBalcao;
         return `
             <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 8px 0;">${s.nome}</td>
+                <td style="padding: 8px 0;">${escHtml(s.nome)}</td>
                 <td style="text-align: right; padding: 8px 0;">
                     <input type="number" step="0.01" id="edit-matrix-price-${s.id}" value="${currentPrice.toFixed(2)}" style="width: 100px; padding: 4px 8px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); text-align: right;">
                 </td>
@@ -9659,7 +8825,7 @@ function openEditPartnerMatrix(partnerId) {
     const bodyHtml = `
         <div class="form-group">
             <label>Parceiro Conveniado</label>
-            <strong>${partner.nome}</strong>
+            <strong>${escHtml(partner.nome)}</strong>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
@@ -9728,8 +8894,8 @@ function renderConfigOperadores() {
         const unit = db.unidades.find(u => u.id === o.unidadeId);
         return `
             <tr>
-                <td><strong>${o.login}</strong></td>
-                <td>${o.nome}</td>
+                <td><strong>${escHtml(o.login)}</strong></td>
+                <td>${escHtml(o.nome)}</td>
                 <td>${unit ? (unit.nome.split(' — ')[1] || unit.nome) : '—'}</td>
                 <td>${o.ativo ? '🟢 Ativo' : '🔴 Inativo'}</td>
                 <td style="text-align: center;">
@@ -9743,8 +8909,8 @@ function renderConfigOperadores() {
     const tbodyUnits = document.getElementById('cfg-units-tbody');
     tbodyUnits.innerHTML = db.unidades.map(u => `
         <tr>
-            <td><strong>${u.nome}</strong></td>
-            <td>${u.endereco}</td>
+            <td><strong>${escHtml(u.nome)}</strong></td>
+            <td>${escHtml(u.endereco)}</td>
             <td style="text-align: center;">
                 <button class="btn btn-secondary btn-sm" onclick="abrirEdicaoUnidade(${u.id})" style="padding: 2px 6px; font-size: 11px;"><i class="ri-edit-line"></i> Editar</button>
             </td>
@@ -10186,6 +9352,19 @@ function maskCelular(v) {
 // ==========================================
 // INITIALIZATION
 // ==========================================
+function mostrarFalhaCarregamento() {
+    const overlay = document.getElementById('app-loading-overlay') || document.body;
+    const caixa = document.createElement('div');
+    caixa.id = 'falha-carregamento';
+    caixa.style.cssText = 'position:fixed;inset:0;z-index:200000;background:#080d1a;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Outfit,Arial,sans-serif';
+    caixa.innerHTML = `<div style="max-width:440px;text-align:center;color:#cbd5e1">
+        <h2 style="color:#f8fafc;margin:0 0 12px">Não foi possível carregar o sistema</h2>
+        <p style="margin:0 0 20px;line-height:1.5">A conexão com o servidor falhou. Nada foi alterado. Verifique a internet e tente de novo.</p>
+        <button onclick="location.reload()" style="padding:12px 24px;background:#d4a017;color:#050811;border:none;border-radius:6px;font-weight:700;cursor:pointer">Tentar novamente</button></div>`;
+    document.body.appendChild(caixa);
+    if (overlay && overlay.id === 'app-loading-overlay') overlay.style.display = 'none';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize DB Schema & Seeds
     let dbLoaded = false;
@@ -10209,9 +9388,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     if (!dbLoaded) {
-        console.warn("⚠️ Supabase indisponível ou falhou ao carregar. Inicializando base offline local.");
-        window.useSupabase = false;
-        initDatabase();
+        // Sem os dados do banco o sistema NÃO segue: antes caía numa base local com
+        // dados fictícios, e o que se registrava nela nunca chegava ao servidor.
+        console.error("Não foi possível carregar os dados do sistema.");
+        mostrarFalhaCarregamento();
+        return;
     } else {
         console.log("🚀 Sistema carregado com sucesso via Supabase!");
     }
@@ -10258,163 +9439,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Hook especial para laudo teste de demonstração
-    // ⚠️ DESATIVADO POR SEGURANÇA: este bloco fazia auto-login como administrador
-    // (acesso total) apenas com ?test_laudo=true na URL, sem senha. Mantido inerte.
-    const urlParams = new URLSearchParams(window.location.search);
-    if (false && urlParams.get('test_laudo') === 'true') {
-        // Auto-login como Ricardo Administrador se não logado
-        sessionStorage.setItem('certive_session', JSON.stringify({
-            id: 1,
-            nome: "Ricardo Administrador (Teste)",
-            login: "admin",
-            funcao: "Gerente Geral",
-            unidadeId: 1,
-            permissoes: ["abertura_os", "caixa", "faturamento", "contas", "cadastros", "bi", "registrar_cautelar", "finalizar_cautelar", "cautelar_administrar"]
-        }));
-        currentSession = JSON.parse(sessionStorage.getItem('certive_session'));
-        const loginOv = document.getElementById('login-overlay');
-        if (loginOv) loginOv.classList.add('hidden');
-        
-        const usernameEl = document.getElementById('topbar-username');
-        if (usernameEl) usernameEl.textContent = currentSession.nome;
-        
-        const userroleEl = document.getElementById('topbar-userrole');
-        if (userroleEl) userroleEl.textContent = currentSession.funcao;
-        
-        // Criar laudo teste se não existir
-        const testCautelarId = 999;
-        const testOsId = 9999;
-        
-        // Remove antigo se existir para atualizar fotos/valores
-        db.ordens_servico = db.ordens_servico.filter(o => o.id !== testOsId);
-        db.cautelares = db.cautelares.filter(c => c.id !== testCautelarId);
-        db.cautelares_secoes = db.cautelares_secoes.filter(s => s.cautelarId !== testCautelarId);
-        db.cautelares_fotos = db.cautelares_fotos.filter(f => f.secaoId !== 10999 && f.secaoId !== 20999 && f.secaoId !== 30999 && f.secaoId !== 40999 && f.secaoId !== 50999 && f.secaoId !== 60999 && f.secaoId !== 70999 && f.secaoId !== 80999);
-
-        // Injeta OS Teste
-        db.ordens_servico.push({
-            id: testOsId,
-            numero: "OS-9999",
-            criadoEm: new Date().toISOString(),
-            criadoPor: "Ricardo Administrador",
-            unidadeId: 1,
-            clienteTipo: "parceiro",
-            parceiroId: 1,
-            clienteNome: "TOYOTA COROLLA XEI 2.0",
-            clienteCpfCnpj: "45.890.122/0001-08",
-            clienteCelular: "(48) 99999-9999",
-            placa: "ATO-0I28",
-            renavam: "9BRB03HE0L2567890",
-            servicoId: 4,
-            servicoNome: "VISTORIA CAUTELAR",
-            valor: 350.00,
-            observacoes: "Corolla Prata Teste",
-            pago: true,
-            formaPagamento: "pix",
-            docVeiculoApresentado: true,
-            docIdentificacaoApresentado: true,
-            status: "concluida_aprovada",
-            finalizadoEm: new Date().toISOString(),
-            finalizadoPor: "Ricardo Administrador"
-        });
-
-        // Injeta Cautelar Teste
-        db.cautelares.push({
-            id: testCautelarId,
-            osId: testOsId,
-            dossieNumero: "CV-2026-070201",
-            status: "concluida",
-            vistoriadorId: 1,
-            finalizadoPorId: 1,
-            dataHoraInicio: new Date().toISOString(),
-            dataHoraEnvio: new Date().toISOString(),
-            dataHoraFinalizacao: new Date().toISOString(),
-            parecerConsolidado: "conforme",
-            parecerTexto: "Laudo demonstrativo preenchido.",
-            hashLaudo: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-            parecerFinal: "conforme"
-        });
-
-        // Injeta Seções Teste
-        db.cautelares_secoes.push({ id: 10999, cautelarId: testCautelarId, numeroSecao: 1, status: "completa", dadosJson: { quilometragem: "79.424", estadoConservacao: "excelente", combustivel: "ALCOOL / GASOLINA" } });
-        db.cautelares_secoes.push({ id: 20999, cautelarId: testCautelarId, numeroSecao: 2, status: "completa", dadosJson: { chassiLido: "9BRB03HE0L2567890", motorLido: "3ZR-FAE L256789" } });
-        db.cautelares_secoes.push({ id: 30999, cautelarId: testCautelarId, numeroSecao: 3, status: "completa", dadosJson: { parecerEstrutural: "conforme", observacao: "Não foram identificados sinais de sinistro, corte estrutural ou soldas." } });
-        db.cautelares_secoes.push({ id: 40999, cautelarId: testCautelarId, numeroSecao: 4, status: "completa", dadosJson: { painel_0: "112", painel_1: "118", painel_2: "142", painel_3: "135", painel_4: "138", painel_5: "108", painel_6: "126", painel_7: "248", painel_8: "236", painel_9: "122", painel_10: "115" } });
-        db.cautelares_secoes.push({ id: 50999, cautelarId: testCautelarId, numeroSecao: 5, status: "completa", dadosJson: {} });
-        db.cautelares_secoes.push({ id: 60999, cautelarId: testCautelarId, numeroSecao: 6, status: "completa", dadosJson: { reparoMotor: "nao", corMotorOk: "sim" } });
-        db.cautelares_secoes.push({ id: 70999, cautelarId: testCautelarId, numeroSecao: 7, status: "completa", dadosJson: { intervencaoQuadros: "nao", conservacaoInterior: "excelente" } });
-        db.cautelares_secoes.push({ id: 80999, cautelarId: testCautelarId, numeroSecao: 8, status: "completa", dadosJson: { signatureBase64: "" } });
-
-        // Injeta Fotos Teste
-        db.cautelares_fotos.push({ id: 100099, secaoId: 10999, slotCodigo: "frente_45_dir", url_thumb: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100199, secaoId: 10999, slotCodigo: "traseira_45_esq", url_thumb: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100299, secaoId: 20999, slotCodigo: "chassi_gravado", url_thumb: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100399, secaoId: 30999, slotCodigo: "longarina_diant_esq", url_thumb: "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100499, secaoId: 30999, slotCodigo: "assoalho_porta_malas", url_thumb: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100599, secaoId: 40999, slotCodigo: "medidor_pintura_uso", url_thumb: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100699, secaoId: 50999, slotCodigo: "vidro_parabrisa", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100799, secaoId: 50999, slotCodigo: "vidro_porta_diant_esq", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100899, secaoId: 50999, slotCodigo: "vidro_traseiro", url_thumb: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-        db.cautelares_fotos.push({ id: 100999, secaoId: 60999, slotCodigo: "motor_vista_geral", url_thumb: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=600&q=80", metadados_json: {} });
-
-        saveDatabase();
-
-        // Injeta folha de estilos do visualizador tela cheia
-        const style = document.createElement('style');
-        style.id = 'demo-laudo-styles';
-        style.innerHTML = `
-            .sidebar, .topbar, #login-overlay {
-                display: none !important;
-            }
-            .main-content {
-                margin-left: 0 !important;
-                padding: 0 !important;
-                width: 100vw !important;
-                max-width: 100vw !important;
-                height: 100vh !important;
-                background: #1a1d22 !important;
-            }
-            #cautelar-finalizacao-view {
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                z-index: 99999 !important;
-                grid-template-columns: 1fr !important;
-                display: flex !important;
-                flex-direction: column !important;
-            }
-            #cautelar-finalizacao-view > div:first-child {
-                display: none !important;
-            }
-            #cautelar-finalizacao-view > div:last-child {
-                max-height: 100vh !important;
-                height: 100vh !important;
-                width: 100vw !important;
-                padding: 85px 20px 40px 20px !important;
-                background: #1a1d22 !important;
-                overflow-y: auto !important;
-                box-sizing: border-box !important;
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Adiciona barra flutuante de controle
-        const controls = document.createElement('div');
-        controls.style.cssText = "position: fixed; top: 15px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: rgba(10, 31, 61, 0.95); border: 1.5px solid #C9A961; padding: 10px 20px; border-radius: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100000; backdrop-filter: blur(10px); font-family: 'Outfit', sans-serif;";
-        controls.innerHTML = `
-            <span style="color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1.5px solid rgba(255,255,255,0.15); padding-right: 12px; margin-right: 4px;">📂 LAUDO TESTE COROLLA</span>
-            <button onclick="window.exibirPdfCautelar(999)" style="background: #C9A961; border: none; color: #050E1A; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: transform 0.2s;"><i class="ri-file-pdf-line" style="font-size:14px;"></i> BAIXAR PDF OFICIAL</button>
-            <button onclick="window.location.href='app.html'" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.2s;">VOLTAR PARA O ERP</button>
-        `;
-        document.body.appendChild(controls);
-
-        setTimeout(() => {
-            verResumoCautelar(testCautelarId);
-        }, 400);
-    }
 
     if (window.modoDiaReaberto && window.dataDiaReaberto) {
         const banner = document.getElementById('dia-reaberto-banner');
@@ -10545,7 +9569,7 @@ function requestNfse(osId) {
         <div class="detail-grid" style="margin-bottom: 20px;">
             <div class="detail-item"><label>Tomador (Razão/Nome)</label><span>${clientName}</span></div>
             <div class="detail-item"><label>CPF / CNPJ</label><span>${clientDoc}</span></div>
-            <div class="detail-item"><label>Descrição do Serviço</label><span>${serviceName} (PLACA: ${os.placa})</span></div>
+            <div class="detail-item"><label>Descrição do Serviço</label><span>${serviceName} (PLACA: ${escHtml(os.placa)})</span></div>
             <div class="detail-item"><label>Valor do Serviço</label><strong>${formatCurrency(val)}</strong></div>
             <div class="detail-item"><label>Unidade Tributária</label><span>Código de Serviço Municipal (Vistoria Veicular)</span></div>
         </div>
@@ -10624,7 +9648,7 @@ function openBoletoModal(invoiceId) {
             <div class="detail-item"><label>Sacado / Parceiro</label><strong>${partner ? partner.nome : '—'}</strong></div>
             <div class="detail-item"><label>CNPJ / CPF</label><span>${partner ? partner.cnpj : '—'}</span></div>
             <div class="detail-item"><label>Valor de Vencimento</label><strong style="color: var(--success);">${formatCurrency(f.valorTotal)}</strong></div>
-            <div class="detail-item"><label>Referência de Fatura</label><span>${f.codigo}</span></div>
+            <div class="detail-item"><label>Referência de Fatura</label><span>${escHtml(f.codigo)}</span></div>
             <div class="detail-item"><label>Vencimento Estimado</label><span>${formatDateBr(new Date(new Date().getTime() + 5*24*60*60*1000).toISOString())}</span></div>
             <div class="detail-item"><label>Status do Boleto</label><span style="font-weight: 700; color: ${statusColor};">${statusBoleto.toUpperCase()}</span></div>
         </div>
@@ -11352,190 +10376,6 @@ async function closeAndExitReopenMode() {
 // MÓDULO: REGISTRAR CAUTELAR (MILESTONE 1)
 // ============================================================================
 
-/**
- * Seed complementar de vistorias cautelares para testes locais.
- * Roda na inicialização se db.cautelares estiver vazio.
- */
-function seedCautelares() {
-    if (!db || !db.ordens_servico || (db.cautelares && db.cautelares.length > 0)) return;
-
-    let nextOsId = db.ordens_servico.reduce((max, o) => Math.max(max, o.id), 0) + 1;
-    let nextCautelarId = 1;
-
-    // OS 1: Placa QJB-7962 (Aguardando Início)
-    const os1 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(), // 2h atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "particular",
-        parceiroId: null,
-        clienteNome: "JOÃO SILVA MENDES",
-        clienteCpfCnpj: "123.456.789-00",
-        clienteCelular: "(48) 99999-1111",
-        placa: "QJB-7962",
-        renavam: "12345678901",
-        servicoId: 4,
-        servicoNome: "VISTORIA CAUTELAR",
-        valor: 350.00,
-        observacoes: "VW GOL 2020 BRANCO",
-        pago: true,
-        formaPagamento: "pix",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "paga",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os1);
-
-    // OS 2: Placa QHT-2C78 (Em Captura)
-    const os2 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 5).toISOString(), // 5h atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "parceiro",
-        parceiroId: 1,
-        clienteNome: "RICARDO ANTUNES",
-        clienteCpfCnpj: "987.654.321-99",
-        clienteCelular: "(48) 98888-2222",
-        placa: "QHT-2C78",
-        renavam: "98765432109",
-        servicoId: 7,
-        servicoNome: "VISTORIA COMBO",
-        valor: 150.00,
-        observacoes: "FIAT UNO 2018 CINZA",
-        pago: true,
-        formaPagamento: "faturamento",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "em_execucao",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os2);
-
-    const cautelar2 = {
-        id: nextCautelarId++,
-        osId: os2.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "em_captura",
-        vistoriadorId: 6, // Pedro Vistoriador Júnior
-        finalizadoPorId: null,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 4.5).toISOString(),
-        dataHoraEnvio: null,
-        dataHoraFinalizacao: null,
-        parecerConsolidado: null,
-        parecerTexto: ""
-    };
-    db.cautelares.push(cautelar2);
-
-    // OS 3: Placa MHX-9981 (Finalizada)
-    const os3 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 48).toISOString(), // 2 dias atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "particular",
-        parceiroId: null,
-        clienteNome: "MARIA MEDEIROS",
-        clienteCpfCnpj: "456.789.123-11",
-        clienteCelular: "(48) 97777-3333",
-        placa: "MHX-9981",
-        renavam: "45678912301",
-        servicoId: 4,
-        servicoNome: "VISTORIA CAUTELAR",
-        valor: 350.00,
-        observacoes: "TOYOTA COROLLA 2022 PRETO",
-        pago: true,
-        formaPagamento: "debito",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "concluida_aprovada",
-        finalizadoEm: new Date(Date.now() - 3600000 * 46).toISOString(),
-        finalizadoPor: "Silvio Vistoriador Sênior"
-    };
-    db.ordens_servico.push(os3);
-
-    const cautelar3 = {
-        id: nextCautelarId++,
-        osId: os3.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "finalizada",
-        vistoriadorId: 7, // Silvio Sênior
-        finalizadoPorId: 7,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 47.5).toISOString(),
-        dataHoraEnvio: new Date(Date.now() - 3600000 * 46.5).toISOString(),
-        dataHoraFinalizacao: new Date(Date.now() - 3600000 * 46).toISOString(),
-        parecerConsolidado: "conforme",
-        parecerTexto: "VEÍCULO EM EXCELENTE ESTADO ESTRUTURAL E DE PINTURA. LAUDO APROVADO.",
-        pdfUrl: "#",
-        pdfHash: "8f5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e24ef5a11d9f4e2"
-    };
-    db.cautelares.push(cautelar3);
-
-    // OS 4: Placa BEE-4C99 (Aguardando Finalização)
-    const os4 = {
-        id: nextOsId++,
-        numero: `OS-${String(nextOsId).padStart(4, '0')}`,
-        criadoEm: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 dia atrás
-        criadoPor: "Ana Atendente",
-        unidadeId: 1,
-        clienteTipo: "parceiro",
-        parceiroId: 2,
-        clienteNome: "JULIO CESAR DOS SANTOS",
-        clienteCpfCnpj: "789.123.456-22",
-        clienteCelular: "(48) 96666-4444",
-        placa: "BEE-4C99",
-        renavam: "78912345602",
-        servicoId: 7,
-        servicoNome: "VISTORIA COMBO",
-        valor: 160.00,
-        observacoes: "CHEVROLET ONIX 2021 PRATA",
-        pago: true,
-        formaPagamento: "faturamento",
-        docVeiculoApresentado: true,
-        docIdentificacaoApresentado: true,
-        status: "em_execucao",
-        finalizadoEm: null,
-        finalizadoPor: null
-    };
-    db.ordens_servico.push(os4);
-
-    const cautelar4 = {
-        id: nextCautelarId++,
-        osId: os4.id,
-        dossieNumero: `CV-2026-${String(nextCautelarId).padStart(5, '0')}`,
-        status: "aguardando_finalizacao",
-        vistoriadorId: 6, // Pedro Júnior
-        finalizadoPorId: null,
-        dataHoraInicio: new Date(Date.now() - 3600000 * 23.5).toISOString(),
-        dataHoraEnvio: new Date(Date.now() - 3600000 * 23).toISOString(),
-        dataHoraFinalizacao: null,
-        parecerConsolidado: "nao_conforme",
-        parecerTexto: "ATENÇÃO: LONGARINA TRASEIRA ESQUERDA APRESENTA SINAIS DE REPARO POR SOLDA. ETIQUETAS ETA INCOMPATÍVEIS."
-    };
-    db.cautelares.push(cautelar4);
-
-    // Salvar no LocalStorage e sincronizar com Supabase se necessário
-    saveDatabase();
-    
-    if (window.useSupabase) {
-        Promise.all([
-            sbInsert('ordens_servico', os1),
-            sbInsert('ordens_servico', os2),
-            sbInsert('ordens_servico', os3),
-            sbInsert('ordens_servico', os4),
-            sbInsert('cautelares', cautelar2),
-            sbInsert('cautelares', cautelar3),
-            sbInsert('cautelares', cautelar4)
-        ]).catch(e => console.warn("Supabase seed warning:", e));
-    }
-}
 
 /**
  * Verifica se o serviço é do tipo Vistoria Cautelar.
@@ -11617,7 +10457,7 @@ function renderRegistrarCautelarPage() {
         );
 
         let options = '<option value="todos">Todos os Vistoriadores</option>';
-        options += vistoriadores.map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+        options += vistoriadores.map(op => `<option value="${op.id}">${escHtml(op.nome)}</option>`).join('');
         filterVistoriador.innerHTML = options;
     }
 
@@ -11768,9 +10608,9 @@ function filterCautelares() {
 
             return `
                 <tr>
-                    <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${item.os.placa}</td>
+                    <td style="font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 14px;">${escHtml(item.os.placa)}</td>
                     <td>${removeDividedPaymentTag(item.os.observacoes)}</td>
-                    <td>${item.os.clienteNome}</td>
+                    <td>${escHtml(item.os.clienteNome)}</td>
                     <td>${statusBadge}</td>
                     <td><i class="ri-user-line" style="font-size: 12px; color: var(--text-secondary); margin-right: 4px;"></i>${item.vistoriador}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${item.iniciadoEm}</td>
@@ -11789,12 +10629,12 @@ function filterCautelares() {
             return `
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 16px;">${item.os.placa}</span>
+                        <span style="font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 16px;">${escHtml(item.os.placa)}</span>
                         ${statusBadge}
                     </div>
                     <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
                         <span><strong>Veículo:</strong> ${removeDividedPaymentTag(item.os.observacoes)}</span>
-                        <span><strong>Cliente:</strong> ${item.os.clienteNome}</span>
+                        <span><strong>Cliente:</strong> ${escHtml(item.os.clienteNome)}</span>
                         <span><strong>Vistoriador:</strong> ${item.vistoriador}</span>
                         <span><strong>Iniciada em:</strong> ${item.iniciadoEm}</span>
                     </div>
@@ -12454,7 +11294,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
             <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">AVALIAÇÃO ESTRUTURAL</label>
-                    <select id="status-foto-${slot.codigo}" onchange="salvarStatusFoto('${slot.codigo}', 'status', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px; width: 100%;">
+                    <select id="status-foto-${escHtml(slot.codigo)}" onchange="salvarStatusFoto('${escHtml(slot.codigo)}', 'status', this.value)" style="margin-top: 4px; height: 34px; padding: 4px 8px; font-size: 12px; width: 100%;">
                         <option value="original" ${currentStatus === 'original' ? 'selected' : ''}>Original</option>
                         <option value="reparo_aparente" ${currentStatus === 'reparo_aparente' ? 'selected' : ''}>Indícios de Reparo</option>
                         <option value="substituicao" ${currentStatus === 'substituicao' ? 'selected' : ''}>Indícios de Substituição</option>
@@ -12464,7 +11304,7 @@ function getPhotoSlotCardHtml(slot, secaoId) {
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">OBSERVAÇÕES DA PEÇA (OPCIONAL)</label>
-                    <input type="text" id="obs-foto-${slot.codigo}" value="${obsPeca}" placeholder="Ex: pequeno amassado, solda..." oninput="salvarStatusFoto('${slot.codigo}', 'observacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; width: 100%;">
+                    <input type="text" id="obs-foto-${escHtml(slot.codigo)}" value="${obsPeca}" placeholder="Ex: pequeno amassado, solda..." oninput="salvarStatusFoto('${escHtml(slot.codigo)}', 'observacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; width: 100%;">
                 </div>
             </div>
         `;
@@ -12476,21 +11316,21 @@ function getPhotoSlotCardHtml(slot, secaoId) {
             <div style="margin-top: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Indícios de Desbaste / Polimento na gravação?</label>
-                    <select id="desbaste-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'desbaste', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                    <select id="desbaste-foto-${escHtml(slot.codigo)}" onchange="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'desbaste', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
                         <option value="nao" ${!desbaste ? 'selected' : ''}>NÃO</option>
                         <option value="sim" ${desbaste ? 'selected' : ''}>SIM — há desbaste/polimento</option>
                     </select>
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Gravação Original?</label>
-                    <select id="original-foto-${slot.codigo}" onchange="salvarEtiquetaVidro('${slot.codigo}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
+                    <select id="original-foto-${escHtml(slot.codigo)}" onchange="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'original', this.value)" style="margin-top: 4px; height: 32px; padding: 4px 8px; font-size: 11px;">
                         <option value="sim" ${isOriginal ? 'selected' : ''}>SIM</option>
                         <option value="nao" ${!isOriginal ? 'selected' : ''}>NÃO</option>
                     </select>
                 </div>
                 <div>
                     <label style="font-size: 10px; color: var(--text-secondary); font-weight: 700;">Número Gravado</label>
-                    <input type="text" id="gravacao-foto-${slot.codigo}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${slot.codigo}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
+                    <input type="text" id="gravacao-foto-${escHtml(slot.codigo)}" value="${numGravado}" placeholder="DIGITE O CHASSI LIDO..." oninput="salvarEtiquetaVidro('${escHtml(slot.codigo)}', 'gravacao', this.value)" style="margin-top: 4px; height: 32px; font-size: 11px; padding: 4px 8px; font-family: monospace;">
                 </div>
             </div>
         `;
@@ -12516,20 +11356,20 @@ function getPhotoSlotCardHtml(slot, secaoId) {
         const displayUrl = photo.url_thumb || photo.urlThumb || photo.url_original || photo.urlOriginal || '';
         const isLocalBlob = photo.pendenteEnvio || displayUrl.startsWith('blob:') || !displayUrl.startsWith('http');
         const statusFoto = photo.pendenteEnvio
-            ? `<span id="status-envio-${slot.codigo}" style="font-size: 9px; color: var(--warning, #f59e0b); display: block; margin-top: 2px;"><i class="ri-upload-cloud-2-line"></i> Salva no aparelho — aguardando envio</span>`
+            ? `<span id="status-envio-${escHtml(slot.codigo)}" style="font-size: 9px; color: var(--warning, #f59e0b); display: block; margin-top: 2px;"><i class="ri-upload-cloud-2-line"></i> Salva no aparelho — aguardando envio</span>`
             : `<span style="font-size: 9px; color: var(--success); display: block; margin-top: 2px;"><i class="ri-checkbox-circle-fill"></i> Capturada e enviada</span>`;
         // A miniatura base64 aparece na hora; o original do IndexedDB entra por cima depois
         const initialSrc = (displayUrl.startsWith('http') || displayUrl.startsWith('data:')) ? displayUrl : '';
         
         card.innerHTML = `
             <div style="position: relative; width: 100%; height: 160px; border-radius: var(--radius-sm); overflow: hidden; background: #000;">
-                <img id="img-preview-${slot.codigo}" src="${initialSrc}" onclick="abrirPreviewFotoCautelar('${slot.codigo}')" style="width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" alt="${slot.nome}">
+                <img id="img-preview-${escHtml(slot.codigo)}" src="${initialSrc}" onclick="abrirPreviewFotoCautelar('${escHtml(slot.codigo)}')" style="width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" alt="${escHtml(slot.nome)}">
                 <span style="position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 10px; pointer-events: none;"><i class="ri-zoom-in-line"></i> Toque para ampliar</span>
-                <button onclick="deleteFotoCaptura('${slot.codigo}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                <button onclick="deleteFotoCaptura('${escHtml(slot.codigo)}')" style="position: absolute; top: 8px; right: 8px; background: rgba(239, 68, 68, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
                     <i class="ri-delete-bin-line"></i>
                 </button>
             </div>
-            <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${slot.nome}</h5>
+            <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 10px; text-transform: uppercase;">${escHtml(slot.nome)}</h5>
             ${statusFoto}
             ${extraControls}
         `;
@@ -12557,10 +11397,10 @@ function getPhotoSlotCardHtml(slot, secaoId) {
     } else {
         // Exibe slot vazio para tirar a foto
         card.innerHTML = `
-            <input type="file" id="${inputId}" accept="image/*" style="display: none;" onchange="handleFotoUpload('${slot.codigo}', event)">
-            <div onclick="abrirCameraCautelar('${slot.codigo}')" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
+            <input type="file" id="${inputId}" accept="image/*" style="display: none;" onchange="handleFotoUpload('${escHtml(slot.codigo)}', event)">
+            <div onclick="abrirCameraCautelar('${escHtml(slot.codigo)}')" style="padding: 24px 0; border: 2px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
                 <i class="ri-camera-lens-line" style="font-size: 40px; color: var(--accent); margin-bottom: 10px; display: inline-block;"></i>
-                <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${slot.nome}</h5>
+                <h5 style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 4px;">${escHtml(slot.nome)}</h5>
                 <span style="font-size: 11px; color: var(--text-secondary);">Tocar para capturar</span>
             </div>
             <button type="button" onclick="document.getElementById('${inputId}').click()" style="margin-top: 8px; background: none; border: none; color: var(--text-secondary); font-size: 11px; text-decoration: underline; cursor: pointer;">Escolher da galeria</button>
@@ -12707,7 +11547,7 @@ function cautelarValidarChassi() {
         span.innerHTML = `<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i> Confere com o chassi da O.S.`;
         span.style.color = 'var(--success)';
     } else {
-        span.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do chassi da O.S. (${os.veiculoChassi})`;
+        span.innerHTML = `<i class="ri-alert-fill" style="color:var(--danger)"></i> Divergente do chassi da O.S. (${escHtml(os.veiculoChassi)})`;
         span.style.color = 'var(--danger)';
     }
 }
@@ -12745,7 +11585,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao1-obs">Observações (Opcional)</label>
-                        <textarea id="caut-secao1-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A IDENTIFICAÇÃO DO VEÍCULO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao1-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A IDENTIFICAÇÃO DO VEÍCULO..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12756,7 +11596,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 const atual = data[et.codigo] || '';
                 return `
                     <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
-                        <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">${et.nome} <span style="color:var(--danger)">*</span></div>
+                        <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">${escHtml(et.nome)} <span style="color:var(--danger)">*</span></div>
                         ${cautelarChipsHtml(et.codigo, atual, CAUTELAR_ETIQUETA_STATUS)}
                     </div>`;
             }).join('');
@@ -12764,12 +11604,12 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 <div class="panel-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
                         <label for="caut-chassi">Chassi Lido <span style="color:var(--danger)">*</span></label>
-                        <input type="text" id="caut-chassi" value="${data.chassiLido || ''}" placeholder="DIGITE O CHASSI LIDO..." oninput="this.value = this.value.toUpperCase(); autoSaveCampo('chassiLido', this.value); cautelarValidarChassi();" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <input type="text" id="caut-chassi" value="${escHtml(data.chassiLido || '')}" placeholder="DIGITE O CHASSI LIDO..." oninput="this.value = this.value.toUpperCase(); autoSaveCampo('chassiLido', this.value); cautelarValidarChassi();" style="font-family: monospace; letter-spacing: 1px;" required>
                         <span id="caut-chassi-validation" style="font-size: 11px; margin-top: 4px; display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="caut-motor">Motor Lido <span style="color:var(--danger)">*</span></label>
-                        <input type="text" id="caut-motor" value="${data.motorLido || ''}" placeholder="DIGITE O MOTOR LIDO..." oninput="autoSaveCampo('motorLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
+                        <input type="text" id="caut-motor" value="${escHtml(data.motorLido || '')}" placeholder="DIGITE O MOTOR LIDO..." oninput="autoSaveCampo('motorLido', this.value.toUpperCase())" style="font-family: monospace; letter-spacing: 1px;" required>
                     </div>
                     <div class="form-group">
                         <label>Conformidade de Originalidade <span style="color:var(--danger)">*</span></label>
@@ -12789,7 +11629,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao2-obs" id="caut-secao2-obs-label">Observações (Opcional)</label>
-                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI, MOTOR E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao2-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE CHASSI, MOTOR E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12846,7 +11686,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group" id="caut-parecer-obs-container" style="display: ${showParecerObs ? 'block' : 'none'};">
                         <label for="caut-secao3-obs" id="caut-secao3-obs-label">Comentários e Justificativa do Parecer <span style="color:var(--danger)">*</span></label>
-                        <textarea id="caut-secao3-obs" placeholder="Justifique o parecer com ressalvas ou não conforme..." oninput="autoSaveCampo('observacao', this.value)" ${showParecerObs ? 'required' : ''}>${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao3-obs" placeholder="Justifique o parecer com ressalvas ou não conforme..." oninput="autoSaveCampo('observacao', this.value)" ${showParecerObs ? 'required' : ''}>${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12863,7 +11703,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                 const medida = item.tipo === 'plastico' ? `
                     <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px;">Peça plástica — apenas classificação</div>` : `
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <input type="number" inputmode="decimal" value="${um}" placeholder="µm" oninput="autoSaveCampo('pint_${item.codigo}_um', this.value)" style="width: 100px; text-align: right; font-family: monospace; padding: 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
+                        <input type="number" inputmode="decimal" value="${um}" placeholder="µm" oninput="autoSaveCampo('pint_${escHtml(item.codigo)}_um', this.value)" style="width: 100px; text-align: right; font-family: monospace; padding: 6px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: var(--radius-sm);">
                         <span style="font-size: 11px; color: var(--text-secondary);">µm medidos</span>
                     </div>`;
                 const reparo = item.tipo === 'coluna' ? `
@@ -12873,7 +11713,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>` : '';
                 return `
                     <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">${item.ordem}. ${item.nome}</div>
+                        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">${item.ordem}. ${escHtml(item.nome)}</div>
                         ${medida}
                         <div style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">${item.tipo === 'coluna' ? 'Estado geral' : 'Classificação'} <span style="color:var(--danger)">*</span></div>
                         ${cautelarChipsHtml(`pint_${item.codigo}_classe`, classe, opcoes)}
@@ -12888,7 +11728,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     ${linhas}
                     <div class="form-group" style="margin-top:20px;">
                         <label for="caut-secao4-obs" id="caut-secao4-obs-label">Observações do Vistoriador (Opcional)</label>
-                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA E AS COLUNAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao4-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE A PINTURA E AS COLUNAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12904,7 +11744,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </p>
                     <div class="form-group">
                         <label for="caut-secao5-obs">Observações Gerais (Opcional)</label>
-                        <textarea id="caut-secao5-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE OS VIDROS E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao5-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE OS VIDROS E ETIQUETAS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12929,7 +11769,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao6-obs">Observações (Opcional)</label>
-                        <textarea id="caut-secao6-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE COMPARTIMENTO DO MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao6-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE COMPARTIMENTO DO MOTOR..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12958,7 +11798,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     </div>
                     <div class="form-group">
                         <label for="caut-secao7-obs" id="caut-secao7-obs-label">Observações</label>
-                        <textarea id="caut-secao7-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE O INTERIOR E QUADROS..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao7-obs" placeholder="DIGITE OBSERVAÇÕES SOBRE O INTERIOR E QUADROS..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
                 </div>
             `;
@@ -12980,7 +11820,7 @@ function getSecaoFieldsHtml(secaoNum, cautelar, data, os) {
                     
                     <div class="form-group">
                         <label for="caut-secao8-obs" id="caut-secao8-obs-label">Observações Finais e Geral</label>
-                        <textarea id="caut-secao8-obs" placeholder="DIGITE AS OBSERVAÇÕES FINAIS DO LAUDO..." oninput="autoSaveCampo('observacao', this.value)">${data.observacao || ''}</textarea>
+                        <textarea id="caut-secao8-obs" placeholder="DIGITE AS OBSERVAÇÕES FINAIS DO LAUDO..." oninput="autoSaveCampo('observacao', this.value)">${escHtml(data.observacao || '')}</textarea>
                     </div>
 
                     <!-- Canvas para Assinatura Digital -->
@@ -13689,7 +12529,7 @@ async function cautelarObterOriginal(cautelarId, slotCodigo) {
     const photo = secao && db.cautelares_fotos.find(f => f.secaoId === secao.id && f.slotCodigo === slotCodigo);
     const url = photo && (photo.url_original || photo.urlOriginal);
     if (!url || !url.startsWith('http')) return null;
-    const resp = await fetch(url, { cache: 'no-store' });
+    const resp = await fetch(await urlArmazenamento(url), { cache: 'no-store' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return { blob: await resp.blob(), metadados: photo.metadados_json || {} };
 }
@@ -14644,7 +13484,7 @@ function atualizarPreviewLaudo_old() {
             </div>
             <div style="text-align: right; font-family: 'Outfit', sans-serif;">
                 <span style="font-size: 8px; color: #a3aab8; font-weight: 600; text-transform: uppercase;">DOSSIÊ</span><br>
-                <span style="font-family: monospace; font-size: 9px; color: #0A1F3D; font-weight: 700;">${cautelar.dossieNumero}</span>
+                <span style="font-family: monospace; font-size: 9px; color: #0A1F3D; font-weight: 700;">${escHtml(cautelar.dossieNumero)}</span>
             </div>
         </div>
     `;
@@ -14698,7 +13538,7 @@ function atualizarPreviewLaudo_old() {
                     <span>${new Date(cautelar.criadoEm).toLocaleDateString('pt-BR')}</span>
                 </div>
                 <div style="text-align: right;">
-                    <strong style="color: #C9A961;">DOSSIÊ:</strong> <span style="font-family: monospace;">${cautelar.dossieNumero}</span>
+                    <strong style="color: #C9A961;">DOSSIÊ:</strong> <span style="font-family: monospace;">${escHtml(cautelar.dossieNumero)}</span>
                 </div>
             </div>
         </div>
@@ -14728,7 +13568,7 @@ function atualizarPreviewLaudo_old() {
                     <div style="display: flex; flex-direction: column; gap: 10px; font-size: 11px;">
                         <div>
                             <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Marca / Modelo</span>
-                            <span style="font-weight: 800; font-size: 12px; color: #0A1F3D; text-transform: uppercase;">${os.clienteNome || 'TOYOTA COROLLA XEI 2.0'}</span>
+                            <span style="font-weight: 800; font-size: 12px; color: #0A1F3D; text-transform: uppercase;">${escHtml(os.clienteNome || 'TOYOTA COROLLA XEI 2.0')}</span>
                         </div>
                         <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
                         <div>
@@ -14743,12 +13583,12 @@ function atualizarPreviewLaudo_old() {
                         <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
                         <div>
                             <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Placa</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; font-size: 12px; text-transform: uppercase;">${os.placa}</span>
+                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; font-size: 12px; text-transform: uppercase;">${escHtml(os.placa)}</span>
                         </div>
                         <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
                         <div>
                             <span style="font-size: 8px; color: #a3aab8; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 1px;">Chassi</span>
-                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${os.renavam || '9BRB03HE0L2567890'}</span>
+                            <span style="font-weight: 700; color: #0a1f3d; font-family: monospace; text-transform: uppercase;">${escHtml(os.renavam || '9BRB03HE0L2567890')}</span>
                         </div>
                         <div style="height: 1px; background: rgba(0,0,0,0.05);"></div>
                         <div>
@@ -14788,11 +13628,11 @@ function atualizarPreviewLaudo_old() {
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span style="color: #a3aab8; font-weight: 500;">LOCAL:</span>
-                            <span style="font-weight: 700; color: #0a1f3d;">${db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC'}</span>
+                            <span style="font-weight: 700; color: #0a1f3d;">${escHtml(db.unidades.find(u => u.id === os.unidadeId)?.nome || 'São José / SC')}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span style="color: #a3aab8; font-weight: 500;">VISTORIADOR:</span>
-                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes'}</span>
+                            <span style="font-weight: 700; color: #0a1f3d; text-transform: uppercase;">${escHtml(db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Romano Gonzales Mendes')}</span>
                         </div>
                     </div>
                 </div>
@@ -14846,7 +13686,7 @@ function atualizarPreviewLaudo_old() {
                     <div style="flex: 1; font-size: 11px;">
                         <strong style="font-size: 12px; color: #0a1f3d; display: block; margin-bottom: 2px;">ESTRUTURA E CARROCERIA</strong>
                         <span style="color: ${dataSec3.parecerEstrutural === 'nao_conforme' ? '#8B2635' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? '#B8642B' : '#3a663b')}; font-weight: 700; text-transform: uppercase; margin-right: 6px;">${dataSec3.parecerEstrutural === 'nao_conforme' ? 'NÃO CONFORME' : (dataSec3.parecerEstrutural === 'com_ressalvas' ? 'COM RESSALVAS' : 'CONFORME')}</span>
-                        <span style="color: #a3aab8; font-weight: 400;">${dataSec3.observacao || 'Não foram identificados sinais de sinistro, corte estrutural, remarcação de chassi ou danos que comprometam a integridade do veículo.'}</span>
+                        <span style="color: #a3aab8; font-weight: 400;">${escHtml(dataSec3.observacao || 'Não foram identificados sinais de sinistro, corte estrutural, remarcação de chassi ou danos que comprometam a integridade do veículo.')}</span>
                     </div>
                 </div>
 
@@ -15209,7 +14049,7 @@ function atualizarPreviewLaudo_old() {
                     <div style="width: 260px; height: 65px; border-bottom: 1.5px solid #0a1f3d; display:flex; align-items:center; justify-content:center; overflow:hidden;">
                         ${signatureVistoriador ? `<img src="${signatureVistoriador}" style="max-height: 100%; max-width: 100%; object-fit: contain;">` : ''}
                     </div>
-                    <span style="font-size: 11px; font-weight: 800; color: #0a1f3d; margin-top: 6px; text-transform: uppercase;">${db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins'}</span>
+                    <span style="font-size: 11px; font-weight: 800; color: #0a1f3d; margin-top: 6px; text-transform: uppercase;">${escHtml(db.operadores.find(o => o.id === cautelar.vistoriadorId)?.nome || 'Carlos Eduardo Martins')}</span>
                     <span style="font-size: 8.5px; color: #a3aab8; font-weight: 700; text-transform: uppercase; margin-top: 2px;">VISTORIADOR</span>
                     <span style="font-size: 8px; font-family: monospace; color: #a3aab8; margin-top: 2px;">REGISTRO ECV ${cautelar.vistoriadorId ? '417.734.562-9' + cautelar.vistoriadorId : '417.734.562-91'}</span>
                 </div>
@@ -15533,7 +14373,7 @@ function avisarDadosVeiculoFaltando(os, faltando, aoCorrigir) {
     fundo.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,40,.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     fundo.innerHTML = `<div style="background:var(--bg-card,#fff);color:var(--text-primary,#1c1c1c);max-width:520px;width:100%;border-radius:10px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
         <h3 style="margin:0 0 8px">Laudo bloqueado: faltam dados do veículo</h3>
-        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 8px">O laudo cautelar só pode ser finalizado com os dados do veículo completos no cadastro da O.S. ${os.numero}:</p>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 8px">O laudo cautelar só pode ser finalizado com os dados do veículo completos no cadastro da O.S. ${escHtml(os.numero)}:</p>
         <ul style="padding-left:22px;margin:0">${faltando.map(f => `<li style="margin:6px 0">${f}</li>`).join('')}</ul>
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
             <button class="btn btn-secondary" data-acao="fechar">Fechar</button>
@@ -16082,10 +14922,10 @@ async function generateAndUploadInvoicePDF(f) {
 
     let osRows = oss.map(o => `
         <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
-            <td style="padding: 6px;"><strong>${o.numero}</strong></td>
-            <td style="padding: 6px;"><strong>${o.placa}</strong></td>
-            <td style="padding: 6px;">${o.veiculoMarcaModelo || '—'}</td>
-            <td style="padding: 6px; text-align: center;">${o.veiculoAno || '—'}</td>
+            <td style="padding: 6px;"><strong>${escHtml(o.numero)}</strong></td>
+            <td style="padding: 6px;"><strong>${escHtml(o.placa)}</strong></td>
+            <td style="padding: 6px;">${escHtml(o.veiculoMarcaModelo || '—')}</td>
+            <td style="padding: 6px; text-align: center;">${escHtml(o.veiculoAno || '—')}</td>
             <td style="padding: 6px;">${o.servicoNome.split(' — ')[0]}</td>
             <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(o.valor)}</td>
         </tr>
@@ -16104,7 +14944,7 @@ async function generateAndUploadInvoicePDF(f) {
     if (creditosAbatidos.length > 0) {
         const creditosRows = creditosAbatidos.map(c => `
             <tr style="border-bottom: 1px dotted #ffcdd2; font-size: 11px; color: #b71c1c;">
-                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${c.descricao}</td>
+                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${escHtml(c.descricao)}</td>
                 <td style="padding: 6px; text-align: right; font-weight: 600;" colspan="2">- ${formatCurrency(c.valor)}</td>
             </tr>
         `).join('');
@@ -16140,26 +14980,26 @@ async function generateAndUploadInvoicePDF(f) {
                 </div>
             </div>
             <div style="border: 2px solid ${CERTIVE_NAVY}; color:${CERTIVE_NAVY}; padding: 8px 16px; font-weight: 800; font-size: 16px;">
-                FATURA ${f.codigo}
+                FATURA ${escHtml(f.codigo)}
             </div>
         </div>
 
         <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 30px;">
             <div>
-                <strong>Prestador:</strong> ${unit.nome}<br>
-                <strong>Endereço:</strong> ${unit.endereco}<br>
+                <strong>Prestador:</strong> ${escHtml(unit.nome)}<br>
+                <strong>Endereço:</strong> ${escHtml(unit.endereco)}<br>
                 <strong>Período de Referência:</strong> ${formatDateBr(f.periodoInicio)} a ${formatDateBr(f.periodoFim)}
             </div>
             <div style="text-align: right;">
-                <strong>Tomador (Parceiro):</strong> ${partner.nome}<br>
-                <strong>CPF/CNPJ:</strong> ${partner.cnpj}<br>
-                <strong>Contato:</strong> ${partner.telefone}
+                <strong>Tomador (Parceiro):</strong> ${escHtml(partner.nome)}<br>
+                <strong>CPF/CNPJ:</strong> ${escHtml(partner.cnpj)}<br>
+                <strong>Contato:</strong> ${escHtml(partner.telefone)}
             </div>
         </div>
 
         <div style="display: flex; justify-content: space-between; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
             <div>
-                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${f.criadoPor}<br>
+                <strong>Data de Emissão:</strong> ${formatDateBr(f.criadoEm)} por ${escHtml(f.criadoPor)}<br>
                 <strong>Status de Pagamento:</strong> ${f.pago ? 'PAGO / LIQUIDADO' : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right; font-size: 13px; line-height: 1.4;">
@@ -16298,7 +15138,7 @@ function runIntegrityAudit() {
             <div style="padding: 12px 16px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-family: 'JetBrains Mono', monospace;">
                 <div style="display: flex; align-items: center; gap: 8px; color: var(--text-primary);">
                     <i class="ri-error-warning-line" style="color: var(--warning); font-size: 16px;"></i>
-                    <span>${item.descricao}</span>
+                    <span>${escHtml(item.descricao)}</span>
                 </div>
                 <span style="font-size: 9px; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;">
                     ${item.tipo === 'movimento_orfan' ? 'ÓRFÃO' : 'INVÁLIDO'}
@@ -16425,7 +15265,8 @@ async function forwardInvoice(faturaId, btn) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-forward`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
-            body: JSON.stringify({ faturaId, pdfUrl, canais: ['email', 'whatsapp'], assunto, corpo })
+            // O PDF não é público: e-mail e WhatsApp recebem um link temporário (7 dias)
+            body: JSON.stringify({ faturaId, pdfUrl: pdfUrl ? await urlArmazenamento(pdfUrl, 7 * 24 * 3600) : null, canais: ['email', 'whatsapp'], assunto, corpo })
         });
 
         if (res.ok) {
@@ -16936,7 +15777,7 @@ function buildPaymentInstructionsHtml(f) {
                 <table style="border-collapse: collapse; flex:1;">
                     <tbody>
                         <tr><td style="padding: 3px 0; width: 120px; color:#555;">Favorecido</td><td style="padding: 3px 0; font-weight: 700;">${c.favorecido}</td></tr>
-                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${c.cnpj}</td></tr>
+                        <tr><td style="padding: 3px 0; color:#555;">CPF/CNPJ</td><td style="padding: 3px 0; font-weight: 700;">${escHtml(c.cnpj)}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Banco</td><td style="padding: 3px 0; font-weight: 700;">${c.banco}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Agência</td><td style="padding: 3px 0; font-weight: 700;">${c.agencia}</td></tr>
                         <tr><td style="padding: 3px 0; color:#555;">Conta</td><td style="padding: 3px 0; font-weight: 700;">${c.conta} ${c.tipoConta ? '(' + c.tipoConta + ')' : ''}</td></tr>
