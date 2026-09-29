@@ -557,9 +557,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.6.2';
+const APP_VERSION = '9.6.3';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.6.3',
+        data: '2026-09-29',
+        titulo: 'Busca por nome no Histórico Geral não trava mais',
+        resumo: 'Ao pesquisar por nome (ou parte do nome) no Histórico Geral, o sistema mostrava o erro "Cannot read properties of null" e não retornava nada. Acontecia porque alguma OS tinha o CPF/CNPJ (ou o nome) do cliente em branco, e a busca quebrava naquele registro. Corrigido: registros com esses campos vazios são simplesmente ignorados na comparação e a busca funciona normalmente.',
+        mudancas: [
+            {
+                area: 'Histórico Geral',
+                titulo: 'Pesquisa por nome/placa/documento à prova de campos vazios',
+                oQueMudou: 'A busca passou a tratar OS sem nome, sem CPF/CNPJ ou sem placa sem gerar erro. Antes, um único registro com esses campos em branco derrubava a pesquisa inteira.',
+                comoUsar: 'Pesquise por nome normalmente na aba Histórico Geral. Se você viu o erro antes, recarregue a página (Ctrl+F5) após esta atualização.'
+            }
+        ]
+    },
     {
         versao: '9.6.2',
         data: '2026-09-28',
@@ -2457,10 +2471,12 @@ function getHistoricoFilteredList() {
 
     return db.ordens_servico.filter(o => {
         if (o.unidadeId !== activeUnitId) return false;
-        if (placaFilter && !o.placa.toUpperCase().includes(placaFilter)) return false;
+        if (placaFilter && !(o.placa || '').toUpperCase().includes(placaFilter)) return false;
         if (clienteFilter) {
-            const nameMatch = o.clienteNome.toUpperCase().includes(clienteFilter);
-            const docMatch = o.clienteCpfCnpj.includes(clienteFilter);
+            // Campos podem vir nulos (ex.: OS sem CPF/CNPJ ou sem nome do cliente).
+            // Sem o "|| ''" o .includes/.toUpperCase quebra a busca inteira.
+            const nameMatch = (o.clienteNome || '').toUpperCase().includes(clienteFilter);
+            const docMatch = (o.clienteCpfCnpj || '').includes(clienteFilter);
             if (!nameMatch && !docMatch) return false;
         }
         if (servicoFilter && o.servicoId !== parseInt(servicoFilter)) return false;
