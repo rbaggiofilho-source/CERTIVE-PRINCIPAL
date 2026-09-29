@@ -12091,9 +12091,10 @@ function salvarESairCaptura() {
  * permissão, cai para o seletor de arquivo.
  */
 const CAUTELAR_FOTO_LADO_MAX = 1600;
-// Fotos de números gravados (chassi, motor, etiquetas, vidros): resolução maior,
-// senão os caracteres pequenos ficam no limite da leitura.
-const CAUTELAR_FOTO_LADO_MAX_TEXTO = 2400;
+// Fotos de números gravados (chassi, motor, etiquetas, vidros): o quadro inteiro
+// da câmera (1920), sem reduzir. Pedir 4K à câmera derrubava o navegador por
+// falta de memória em celulares Android intermediários (28/09/2026).
+const CAUTELAR_FOTO_LADO_MAX_TEXTO = 1920;
 const CAUTELAR_FOTO_QUALIDADE = 0.82;
 
 // Pede ao navegador que não apague os dados do site (fotos ainda não enviadas
@@ -12213,10 +12214,8 @@ async function abrirCameraCautelar(slotCodigo) {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            // Pede a maior resolução que a câmera der (o navegador reduz se não suportar)
-            video: slotInfo && slotInfo.texto
-                ? { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }
-                : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            // Full HD: resolução maior que esta estoura a memória do navegador no celular
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
         });
     } catch (err) {
         console.warn("Câmera na página indisponível; usando a câmera do sistema.", err);
