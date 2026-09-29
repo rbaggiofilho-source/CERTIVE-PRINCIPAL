@@ -1954,6 +1954,16 @@ function closeOSModal(e) {
 // Devolução do desconto de 50% da vistoria reprovada de parceiro, quando o
 // dinheiro já tinha entrado (OS paga na abertura).
 function registrarDescontoReprovada(os, valorOriginal) {
+    // OS faturada: o registro no caixa (não é dinheiro) passa a mostrar o valor com desconto
+    if (os.formaPagamento === 'faturamento') {
+        const reg = db.caixa_movimentos.find(m => m.osId === os.id && m.tipo === 'entrada' && m.formaPagamento === 'faturamento');
+        if (reg && Math.abs(Number(reg.valor) - os.valor) > 0.004) {
+            dbSave('caixa_movimentos', { valor: os.valor }, 'update', reg.id)
+                .then(() => { reg.valor = os.valor; })
+                .catch(avisarFalhaGravacao('Valor da vistoria faturada no caixa'));
+        }
+        return;
+    }
     const recebidos = db.caixa_movimentos.filter(m => m.osId === os.id && movEhRecebimento(m));
     const recebido = recebidos.reduce((t, m) => somaCentavos(t, m.valor), 0)
         - db.caixa_movimentos.filter(m => m.osId === os.id && m.tipo === 'saida').reduce((t, m) => somaCentavos(t, m.valor), 0);
@@ -3805,6 +3815,19 @@ async function openTodayCaixaDrawer() {
     renderCaixaPage();
 }
 
+// Resumo de vendas de um caixa. "Recebido" é o dinheiro que entrou (pix,
+// espécie, cartão...). "A faturar" são as vistorias de parceiros com
+// faturamento mensal: o dinheiro delas entra depois, na baixa da fatura.
+// "Vendido" é a soma dos dois: o movimento do dia.
+function resumoVendasCaixa(caixa) {
+    const movs = db.caixa_movimentos.filter(m => m.caixaId === caixa.id);
+    const soma = lista => lista.reduce((t, m) => somaCentavos(t, m.valor), 0);
+    const recebido = soma(movs.filter(movEhRecebimento));
+    const aFaturar = soma(movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'faturamento'));
+    const saidas = soma(movs.filter(m => m.tipo === 'saida'));
+    return { recebido, aFaturar, saidas, vendido: somaCentavos(recebido, aFaturar), resultado: (paraCentavos(recebido) - paraCentavos(saidas)) / 100 };
+}
+
 function renderCaixaKPIs(activeCaixa) {
     const kpiGrid = document.getElementById('caixa-kpis');
     if (!activeCaixa) {
@@ -3823,12 +3846,23 @@ function renderCaixaKPIs(activeCaixa) {
     const finalCashInDrawer = activeCaixa.saldoAbertura + cashPayments - cashSangrias;
 
     const totalBalance = totalEntradas - totalSaidas;
+    const resumo = resumoVendasCaixa(activeCaixa);
 
     kpiGrid.innerHTML = `
         <div class="kpi-card kpi-blue">
+            <div class="kpi-icon"><i class="ri-shopping-bag-3-line"></i></div>
+            <div class="kpi-value">${formatCurrency(resumo.vendido)}</div>
+            <div class="kpi-label">Vendas do Dia</div>
+        </div>
+        <div class="kpi-card kpi-green">
             <div class="kpi-icon"><i class="ri-add-line"></i></div>
             <div class="kpi-value">${formatCurrency(totalEntradas)}</div>
-            <div class="kpi-label">Entradas Totais</div>
+            <div class="kpi-label">Recebido no Caixa</div>
+        </div>
+        <div class="kpi-card kpi-purple">
+            <div class="kpi-icon"><i class="ri-file-list-3-line"></i></div>
+            <div class="kpi-value">${formatCurrency(resumo.aFaturar)}</div>
+            <div class="kpi-label">A Faturar (Parceiros)</div>
         </div>
         <div class="kpi-card kpi-red">
             <div class="kpi-icon"><i class="ri-subtract-line"></i></div>
@@ -3840,10 +3874,10 @@ function renderCaixaKPIs(activeCaixa) {
             <div class="kpi-value">${formatCurrency(finalCashInDrawer)}</div>
             <div class="kpi-label">Saldo Físico Estimado (Espécie)</div>
         </div>
-        <div class="kpi-card kpi-purple">
+        <div class="kpi-card kpi-blue">
             <div class="kpi-icon"><i class="ri-funds-line"></i></div>
             <div class="kpi-value" style="color: ${totalBalance >= 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(totalBalance)}</div>
-            <div class="kpi-label">Resultado do Dia</div>
+            <div class="kpi-label">Resultado em Caixa</div>
         </div>
     `;
 }
@@ -4186,10 +4220,15 @@ function generateCashierPdfData(c) {
 
     doc.setFontSize(9);
     doc.setFont("Helvetica", "normal");
+    const resumoPdf = resumoVendasCaixa(c);
     doc.text(`Fundo Inicial (Abertura): ${formatCurrency(c.saldoAbertura)}`, 14, 60);
-    doc.text(`Total de Entradas (+): ${formatCurrency(totalEntradas)}`, 14, 66);
+    doc.text(`Recebido no Caixa (+): ${formatCurrency(totalEntradas)}`, 14, 66);
     doc.text(`Total de Saidas (-): ${formatCurrency(totalSaidas)}`, 14, 72);
-    doc.text(`Resultado Liquido: ${formatCurrency(totalEntradas - totalSaidas)}`, 14, 78);
+    doc.text(`Resultado em Caixa: ${formatCurrency(totalEntradas - totalSaidas)}`, 14, 78);
+    doc.text(`A Faturar (parceiros): ${formatCurrency(resumoPdf.aFaturar)}`, 14, 84);
+    doc.setFont("Helvetica", "bold");
+    doc.text(`Vendas do Dia: ${formatCurrency(resumoPdf.vendido)}`, 14, 90);
+    doc.setFont("Helvetica", "normal");
 
     doc.text(`Total Pix: ${formatCurrency(totalPix)}`, 110, 60);
     doc.text(`Total Dinheiro: ${formatCurrency(totalEspecie)}`, 110, 66);
@@ -5112,6 +5151,7 @@ async function submitFecharCaixa(event) {
             const entradasTotaisFecha = movsFecha.filter(movEhRecebimento).reduce((s, m) => somaCentavos(s, m.valor), 0);
             const saidasTotaisFecha = movsFecha.filter(m => m.tipo === 'saida').reduce((s, m) => somaCentavos(s, m.valor), 0);
             const resultadoLiquidoFecha = entradasTotaisFecha - saidasTotaisFecha;
+            const resumoFecha = resumoVendasCaixa(activeCaixa);
             // Aviso de inconsistência: repete TODO DIA enquanto não for corrigida,
             // e mostra há quantos fechamentos ela vem sendo arrastada.
             const emAberto = pendenciasAbertas(activeCaixa.unidadeId);
@@ -5131,7 +5171,7 @@ async function submitFecharCaixa(event) {
                     `\n\n${linhas.join('\n')}`;
             }
             const tituloPush = alertaPendentes ? '⚠️ Caixa fechado COM PENDÊNCIA' : '🔴 Caixa fechado';
-            notificarAdmins(tituloPush, `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nEntradas totais: ${formatCurrency(entradasTotaisFecha)}\nSaídas totais: ${formatCurrency(saidasTotaisFecha)}\nResultado líquido: ${formatCurrency(resultadoLiquidoFecha)}${alertaPendentes}`);
+            notificarAdmins(tituloPush, `${unidadeNomeFecha} — fechado por ${currentSession.nome} às ${horaFecha}.\nVendas do dia: ${formatCurrency(resumoFecha.vendido)} (recebido ${formatCurrency(entradasTotaisFecha)}, a faturar ${formatCurrency(resumoFecha.aFaturar)})\nSaídas: ${formatCurrency(saidasTotaisFecha)}\nResultado em caixa: ${formatCurrency(resultadoLiquidoFecha)}${alertaPendentes}`);
         } catch (err) {
             console.error("Erro no processamento do PDF de fechamento:", err);
             showToast("Erro ao processar e consolidar PDFs. Verifique se os arquivos são válidos.", "error");
@@ -5186,7 +5226,7 @@ function renderCaixaHistorico() {
             <tr>
                 <td><strong>${formatDateBr(c.data)}</strong></td>
                 <td>${c.fechadoPor || '—'}</td>
-                <td style="text-align: right; color: var(--success);">${formatCurrency(totalEntradas)}</td>
+                <td style="text-align: right;"><strong>${formatCurrency(resumoVendasCaixa(c).vendido)}</strong><br><small style="color: var(--success);">recebido ${formatCurrency(totalEntradas)}</small>${resumoVendasCaixa(c).aFaturar > 0 ? `<br><small style="color: var(--text-secondary);">a faturar ${formatCurrency(resumoVendasCaixa(c).aFaturar)}</small>` : ''}</td>
                 <td style="text-align: right; color: var(--danger);">${formatCurrency(totalSaidas)}</td>
                 <td style="text-align: right; font-weight: 600;">${formatCurrency(estimatedCash)}</td>
                 <td style="text-align: right; font-weight: 600;">${formatCurrency(c.saldoEspécieInformado)}</td>
@@ -5478,11 +5518,14 @@ function printCaixaById(caixaId) {
                     <strong>Total de Vistorias:</strong> ${entries.filter(m => m.osId).length} vistorias<br>
                     <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
                     <strong style="text-transform: uppercase;">Resumo Financeiro:</strong><br>
+                    <strong>Vendas do Dia:</strong> ${formatCurrency(resumoVendasCaixa(c).vendido)}<br>
+                    <strong>A Faturar (parceiros):</strong> ${formatCurrency(resumoVendasCaixa(c).aFaturar)}<br>
+                    <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
                     <strong>Fundo Inicial (Abertura):</strong> ${formatCurrency(c.saldoAbertura)}<br>
-                    <strong>Total de Entradas (+):</strong> ${formatCurrency(totalEntradas)}<br>
+                    <strong>Recebido no Caixa (+):</strong> ${formatCurrency(totalEntradas)}<br>
                     <strong>Total de Saídas (-):</strong> ${formatCurrency(totalSaidas)}<br>
                     <hr style="border:0; border-top: 1px solid #ccc; margin: 6px 0;">
-                    <strong>Resultado Líquido:</strong> <strong style="color: ${totalEntradas - totalSaidas >= 0 ? '#10b981' : '#ef4444'}">${formatCurrency(totalEntradas - totalSaidas)}</strong>
+                    <strong>Resultado em Caixa:</strong> <strong style="color: ${totalEntradas - totalSaidas >= 0 ? '#10b981' : '#ef4444'}">${formatCurrency(totalEntradas - totalSaidas)}</strong>
                 </div>
                 <div style="border-left: 1px solid #ccc; padding-left: 16px;">
                     <strong style="text-transform: uppercase;">Conciliação (Dinheiro Físico):</strong><br>
