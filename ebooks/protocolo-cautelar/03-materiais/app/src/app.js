@@ -316,7 +316,7 @@ function renderPintura() {
   let h = `<div class="view-head"><div><h1 id="h-pintura">Mapa de pintura</h1><p>Até 5 leituras por peça, em µm. Toque numa peça do desenho para ir até ela.</p></div></div>
   <div class="card card-warn" role="note" style="font-size:.85rem"><b>Orientativo.</b> A espessura de fábrica varia por fabricante, modelo, cor e processo. O semáforo compara as peças do próprio veículo; a conclusão sobre repintura é sua, confirmada pela inspeção visual (CAR-03 a CAR-07).</div>
   <div class="pnt-wrap"><div class="pnt-map card" id="pnt-map">${svgCarro(S.cur.pintura, { tema: 'app', prefixo: 'a', sel: S.selPeca })}
-    <div class="pnt-legend"><span><i class="sw" style="background:#2E9E5B"></i>Compatível (≤ 1,3×)</span><span><i class="sw" style="background:#E0A100"></i>Provável repintura (≤ 2×)</span><span><i class="sw" style="background:#C62828"></i>Massa/reparo (&gt; 2×)</span><span><i class="sw" style="background:#3A4655"></i>sem leitura</span></div>
+    <div class="pnt-legend"><span><i class="sw" style="background:#4F7FB0"></i>Mais fina: investigar (&lt; 0,7×)</span><span><i class="sw" style="background:#2E9E5B"></i>Compatível (0,7–1,3×)</span><span><i class="sw" style="background:#E0A100"></i>Provável repintura (≤ 2×)</span><span><i class="sw" style="background:#C62828"></i>Massa/reparo (&gt; 2×)</span><span><i class="sw" style="background:#3A4655"></i>sem leitura</span></div>
     <p class="muted" style="font-size:.75rem;text-align:center;margin:6px 0 0">Vista superior · frente para cima · E/D = lado do motorista/passageiro</p></div>
   <div>
   <div class="card"><div class="ref-box">
@@ -383,8 +383,8 @@ function renderResumo() {
   h += `</div>`;
   const pc = calcPintura(v.pintura);
   if (v.tipo !== 'moto' && pc.nMedidas) {
-    const alt = PECAS.filter(p => ['amarelo', 'vermelho'].includes(pc.status[p.id]));
-    h += `<div class="card"><h2>Pintura (orientativo)</h2><p style="font-size:.88rem;margin:0">${pc.nMedidas} peça(s) medida(s), referência ${Math.round(pc.ref)} µm. ${alt.length ? `Acima da referência: ${alt.map(p => `${esc(p.nome)} (${SEMAFORO[pc.status[p.id]].txt.toLowerCase()})`).join('; ')}. Confira se estão refletidas no sistema CAR.` : 'Nenhuma peça acima de 1,3× a referência.'}</p></div>`;
+    const alt = PECAS.filter(p => ['amarelo', 'vermelho', 'azul'].includes(pc.status[p.id]));
+    h += `<div class="card"><h2>Pintura (orientativo)</h2><p style="font-size:.88rem;margin:0">${pc.nMedidas} peça(s) medida(s), referência ${Math.round(pc.ref)} µm. ${alt.length ? `Fora da faixa compatível: ${alt.map(p => `${esc(p.nome)} (${SEMAFORO[pc.status[p.id]].txt.toLowerCase()})`).join('; ')}. Confira se estão refletidas no sistema CAR.` : 'Todas as peças medidas entre 0,7× e 1,3× a referência.'}</p></div>`;
   }
   h += `<div class="card"><h2><label for="parecer">Parecer do vistoriador (opcional)</label></h2><textarea id="parecer" data-bind="parecer" rows="5" placeholder="Considerações finais, recomendações (ex.: orientar verificação oficial, revisão de freios)…">${esc(v.parecer || '')}</textarea></div>`;
   h += `<button class="btn btn-primary btn-block" data-action="go" data-view="laudo" ${pend.length ? 'aria-describedby="h-resumo"' : ''}>${pend.length ? 'Ver o que falta para o laudo' : 'Emitir laudo →'}</button>`;

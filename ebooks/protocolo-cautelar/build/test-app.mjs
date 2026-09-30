@@ -242,7 +242,7 @@ const leituras = {
   paralama_de: [116, 119, 112, 120, 118], paralama_dd: [310, 345, 290, 330, 325],
   porta_de: [180, 195, 188, 176, 190], porta_dd: [118, 121, 115, 117, 119],
   porta_te: [114, 116, 119, 121, 113], porta_td: [117, 115, 122, 118, 116],
-  lateral_te: [119, 121, 117, 115, 120], lateral_td: [116, 118, 120, 114, 119],
+  lateral_te: [119, 121, 117, 115, 120], lateral_td: [68, 72, 70, 71, 69],
   coluna_e: [118, 120, 116], coluna_d: [117, 119, 121]
 };
 for (const [p, ls] of Object.entries(leituras)) for (let i = 0; i < ls.length; i++) await typeIn(`[data-leit="${p}:${i}"]`, ls[i]);
@@ -250,7 +250,11 @@ await sleep(200);
 {
   const st = id => page.$eval('#pb-' + id, el => el.className.replace('peca-res', '').trim());
   const ref = await page.evaluate(() => window.__painel.calcPintura(window.__painel.S.cur.pintura).ref);
-  check(Math.abs(ref - 117.6) < 1.5, `referência = mediana das médias (${ref.toFixed(1)} µm)`);
+  check(ref > 116 && ref < 119.5, `referência = mediana das médias (${ref.toFixed(1)} µm)`);
+  check(await st('lateral_td') === 'azul', `lateral TD ≈ ${(70 / ref).toFixed(2)}× (< 0,7×) → azul (mais fina: investigar)`);
+  check(await page.$eval('#pb-lateral_td', el => /Mais fina que as demais: investigar/.test(el.textContent)), 'texto da faixa < 0,7× no semáforo');
+  check(await page.$eval('#pnt-map rect[data-peca="lateral_td"]', el => el.getAttribute('fill')) === '#4F7FB0', 'SVG colore a peça mais fina (#4F7FB0)');
+  check(await page.$eval('.pnt-legend', el => /0,7×/.test(el.textContent)), 'legenda com a faixa < 0,7×');
   check(await st('capo') === 'verde', 'capô ≈ ref → verde (compatível)');
   check(await st('porta_de') === 'amarelo', 'porta DE ≈ 1,6× → amarelo (provável repintura)');
   check(await st('paralama_dd') === 'vermelho', 'paralama DD ≈ 2,7× → vermelho (massa/reparo)');
@@ -288,6 +292,7 @@ check(txt.includes('APROVADO COM APONTAMENTOS'), 'laudo mostra a classificação
 check(!/Protocolo Cautelar/i.test(txt), 'marca do produto ausente no laudo (rodapé desligado)');
 check(await page.$$eval('#paper .l-fotos figure', f => f.length) === 4, 'laudo com grade de 4 fotos legendadas');
 check(!!(await page.$('#paper .l-pnt svg')), 'laudo com mapa de pintura');
+check(await page.$eval('#paper .l-pnt', el => /Mais fina que as demais: investigar/.test(el.textContent) && /0,7×/.test(el.textContent)), 'tabela do laudo com a faixa < 0,7×');
 check(txt.includes('não destrutivo'), 'laudo com texto de limites');
 await page.evaluate(() => window.scrollTo(0, 0));
 await shot('06-laudo.png');

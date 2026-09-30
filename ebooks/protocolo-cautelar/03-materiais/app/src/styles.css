@@ -236,6 +236,7 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .peca-head strong { font-size: .95rem; }
 .peca-res { font-size: .8rem; font-weight: 700; padding: 4px 10px; border-radius: 14px; color: #fff; background: var(--inc); max-width: 62%; text-align: center; line-height: 1.25; }
 .peca-res.verde { background: var(--ok); }
+.peca-res.azul { background: #4F7FB0; }
 .peca-res.amarelo { background: var(--warn); color: #1A1F26; }
 .peca-res.vermelho { background: var(--bad); }
 .peca-res.vazio { background: transparent; color: var(--text-3); border: 1px solid var(--border); font-weight: 600; }

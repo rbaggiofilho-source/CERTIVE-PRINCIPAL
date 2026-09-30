@@ -102,7 +102,7 @@ function laudoHTML(v, cfg, fotos, opts = {}) {
       h += `<tr><td>${esc(p.nome)}</td><td class="leit">${l.join(', ')}</td><td class="mono">${Math.round(pc.medias[p.id])}</td><td><span class="lchip wrap" style="background:${SEMAFORO[st].cor};${st === 'amarelo' ? 'color:#1A1F26' : ''}">${SEMAFORO[st].txt}</span></td></tr>`;
     }
     h += `</tbody></table>`;
-    h += `<p class="l-note">Referência: <b>${pc.ref ? Math.round(pc.ref) + ' µm' : '—'}</b> (${pc.manual ? 'definida pelo vistoriador' : 'mediana das médias das peças medidas'}). Critério: até 1,3× a referência = compatível; até 2× = provável repintura; acima de 2× = provável repintura com massa/reparo. Valores orientativos: a espessura de fábrica varia por fabricante, modelo, cor e processo; a indicação não substitui a inspeção visual da peça.</p>`;
+    h += `<p class="l-note">Referência: <b>${pc.ref ? Math.round(pc.ref) + ' µm' : '—'}</b> (${pc.manual ? 'definida pelo vistoriador' : 'mediana das médias das peças medidas'}). Critério: abaixo de 0,7× a referência = mais fina que as demais, investigar (polimento intenso ou peça substituída); de 0,7× a 1,3× = compatível; até 2× = provável repintura; acima de 2× = provável repintura com massa/reparo. Valores orientativos: a espessura de fábrica varia por fabricante, modelo, cor e processo; a indicação não substitui a inspeção visual da peça.</p>`;
     h += `</div></div>`;
   }
 

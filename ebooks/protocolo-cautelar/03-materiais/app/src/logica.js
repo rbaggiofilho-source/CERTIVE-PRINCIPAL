@@ -89,6 +89,7 @@ const PECAS = [
   { id: 'parachoque_t', nome: 'Para-choque traseiro', sig: 'PC-T', plastico: true, r: [38, 380, 124, 24, 10] }
 ];
 const SEMAFORO = {
+  azul: { cor: '#4F7FB0', txt: 'Mais fina que as demais: investigar (polimento intenso ou peça substituída)', curto: 'Mais fina: investigar' },
   verde: { cor: '#2E9E5B', txt: 'Compatível' },
   amarelo: { cor: '#E0A100', txt: 'Provável repintura' },
   vermelho: { cor: '#C62828', txt: 'Provável repintura com massa/reparo' },
@@ -113,6 +114,7 @@ function calcPintura(pintura) {
     if (p.plastico) { status[p.id] = 'plastico'; continue; }
     const m = medias[p.id];
     if (m == null || !ref) status[p.id] = 'vazio';
+    else if (m < ref * 0.7) status[p.id] = 'azul';
     else if (m <= ref * 1.3) status[p.id] = 'verde';
     else if (m <= ref * 2) status[p.id] = 'amarelo';
     else status[p.id] = 'vermelho';

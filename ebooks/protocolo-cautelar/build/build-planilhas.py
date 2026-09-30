@@ -703,6 +703,7 @@ EXEMPLO_LEIT = {
     "Porta dianteira direita": [115, 112, 110, 114, 113], "Porta traseira direita": [185, 192, 178, 188, 181],
     "Lateral traseira esquerda": [109, 111, 108, 112, 110], "Lateral traseira direita": [320, 410, 290, 360, 385],
     "Coluna A esquerda": [105, 103, 108, None, None], "Coluna A direita": [107, 104, 106, None, None],
+    "Coluna B esquerda": [66, 68, 64, 67, 65],
 }
 
 
@@ -711,7 +712,7 @@ def build_pintura(path):
     capa(wb, "Mapa de Pintura (espessura de película)", [
         "Na aba Mapa, confira o material de cada peça (Aço / Alumínio / Plástico) e digite até 5 leituras por peça, em micrômetros (µm).",
         "A referência é a mediana automática das médias das peças metálicas medidas. Se você conhece o valor do fabricante, digite-o em 'Referência manual' — ele sobrescreve a mediana.",
-        "Razão = média da peça ÷ referência. O status e a cor mudam sozinhos conforme os limites da aba (editáveis).",
+        "Razão = média da peça ÷ referência. O status e a cor mudam sozinhos conforme os limites da aba (editáveis): <0,7 mais fina (investigar); ≤1,3 compatível; ≤2 provável repintura; >2 com massa/reparo.",
         "Para-choques e peças plásticas: NÃO MEDIR com medidor Fe/NFe (a leitura não é válida); avalie visualmente.",
         "Use o resultado como indício para o item CAR/EST do Registro; confirme visualmente antes de atribuir o nível.",
     ], extra=[
@@ -750,6 +751,12 @@ def build_pintura(path):
     ws.merge_cells("I7:J7")
     ws["I7"].value = "com massa/reparo"
     ws["I7"].font = f(9, False, TEXTO2, italic=True)
+    rotulo(ws["E8"], "Limite mais fina (razão <)")
+    ws.merge_cells("E8:G8")
+    entrada(ws["H8"], 0.7, fmt="0.00")
+    ws.merge_cells("I8:L8")
+    ws["I8"].value = "abaixo disso: mais fina — investigar (polimento ou peça substituída)"
+    ws["I8"].font = f(9, False, TEXTO2, italic=True)
 
     hr = 9
     header_row(ws, hr, ["Peça", "Material", "L1", "L2", "L3", "L4", "L5", "Média", "Razão", "Nº", "Status", "Observação"])
@@ -773,12 +780,14 @@ def build_pintura(path):
         formula(ws.cell(row=r, column=10), f"=COUNT(C{r}:G{r})", align=CENTRO)
         formula(ws.cell(row=r, column=11),
                 f'=IF(B{r}="Plástico","NÃO MEDIR (plástico)",IF(I{r}="","— sem leitura",'
+                f'IF(I{r}<$H$8,"Mais fina: investigar (polimento ou peça substituída)",'
                 f'IF(I{r}<=$H$5,"Compatível",IF(I{r}<=$H$6,"Provável repintura",'
-                f'"Provável repintura c/ massa/reparo"))))', align=CENTRO)
+                f'"Provável repintura c/ massa/reparo")))))', align=CENTRO)
         entrada(ws.cell(row=r, column=12))
         ws.row_dimensions[r].height = 18
     ws["L18"].value = "Exemplo: repintura na porta"
     ws["L20"].value = "Exemplo: conferir funilaria"
+    ws["L23"].value = "Exemplo: película mais fina"
     ws["L27"].value = "Avaliar visualmente"
     ws["L28"].value = "Avaliar visualmente"
     # mediana so de pecas metalicas com media (MEDIAN ignora texto "")
@@ -798,7 +807,7 @@ def build_pintura(path):
              "Alumínio: use o modo/sonda NFe. Plástico: não medir.")
     # CF status
     rng = f"K{first}:K{last}"
-    for txt, cor, fc in [("Compatível", "2E9E5B", "FFFFFF"), ("Provável repintura c/", "C62828", "FFFFFF"),
+    for txt, cor, fc in [("Mais fina", "4F7FB0", "FFFFFF"), ("Compatível", "2E9E5B", "FFFFFF"), ("Provável repintura c/", "C62828", "FFFFFF"),
                          ("Provável repintura", "E0A100", TEXTO), ("NÃO MEDIR", "DDE1E6", TEXTO2)]:
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'LEFT(K{first},{len(txt)})="{txt}"'],
                                                      fill=FILL(cor), font=Font(name=FONT, bold=True, color=fc),
@@ -807,11 +816,14 @@ def build_pintura(path):
         formula=[f'AND(ISNUMBER(I{first}),I{first}>$H$6)'], font=Font(name=FONT, bold=True, color="C62828")))
     ws.conditional_formatting.add(f"I{first}:I{last}", FormulaRule(
         formula=[f'AND(ISNUMBER(I{first}),I{first}>$H$5)'], font=Font(name=FONT, bold=True, color=AMBAR_ESCURO)))
+    ws.conditional_formatting.add(f"I{first}:I{last}", FormulaRule(
+        formula=[f'AND(ISNUMBER(I{first}),I{first}<$H$8)'], font=Font(name=FONT, bold=True, color="4F7FB0")))
 
     # resumo
     rs = last + 2
     header_row(ws, rs, ["Resumo", "Qtde"], height=22)
     for k, (lab, fx) in enumerate([
+        ("Mais fina: investigar", f'=COUNTIF({rng},"Mais fina*")'),
         ("Compatível", f'=COUNTIF({rng},"Compatível")'),
         ("Provável repintura", f'=COUNTIF({rng},"Provável repintura")'),
         ("Provável repintura c/ massa/reparo", f'=COUNTIF({rng},"Provável repintura c/*")'),
@@ -820,10 +832,11 @@ def build_pintura(path):
     ], 1):
         rotulo(ws.cell(row=rs + k, column=1), lab, bold=False, fill=None)
         formula(ws.cell(row=rs + k, column=2), fx, bold=True, align=CENTRO)
-    nr = rs + 7
+    nr = rs + 8
     nota(ws, f"A{nr}:L{nr + 1}",
-         "Valores ORIENTATIVOS: a espessura original varia por fabricante, modelo, ano, cor e processo. Limites de razão (1,3 e 2,0) "
-         "são ponto de partida editável. Medidor Fe/NFe: aço no modo Fe; alumínio exige modo/sonda NFe; plástico e fibra não são "
+         "Valores ORIENTATIVOS: a espessura original varia por fabricante, modelo, ano, cor e processo. Limites de razão (0,7; 1,3 e 2,0) "
+         "são ponto de partida editável. Razão abaixo de 0,7 (película mais fina que a referência) também é indício: "
+         "investigar polimento excessivo ou peça substituída. Medidor Fe/NFe: aço no modo Fe; alumínio exige modo/sonda NFe; plástico e fibra não são "
          "medidos por esse método. Espessura alta é INDÍCIO: confirme com inspeção visual (textura, tonalidade, respingos, "
          "vedações, parafusos) antes de atribuir o nível no Registro.")
     ws.row_dimensions[nr].height = 30

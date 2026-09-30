@@ -52,7 +52,7 @@ function renderBloco(b) {
 
 // Títulos com {#id .classe}
 function titulos(src) {
-  return src.replace(/^(#{1,4})\s+(.+?)\s*\{([^}]*)\}\s*$/gm, (m, h, txt, attrs) => {
+  return src.replace(/^(#{1,4})[ \t]+(.+?)[ \t]*\{([^}]*)\}[ \t]*$/gm, (m, h, txt, attrs) => {
     const id = (attrs.match(/#([\w-]+)/) || [])[1] || slug(txt);
     const cls = [...attrs.matchAll(/\.([\w-]+)/g)].map(x => x[1]).join(' ');
     const n = h.length;
@@ -71,6 +71,7 @@ export function mdParaHtml(src) {
   html = html.replace(/<table>/g, '<div class="tabela"><table>').replace(/<\/table>/g, '</table></div>');
   // checkboxes
   html = html.replace(/<input (checked="" )?disabled="" type="checkbox">/g, '<span class="cb"></span>');
+  html = html.replace(/<li><span class="cb"><\/span>([\s\S]*?)<\/li>/g, '<li><span class="cb"></span><span>$1</span></li>');
   return html;
 }
 

@@ -170,6 +170,7 @@ def main():
     ref = median(medias)
     ok = abs(ws["B7"].value - ref) < 1e-9
     esperados_status = {}
+    finas = []
     for r in range(m["first"], m["last"] + 1):
         h = ws.cell(row=r, column=8).value
         mat = ws.cell(row=r, column=2).value
@@ -179,9 +180,23 @@ def main():
             e = "— sem leitura"
         else:
             rz = h / ref
-            e = "Compatível" if rz <= 1.3 else ("Provável repintura" if rz <= 2 else "Provável repintura c/ massa/reparo")
+            if rz < 0.7:
+                e = "Mais fina: investigar (polimento ou peça substituída)"
+                finas.append((r, round(rz, 2)))
+            else:
+                e = "Compatível" if rz <= 1.3 else ("Provável repintura" if rz <= 2 else "Provável repintura c/ massa/reparo")
         esperados_status[r] = e
         ok &= ws.cell(row=r, column=11).value == e
+    # cenario: peca a ~0,6 da referencia -> "Mais fina", contada no resumo
+    cont_fina = None
+    for rr in range(m["last"] + 1, ws.max_row + 1):
+        if ws.cell(row=rr, column=1).value == "Mais fina: investigar":
+            cont_fina = ws.cell(row=rr, column=2).value
+    ok &= len(finas) == 1 and 0.55 <= finas[0][1] <= 0.65 and cont_fina == 1
+    ok &= str(ws.cell(row=finas[0][0], column=11).value).startswith("Mais fina") if finas else False
+    print(f"  [{'OK' if ok else 'FALHA'}] Pintura (faixa < 0,7): peça linha {finas[0][0] if finas else '-'} "
+          f"razão={finas[0][1] if finas else '-'} → '{ws.cell(row=finas[0][0], column=11).value if finas else '-'}'; "
+          f"contagem no resumo={cont_fina}")
     falhas += not ok
     print(f"  [{'OK' if ok else 'FALHA'}] Pintura: referência={ref:.1f} µm; status de {len(esperados_status)} peças conferem; "
           f"porta tras. dir.='{ws['K18'].value}', lateral tras. dir.='{ws['K20'].value}'")
