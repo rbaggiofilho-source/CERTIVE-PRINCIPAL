@@ -9,8 +9,8 @@
 | **Principal** | **Protocolo Cautelar: o sistema do vistoriador** | **R$ 37** | Manual (66 p.) + 60 Fichas de Ponto Crítico + 15 Fichas de Teste + Checklists (pátio + 12 detalhados) + app Painel de Vistoria + planilhas de apontamentos e mapa de pintura | Tudo o que é usado **no pátio** |
 | **Order bump 1** | Pacote Jurídico e Comercial | **R$ 19** | 9 modelos DOCX: laudo, termo de autorização e ciência, proposta, contrato de serviço, contrato com lojista, recibo, aviso LGPD, política de classificação, 18 mensagens de WhatsApp | Tudo o que é usado **com o cliente** |
 | **Order bump 2** | Planilhas de Gestão | **R$ 14** | Precificação por custo/hora, controle de vistorias e caixa com painel mensal, agenda e rota, comparativo anúncio × veículo | Tudo o que é usado **no escritório** |
-| **Upsell** (1 clique) | Licença do **Guia do Comprador com a sua marca** | **R$ 67** | E-book "Antes de Fechar Negócio" em versão editável para o vistoriador entregar aos clientes como material de captação | **Produzir antes de ativar** (produto nº 2 do catálogo) |
-| **Downsell** | Guia do Comprador (sem licença de marca) | **R$ 27** | O mesmo e-book para uso pessoal / estudo | Ativar junto com o upsell |
+| **Upsell** (1 clique) | Licença do **Guia do Comprador com a sua marca** | **R$ 67** | E-book "Antes de Fechar Negócio" (37 p.) com personalizador offline: o vistoriador coloca logo, nome, WhatsApp e cidade na capa, no rodapé e na página final, gera o PDF e distribui aos clientes. Inclui checklist, planilhas e modelos do comprador | **Pronto** (`../antes-de-fechar-negocio/`) |
+| **Downsell** | Guia do Comprador (sem licença de marca) | **R$ 27** | O mesmo e-book, edição padrão | **Pronto** |
 
 **Por que dividir assim:** o preço de entrada fica abaixo da referência de mercado (R$ 37 x R$ 37/47), o comprador que só quer o essencial não paga pelo resto, e o ticket médio sobe com os bumps, que são **reais e úteis**, não bônus inflados.
 
@@ -41,7 +41,7 @@ Premissas **[VERIFICAR]**:
 | (–) Imposto ~6% sobre o bruto | | | | ≈ R$ 3,07 |
 | **Margem por venda antes de anúncio** | | | | **≈ R$ 41** |
 
-**Sem upsell (até o produto 2 existir):** ticket bruto ≈ R$ 46, margem ≈ R$ 36.
+**Sem upsell:** ticket bruto ≈ R$ 46, margem ≈ R$ 36 (referência caso a adesão ao upsell fique muito baixa).
 
 | Métrica | Com upsell | Sem upsell |
 |---|---|---|

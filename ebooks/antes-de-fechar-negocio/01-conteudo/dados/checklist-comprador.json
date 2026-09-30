@@ -1,0 +1,62 @@
+{
+  "etapas": [
+    {"id": "A", "nome": "Antes de sair de casa", "itens": [
+      "Preço comparado com a referência de mercado e anúncios da região",
+      "Busca reversa das fotos do anúncio feita",
+      "As 10 perguntas enviadas por escrito e respondidas",
+      "Vendedor é o proprietário do documento (ou falei com o proprietário)",
+      "Vendedor aceitou vistoria cautelar e test drive",
+      "CRLV-e conferido pelo QR Code; placa, chassi e RENAVAM anotados",
+      "Consultas: débitos, restrições, gravame e recall",
+      "Consultas: leilão, sinistro e histórico de quilometragem",
+      "Planilha de custo total preenchida e reserva de 10% separada",
+      "Pedi para não ligarem o motor antes da visita"
+    ]},
+    {"id": "B", "nome": "Na visita: por fora", "itens": [
+      "Luz do dia, carro seco, local plano",
+      "Volta de 360° de longe: nível, linhas, cor, rodas centralizadas",
+      "Vãos entre peças iguais dos dois lados",
+      "Cor, brilho e textura iguais em todas as peças",
+      "Sem tinta em borrachas, frisos, plásticos e vidros",
+      "Parafusos de para-lamas, portas e capô com a tinta intacta",
+      "Vidros com a mesma marca e datas parecidas",
+      "Faróis com a mesma marca e data",
+      "Pneus: sulco acima dos marcadores, DOT anotado, desgaste por igual",
+      "Rodas sem trincas ou soldas; estepe, macaco, chave e triângulo presentes"
+    ]},
+    {"id": "C", "nome": "Na visita: por dentro", "itens": [
+      "Motor frio ao chegar",
+      "Autoteste do painel: todas as luzes acendem e apagam",
+      "Luz do airbag acende no teste e apaga",
+      "Sem cheiro de mofo ou perfume em excesso",
+      "Trilhos e parafusos dos bancos sem ferrugem",
+      "Sob o tapete e no poço do estepe: sem barro, areia ou marca d'água",
+      "Cintos: travam, recolhem e estão limpos na parte enrolada",
+      "Desgaste do interior coerente com a quilometragem",
+      "Óleo e líquido de arrefecimento com aspecto normal; sem vazamentos",
+      "Partida sem ruído metálico e sem fumaça anormal",
+      "Ar-condicionado, vidros elétricos, travas e luzes funcionando"
+    ]},
+    {"id": "D", "nome": "Test drive", "itens": [
+      "Proprietário a bordo e responsabilidades combinadas",
+      "Direção sem ruído nem folga",
+      "Saída sem trepidação; embreagem não pega só no fim do curso",
+      "Todas as marchas e a ré engatam bem (ou trocas suaves no automático)",
+      "Em reta, o carro não puxa e o volante não vibra",
+      "Sem batidas em lombadas e sem estalos em curva lenta",
+      "Frenagem firme: não puxa, pedal firme e sem vibração",
+      "Capô aberto na volta: sem vazamentos nem cheiro de queimado"
+    ]},
+    {"id": "E", "nome": "Antes de pagar", "itens": [
+      "Vistoria cautelar feita e laudo lido (classificação, fotos, limites)",
+      "Orçamento dos reparos apontados usado na negociação",
+      "Gravame quitado e baixado (se havia)",
+      "Débitos quitados ou descontados, por escrito",
+      "Pagamento somente ao titular do documento, por meio rastreável",
+      "Contrato assinado com data, hora e km da entrega",
+      "Termo de entrega com chaves, manual e acessórios",
+      "Seguro contratado antes de dirigir",
+      "Transferência iniciada na mesma semana"
+    ]}
+  ]
+}

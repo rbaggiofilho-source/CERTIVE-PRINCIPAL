@@ -49,4 +49,4 @@ Legenda: ✅ verificado · ⚠️ pendente de ação sua · 🔎 [VERIFICAR] na 
 - ⚠️ Conferir se o nome e o domínio estão livres (INPI e registro de domínio)
 - ⚠️ Preencher contato de suporte no "Comece por aqui" e nos e-mails
 - ⚠️ Definir a autoria/autoridade apresentada na página de vendas (sem citar empresa, conforme combinado)
-- ⚠️ Produzir o produto 2 (Guia do Comprador) antes de ativar o upsell
+- ✅ Produto 2 (Guia do Comprador) pronto: upsell de licença e downsell podem ser ativados

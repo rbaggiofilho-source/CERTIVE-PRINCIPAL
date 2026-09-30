@@ -146,12 +146,15 @@ export function mapaLocal(vista, zonas = [], { cor = '#F2A900' } = {}) {
   const ativas = zonas.filter(z => v.zonas[z]).map(z => zonaSvg(v.zonas[z], 'za')).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${v.vb}" class="mapa">
   <style>
-    .b{fill:#F3F5F7;stroke:#9AA3AE;stroke-width:3}.b2{fill:#E3E8ED;stroke:#9AA3AE;stroke-width:2}
-    .l{fill:none;stroke:#B6BEC7;stroke-width:3}.r{fill:#D5DAE0;stroke:#9AA3AE;stroke-width:2}
-    .t{font:700 20px 'JetBrains Mono',monospace;fill:#7A8591;letter-spacing:2px}
-    .z,.z *{fill:rgba(122,133,145,.10);stroke:#B6BEC7;stroke-width:1.5;stroke-dasharray:5 4}
-    .za,.za *{fill:${cor};fill-opacity:.85;stroke:#0F1318;stroke-width:3}
-    .z.lin{fill:none;stroke-width:6}.za.lin{fill:none;stroke:${cor};stroke-width:14;stroke-linecap:round;stroke-dasharray:none}
+    svg.mapa .b{fill:#F3F5F7;stroke:#9AA3AE;stroke-width:3}
+    svg.mapa .b2{fill:#E3E8ED;stroke:#9AA3AE;stroke-width:2}
+    svg.mapa .l{fill:none;stroke:#B6BEC7;stroke-width:3}
+    svg.mapa .r{fill:#D5DAE0;stroke:#9AA3AE;stroke-width:2}
+    svg.mapa .t{font:700 20px 'JetBrains Mono',monospace;fill:#7A8591;letter-spacing:2px}
+    svg.mapa .z,svg.mapa .z *{fill:rgba(122,133,145,.10);stroke:#B6BEC7;stroke-width:1.5;stroke-dasharray:5 4}
+    svg.mapa .za,svg.mapa .za *{fill:${cor};fill-opacity:.85;stroke:#0F1318;stroke-width:3}
+    svg.mapa .z.lin{fill:none;stroke-width:6}
+    svg.mapa .za.lin{fill:none;stroke:${cor};stroke-width:14;stroke-linecap:round;stroke-dasharray:none}
   </style>
   ${v.base}${outras}${ativas}
 </svg>`;
