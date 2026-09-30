@@ -1,0 +1,1290 @@
+[
+  {
+    "codigo": "T-01",
+    "titulo": "Medição de espessura de pintura",
+    "objetivo": "Medir a camada de pintura de cada peça da carroceria para identificar repintura, massa e peças substituídas, comparando cada leitura com a média das peças originais do próprio veículo.",
+    "quando": "Na inspeção de carroceria e pintura (sistema CAR), após a caminhada visual e antes da análise de estrutura, com o veículo limpo e seco.",
+    "equipamento": [
+      "Medidor de espessura de camada (ferroso e não ferroso)",
+      "Placa de calibração do medidor",
+      "Pano de microfibra",
+      "Mapa de pintura impresso ou no app"
+    ],
+    "preparacao": [
+      "Calibre o medidor na placa de referência antes de cada vistoria",
+      "Limpe o ponto de medição; poeira grossa e cera espessa alteram a leitura",
+      "Identifique peças de alumínio e plástico: o modo de leitura muda ou o medidor não lê",
+      "Meça primeiro o teto e as colunas para obter a referência original do veículo"
+    ],
+    "passos": [
+      "Meça o teto em 3 pontos e anote a média como referência do veículo",
+      "Siga no sentido horário a partir do para-lama dianteiro esquerdo",
+      "Faça no mínimo 3 leituras por peça (centro e bordas), 5 em peças grandes",
+      "Encoste o sensor perpendicular à superfície, sem arrastar",
+      "Anote cada leitura no mapa de pintura com a peça e a posição",
+      "Compare peças vizinhas: diferença grande entre elas indica intervenção",
+      "Repita a medição em qualquer ponto fora do padrão para confirmar",
+      "Fotografe o medidor sobre a peça em cada leitura fora da faixa"
+    ],
+    "referencias": [
+      {
+        "faixa": "Até ~70 µm",
+        "leitura": "Camada muito fina: possível polimento excessivo ou retoque; confirme",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "~80–160 µm",
+        "leitura": "Faixa comum de pintura original em muitos fabricantes",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "~160–250 µm",
+        "leitura": "Acima do padrão do veículo: provável repintura",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "~250–500 µm",
+        "leitura": "Repintura com provável massa de nivelamento",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Acima de ~500 µm",
+        "leitura": "Massa espessa: provável reparo de amassado maior",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Em área de absorção ou estrutural",
+        "leitura": "Nível sobe conforme a peça: consulte a ficha do ponto",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Referência do teto (µm)"
+      },
+      {
+        "campo": "Peça"
+      },
+      {
+        "campo": "Leitura 1 / 2 / 3 (µm)"
+      },
+      {
+        "campo": "Média da peça (µm)"
+      },
+      {
+        "campo": "Diferença para a referência (µm)"
+      },
+      {
+        "campo": "Material (aço/alumínio/plástico)"
+      },
+      {
+        "campo": "Nível atribuído"
+      }
+    ],
+    "erros_comuns": [
+      "Usar faixas fixas sem comparar com a referência do próprio veículo; cada fabricante e cada fábrica tem sua camada.",
+      "Medir plástico ou alumínio no modo errado e registrar leitura inválida.",
+      "Apontar como repintura uma única leitura alta sem repetir e sem medir pontos vizinhos."
+    ],
+    "seguranca": "Não aplique força nem arraste o sensor na pintura. Nas faixas acima, os valores são ORIENTATIVOS e variam por fabricante, modelo e ano; a referência é o próprio veículo.",
+    "capitulo": 7
+  },
+  {
+    "codigo": "T-02",
+    "titulo": "Leitura com scanner OBD2",
+    "objetivo": "Ler códigos de falha (P, C, B, U), seu estado, monitores de prontidão, dados congelados e, quando disponível, a quilometragem registrada nos módulos, sem apagar nada.",
+    "quando": "Na etapa de eletrônica e diagnóstico (sistema ELE), com o motor frio antes da partida e repetida após o test drive.",
+    "equipamento": [
+      "Scanner OBD2 com leitura de múltiplos módulos",
+      "Celular para fotografar ou salvar relatório"
+    ],
+    "preparacao": [
+      "Localize o conector de diagnóstico de 16 pinos sob o painel",
+      "Confirme que a bateria tem tensão suficiente (T-03) para evitar falhas de comunicação",
+      "Pergunte ao apresentante sobre troca de bateria ou reparo recente e registre"
+    ],
+    "passos": [
+      "Com a ignição desligada, conecte o scanner; depois ligue a ignição sem dar partida",
+      "Identifique o veículo e faça varredura em todos os módulos acessíveis",
+      "Registre cada código: letra (P motor/transmissão, C chassi, B carroceria, U rede)",
+      "Anote o estado: ativo (confirmado), pendente ou permanente",
+      "Abra os dados congelados do código principal (rotação, temperatura, km)",
+      "Registre cada monitor de prontidão: pronto, não pronto ou não suportado",
+      "Consulte a km gravada em módulos, quando o scanner permitir",
+      "Salve o relatório; repita a leitura após o test drive. NÃO apague códigos"
+    ],
+    "referencias": [
+      {
+        "faixa": "Sem códigos, monitores prontos",
+        "leitura": "Nenhuma falha registrada nos módulos lidos",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Monitores 'não prontos'",
+        "leitura": "Sugere apagamento recente de códigos ou bateria desconectada; registre",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Código pendente ou histórico",
+        "leitura": "Falha detectada ainda não confirmada ou já ocorrida",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Código ativo P ou U",
+        "leitura": "Falha confirmada de motor, transmissão ou comunicação",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Código B de airbag ou C de freio",
+        "leitura": "Sistema de segurança com falha registrada",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Km em módulo ≠ painel",
+        "leitura": "Divergência de quilometragem; aplique T-11",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Módulos lidos"
+      },
+      {
+        "campo": "Código e descrição"
+      },
+      {
+        "campo": "Estado (ativo/pendente/permanente)"
+      },
+      {
+        "campo": "Dados congelados (rpm, temp., km)"
+      },
+      {
+        "campo": "Monitores não prontos"
+      },
+      {
+        "campo": "Km em módulos"
+      },
+      {
+        "campo": "Leitura pós-test drive"
+      }
+    ],
+    "erros_comuns": [
+      "Confundir 'não suportado' com 'não pronto' e apontar monitor inexistente no veículo.",
+      "Concluir 'sem falhas' com scanner que lê só o módulo de motor; registre a cobertura do equipamento.",
+      "Apagar códigos 'para testar': destrói evidência e altera o veículo de terceiros."
+    ],
+    "seguranca": "Não mova o seletor nem acione atuadores pelo scanner sem autorização. Mantenha o cabo longe dos pedais durante o test drive e desconecte antes de sair.",
+    "capitulo": 10
+  },
+  {
+    "codigo": "T-03",
+    "titulo": "Bateria e sistema de carga",
+    "objetivo": "Medir a tensão da bateria em repouso, durante a partida e com o motor ligado, com e sem cargas, para avaliar o estado de carga da bateria e o funcionamento do alternador.",
+    "quando": "Na etapa de eletrônica (sistema ELE): repouso e partida antes da primeira partida do dia; carga logo em seguida, com o motor em marcha lenta.",
+    "equipamento": [
+      "Multímetro digital",
+      "Luvas",
+      "Lanterna"
+    ],
+    "preparacao": [
+      "Motor desligado há pelo menos alguns minutos, com portas fechadas e luzes apagadas",
+      "Selecione a escala de tensão contínua (V DC) no multímetro",
+      "Identifique o polo positivo e o negativo; limpe só o necessário para contato"
+    ],
+    "passos": [
+      "Meça a tensão em repouso nos bornes e anote",
+      "Anote data de fabricação e especificação da bateria",
+      "Com um ajudante, dê a partida e registre a menor tensão durante o giro",
+      "Com motor em marcha lenta, meça a tensão de carga",
+      "Ligue faróis, ventilação máxima e desembaçador; meça de novo",
+      "Acelere a ~2.000 rpm com as cargas ligadas e meça",
+      "Confira fixação, corrosão, capa do positivo e carcaça"
+    ],
+    "referencias": [
+      {
+        "faixa": "Repouso ~12,4–12,7 V",
+        "leitura": "Bateria com carga adequada",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Repouso ~12,2–12,4 V",
+        "leitura": "Carga parcial; pode ser uso curto ou parada",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Repouso abaixo de ~12,2 V",
+        "leitura": "Bateria descarregada ou com desgaste",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Partida abaixo de ~9,6–10 V",
+        "leitura": "Bateria sem reserva para partida",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Carga ~13,5–14,7 V",
+        "leitura": "Alternador e regulador em faixa usual",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Carga < ~13,2 ou > ~15 V",
+        "leitura": "Subcarga ou sobrecarga; avaliar sistema de carga",
+        "nivel": "N2"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Data de fabricação da bateria"
+      },
+      {
+        "campo": "Tensão em repouso (V)"
+      },
+      {
+        "campo": "Tensão mínima na partida (V)"
+      },
+      {
+        "campo": "Tensão de carga em lenta (V)"
+      },
+      {
+        "campo": "Tensão com cargas ligadas (V)"
+      },
+      {
+        "campo": "Tensão a ~2.000 rpm com cargas (V)"
+      },
+      {
+        "campo": "Bornes, fixação e carcaça"
+      }
+    ],
+    "erros_comuns": [
+      "Medir o repouso logo após o motor desligar: a carga superficial eleva a leitura.",
+      "Apontar defeito em veículos com carga inteligente, que variam a tensão de propósito.",
+      "Esquecer de registrar que o veículo estava parado há dias antes da vistoria."
+    ],
+    "seguranca": "Não encoste ferramentas nos dois polos. Afaste-se de correias e ventoinha. Valores ORIENTATIVOS: variam por tipo de bateria (inclusive AGM/EFB) e fabricante.",
+    "capitulo": 10
+  },
+  {
+    "codigo": "T-04",
+    "titulo": "Pneus: sulco e DOT",
+    "objetivo": "Medir a profundidade dos sulcos, ler a data de fabricação (DOT) e avaliar desgaste irregular e danos nos quatro pneus e no estepe.",
+    "quando": "Na inspeção de rodas, pneus, suspensão e direção (sistema RSP), durante a caminhada externa, antes do test drive.",
+    "equipamento": [
+      "Medidor de profundidade de sulco",
+      "Lanterna",
+      "Giz ou marcador de pneu",
+      "Calibrador de pressão"
+    ],
+    "preparacao": [
+      "Estacione em piso plano; esterce o volante para expor a banda dianteira",
+      "Localize o indicador TWI (pequena marca no flanco e ressalto no sulco)",
+      "Localize a inscrição DOT no flanco; pode estar só no lado interno"
+    ],
+    "passos": [
+      "Meça o sulco em 3 pontos da largura: externo, centro e interno",
+      "Repita em dois pontos da circunferência de cada pneu",
+      "Leia os 4 últimos dígitos do DOT: semana e ano (ex.: 2523 = semana 25 de 2023)",
+      "Anote marca, medida e modelo; compare os pneus do mesmo eixo",
+      "Passe a mão e a lanterna nos flancos: bolhas, cortes e rachaduras",
+      "Observe o padrão de desgaste: bordas, centro ou irregular",
+      "Meça a pressão com pneu frio e repita tudo no estepe"
+    ],
+    "referencias": [
+      {
+        "faixa": "Sulco acima de ~5 mm",
+        "leitura": "Boa reserva de uso",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "~3–5 mm",
+        "leitura": "Meia vida; planejar troca",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "~1,6–3 mm",
+        "leitura": "Próximo do limite; troca em breve",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Abaixo de 1,6 mm (TWI)",
+        "leitura": "Abaixo do mínimo legal; item de segurança",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Idade elevada ou rachaduras",
+        "leitura": "Avaliar; muitos fabricantes indicam inspeção após ~5 anos",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Bolha, corte ou desgaste irregular forte",
+        "leitura": "Dano ou desalinhamento; item de segurança",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Posição (DE/DD/TE/TD/estepe)"
+      },
+      {
+        "campo": "Marca e medida"
+      },
+      {
+        "campo": "Sulco externo/centro/interno (mm)"
+      },
+      {
+        "campo": "DOT (semana/ano)"
+      },
+      {
+        "campo": "Pressão a frio (psi)"
+      },
+      {
+        "campo": "Padrão de desgaste"
+      },
+      {
+        "campo": "Danos no flanco"
+      },
+      {
+        "campo": "Nível atribuído"
+      }
+    ],
+    "erros_comuns": [
+      "Medir só o centro e perder desgaste de borda por alinhamento ou pressão.",
+      "Ler o DOT de 3 dígitos (pré-2000) ou um código de fábrica como se fosse data.",
+      "Esquecer o estepe, que também entra no laudo."
+    ],
+    "seguranca": "Mínimo legal de 1,6 mm conforme Resolução CONTRAN [VERIFICAR número vigente]. Demais faixas são ORIENTATIVAS e variam por fabricante. Não se deite sob o veículo.",
+    "capitulo": 8
+  },
+  {
+    "codigo": "T-05",
+    "titulo": "Datas de vidros e componentes",
+    "objetivo": "Ler as datas de fabricação de vidros e componentes datados (cintos, faróis, lanternas, amortecedores, bateria) e compará-las com a fabricação do veículo para localizar substituições.",
+    "quando": "Na inspeção de vidros e iluminação (sistema VID) e no interior (INT), em conjunto com o mapa de pintura, para cruzar indícios por região.",
+    "equipamento": [
+      "Lanterna",
+      "Câmera do celular com zoom",
+      "Mapa de datas impresso ou no app"
+    ],
+    "preparacao": [
+      "Anote mês e ano de fabricação do veículo (etiqueta da coluna, documento)",
+      "Limpe o canto do vidro onde fica a gravação (serigrafia)",
+      "Consulte a convenção de data do fabricante do vidro, que varia entre marcas"
+    ],
+    "passos": [
+      "Comece pelo para-brisa e siga no sentido horário por todos os vidros",
+      "Fotografe cada gravação com zoom, legível",
+      "Anote o ano (em geral o dígito isolado) e o mês pela convenção do fabricante",
+      "Compare marcas e datas dos vidros: conjunto homogêneo é o esperado",
+      "Leia etiquetas de faróis, lanternas e cintos e registre as datas",
+      "Marque no mapa as peças com data posterior à fabricação do veículo",
+      "Cruze as peças trocadas com pintura e estrutura da mesma região"
+    ],
+    "referencias": [
+      {
+        "faixa": "Datas até alguns meses antes do veículo",
+        "leitura": "Conjunto original coerente",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Para-brisa com data posterior",
+        "leitura": "Troca comum (pedra, trinca); registrar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Vidro lateral isolado com data posterior",
+        "leitura": "Substituição pontual; cruzar com a porta",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Vários itens de um lado com data posterior",
+        "leitura": "Indício de evento na região; cruzar com T-01",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Farol/cinto trocados + reparo na região",
+        "leitura": "Compatível com impacto significativo",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Gravação ilegível ou ausente",
+        "leitura": "Registrar como não verificado",
+        "nivel": "—"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Fabricação do veículo (mês/ano)"
+      },
+      {
+        "campo": "Peça e posição"
+      },
+      {
+        "campo": "Marca do vidro/componente"
+      },
+      {
+        "campo": "Data lida"
+      },
+      {
+        "campo": "Posterior ao veículo? (S/N)"
+      },
+      {
+        "campo": "Região cruzada com pintura/estrutura"
+      },
+      {
+        "campo": "Nível atribuído"
+      }
+    ],
+    "erros_comuns": [
+      "Interpretar a data de um fabricante pela convenção de outro.",
+      "Tratar vidro de reposição como indício de batida sem cruzar com a região.",
+      "Esquecer que veículos fabricados no início do ano podem ter peças do ano anterior."
+    ],
+    "seguranca": "Não raspe gravações nem remova películas. Datas são indícios de substituição, não provam acidente; conclusões dependem do cruzamento com os demais achados.",
+    "capitulo": 8
+  },
+  {
+    "codigo": "T-06",
+    "titulo": "Protocolo de enchente",
+    "objetivo": "Buscar de forma sistemática lodo, areia, oxidação, marcas de nível, umidade e odores em pontos onde a água deixa rastro e a limpeza raramente alcança.",
+    "quando": "Na etapa de interior (sistema INT), sempre; e imediatamente quando qualquer outro achado sugerir alagamento (oxidação em conectores, cheiro, umidade).",
+    "equipamento": [
+      "Lanterna forte",
+      "Espelho de inspeção",
+      "Luvas",
+      "Papel toalha branco"
+    ],
+    "preparacao": [
+      "Ao abrir o veículo, cheire o interior antes de ventilar",
+      "Peça autorização para levantar bordas do carpete e retirar o estepe",
+      "Tenha a data de fabricação à mão para julgar a oxidação esperada"
+    ],
+    "passos": [
+      "Interior: levante bordas do carpete, toque a base e observe lodo e umidade",
+      "Ilumine trilhos, parafusos dos bancos, base dos pedais e ancoragens dos cintos",
+      "Observe espumas e forros das portas e cintos traseiros por marcas de nível",
+      "Porta-malas: retire o estepe e examine o poço, a forração e os cantos",
+      "Cofre: parte baixa do radiador, conectores baixos, caixa do filtro de ar",
+      "Lanternas, faróis e painel: condensação ou marcas internas",
+      "Luz rasante nos parafusos da parte baixa: oxidação em faixa de altura",
+      "Registre cada ponto examinado, com ou sem achado"
+    ],
+    "referencias": [
+      {
+        "faixa": "Nenhum indício nos pontos do roteiro",
+        "leitura": "Sem sinal de alagamento nas áreas examinadas",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Oxidação leve e uniforme",
+        "leitura": "Compatível com idade ou maresia; registrar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Umidade isolada com causa visível",
+        "leitura": "Infiltração pontual (borracha, dreno)",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Carpete trocado + odor de mofo",
+        "leitura": "Indício a aprofundar; busque mais pontos",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Lodo/areia em áreas ocultas",
+        "leitura": "Indício de enchente",
+        "nivel": "N4"
+      },
+      {
+        "faixa": "Marca de nível ou oxidação em faixa",
+        "leitura": "Indício de enchente",
+        "nivel": "N4"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Odor na abertura"
+      },
+      {
+        "campo": "Carpete e base (lodo/umidade)"
+      },
+      {
+        "campo": "Trilhos e parafusos"
+      },
+      {
+        "campo": "Poço do estepe"
+      },
+      {
+        "campo": "Conectores baixos (cofre/interior)"
+      },
+      {
+        "campo": "Marcas de nível (local e altura)"
+      },
+      {
+        "campo": "Nível atribuído"
+      }
+    ],
+    "erros_comuns": [
+      "Parar na primeira área limpa; a lavagem não alcança todos os pontos do roteiro.",
+      "Classificar maresia (oxidação uniforme) como enchente (oxidação por altura).",
+      "Não fotografar a altura do indício em relação ao piso."
+    ],
+    "seguranca": "Use luvas: lodo e mofo podem conter contaminantes. Não desconecte módulos nem conectores. Levante carpetes só com autorização e sem danificar fixações.",
+    "capitulo": 11
+  },
+  {
+    "codigo": "T-07",
+    "titulo": "Test drive técnico",
+    "objetivo": "Avaliar em rodagem motor, câmbio, embreagem, freios, direção, suspensão e eletrônica, em roteiro padrão de 15 a 20 minutos, com segurança e autorização.",
+    "quando": "Após as etapas estáticas (partida a frio, mecânica, eletrônica) e antes da leitura final do scanner e da inspeção de vazamentos pós-rodagem.",
+    "equipamento": [
+      "Scanner OBD2 (opcional, com cabo fixado)",
+      "Celular para registro de ruídos"
+    ],
+    "preparacao": [
+      "Obtenha autorização escrita do proprietário para conduzir; confirme CNH válida e seguro",
+      "Confira pneus, freios e luzes antes de sair; se houver N3 de segurança, não rode",
+      "Defina o roteiro: piso liso, piso irregular, lombada, curva e reta segura"
+    ],
+    "passos": [
+      "Manobras: esterce todo para os dois lados em baixa velocidade, ouvindo estalos",
+      "Saída e trocas: observe embreagem ou câmbio automático (T-12, PC-TRF-02)",
+      "Piso irregular e lombadas: ruídos de suspensão e batidas",
+      "Reta: solte levemente o volante (com segurança) e veja se puxa para um lado",
+      "Frenagem moderada e uma mais firme em local seguro: desvio, vibração, pedal",
+      "Retomada em marcha alta: patinação, falhas de motor, fumaça pelo retrovisor",
+      "Observe temperatura e luzes do painel durante todo o percurso",
+      "Na volta, deixe em lenta, verifique vazamentos e releia o scanner"
+    ],
+    "referencias": [
+      {
+        "faixa": "Comportamento regular em todo o roteiro",
+        "leitura": "Sem anormalidade perceptível",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Ruído leve de acabamento ou borracha",
+        "leitura": "Observação de uso",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Puxa para um lado ou vibração na frenagem",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Tranco, patinação ou falha de motor",
+        "leitura": "Manutenção necessária; aprofundar",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Desvio forte na frenagem, pedal baixo",
+        "leitura": "Item de segurança fora de condição",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Luz de advertência ou superaquecimento",
+        "leitura": "Interromper o teste e registrar",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Autorização (nome e horário)"
+      },
+      {
+        "campo": "Km inicial e final"
+      },
+      {
+        "campo": "Duração (min)"
+      },
+      {
+        "campo": "Condições (piso, clima)"
+      },
+      {
+        "campo": "Motor e câmbio"
+      },
+      {
+        "campo": "Freios e direção"
+      },
+      {
+        "campo": "Suspensão e ruídos"
+      },
+      {
+        "campo": "Luzes/temperatura no percurso"
+      }
+    ],
+    "erros_comuns": [
+      "Rodar sem autorização escrita ou com item de segurança já apontado como N3.",
+      "Fazer percurso curto só em piso liso, sem condições de revelar ruídos.",
+      "Deixar o apresentante dirigir e avaliar só como passageiro sem registrar isso."
+    ],
+    "seguranca": "Respeite as leis de trânsito (CTB – Lei 9.503/1997). Nunca teste frenagem forte em via com tráfego. Interrompa o teste diante de qualquer anomalia de freio, direção ou temperatura.",
+    "capitulo": 9
+  },
+  {
+    "codigo": "T-08",
+    "titulo": "Partida a frio",
+    "objetivo": "Observar a primeira partida do motor em temperatura ambiente: tempo de partida, ruídos, estabilidade de marcha lenta, fumaça e luzes de advertência.",
+    "quando": "No início da etapa de mecânica (sistema MOT), antes de qualquer funcionamento do motor no dia; combinar com o apresentante na marcação da vistoria.",
+    "equipamento": [
+      "Lanterna",
+      "Cronômetro do celular",
+      "Scanner OBD2 (temperatura do motor)"
+    ],
+    "preparacao": [
+      "Na marcação, peça que o motor não seja ligado antes da vistoria",
+      "Na chegada, toque cabeçote e mangueira superior e registre a condição térmica",
+      "Leia a temperatura do líquido no scanner, se disponível, antes da partida"
+    ],
+    "passos": [
+      "Abra o capô e posicione um ajudante ou o celular filmando o escapamento",
+      "Gire a chave em contato e registre o autoteste do painel",
+      "Dê a partida sem acelerar e cronometre até o motor pegar",
+      "Ouça o cofre nos primeiros 30 s: ruídos metálicos e sua duração",
+      "Acompanhe a rotação: deve ir baixando gradualmente conforme aquece",
+      "Observe fumaça no escapamento no primeiro e no terceiro minuto",
+      "Registre luzes que permanecem acesas após a partida"
+    ],
+    "referencias": [
+      {
+        "faixa": "Partida em poucos segundos, lenta estável",
+        "leitura": "Comportamento esperado",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Ruído breve que some em segundos",
+        "leitura": "Comum em vários motores; registrar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Partida demorada ou várias tentativas",
+        "leitura": "Aprofundar (bateria, alimentação)",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Ruído metálico persistente",
+        "leitura": "Possível desgaste interno; aprofundar",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Luz de óleo acesa após a partida",
+        "leitura": "Desligar o motor e registrar",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Motor já quente na chegada",
+        "leitura": "Teste prejudicado; registrar limitação",
+        "nivel": "—"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Condição térmica na chegada"
+      },
+      {
+        "campo": "Temperatura no scanner (°C)"
+      },
+      {
+        "campo": "Tempo até a partida (s)"
+      },
+      {
+        "campo": "Ruídos (tipo e duração)"
+      },
+      {
+        "campo": "Comportamento da marcha lenta"
+      },
+      {
+        "campo": "Fumaça (cor e duração)"
+      },
+      {
+        "campo": "Luzes acesas após a partida"
+      }
+    ],
+    "erros_comuns": [
+      "Não registrar que o motor já estava quente e avaliar como se fosse partida a frio.",
+      "Confundir a rotação alta de aquecimento com defeito de marcha lenta.",
+      "Acelerar o motor frio para 'ouvir melhor'."
+    ],
+    "seguranca": "Confirme freio de estacionamento e câmbio em ponto morto (ou P) antes da partida. Mantenha mãos e roupas longe de correias e ventoinha, que pode ligar sozinha.",
+    "capitulo": 9
+  },
+  {
+    "codigo": "T-09",
+    "titulo": "Arrefecimento",
+    "objetivo": "Inspecionar o sistema de arrefecimento a frio (nível, aspecto, mangueiras, vazamentos) e em funcionamento (temperatura, acionamento do eletroventilador, bolhas no reservatório).",
+    "quando": "Na etapa de mecânica (sistema MOT): parte visual com motor frio, antes da partida; parte funcional com motor aquecendo e após o test drive.",
+    "equipamento": [
+      "Lanterna",
+      "Scanner OBD2 (temperatura do líquido)",
+      "Termômetro infravermelho (opcional)",
+      "Luvas"
+    ],
+    "preparacao": [
+      "Confirme que o motor está frio ao toque antes de qualquer contato",
+      "NUNCA abra o reservatório ou o radiador com o motor quente",
+      "Localize reservatório, radiador, mangueiras e eletroventilador"
+    ],
+    "passos": [
+      "A frio, leia o nível pelas marcas MIN/MAX do reservatório",
+      "Ilumine o líquido: cor, transparência, óleo ou ferrugem",
+      "Aperte as mangueiras frias: rachaduras, inchaço, crosta de aditivo",
+      "Procure crostas secas no radiador, bomba d'água e conexões",
+      "Com motor ligado, acompanhe a temperatura no painel ou scanner",
+      "Observe o reservatório por bolhas contínuas (sem abrir a tampa)",
+      "Confirme o acionamento do eletroventilador ao atingir a temperatura",
+      "Após o test drive, repita a busca de vazamentos com lanterna"
+    ],
+    "referencias": [
+      {
+        "faixa": "Nível ok, líquido límpido, temperatura estável",
+        "leitura": "Sistema sem anormalidade observável",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Nível pouco abaixo do mínimo",
+        "leitura": "Completar e monitorar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Líquido turvo ou com ferrugem",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Vazamento leve (crosta, gotejamento lento)",
+        "leitura": "Manutenção necessária em breve",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Óleo no líquido ou bolhas contínuas",
+        "leitura": "Possível falha interna; diagnosticar",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Temperatura acima do normal",
+        "leitura": "Interromper e registrar",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Nível a frio (abaixo/entre/acima)"
+      },
+      {
+        "campo": "Aspecto do líquido"
+      },
+      {
+        "campo": "Mangueiras e conexões"
+      },
+      {
+        "campo": "Vazamentos (local)"
+      },
+      {
+        "campo": "Temperatura estabilizada (°C)"
+      },
+      {
+        "campo": "Eletroventilador acionou? (S/N)"
+      },
+      {
+        "campo": "Bolhas no reservatório (S/N)"
+      }
+    ],
+    "erros_comuns": [
+      "Abrir a tampa com o motor morno para 'ver melhor'.",
+      "Concluir falha de junta de cabeçote só pela cor do líquido.",
+      "Não esperar o motor aquecer o suficiente para o eletroventilador acionar."
+    ],
+    "seguranca": "NUNCA abra o reservatório ou o radiador com o motor quente: o líquido sob pressão causa queimaduras graves. O eletroventilador pode ligar a qualquer momento.",
+    "capitulo": 9
+  },
+  {
+    "codigo": "T-10",
+    "titulo": "Freios: inspeção e teste dinâmico",
+    "objetivo": "Avaliar sem desmontagem discos, pastilhas, flexíveis e fluido, e testar em rodagem a eficiência, o desvio de trajetória, a vibração e o freio de estacionamento.",
+    "quando": "Na etapa de transmissão e freios (sistema TRF): inspeção estática antes do test drive; teste dinâmico durante o test drive, em local seguro.",
+    "equipamento": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "preparacao": [
+      "Estacione em piso plano e esterce o volante para expor os freios dianteiros",
+      "Localize o reservatório de fluido de freio e suas marcas MIN/MAX",
+      "Escolha um trecho reto, sem tráfego, para o teste de frenagem"
+    ],
+    "passos": [
+      "Leia o nível e observe a cor do fluido pelo reservatório, sem abrir",
+      "Ilumine discos (degrau, sulcos) e pastilhas pela roda",
+      "Verifique flexíveis: rachaduras, dobras e umidade de fluido",
+      "Com motor desligado, bombeie o pedal: deve ficar firme e alto",
+      "No test drive, faça frenagem moderada: trajetória reta, sem vibração",
+      "Faça uma frenagem mais firme em local seguro e observe desvio e ruído",
+      "Teste o freio de estacionamento em rampa ou com saída leve em 1ª"
+    ],
+    "referencias": [
+      {
+        "faixa": "Pastilha espessa, disco liso, frenagem reta",
+        "leitura": "Sistema sem anormalidade observável",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Pastilha a meia vida, leve degrau",
+        "leitura": "Desgaste natural",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Fluido escuro ou vibração na frenagem",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Pastilha próxima do mínimo (~2–3 mm)",
+        "leitura": "Troca em breve",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Abaixo do mínimo ou metal com metal",
+        "leitura": "Item de segurança fora de condição",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Desvio forte, pedal baixo ou vazamento",
+        "leitura": "Item de segurança fora de condição",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Nível e cor do fluido"
+      },
+      {
+        "campo": "Pastilhas dianteiras (estimativa)"
+      },
+      {
+        "campo": "Discos dianteiros (degrau/sulcos)"
+      },
+      {
+        "campo": "Flexíveis"
+      },
+      {
+        "campo": "Pedal (firme/esponjoso/baixo)"
+      },
+      {
+        "campo": "Frenagem (desvio/vibração)"
+      },
+      {
+        "campo": "Freio de estacionamento"
+      }
+    ],
+    "erros_comuns": [
+      "Estimar pastilha 'não visível' em vez de registrar a limitação.",
+      "Confundir oxidação superficial de disco parado com desgaste.",
+      "Fazer frenagem forte em via pública com tráfego."
+    ],
+    "seguranca": "Teste dinâmico só com autorização e em local seguro, sem tráfego atrás. Espessuras de pastilha e disco são ORIENTATIVAS: o mínimo é definido pelo fabricante.",
+    "capitulo": 9
+  },
+  {
+    "codigo": "T-11",
+    "titulo": "Coerência de quilometragem",
+    "objetivo": "Montar a linha do tempo da quilometragem a partir de todas as fontes disponíveis e compará-la com o painel e com o desgaste interno, registrando divergências sem concluir adulteração.",
+    "quando": "Na etapa de documentação e histórico (sistema DOC), iniciada com as consultas, e fechada no interior (INT) após a leitura do scanner.",
+    "equipamento": [
+      "Scanner OBD2 (km em módulos, quando disponível)",
+      "Câmera do celular",
+      "Planilha ou tabela de fontes"
+    ],
+    "preparacao": [
+      "Reúna consultas de histórico, manual de revisões, notas e etiqueta de óleo",
+      "Oculte dados pessoais de terceiros nas fotos de notas e registros (LGPD)",
+      "Anote a km do painel com foto datada no início da vistoria"
+    ],
+    "passos": [
+      "Liste cada fonte com data e km: revisões, notas, consultas, etiquetas",
+      "Ordene as fontes por data",
+      "Verifique se a km cresce sempre com o tempo; marque qualquer queda",
+      "Calcule a média anual entre fontes e compare com o uso informado",
+      "Consulte a km nos módulos com o scanner, quando possível",
+      "Compare o desgaste de volante, pedais, manopla e banco com a km do painel",
+      "Registre divergências de forma descritiva, com a fonte de cada número"
+    ],
+    "referencias": [
+      {
+        "faixa": "Todas as fontes crescentes e coerentes",
+        "leitura": "Km do painel compatível com os registros",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Poucas fontes ou registros incompletos",
+        "leitura": "Coerência não pôde ser confirmada; registrar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Desgaste acima do esperado para a km",
+        "leitura": "Indício a considerar com as demais fontes",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Fonte com km maior que o painel",
+        "leitura": "Divergência de quilometragem",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Km em módulo diferente do painel",
+        "leitura": "Divergência de quilometragem",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Km do painel (data/hora)"
+      },
+      {
+        "campo": "Fonte 1: data / km"
+      },
+      {
+        "campo": "Fonte 2: data / km"
+      },
+      {
+        "campo": "Fonte 3: data / km"
+      },
+      {
+        "campo": "Km em módulos"
+      },
+      {
+        "campo": "Média anual calculada"
+      },
+      {
+        "campo": "Desgaste interno (compatível/incompatível)"
+      },
+      {
+        "campo": "Divergência encontrada"
+      }
+    ],
+    "erros_comuns": [
+      "Afirmar 'hodômetro adulterado' no laudo: o vistoriador registra divergência e orienta apuração.",
+      "Considerar uma única divergência pequena sem checar erro de digitação na fonte.",
+      "Ignorar troca de painel documentada em garantia ou reparo."
+    ],
+    "seguranca": "Não desmonte o painel. Dados pessoais em notas e registros devem ser tratados conforme a LGPD (Lei 13.709/2018) e ocultados em qualquer material externo.",
+    "capitulo": 4
+  },
+  {
+    "codigo": "T-12",
+    "titulo": "Embreagem: ponto e patinação",
+    "objetivo": "Avaliar o ponto de acionamento do pedal, a patinação sob carga, a trepidação na saída e ruídos do conjunto de embreagem em veículos de câmbio manual.",
+    "quando": "Na etapa de transmissão e freios (sistema TRF): verificação parada após a partida e teste de patinação durante o test drive (T-07).",
+    "equipamento": [
+      "Scanner OBD2 (opcional, rotação e velocidade)"
+    ],
+    "preparacao": [
+      "Motor aquecido e trecho plano e seguro para o teste em rodagem",
+      "Confirme que o câmbio engata todas as marchas com o veículo parado",
+      "Anote se o acionamento é por cabo ou hidráulico"
+    ],
+    "passos": [
+      "Motor desligado: pressione o pedal e sinta curso, peso e retorno",
+      "Motor ligado em ponto morto: pressione e solte ouvindo ruídos de rolamento",
+      "Engate a 1ª e solte o pedal devagar: anote onde o veículo começa a se mover",
+      "Saia em 1ª em piso plano e observe trepidação",
+      "Em 3ª ou 4ª a ~40 km/h, acelere fundo: rotação e velocidade devem subir juntas",
+      "Após o teste, observe cheiro de material queimado"
+    ],
+    "referencias": [
+      {
+        "faixa": "Ponto no meio do curso, sem patinação",
+        "leitura": "Conjunto sem anormalidade perceptível",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Ponto alto, sem patinação",
+        "leitura": "Desgaste avançado provável; planejar",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Trepidação na saída",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Ruído de rolamento",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Rotação sobe sem ganho de velocidade",
+        "leitura": "Patinação: troca necessária",
+        "nivel": "N2"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Tipo de acionamento"
+      },
+      {
+        "campo": "Ponto (baixo/médio/alto)"
+      },
+      {
+        "campo": "Ruído com pedal acionado/solto"
+      },
+      {
+        "campo": "Trepidação na saída (S/N)"
+      },
+      {
+        "campo": "Patinação em (marcha/velocidade)"
+      },
+      {
+        "campo": "Cheiro de queimado (S/N)"
+      }
+    ],
+    "erros_comuns": [
+      "Julgar só pelo ponto alto: alguns sistemas e kits têm ponto diferente do original.",
+      "Atribuir à embreagem a trepidação causada por coxins.",
+      "Fazer teste de patinação com o veículo parado e freado, sobrecarregando o conjunto."
+    ],
+    "seguranca": "Teste de patinação só em rodagem, em via segura e respeitando o limite de velocidade. Não force o conjunto com o veículo freado.",
+    "capitulo": 9
+  },
+  {
+    "codigo": "T-13",
+    "titulo": "Suspensão e direção",
+    "objetivo": "Avaliar amortecimento, molas, buchas, folgas de direção e ruídos, sem elevar o veículo, com testes de balanço, esterçamento e observação em rodagem.",
+    "quando": "Na inspeção de rodas, pneus, suspensão e direção (sistema RSP), com o veículo parado; complementada no test drive (T-07).",
+    "equipamento": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "preparacao": [
+      "Veículo em piso plano, pneus calibrados e sem carga anormal",
+      "Observe de longe a altura dos quatro cantos e o alinhamento das rodas",
+      "Um ajudante será útil para o teste de folga de direção"
+    ],
+    "passos": [
+      "Pressione com força cada canto e solte: conte as oscilações até parar",
+      "Ilumine amortecedores: vazamento de óleo e batentes rompidos",
+      "Olhe molas (espiras quebradas), buchas e coifas pela caixa de roda",
+      "Com motor ligado e rodas retas, ajudante mexe o volante de leve para os lados",
+      "Observe se a roda responde junto e ouça estalos nos terminais",
+      "Esterce todo para os dois lados: ruídos e esforço da direção",
+      "Na rodagem, ouça batidas em lombadas e verifique se o carro puxa"
+    ],
+    "referencias": [
+      {
+        "faixa": "Retorna e estabiliza em ~1–1,5 oscilação",
+        "leitura": "Amortecimento dentro do esperado",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Ruído leve de borracha",
+        "leitura": "Desgaste natural de buchas",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Mais de ~2 oscilações ou vazamento",
+        "leitura": "Amortecedor com perda de eficiência",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Batida em lombadas, coifa rasgada",
+        "leitura": "Manutenção necessária",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Folga perceptível na direção",
+        "leitura": "Item de segurança fora de condição",
+        "nivel": "N3"
+      },
+      {
+        "faixa": "Mola quebrada ou altura desigual",
+        "leitura": "Item de segurança fora de condição",
+        "nivel": "N3"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Oscilações DE / DD / TE / TD"
+      },
+      {
+        "campo": "Amortecedores (vazamento)"
+      },
+      {
+        "campo": "Molas e altura dos cantos"
+      },
+      {
+        "campo": "Buchas e coifas"
+      },
+      {
+        "campo": "Folga de direção (S/N)"
+      },
+      {
+        "campo": "Ruídos no esterçamento"
+      },
+      {
+        "campo": "Comportamento em rodagem"
+      }
+    ],
+    "erros_comuns": [
+      "Confundir suspensão mais firme de fábrica (esportiva) com amortecedor travado.",
+      "Apontar folga sem confirmar se o movimento está na roda ou só no volante.",
+      "Deixar de cruzar desgaste irregular de pneu (T-04) com suspensão."
+    ],
+    "seguranca": "Não coloque mãos ou corpo sob o veículo nem entre roda e caixa de roda durante o teste de direção. Motor ligado exige freio de mão acionado e câmbio em ponto morto (ou P).",
+    "capitulo": 8
+  },
+  {
+    "codigo": "T-14",
+    "titulo": "Ar-condicionado",
+    "objetivo": "Verificar o acionamento do compressor, a temperatura do ar na saída central, a ventilação em todas as velocidades e odores, registrando a temperatura ambiente.",
+    "quando": "Na etapa de eletrônica (sistema ELE), com motor aquecido em marcha lenta, antes ou depois do test drive.",
+    "equipamento": [
+      "Termômetro de ar (ou de espeto)",
+      "Termômetro infravermelho (opcional)"
+    ],
+    "preparacao": [
+      "Registre a temperatura ambiente e se o veículo está ao sol ou à sombra",
+      "Feche portas e vidros; selecione recirculação e temperatura mínima",
+      "Ventilação na velocidade média e saídas centrais abertas"
+    ],
+    "passos": [
+      "Ligue o A/C e confirme o acoplamento do compressor (ruído, leve queda de rotação)",
+      "Insira o termômetro na saída central",
+      "Aguarde de 3 a 5 minutos e registre a temperatura estabilizada",
+      "Teste todas as velocidades da ventilação e todas as saídas",
+      "Observe se o compressor liga e desliga com frequência excessiva",
+      "Cheire o ar nos primeiros segundos: mofo ou umidade",
+      "Verifique se há gotejamento de água condensada sob o veículo"
+    ],
+    "referencias": [
+      {
+        "faixa": "Saída ~4–10 °C (ambiente ~25–30 °C)",
+        "leitura": "Desempenho usual",
+        "nivel": "N0"
+      },
+      {
+        "faixa": "Saída ~10–15 °C",
+        "leitura": "Desempenho reduzido; pode ser carga baixa",
+        "nivel": "N1"
+      },
+      {
+        "faixa": "Saída acima de ~15 °C",
+        "leitura": "Baixo rendimento; manutenção",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Compressor não aciona ou ruído forte",
+        "leitura": "Falha do sistema",
+        "nivel": "N2"
+      },
+      {
+        "faixa": "Odor de mofo",
+        "leitura": "Higienização; se houver outros indícios, T-06",
+        "nivel": "N1"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Temperatura ambiente (°C)"
+      },
+      {
+        "campo": "Condição (sol/sombra)"
+      },
+      {
+        "campo": "Compressor acopla? (S/N)"
+      },
+      {
+        "campo": "Temperatura na saída (°C)"
+      },
+      {
+        "campo": "Velocidades da ventilação"
+      },
+      {
+        "campo": "Odor"
+      },
+      {
+        "campo": "Ruídos"
+      }
+    ],
+    "erros_comuns": [
+      "Medir em dia frio ou com pouco tempo de funcionamento e concluir mau desempenho.",
+      "Ignorar a temperatura ambiente, que muda o resultado.",
+      "Não relacionar odor forte de mofo com os demais indícios de enchente."
+    ],
+    "seguranca": "Mantenha mãos longe da ventoinha e das correias no cofre. Valores ORIENTATIVOS: variam por sistema, fabricante, ambiente e umidade.",
+    "capitulo": 10
+  },
+  {
+    "codigo": "T-15",
+    "titulo": "Roteiro fotográfico padrão",
+    "objetivo": "Produzir o conjunto mínimo de 24 fotos obrigatórias, sempre na mesma ordem de caminhada, para comprovar o estado do veículo no momento da vistoria e sustentar o laudo.",
+    "quando": "Ao longo de todo o Protocolo, com as fotos gerais na chegada ao pátio e as de detalhe no sistema correspondente; revisão da lista antes de liberar o veículo.",
+    "equipamento": [
+      "Celular com câmera e data/hora ativas",
+      "Lanterna",
+      "Pano de microfibra"
+    ],
+    "preparacao": [
+      "Limpe a lente; ative data e hora ou registre-as no app",
+      "Posicione o veículo com luz uniforme, sem sol direto sobre a pintura",
+      "Tenha a lista de 24 fotos à vista e marque cada uma ao fazer"
+    ],
+    "passos": [
+      "1–4: frente 3/4 esquerda, frente, 3/4 direita e lateral direita",
+      "5–8: traseira 3/4 direita, traseira, 3/4 esquerda e lateral esquerda",
+      "9–11: teto, capô aberto (vista geral do cofre) e porta-malas aberto",
+      "12–14: VIN no cofre, número do motor e etiqueta da coluna",
+      "15–17: VIN do para-brisa, gravação dos vidros e poço do estepe",
+      "18–20: painel no autoteste, painel após a partida (km) e tela do scanner",
+      "21–22: interior dianteiro (volante, pedais, banco) e traseiro",
+      "23–24: pneu dianteiro com DOT e disco/pastilha visíveis pela roda"
+    ],
+    "referencias": [
+      {
+        "faixa": "Foto nítida, enquadrada, com data/hora",
+        "leitura": "Válida como evidência",
+        "nivel": "—"
+      },
+      {
+        "faixa": "Foto tremida, escura ou com reflexo",
+        "leitura": "Refazer antes de liberar o veículo",
+        "nivel": "—"
+      },
+      {
+        "faixa": "Item não fotografável (acesso, clima)",
+        "leitura": "Registrar o motivo no laudo",
+        "nivel": "—"
+      },
+      {
+        "faixa": "Achado N2 a N4",
+        "leitura": "Duas fotos: posição (aberta) e detalhe (close)",
+        "nivel": "—"
+      }
+    ],
+    "registro": [
+      {
+        "campo": "Fotos obrigatórias feitas (de 24)"
+      },
+      {
+        "campo": "Fotos de achados (quantidade)"
+      },
+      {
+        "campo": "Fotos refeitas"
+      },
+      {
+        "campo": "Itens não fotografados e motivo"
+      },
+      {
+        "campo": "Horário da primeira e da última foto"
+      },
+      {
+        "campo": "Local de armazenamento"
+      }
+    ],
+    "erros_comuns": [
+      "Mudar a ordem da caminhada e esquecer fotos; siga sempre a mesma sequência.",
+      "Publicar fotos em redes ou anúncios com a placa visível ou com dados pessoais.",
+      "Fotografar achados só em close, sem a foto de posição."
+    ],
+    "seguranca": "Em material externo (redes, anúncios, cursos), oculte placa e dados pessoais (LGPD – Lei 13.709/2018). No laudo ao cliente, a placa aparece. Fotografe fora da via.",
+    "capitulo": 13
+  }
+]

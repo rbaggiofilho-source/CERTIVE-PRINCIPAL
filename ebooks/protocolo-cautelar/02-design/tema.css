@@ -1,0 +1,27 @@
+/* Protocolo Cautelar — tokens de marca (fonte única da identidade visual) */
+:root {
+  --marca: "PROTOCOLO CAUTELAR";
+  --carbono: #0F1318;     /* fundo escuro principal */
+  --grafite: #1B222B;     /* superfícies escuras */
+  --aco: #2A3440;         /* bordas/superfícies secundárias */
+  --ambar: #F2A900;       /* cor da marca (sinalização de pátio) */
+  --ambar-escuro: #B87F00;/* âmbar para texto sobre fundo claro */
+  --ambar-claro: #FFF4D6; /* fundo de destaque claro */
+  --papel: #FFFFFF;
+  --papel-2: #F5F6F8;
+  --linha: #DDE1E6;
+  --texto: #1A1F26;
+  --texto-2: #4E5864;
+  --texto-3: #7A8591;
+  /* níveis do critério */
+  --n0: #2E9E5B; --n1: #4F7FB0; --n2: #E0A100; --n3: #E0661B; --n4: #C62828; --inc: #5A6472;
+  /* boxes */
+  --box-atencao: #C62828;
+  --box-pratica: #2E7D6B;
+  --box-alerta: #E0661B;
+  --box-dica: #B87F00;
+  --box-lei: #4F5B6B;
+  --f-titulo: "Archivo", "Arial Black", sans-serif;
+  --f-texto: "Inter", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+}

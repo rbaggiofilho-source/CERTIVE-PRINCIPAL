@@ -1,0 +1,1415 @@
+[
+  {
+    "codigo": "PC-DOC-01",
+    "sistema": "DOC",
+    "itens": [
+      "DOC-01",
+      "DOC-02",
+      "DOC-03"
+    ],
+    "titulo": "CRLV-e e dados do documento",
+    "subtitulo": "Documento legível, dados anotados e coerência com o veículo",
+    "vista": "documento",
+    "zonas": [
+      "documento",
+      "placa"
+    ],
+    "capitulo": 4,
+    "onde_fica": "Documento de porte obrigatório, em versão digital (aplicativo oficial) ou impressa com QR Code. Dados a transcrever: placa, chassi (VIN), RENAVAM, marca/modelo, ano de fabricação/modelo, cor, combustível e exercício de licenciamento.",
+    "por_que_importa": "É a referência de toda a conferência de identificação. Se o documento não é legível ou não é o do veículo, nenhuma outra etapa tem base. Divergência de cor ou combustível pode indicar alteração não registrada, que impede o licenciamento e precisa constar no laudo.",
+    "de_fabrica": [
+      "Documento válido, com todos os campos preenchidos e legíveis",
+      "QR Code legível que abre a validação no canal oficial",
+      "Placa, VIN e RENAVAM idênticos aos do cadastro e das consultas",
+      "Cor e combustível do documento iguais aos observados no veículo",
+      "Exercício de licenciamento indicado; situação conferível em fonte oficial"
+    ],
+    "sinais": [
+      {
+        "sinal": "Placa, VIN ou RENAVAM do documento diferente do constatado no veículo",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "QR Code não valida ou retorna dados diferentes dos impressos",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Combustível do veículo diferente do documento (ex.: kit gás instalado sem registro)",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Cor predominante do veículo diferente da cor do documento",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Licenciamento do exercício não quitado ou documento de exercício anterior",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Peça o documento antes de olhar o veículo; fotografe-o inteiro, sem cortes e sem reflexo.",
+      "Valide o QR Code pelo canal oficial e compare os dados retornados com os impressos.",
+      "Transcreva placa, VIN e RENAVAM para a conferência cruzada do sistema IDV.",
+      "Confira marca/modelo, ano, cor e combustível olhando o veículo, não só o documento.",
+      "Sem documento ou ilegível: registre 'não apresentado' e siga; a identificação fica INCONCLUSIVA."
+    ],
+    "ferramentas": [
+      "Celular com leitor de QR Code",
+      "Prancheta ou app de vistoria"
+    ],
+    "foto": "Documento inteiro, plano e legível, com QR Code nítido; tarjar CPF/nome do proprietário na versão entregue a terceiros (LGPD).",
+    "armadilhas": [
+      "Cor 'prata' x 'cinza' pode ser só nomenclatura do fabricante: compare com a etiqueta de pintura antes de apontar.",
+      "Aceitar foto de documento enviada por mensagem sem validar o QR Code no momento da vistoria.",
+      "Anotar o VIN do documento e depois 'conferir' lendo o documento de novo, em vez do veículo."
+    ],
+    "frase_conforme": "Apresentado CRLV-e legível, validado por QR Code em [data/hora]. Placa, VIN, RENAVAM, marca/modelo, ano, cor e combustível conferem com o veículo examinado.",
+    "frase_achado": "Constatada divergência entre o documento apresentado e o veículo examinado no campo [cor/combustível/VIN], conforme fotos [n]. Recomenda-se regularização junto ao órgão de trânsito antes da transação.",
+    "limite": "A vistoria não atesta a autenticidade do documento físico nem a titularidade. Confirma apenas a coerência entre os dados apresentados, a validação oficial e o veículo."
+  },
+  {
+    "codigo": "PC-DOC-02",
+    "sistema": "DOC",
+    "itens": [
+      "DOC-04",
+      "DOC-05",
+      "DOC-07"
+    ],
+    "titulo": "Restrições, gravame e débitos",
+    "subtitulo": "Consultas em fonte oficial ou provedor contratado",
+    "vista": "documento",
+    "zonas": [
+      "documento"
+    ],
+    "capitulo": 4,
+    "onde_fica": "Não está no veículo: está nas bases de dados. Consulte pelo VIN e pela placa em fonte oficial (órgão de trânsito, sistemas públicos) ou em provedor de dados contratado. Itens: restrição judicial, administrativa, roubo/furto, gravame e débitos.",
+    "por_que_importa": "Veículo com restrição pode ter transferência bloqueada ou ser apreendido; gravame ativo indica financiamento não quitado. O laudo técnico não substitui a consulta, mas o cliente precisa saber o que as bases mostravam no dia, com fonte e horário comprovados.",
+    "de_fabrica": [
+      "Sem registro de roubo/furto e sem restrição judicial ou administrativa",
+      "Gravame inexistente ou baixado, com a instituição identificada",
+      "Consulta feita pelo VIN e pela placa, com os dois resultados coerentes",
+      "Comprovante com fonte, data e hora anexado ao laudo"
+    ],
+    "sinais": [
+      {
+        "sinal": "Registro ativo de roubo/furto em qualquer base consultada",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Resultado da consulta pelo VIN diferente do resultado pela placa",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Restrição judicial ou administrativa ativa",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Gravame / alienação fiduciária ativa",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Débitos de IPVA, licenciamento ou multas em aberto",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Confirme com o cliente a autorização para consulta e o uso dos dados (LGPD – Lei 13.709/2018).",
+      "Consulte pelo VIN e depois pela placa, em fonte oficial ou provedor contratado.",
+      "Salve o comprovante de cada consulta com fonte, data e hora; anexe ao laudo.",
+      "Anote a instituição do gravame e a natureza de cada restrição, sem interpretar o mérito.",
+      "Registro de roubo/furto: não confronte o apresentante; encerre com cautela e oriente a autoridade."
+    ],
+    "ferramentas": [
+      "Acesso a fonte oficial ou provedor contratado",
+      "Celular ou computador para salvar comprovantes"
+    ],
+    "foto": "Captura de tela ou PDF de cada consulta, com fonte, VIN/placa consultados, data e hora visíveis.",
+    "armadilhas": [
+      "Consultar só pela placa: dados de placa e VIN podem divergir e só a consulta pelo VIN revela isso.",
+      "Omitir débitos por 'não serem técnicos': informe como risco do negócio, com nível N1.",
+      "Copiar para o laudo dados pessoais do proprietário que a consulta retornou sem necessidade."
+    ],
+    "frase_conforme": "Consultas realizadas em [fonte] em [data/hora], pelo VIN e pela placa, não retornaram registro de roubo/furto, restrição ou gravame ativo. Comprovantes anexos.",
+    "frase_achado": "Consulta realizada em [fonte] em [data/hora] retornou [restrição/gravame/débito] ativo, conforme comprovante anexo. A situação deve ser esclarecida junto ao órgão ou instituição responsável antes da transação.",
+    "limite": "O resultado vale para a data e hora da consulta e depende da atualização da base. A vistoria não garante a inexistência de restrições futuras ou não registradas."
+  },
+  {
+    "codigo": "PC-DOC-03",
+    "sistema": "DOC",
+    "itens": [
+      "DOC-06"
+    ],
+    "titulo": "Histórico de leilão e sinistro",
+    "subtitulo": "Leilão, indenização integral e classificação de dano",
+    "vista": "documento",
+    "zonas": [
+      "documento"
+    ],
+    "capitulo": 4,
+    "onde_fica": "Em bases de histórico (provedor contratado ou fonte oficial) consultadas pelo VIN. Procure: passagem por leilão, indenização integral por seguradora, classificação de dano (pequena, média ou grande monta) e anotações de sinistro. Cruze com o que a estrutura mostrar.",
+    "por_que_importa": "Histórico de sinistro relevante muda o valor de mercado, a aceitação em seguro e orienta onde procurar reparo. Classificação de dano de média ou grande monta tem regras próprias de regularização e circulação (Resolução CONTRAN sobre classificação de danos [VERIFICAR número vigente]).",
+    "de_fabrica": [
+      "Sem registro de leilão, indenização integral ou classificação de dano",
+      "Histórico consultado pelo VIN, com fonte, data e hora anexados",
+      "Ausência de registro coerente com o que foi observado na estrutura"
+    ],
+    "sinais": [
+      {
+        "sinal": "Classificação de dano de grande monta registrada",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Classificação de média monta ou indenização integral registrada",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Registro de leilão sem detalhamento do motivo",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Sem registro, mas estrutura com reparo relevante: aponte no sistema EST",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Registro de sinistro de pequena monta ou leilão de frota/recuperação financeira",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Consulte o histórico pelo VIN antes de iniciar a inspeção de estrutura.",
+      "Anote tipo de registro, data, origem (leilão/seguradora) e classificação de dano, se houver.",
+      "Use o registro como mapa: examine com atenção extra as regiões compatíveis com o sinistro.",
+      "Anexe o comprovante com fonte, data e hora; não transcreva dados pessoais de terceiros.",
+      "Registro sem detalhe? Informe exatamente o que a base mostra, sem completar com suposições."
+    ],
+    "ferramentas": [
+      "Provedor de histórico contratado ou fonte oficial",
+      "Celular ou computador para salvar comprovantes"
+    ],
+    "foto": "Captura ou PDF da consulta de histórico com VIN, fonte, data e hora visíveis.",
+    "armadilhas": [
+      "Tratar 'sem registro' como 'nunca bateu': muitos reparos são pagos sem seguro e não aparecem em base alguma.",
+      "Rotular todo leilão como sinistro: há leilões de frota, retomada e órgãos públicos; registre o motivo informado.",
+      "Rebaixar achado estrutural porque o histórico está limpo: o que se vê no veículo prevalece."
+    ],
+    "frase_conforme": "Consulta de histórico em [fonte] em [data/hora], pelo VIN, não retornou registro de leilão, indenização integral ou classificação de dano. Comprovante anexo.",
+    "frase_achado": "Consulta de histórico em [fonte] em [data/hora] retornou registro de [leilão/indenização/dano de ___ monta] em [data do registro], conforme comprovante anexo. Recomenda-se considerar o registro na avaliação e no seguro.",
+    "limite": "A vistoria não confirma a extensão real do sinistro registrado nem a qualidade do reparo feito; bases de histórico podem ser incompletas ou desatualizadas."
+  },
+  {
+    "codigo": "PC-IDV-01",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-01",
+      "IDV-09"
+    ],
+    "titulo": "VIN gravado no chassi/monobloco",
+    "subtitulo": "Localização, leitura e conferência com o documento",
+    "vista": "cofre",
+    "zonas": [
+      "vin-cofre"
+    ],
+    "capitulo": 5,
+    "onde_fica": "No local previsto pelo fabricante para o modelo: em geral no cofre (corta-fogo ou torre), no assoalho sob o banco dianteiro ou junto à soleira, às vezes sob tampa no carpete. Consulte a referência do fabricante antes de procurar.",
+    "por_que_importa": "O VIN gravado na estrutura é o principal elemento de identificação do veículo. Se não confere com o documento ou não pode ser lido por inteiro, a vistoria não consegue afirmar que o veículo examinado é o do documento.",
+    "de_fabrica": [
+      "17 caracteres alfanuméricos, sem as letras I, O e Q",
+      "Caracteres de mesma altura, profundidade e espaçamento, alinhados em linha reta",
+      "Gravação no local previsto pelo fabricante para o modelo e ano",
+      "Acabamento e proteção da área iguais aos da chapa ao redor",
+      "Sequência idêntica ao VIN do documento e das consultas"
+    ],
+    "sinais": [
+      {
+        "sinal": "Qualquer caractere do VIN gravado diferente do documento ou das consultas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Gravação fora do local previsto pelo fabricante para o modelo",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Caracteres com altura, profundidade, espaçamento ou alinhamento irregulares",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Quantidade de caracteres diferente de 17",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Oxidação superficial ou sujeira que dificulta, mas não impede, a leitura",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Localize a gravação pela referência do fabricante; não raspe nem lixe a área.",
+      "Limpe com pano seco e ilumine com lanterna rasante para ler caractere por caractere.",
+      "Leia em voz alta e compare com o VIN transcrito do documento, um caractere de cada vez.",
+      "Fotografe de frente e com luz rasante, garantindo leitura de todos os caracteres.",
+      "Não conseguiu ler tudo? Registre 'não verificável' e classifique o laudo INCONCLUSIVO."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Pano seco",
+      "Espelho de inspeção",
+      "Referência de localização do fabricante"
+    ],
+    "foto": "Gravação completa em primeiro plano, legível, com luz rasante, e uma segunda foto aberta mostrando a posição no veículo.",
+    "armadilhas": [
+      "Confundir 0 (zero) com letra O, ou 1 com I: essas letras não existem no VIN de 17 caracteres.",
+      "Tomar oxidação leve ou tinta antiga como sinal de intervenção: descreva o que vê, sem interpretar.",
+      "Conferir só o fim do VIN: a divergência pode estar em qualquer posição."
+    ],
+    "frase_conforme": "VIN gravado localizado em [local], legível em todos os 17 caracteres e coincidente com o documento apresentado e as consultas. Fotos [n].",
+    "frase_achado": "Constatada divergência entre o VIN gravado em [local] e o VIN do documento na posição [n] (lido: [x]; documento: [y]), conforme fotos [n]. Recomenda-se exame pela perícia oficial antes de qualquer transação.",
+    "limite": "O vistoriador cautelar não conclui adulteração. Registra, fotografa e, havendo divergência ou impossibilidade de leitura, orienta exame pela perícia oficial."
+  },
+  {
+    "codigo": "PC-IDV-02",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-02"
+    ],
+    "titulo": "Região da gravação do VIN",
+    "subtitulo": "Acabamento coerente com o entorno",
+    "vista": "cofre",
+    "zonas": [
+      "vin-cofre"
+    ],
+    "capitulo": 5,
+    "onde_fica": "A chapa ao redor da gravação do VIN, num raio de alguns centímetros, e as peças vizinhas (carpete, tampa de acesso, isolantes). Examine a mesma região que você fotografou em PC-IDV-01, agora olhando a superfície, não os caracteres.",
+    "por_que_importa": "A área ao redor da gravação precisa ter o mesmo acabamento do restante da chapa. Diferença de textura, tinta ou selador nessa região é um indício que o vistoriador registra e encaminha; não é algo que ele interpreta ou conclui.",
+    "de_fabrica": [
+      "Pintura, textura e brilho da área iguais aos da chapa vizinha",
+      "Selador e proteção anticorrosiva contínuos, com o mesmo aspecto do entorno",
+      "Chapa plana, sem ondulação, sem desnível e sem marcas de ferramenta",
+      "Carpete, isolantes e tampas de acesso com fixação original"
+    ],
+    "sinais": [
+      {
+        "sinal": "Pintura, textura ou brilho na região da gravação diferente do entorno",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Desnível, ondulação ou marca de ferramenta junto à gravação",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Solda, massa ou selador fora do padrão na região da gravação",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Carpete ou tampa de acesso com cortes ou fixação não original junto ao VIN",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Poeira, óleo ou oxidação leve uniforme com o restante do cofre",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Compare a região da gravação com a chapa ao lado, na mesma luz e no mesmo ângulo.",
+      "Use luz rasante em dois ângulos para evidenciar desnível e diferença de textura.",
+      "Passe a mão (com luva) sobre a área para sentir desnível; não raspe nem remova tinta.",
+      "Meça a espessura de pintura na área e no entorno, se tiver medidor; anote os dois valores.",
+      "Fotografe a região em plano aberto e fechado; descreva o que viu, sem supor a causa."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura de pintura",
+      "Luvas",
+      "Espelho de inspeção"
+    ],
+    "foto": "Plano fechado da gravação com o entorno imediato sob luz rasante e plano aberto mostrando a região e as peças vizinhas.",
+    "armadilhas": [
+      "Apontar como indício a pintura de fábrica naturalmente mais fina em cantos e dobras: compare com área equivalente.",
+      "Remover tinta ou selador para 'confirmar': a vistoria é não destrutiva e isso prejudica a perícia.",
+      "Escrever 'adulterado' ou 'remarcado' no laudo: use 'acabamento divergente do entorno'."
+    ],
+    "frase_conforme": "Região da gravação do VIN em [local] com pintura, textura, selador e planicidade coerentes com a chapa adjacente, nas condições de exame visual e não destrutivo. Fotos [n].",
+    "frase_achado": "Constatado, na região da gravação do VIN em [local], acabamento [pintura/textura/selador] divergente da chapa adjacente, conforme fotos [n]. Não se conclui a causa; recomenda-se exame pela perícia oficial.",
+    "limite": "O vistoriador cautelar não conclui adulteração. Registra, fotografa e, havendo divergência ou impossibilidade de leitura, orienta exame pela perícia oficial."
+  },
+  {
+    "codigo": "PC-IDV-03",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-03",
+      "IDV-06"
+    ],
+    "titulo": "Etiquetas de identificação",
+    "subtitulo": "Etiquetas autodestrutivas e plaqueta do fabricante",
+    "vista": "interior",
+    "zonas": [
+      "etiqueta-coluna"
+    ],
+    "capitulo": 5,
+    "onde_fica": "Etiquetas autodestrutivas com o VIN em pontos definidos pelo fabricante: em geral coluna da porta, cofre e assoalho/soleira. A plaqueta do fabricante (ano, modelo, pintura) fica em geral na coluna ou no cofre. Confira a referência do modelo.",
+    "por_que_importa": "As etiquetas repetem o VIN em pontos diferentes do veículo e são feitas para se desfazer se removidas. Presença, integridade e coerência entre elas reforçam a conferência cruzada; ausência ou divergência precisa ser registrada (Resolução CONTRAN sobre identificação veicular [VERIFICAR]).",
+    "de_fabrica": [
+      "Etiquetas presentes em todos os pontos previstos para o modelo",
+      "Material íntegro, sem bolhas, rasgos, recortes ou sobreposição",
+      "VIN ou sequência impressa coincidente com o gravado e com o documento",
+      "Plaqueta com ano, modelo e código de pintura coerentes com o documento"
+    ],
+    "sinais": [
+      {
+        "sinal": "Sequência da etiqueta diferente do VIN gravado ou do documento",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Etiqueta com recorte, sobreposição ou colagem diferente das demais",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Etiqueta ausente em ponto previsto, sem sinal de reparo na peça",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Etiqueta ausente em peça com sinal de reparo ou substituição",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Plaqueta do fabricante ausente ou com dados incoerentes com o documento",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Etiqueta íntegra, mas desbotada ou com leitura parcial por desgaste",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Liste os pontos de etiqueta previstos para o modelo antes de começar.",
+      "Localize cada etiqueta e avalie integridade com luz rasante; não toque nas bordas.",
+      "Leia a sequência de cada etiqueta e compare com o VIN gravado e o do documento.",
+      "Confira ano, modelo e código de pintura da plaqueta com o documento e a cor atual.",
+      "Registre cada ponto: presente/íntegra, presente/danificada ou ausente, com foto."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Referência de localização do fabricante",
+      "Lupa"
+    ],
+    "foto": "Cada etiqueta em primeiro plano, legível, mais uma foto aberta da posição; plaqueta do fabricante inteira e legível.",
+    "armadilhas": [
+      "Etiqueta ausente em peça substituída por reparo legítimo é comum: registre ausência e o reparo, sem concluir.",
+      "Levantar a borda da etiqueta para 'testar': isso a danifica e compromete a evidência.",
+      "Ignorar etiqueta do assoalho ou do cofre por estar sob carpete ou sujeira: procure todos os pontos."
+    ],
+    "frase_conforme": "Etiquetas de identificação localizadas em [pontos], íntegras e com sequência coincidente com o VIN gravado e o documento. Plaqueta do fabricante coerente. Fotos [n].",
+    "frase_achado": "Constatado: etiqueta de identificação em [ponto] [ausente/danificada/com sequência divergente], conforme fotos [n]. Não se conclui a causa; recomenda-se exame pela perícia oficial.",
+    "limite": "O vistoriador cautelar não conclui adulteração. Registra, fotografa e, havendo divergência ou impossibilidade de leitura, orienta exame pela perícia oficial."
+  },
+  {
+    "codigo": "PC-IDV-04",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-04",
+      "IDV-08"
+    ],
+    "titulo": "Gravação do VIN nos vidros",
+    "subtitulo": "Presença, coerência e datação dos vidros",
+    "vista": "lateral",
+    "zonas": [
+      "vidros"
+    ],
+    "capitulo": 5,
+    "onde_fica": "Em cada vidro (para-brisa, laterais, vigia), em geral num canto inferior, gravado de forma permanente com o VIN completo ou parte dele, conforme o padrão aplicável. Junto fica a marcação do fabricante do vidro, com a data de fabricação.",
+    "por_que_importa": "A gravação nos vidros é mais um elemento da conferência cruzada. Vidro sem gravação ou com sequência diferente não prova nada sozinho (vidros são trocados), mas precisa ser registrado. A data do vidro ajuda a checar a coerência com o ano do veículo.",
+    "de_fabrica": [
+      "Gravação presente em todos os vidros que o padrão exige",
+      "Sequência gravada coincidente com o VIN do veículo",
+      "Gravações com o mesmo estilo e posição nos vidros originais",
+      "Data dos vidros originais compatível com o ano de fabricação"
+    ],
+    "sinais": [
+      {
+        "sinal": "Gravação no vidro com sequência diferente do VIN do veículo",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Vários vidros sem gravação ou com gravações de estilos diferentes entre si",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Um vidro sem gravação (indício de substituição)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Data do vidro posterior ao ano do veículo (vidro substituído)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Gravação desgastada, mas legível",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Percorra os vidros em sentido horário, começando pelo para-brisa.",
+      "Leia a gravação de cada vidro contra a luz e compare com o VIN do documento.",
+      "Anote a data de fabricação de cada vidro e compare com o ano do veículo.",
+      "Monte uma tabela vidro a vidro: gravação presente/ausente, sequência, data.",
+      "Registre vidro sem gravação como observação de substituição, não como divergência."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Tabela de vidros no app ou prancheta"
+    ],
+    "foto": "Gravação de cada vidro legível em primeiro plano, e a marcação de data do vidro na mesma foto quando possível.",
+    "armadilhas": [
+      "Tratar vidro substituído como divergência de identificação: troca de vidro é comum e legítima.",
+      "Ler a data do vidro sem saber o código do fabricante: se não tiver certeza, anote 'data não interpretada'.",
+      "Aceitar película escura que cobre a gravação sem registrar que ela não pôde ser lida."
+    ],
+    "frase_conforme": "Gravação do VIN constatada em todos os vidros verificados, coincidente com o VIN do veículo; datas dos vidros compatíveis com o ano de fabricação. Fotos [n].",
+    "frase_achado": "Constatado: vidro [posição] [sem gravação/com sequência divergente do VIN/com data posterior ao ano de fabricação], conforme fotos [n]. Indica substituição do vidro; divergência de sequência requer exame pela perícia oficial.",
+    "limite": "A vistoria não determina quando nem por que um vidro foi trocado. Divergência de sequência é registrada e encaminhada; o vistoriador não conclui adulteração."
+  },
+  {
+    "codigo": "PC-IDV-05",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-05"
+    ],
+    "titulo": "Número do motor",
+    "subtitulo": "Localização, legibilidade e conferência com o cadastro",
+    "vista": "cofre",
+    "zonas": [
+      "numero-motor"
+    ],
+    "capitulo": 5,
+    "onde_fica": "Gravado no bloco do motor, em local definido pelo fabricante (em geral numa face plana usinada do bloco, perto da junção com o câmbio ou do cabeçote). Pode exigir espelho e lanterna; em alguns modelos só é visível por baixo.",
+    "por_que_importa": "O número do motor faz parte do cadastro do veículo. Motor trocado precisa de regularização; número divergente, ilegível ou com acabamento anormal é registrado e orienta perícia. Sem leitura completa, a identificação não é concluída.",
+    "de_fabrica": [
+      "Gravação no local previsto pelo fabricante para o motor",
+      "Caracteres uniformes em altura, profundidade e alinhamento",
+      "Superfície da área com o mesmo acabamento de usinagem/fundição do bloco",
+      "Número coincidente com o cadastro, quando disponível na consulta"
+    ],
+    "sinais": [
+      {
+        "sinal": "Número do motor diferente do cadastro",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Caracteres desalinhados ou com profundidade irregular entre si",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Área da gravação com acabamento diferente do restante do bloco",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Motor sem número no local previsto, ou local coberto por peça não original",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Oleosidade ou oxidação que exige limpeza leve para ler",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Localize a gravação pela referência do fabricante do motor com motor frio.",
+      "Limpe só com pano seco ou desengraxante leve; não use lixa nem escova de aço.",
+      "Leia com espelho e lanterna rasante e anote caractere por caractere.",
+      "Compare com o número do cadastro obtido na consulta, quando disponível.",
+      "Leitura parcial? Registre 'não verificável' e classifique o laudo INCONCLUSIVO."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Pano e desengraxante leve",
+      "Referência do fabricante"
+    ],
+    "foto": "Gravação completa do número do motor legível, com luz rasante; se via espelho, foto do espelho e foto da posição.",
+    "armadilhas": [
+      "Confundir número de peça ou código de fundição do bloco com o número do motor.",
+      "Registrar como divergência a ausência do número no cadastro consultado: isso é limite da base, não do veículo.",
+      "Apontar troca de motor sem ver número: descreva só o que foi possível observar."
+    ],
+    "frase_conforme": "Número do motor localizado em [local], legível e coincidente com o cadastro consultado em [data/hora]. Fotos [n].",
+    "frase_achado": "Constatado: número do motor em [local] [divergente do cadastro/ilegível/com acabamento da área diferente do bloco], conforme fotos [n]. Não se conclui a causa; recomenda-se exame pela perícia oficial.",
+    "limite": "O vistoriador cautelar não conclui adulteração. Registra, fotografa e, havendo divergência ou impossibilidade de leitura, orienta exame pela perícia oficial."
+  },
+  {
+    "codigo": "PC-IDV-06",
+    "sistema": "IDV",
+    "itens": [
+      "IDV-07"
+    ],
+    "titulo": "Placas: padrão, fixação e QR Code",
+    "subtitulo": "Placa dianteira e traseira conferidas com o documento",
+    "vista": "documento",
+    "zonas": [
+      "placa",
+      "qrcode"
+    ],
+    "capitulo": 5,
+    "onde_fica": "Placas dianteira e traseira, nos suportes originais. No padrão vigente, a placa traz QR Code e elementos de segurança do fabricante de placas credenciado (Resolução CONTRAN sobre placas de identificação veicular [VERIFICAR número vigente]).",
+    "por_que_importa": "A placa é o identificador externo que liga o veículo ao documento e às consultas. Placa ilegível, fora do padrão ou diferente entre dianteira e traseira precisa ser registrada; o QR Code permite conferir se a placa é a registrada para aquele veículo.",
+    "de_fabrica": [
+      "Dianteira e traseira com o mesmo número, igual ao do documento",
+      "Padrão, cores e caracteres conforme a regra vigente para a categoria",
+      "QR Code legível que retorna dados coerentes com o veículo",
+      "Fixação firme nos suportes, sem obstrução dos caracteres"
+    ],
+    "sinais": [
+      {
+        "sinal": "Número da placa diferente do documento ou entre dianteira e traseira",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "QR Code retorna dados de outro veículo",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "QR Code ilegível, ausente ou que não valida no padrão que o exige",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Caracteres, cores ou dimensões fora do padrão vigente",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Placa amassada, desbotada ou com fixação frouxa, ainda legível",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Compare a placa dianteira com a traseira e ambas com o documento.",
+      "Leia o QR Code de cada placa pelo canal oficial e compare os dados retornados.",
+      "Confira padrão, cor de fundo e caracteres com a categoria do veículo.",
+      "Verifique fixação e legibilidade a cerca de 5 m; registre obstruções.",
+      "Fotografe as duas placas de frente, legíveis e sem reflexo."
+    ],
+    "ferramentas": [
+      "Celular com leitor de QR Code",
+      "Pano para limpeza"
+    ],
+    "foto": "Cada placa inteira, de frente, legível e sem reflexo, com o QR Code nítido; uma foto de 3/4 com a placa no veículo.",
+    "armadilhas": [
+      "Tratar placa de padrão anterior como irregular: pode ser válida até a troca obrigatória prevista em norma.",
+      "Deixar de validar o QR Code por falta de sinal: registre que não foi possível e por quê.",
+      "Usar placa real em exemplo de laudo ou treinamento: use ABC1D23 ou XXX0X00."
+    ],
+    "frase_conforme": "Placas dianteira e traseira presentes, legíveis, no padrão [padrão], com número coincidente com o documento; QR Code validado em [data/hora]. Fotos [n].",
+    "frase_achado": "Constatado: placa [dianteira/traseira] [com número divergente/QR Code não validado/fora do padrão], conforme fotos [n]. Recomenda-se regularização e, havendo divergência de identificação, exame pela autoridade competente.",
+    "limite": "A vistoria não atesta a autenticidade física da placa nem do QR Code; confirma a coerência entre placa, validação oficial, documento e veículo."
+  },
+  {
+    "codigo": "PC-EST-01",
+    "sistema": "EST",
+    "itens": [
+      "EST-01"
+    ],
+    "titulo": "Longarinas dianteiras",
+    "subtitulo": "Ponteiras (absorção) e corpo da longarina",
+    "vista": "estrutura",
+    "zonas": [
+      "longarina-d"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Vigas que saem do corta-fogo e correm pelo cofre até a frente, uma de cada lado, sob o motor e os para-lamas. A ponteira é o trecho à frente (zona de deformação programada, onde fixa a travessa do para-choque); o corpo vai da torre ao corta-fogo.",
+    "por_que_importa": "As longarinas sustentam motor e suspensão e conduzem a energia de impacto frontal. A ponteira é feita para amassar e é reparável; o corpo é estrutura de sustentação. Reparo no corpo compromete a proteção em nova colisão e a geometria do veículo.",
+    "de_fabrica": [
+      "Pontos de solda por resistência: marcas circulares rasas, do mesmo tamanho e espaçamento regular",
+      "Selador de fábrica em cordão uniforme, liso e contínuo nas juntas",
+      "Chapa lisa, sem rugas; vincos e furos apenas os de projeto, iguais nos dois lados",
+      "Pintura interna fina e uniforme, sem escorrimento e sem névoa de spray",
+      "Lado esquerdo e direito simétricos em forma, furos e soldas"
+    ],
+    "sinais": [
+      {
+        "sinal": "Rugas, dobras ou ondulação no corpo da longarina",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Corte, emenda ou cordão de solda MIG no corpo da longarina",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Ponteira com emenda, solda MIG ou pontos de solda irregulares",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Rugas de absorção desfeitas ou massa na ponteira",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Selador aplicado à mão (irregular, com marca de pincel ou dedo)",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Repintura interna localizada, sem outros sinais de reparo",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Abra o capô e olhe cada longarina de cima, da frente ao corta-fogo, com lanterna rasante.",
+      "Compare lado a lado: soldas, furos, selador e forma devem ser espelhados.",
+      "Com o veículo elevado ou deitado sob ele, examine as faces inferior e interna.",
+      "Meça espessura de pintura em pontos equivalentes dos dois lados (valores orientativos).",
+      "Localize a transição ponteira/corpo e registre em qual trecho está o achado."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Medidor de espessura de pintura",
+      "Elevador ou macaco com cavaletes"
+    ],
+    "foto": "Cada longarina inteira vista de cima, com as duas lado a lado para simetria, e close de qualquer solda, ruga ou emenda com referência de posição.",
+    "armadilhas": [
+      "Confundir vincos de projeto (deformação programada) com rugas de impacto: vinco de fábrica é idêntico no outro lado.",
+      "Apontar solda ponto de fábrica mal pintada como reparo: veja se o padrão se repete nos dois lados.",
+      "Espessura de pintura varia por fabricante: use a comparação entre lados, não um valor absoluto."
+    ],
+    "frase_conforme": "Longarinas dianteiras examinadas nas áreas visíveis sem desmontagem, com soldas, selador, forma e pintura em padrão de fábrica e simétricas entre si. Fotos [n].",
+    "frase_achado": "Constatado na longarina dianteira [esq./dir.], no trecho [ponteira/corpo], [solda contínua/emenda/rugas/selador irregular], diferente do lado oposto, conforme fotos [n]. Indício de reparo estrutural.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-02",
+    "sistema": "EST",
+    "itens": [
+      "EST-02"
+    ],
+    "titulo": "Painel frontal e travessa",
+    "subtitulo": "Quadro do radiador e travessa do para-choque",
+    "vista": "estrutura",
+    "zonas": [
+      "painel-frontal"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Moldura à frente do cofre que sustenta radiador, faróis e fecho do capô, fixada às ponteiras das longarinas e aos aventais. Atrás do para-choque fica a travessa (viga de impacto), presa às ponteiras.",
+    "por_que_importa": "É a primeira peça atingida em colisão frontal. A troca em si indica impacto; importa saber como foi fixada e se a energia chegou às ponteiras e longarinas. Critério: soldado de fábrica e substituído = N3; parafusado de fábrica, trocado sem outros sinais = N2.",
+    "de_fabrica": [
+      "Fixação conforme o projeto: pontos de solda por resistência ou parafusos com cabeça pintada",
+      "Etiquetas e marcações do fabricante presentes no quadro",
+      "Folgas iguais entre capô, faróis e para-lamas nos dois lados",
+      "Selador e pintura com o mesmo aspecto das ponteiras vizinhas",
+      "Travessa sem vinco, fixada nos furos originais"
+    ],
+    "sinais": [
+      {
+        "sinal": "Painel soldado de fábrica substituído (solda MIG, emenda ou pontos irregulares)",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Painel com rugas, torção ou desalinhamento com faróis e capô",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Travessa com vinco, deformada ou fixada com adaptação",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Painel parafusado de fábrica trocado, sem sinais nas ponteiras",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Parafusos com marcas de chave ou sem a pintura de fábrica",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Peça plástica do quadro trincada ou com reparo por solda plástica",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Com o capô aberto, observe o quadro de frente: alinhamento, folgas e simetria.",
+      "Identifique o tipo de fixação de fábrica do modelo (solda ou parafuso) antes de avaliar.",
+      "Examine as junções com as ponteiras e aventais: soldas, selador e pintura.",
+      "Procure etiquetas do quadro e compare o aspecto da peça com o restante do cofre.",
+      "Olhe a travessa por baixo do para-choque, com lanterna e espelho."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Medidor de espessura de pintura"
+    ],
+    "foto": "Quadro frontal inteiro de frente com o capô aberto, e closes das junções com as ponteiras dos dois lados.",
+    "armadilhas": [
+      "Tratar como reparo um quadro parafusado de fábrica: em muitos modelos ele é um módulo removível.",
+      "Avaliar só o painel e esquecer as ponteiras: troca do painel exige olhar PC-EST-01 com atenção extra.",
+      "Parafusos com marca de chave podem vir de manutenção do radiador: registre sem concluir impacto."
+    ],
+    "frase_conforme": "Painel frontal e travessa com fixação, alinhamento e acabamento em padrão de fábrica nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatada substituição do painel frontal, fixado por [solda/parafusos], com [descrição do acabamento], conforme fotos [n]. Indício de impacto frontal; ponteiras examinadas conforme item EST-01.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-03",
+    "sistema": "EST",
+    "itens": [
+      "EST-03"
+    ],
+    "titulo": "Torres de suspensão dianteiras",
+    "subtitulo": "Apoio superior do amortecedor e sua base",
+    "vista": "estrutura",
+    "zonas": [
+      "torre"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Nos cantos traseiros do cofre, uma de cada lado, onde o amortecedor se fixa por cima (copo com 3 ou mais parafusos). A torre se une às longarinas, ao avental e ao corta-fogo.",
+    "por_que_importa": "A torre recebe toda a carga da suspensão dianteira e define a geometria (cambagem, cáster). Deformação ou reparo aqui é estrutura de sustentação: altera o comportamento do veículo e a resposta em nova colisão.",
+    "de_fabrica": [
+      "Copo simétrico nos dois lados, com furos e parafusos na mesma posição",
+      "Pontos de solda por resistência regulares na união com avental e longarina",
+      "Selador de fábrica liso e contínuo, igual nos dois lados",
+      "Chapa sem rugas; pintura uniforme, sem escorrimento"
+    ],
+    "sinais": [
+      {
+        "sinal": "Rugas, ondulação ou deslocamento do copo em relação ao lado oposto",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Corte, emenda ou solda MIG na torre ou na união com a longarina",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Selador aplicado à mão ou de aspecto diferente do lado oposto",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Massa ou repintura localizada na torre",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Parafusos do amortecedor com marca de chave, sem outros sinais",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Abra o capô e posicione-se à frente: compare as duas torres ao mesmo tempo.",
+      "Observe altura, forma do copo e posição dos parafusos em relação a pontos fixos.",
+      "Examine com lanterna rasante as uniões com avental, longarina e corta-fogo.",
+      "Compare o selador dos dois lados: textura, largura e continuidade.",
+      "Meça espessura de pintura em pontos equivalentes nos dois lados (orientativo)."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura de pintura",
+      "Espelho de inspeção"
+    ],
+    "foto": "As duas torres em um único enquadramento para simetria e close de cada uma mostrando uniões e selador.",
+    "armadilhas": [
+      "Parafusos com marca de chave são normais após troca de amortecedor: sozinhos, não indicam reparo estrutural.",
+      "Chicotes, reservatórios e capas podem esconder a união da torre: registre a área não visível.",
+      "Diferença de sujeira entre os lados não é diferença de selador: limpe antes de comparar."
+    ],
+    "frase_conforme": "Torres de suspensão dianteiras simétricas, com soldas, selador e pintura em padrão de fábrica nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado na torre de suspensão dianteira [esq./dir.] [rugas/solda contínua/selador irregular], diferente do lado oposto, conforme fotos [n]. Indício de reparo em estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-04",
+    "sistema": "EST",
+    "itens": [
+      "EST-04"
+    ],
+    "titulo": "Caixas de roda dianteiras e aventais",
+    "subtitulo": "Aventais internos do cofre e alojamento das rodas",
+    "vista": "estrutura",
+    "zonas": [
+      "caixa-roda-d"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Chapas laterais do cofre entre o para-lama e o motor (aventais), ligando painel frontal, torre e longarina. A caixa de roda é o alojamento da roda, visto por dentro do para-lama, atrás do protetor plástico.",
+    "por_que_importa": "O avental amarra painel frontal, torre e longarina. Deformação ou emenda indica impacto frontal ou lateral dianteiro que passou do para-lama. O avental é área de absorção; a união com torre e longarina já é estrutura.",
+    "de_fabrica": [
+      "Chapa lisa, com nervuras de projeto iguais nos dois lados",
+      "Pontos de solda por resistência regulares nas bordas e uniões",
+      "Selador de fábrica contínuo e uniforme nas juntas",
+      "Proteção antirruído/anticorrosiva da caixa de roda com textura uniforme"
+    ],
+    "sinais": [
+      {
+        "sinal": "Emenda ou solda MIG na união do avental com torre ou longarina",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Avental com vincos, ondulação ou emenda",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Massa ou selador aplicado à mão no avental",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Proteção da caixa de roda reaplicada ou com textura diferente do lado oposto",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Protetor plástico da caixa de roda ausente ou com fixação improvisada",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Com o capô aberto, examine cada avental de cima com lanterna rasante.",
+      "Esterce as rodas e olhe a caixa de roda por dentro, atrás do protetor.",
+      "Compare nervuras, soldas e selador com o lado oposto.",
+      "Siga as uniões do avental até a torre e a longarina e registre o trecho afetado.",
+      "Meça espessura de pintura em pontos equivalentes (orientativo)."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Medidor de espessura de pintura"
+    ],
+    "foto": "Cada avental inteiro visto de cima e caixa de roda por dentro com a roda esterçada; close de emendas ou soldas.",
+    "armadilhas": [
+      "Nervura de projeto não é vinco de impacto: compare com o lado oposto.",
+      "Proteção reaplicada pode ser só manutenção anticorrosiva: registre sem concluir impacto.",
+      "Deixar de registrar a área escondida atrás do protetor plástico quando não foi possível ver."
+    ],
+    "frase_conforme": "Aventais e caixas de roda dianteiras com chapa, soldas, selador e proteção em padrão de fábrica e simétricos, nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado no avental/caixa de roda dianteira [esq./dir.] [vinco/emenda/selador irregular/massa], conforme fotos [n]. Indício de reparo em área de absorção.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-05",
+    "sistema": "EST",
+    "itens": [
+      "EST-05"
+    ],
+    "titulo": "Painel corta-fogo",
+    "subtitulo": "Divisória entre o cofre e o habitáculo",
+    "vista": "estrutura",
+    "zonas": [
+      "corta-fogo"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Parede vertical no fundo do cofre, atrás do motor, que separa o cofre da cabine. Visível por cima (sob a grade do limpador e isolantes) e, em parte, pelo lado interno, atrás do painel e do carpete.",
+    "por_que_importa": "O corta-fogo é o último anteparo entre o impacto frontal e os ocupantes, e une longarinas, torres e colunas A. Deformação ou reparo indica que a energia de um impacto chegou à célula de sobrevivência.",
+    "de_fabrica": [
+      "Chapa plana ou com estampos de projeto, sem ondulações",
+      "Pontos de solda por resistência regulares nas uniões com torres e longarinas",
+      "Selador de fábrica contínuo e liso nas juntas e passagens",
+      "Isolantes, passa-fios e borrachas com fixação original"
+    ],
+    "sinais": [
+      {
+        "sinal": "Ondulação, dobra ou deslocamento do corta-fogo",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Emenda, corte ou solda MIG no corta-fogo ou nas uniões",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Selador aplicado à mão ou interrompido nas juntas",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Repintura localizada ou névoa de spray no corta-fogo",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Isolantes ou passa-fios deslocados, sem sinal na chapa",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Com o capô aberto, examine o corta-fogo de lado a lado com lanterna rasante.",
+      "Siga as uniões com as torres e longarinas nos dois lados.",
+      "Levante a borracha do capô e confira a união com a grade do limpador.",
+      "Pelo lado interno, olhe sob o painel e na região dos pedais, sem desmontar.",
+      "Registre as áreas que não puderam ser vistas por causa de componentes."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Medidor de espessura de pintura"
+    ],
+    "foto": "Corta-fogo inteiro de lado a lado com o capô aberto e closes das uniões e de qualquer irregularidade.",
+    "armadilhas": [
+      "Estampos de projeto e passagens de chicote não são vincos: compare com a referência do modelo.",
+      "Selador escurecido pelo calor não é selador aplicado à mão: avalie forma e textura, não a cor.",
+      "Afirmar que o corta-fogo está íntegro quando boa parte ficou coberta por componentes."
+    ],
+    "frase_conforme": "Painel corta-fogo examinado nas áreas visíveis sem desmontagem, sem deformações e com soldas e selador em padrão de fábrica. Fotos [n].",
+    "frase_achado": "Constatado no painel corta-fogo, região [posição], [deformação/emenda/solda contínua/selador irregular], conforme fotos [n]. Indício de reparo em estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-06",
+    "sistema": "EST",
+    "itens": [
+      "EST-06"
+    ],
+    "titulo": "Colunas A, B e C",
+    "subtitulo": "Colunas da carroceria sob borrachas e acabamentos",
+    "vista": "estrutura",
+    "zonas": [
+      "coluna-b"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Colunas que sustentam o teto: A (lateral do para-brisa), B (entre as portas) e C (atrás da porta traseira). A face da solda fica sob as borrachas de vedação das portas; a face interna, sob os acabamentos plásticos.",
+    "por_que_importa": "As colunas formam a célula de sobrevivência e sustentam o teto em capotamento e impacto lateral. Muitas usam aço de alta resistência que não admite reparo convencional. Emenda ou deformação aqui é estrutura de sustentação.",
+    "de_fabrica": [
+      "Aba de solda sob a borracha com pontos por resistência regulares e rasos",
+      "Selador e pintura contínuos e iguais nos dois lados do veículo",
+      "Coluna reta, sem ondulação, com folgas de porta iguais nos dois lados",
+      "Etiquetas e plaquetas da coluna presentes e íntegras"
+    ],
+    "sinais": [
+      {
+        "sinal": "Emenda, corte ou solda contínua em qualquer coluna",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Ondulação, dobra ou massa na coluna",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Aba de solda com pontos irregulares, desbastados ou ausentes",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Folga de porta desigual com dobradiças sem sinal de ajuste",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Repintura da coluna, sem outros sinais de reparo",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Abra cada porta e afaste a borracha de vedação com cuidado, sem arrancá-la.",
+      "Examine a aba de solda com lanterna rasante de cima a baixo, coluna por coluna.",
+      "Compare com a coluna equivalente do lado oposto.",
+      "Meça espessura de pintura nas colunas e compare entre lados (orientativo).",
+      "Observe folgas e alinhamento das portas fechadas; registre desigualdades."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura de pintura",
+      "Espelho de inspeção"
+    ],
+    "foto": "Cada coluna com a borracha afastada mostrando a aba de solda, e foto externa das folgas das portas nos dois lados.",
+    "armadilhas": [
+      "Pontos de solda com tinta acumulada podem parecer irregulares: compare o padrão com o outro lado.",
+      "Borracha de vedação trocada não indica reparo na coluna por si só.",
+      "Remover acabamentos internos presos por grampos frágeis: o exame é sem desmontagem."
+    ],
+    "frase_conforme": "Colunas A, B e C examinadas sob as borrachas de vedação, com abas de solda, selador e pintura em padrão de fábrica e simétricas. Fotos [n].",
+    "frase_achado": "Constatado na coluna [A/B/C] [esq./dir.] [emenda/solda contínua/pontos irregulares/massa], sob a borracha de vedação, conforme fotos [n]. Indício de reparo em estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-07",
+    "sistema": "EST",
+    "itens": [
+      "EST-07"
+    ],
+    "titulo": "Soleiras (caixas de ar)",
+    "subtitulo": "Longarinas laterais sob as portas",
+    "vista": "estrutura",
+    "zonas": [
+      "soleira"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Vigas fechadas sob as portas, de uma caixa de roda à outra, unindo colunas A, B e C ao assoalho. Por fora ficam sob as saias/spoilers; por dentro, sob os acabamentos da soleira. Os pontos de apoio do macaco ficam na aba inferior.",
+    "por_que_importa": "A soleira sustenta o assoalho e protege os ocupantes em impacto lateral. Por ser fechada, acumula umidade: corrosão perfurante e emendas aqui comprometem a rigidez do veículo. Pontos de macaco deformados revelam mau uso do elevador.",
+    "de_fabrica": [
+      "Aba inferior reta, com pontos de solda regulares e marcas de apoio originais",
+      "Superfície externa lisa, com proteção antichoque de textura uniforme",
+      "Drenos desobstruídos e sem corrosão ao redor",
+      "Mesmo perfil e altura dos dois lados do veículo"
+    ],
+    "sinais": [
+      {
+        "sinal": "Emenda, corte ou solda contínua na soleira",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Soleira amassada para dentro ou com dobra",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Corrosão perfurante na soleira",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Massa ou proteção antichoque reaplicada em trecho localizado",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Pontos de macaco amassados, sem dano ao corpo da soleira",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Corrosão superficial sem perda de material",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo elevado ou deitado sob ele, percorra a aba inferior de ponta a ponta.",
+      "Examine a face externa com lanterna rasante e compare os dois lados.",
+      "Abra as portas e confira o acabamento interno e a aba sob as borrachas.",
+      "Verifique drenos e corrosão; bata levemente com os dedos para sentir massa.",
+      "Registre pontos de macaco deformados separando-os de dano na soleira."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura de pintura",
+      "Elevador ou macaco com cavaletes"
+    ],
+    "foto": "Cada soleira em toda a extensão (externa e aba inferior) e close de emendas, corrosão ou pontos de macaco.",
+    "armadilhas": [
+      "Ponto de macaco amassado é comum e não é, sozinho, reparo estrutural.",
+      "Confundir corrosão superficial com perfurante: só é perfurante se há perda de material ou furo.",
+      "Proteção antichoque reaplicada em toda a extensão pode ser manutenção: compare com o outro lado."
+    ],
+    "frase_conforme": "Soleiras examinadas nas faces externa, inferior e sob as borrachas, sem deformações, emendas ou corrosão perfurante e simétricas. Fotos [n].",
+    "frase_achado": "Constatado na soleira [esq./dir.], trecho [dianteiro/central/traseiro], [emenda/deformação/corrosão perfurante/massa], conforme fotos [n]. Indício de comprometimento de estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-08",
+    "sistema": "EST",
+    "itens": [
+      "EST-08"
+    ],
+    "titulo": "Assoalho e túnel central",
+    "subtitulo": "Piso da cabine, travessas e túnel",
+    "vista": "estrutura",
+    "zonas": [
+      "assoalho",
+      "tunel"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Piso da cabine, das soleiras ao túnel central, com as travessas sob os bancos. Visto por baixo (veículo elevado) e, em parte, por dentro, levantando tapetes e observando trilhos dos bancos, sem remover o carpete.",
+    "por_que_importa": "O assoalho une as soleiras e a estrutura dianteira e traseira. Remendos, vincos e soldas indicam impacto por baixo, lateral ou corrosão tratada. Também é onde aparecem sinais de enchente, que mudam totalmente o laudo.",
+    "de_fabrica": [
+      "Chapa com estampos de projeto, sem vincos, com proteção de textura uniforme",
+      "Pontos de solda por resistência regulares nas travessas e no túnel",
+      "Selador de fábrica contínuo nas juntas internas e externas",
+      "Tampões de borracha presentes e sem marca de umidade ao redor"
+    ],
+    "sinais": [
+      {
+        "sinal": "Emenda, remendo de chapa ou solda contínua no assoalho ou travessas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Vinco ou afundamento do assoalho ou do túnel",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Corrosão perfurante no assoalho",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Marcas de lama, linha d'água ou oxidação uniforme sob o carpete",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Selador ou proteção reaplicada em trecho localizado",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Riscos e raspagens de fundo na proteção, sem deformação",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo elevado, percorra o assoalho por baixo em faixas, da frente para trás.",
+      "Examine túnel e travessas com lanterna rasante; compare soldas com o padrão.",
+      "Levante os tapetes e observe o carpete, os trilhos e os parafusos dos bancos.",
+      "Procure lama, linha d'água e oxidação uniforme (ver ficha de enchente, cap. 11).",
+      "Registre áreas cobertas por escapamento, tanque ou protetores."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Elevador ou macaco com cavaletes",
+      "Espelho de inspeção"
+    ],
+    "foto": "Assoalho por baixo em sequência (frente, centro, trás) e close de qualquer remendo, vinco ou corrosão, com referência de posição.",
+    "armadilhas": [
+      "Raspagem de fundo em lombada é desgaste de uso (N1) se não houver deformação da chapa.",
+      "Selador escurecido ou sujo pode parecer reaplicado: compare forma e textura, não a cor.",
+      "Deixar de registrar que tanque, escapamento e protetores cobriram parte do assoalho."
+    ],
+    "frase_conforme": "Assoalho e túnel central examinados por baixo e pelo interior, sem vincos, emendas ou corrosão perfurante nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado no assoalho/túnel, região [posição], [remendo/vinco/solda contínua/corrosão perfurante], conforme fotos [n]. Indício de comprometimento de estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-09",
+    "sistema": "EST",
+    "itens": [
+      "EST-09",
+      "EST-12"
+    ],
+    "titulo": "Longarinas traseiras e porta-malas",
+    "subtitulo": "Assoalho do porta-malas e fixação da suspensão traseira",
+    "vista": "estrutura",
+    "zonas": [
+      "longarina-t",
+      "porta-malas",
+      "suspensao-t"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Longarinas traseiras correm sob o porta-malas, das caixas de roda à saia. O assoalho do porta-malas fica sob o carpete e o estepe. Os pontos de fixação da suspensão traseira (eixo, braços, amortecedores) ficam nas longarinas e caixas de roda.",
+    "por_que_importa": "É a estrutura atingida em colisão traseira e que sustenta a suspensão traseira. Ondulação no assoalho do porta-malas ou no berço do estepe revela impacto que foi além do para-choque. Fixação da suspensão deformada altera o alinhamento.",
+    "de_fabrica": [
+      "Assoalho do porta-malas com estampos simétricos e berço do estepe regular",
+      "Pontos de solda por resistência regulares e selador liso nas juntas",
+      "Longarinas retas, iguais nos dois lados, com proteção uniforme",
+      "Suportes da suspensão alinhados, sem solda extra e com parafusos originais"
+    ],
+    "sinais": [
+      {
+        "sinal": "Rugas, emenda ou solda MIG no corpo da longarina traseira",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Suporte da suspensão traseira deformado, soldado ou desalinhado",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Ponteira traseira com emenda ou rugas desfeitas",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Assoalho do porta-malas ou berço do estepe ondulado ou com emenda",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Selador aplicado à mão no porta-malas",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Repintura interna do porta-malas, sem outros sinais",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Esvazie o porta-malas, levante o carpete e retire o estepe se possível.",
+      "Examine o assoalho, o berço do estepe e as juntas com lanterna rasante.",
+      "Com o veículo elevado, siga cada longarina traseira até a saia.",
+      "Examine os suportes da suspensão traseira e compare com o lado oposto.",
+      "Meça espessura de pintura em pontos equivalentes (orientativo)."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Elevador ou macaco com cavaletes",
+      "Medidor de espessura de pintura",
+      "Espelho de inspeção"
+    ],
+    "foto": "Porta-malas vazio com o carpete levantado, berço do estepe em close e cada longarina traseira vista por baixo, com os suportes da suspensão.",
+    "armadilhas": [
+      "Estepe mal posicionado pode marcar o berço sem que haja impacto: avalie a chapa, não só a marca.",
+      "Suspensão com peças trocadas por manutenção não indica suporte deformado.",
+      "Chicote de engate instalado pode deixar furos e selador extra sem significar reparo estrutural."
+    ],
+    "frase_conforme": "Longarinas traseiras, assoalho do porta-malas e fixações da suspensão traseira em padrão de fábrica e simétricos nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado na [longarina traseira/assoalho do porta-malas/fixação da suspensão] [esq./dir.] [emenda/rugas/solda contínua/deformação], conforme fotos [n]. Indício de reparo estrutural traseiro.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-10",
+    "sistema": "EST",
+    "itens": [
+      "EST-10"
+    ],
+    "titulo": "Painel traseiro e travessa",
+    "subtitulo": "Saia traseira e viga do para-choque traseiro",
+    "vista": "estrutura",
+    "zonas": [
+      "painel-traseiro"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Chapa transversal na traseira, abaixo da tampa, entre as lanternas; fecha o porta-malas e recebe a fechadura. Atrás do para-choque fica a travessa (viga de impacto), fixada às ponteiras das longarinas traseiras.",
+    "por_que_importa": "É a primeira peça estrutural atingida em colisão traseira. Troca ou reparo indica impacto traseiro e orienta a checar as longarinas (PC-EST-09). Painel traseiro substituído é área de absorção: N3.",
+    "de_fabrica": [
+      "Pontos de solda por resistência regulares na aba interna do painel",
+      "Selador de fábrica liso nas juntas com laterais e assoalho",
+      "Folgas iguais entre lanternas, tampa e para-choque",
+      "Travessa reta, fixada nos furos originais, sem vinco"
+    ],
+    "sinais": [
+      {
+        "sinal": "Painel traseiro substituído (solda MIG, pontos irregulares ou emenda)",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Painel com ondulação, massa ou desalinhamento com lanternas e tampa",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Travessa traseira com vinco, deformada ou adaptada",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Selador aplicado à mão nas juntas do painel",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Repintura do painel, sem outros sinais de reparo",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Abra a tampa e examine a face interna do painel com lanterna rasante.",
+      "Levante o acabamento do porta-malas e siga as juntas até as laterais.",
+      "Observe folgas externas entre lanternas, tampa e para-choque.",
+      "Olhe a travessa por baixo do para-choque, com lanterna e espelho.",
+      "Meça espessura de pintura no painel e nas laterais adjacentes (orientativo)."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Espelho de inspeção",
+      "Medidor de espessura de pintura"
+    ],
+    "foto": "Painel traseiro visto por dentro com a tampa aberta, detalhe das juntas laterais e vista externa das folgas.",
+    "armadilhas": [
+      "Soldas de fábrica cobertas por selador podem parecer irregulares: compare as duas extremidades.",
+      "Lanterna desalinhada pode ser só suporte quebrado: confira a chapa antes de apontar.",
+      "Não examinar as longarinas traseiras quando o painel foi trocado."
+    ],
+    "frase_conforme": "Painel traseiro e travessa com fixação, alinhamento e acabamento em padrão de fábrica nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado no painel traseiro [substituição/solda contínua/massa/selador irregular], conforme fotos [n]. Indício de impacto traseiro; longarinas traseiras examinadas conforme item EST-09.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-11",
+    "sistema": "EST",
+    "itens": [
+      "EST-11"
+    ],
+    "titulo": "Teto e colunas internas",
+    "subtitulo": "Teto estrutural, calhas e colunas sob o forro",
+    "vista": "estrutura",
+    "zonas": [
+      "teto"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Chapa do teto e suas uniões com as colunas A, B e C, pelas calhas laterais (sob frisos ou borrachas). Por dentro, travessas do teto e colunas ficam sob o forro, visíveis em parte pelas bordas e alças.",
+    "por_que_importa": "O teto amarra as colunas e protege em capotamento. Ondulação, emenda na calha ou teto repintado inteiro podem indicar capotamento ou troca de teto. Reparo em teto estrutural é N4.",
+    "de_fabrica": [
+      "Chapa lisa, sem ondulação sob luz rasante, com pintura uniforme",
+      "Calhas com solda e selador contínuos, iguais nos dois lados",
+      "Forro firme, sem manchas, sem ondulação e com fixações originais",
+      "Espessura de pintura coerente com as demais peças (orientativo)"
+    ],
+    "sinais": [
+      {
+        "sinal": "Emenda, solda contínua ou selador irregular nas calhas ou uniões com colunas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Teto ondulado ou com massa",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Forro com sinais de remoção e colunas internas com emenda",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Teto repintado inteiro sem outros sinais de reparo",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pequenos amassados de granizo ou objeto, sem deformar a estrutura",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Observe o teto de fora, em ângulo baixo contra a luz, dos quatro cantos.",
+      "Examine as calhas laterais e as uniões com as colunas, levantando frisos se soltos.",
+      "Meça espessura de pintura em vários pontos e compare com capô e portas (orientativo).",
+      "Por dentro, observe o forro e suas bordas, sem removê-lo.",
+      "Registre a área não verificada quando houver teto solar, bagageiro ou película."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura de pintura",
+      "Escada baixa ou banqueta"
+    ],
+    "foto": "Teto inteiro em ângulo baixo com reflexo de luz, closes das calhas nos dois lados e do forro onde houver sinal.",
+    "armadilhas": [
+      "Repintura do teto por desbotamento é comum: se não há emenda nem ondulação, é N2.",
+      "Frisos plásticos soltos por ressecamento não indicam remoção de teto.",
+      "Mancha de umidade no forro pode vir de vedação ou teto solar, não de reparo: descreva sem concluir."
+    ],
+    "frase_conforme": "Teto, calhas e bordas do forro sem ondulações, emendas ou selador fora de padrão, com pintura coerente, nas áreas visíveis sem desmontagem. Fotos [n].",
+    "frase_achado": "Constatado no teto/calha [esq./dir.] [emenda/solda contínua/ondulação/massa], conforme fotos [n]. Indício de reparo em estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede geometria da carroceria nem avalia a resistência do reparo. Áreas cobertas por acabamentos não removidos não são verificadas."
+  },
+  {
+    "codigo": "PC-EST-12",
+    "sistema": "EST",
+    "itens": [
+      "EST-13"
+    ],
+    "titulo": "Corrosão estrutural",
+    "subtitulo": "Superficial x perfurante em peças que sustentam o veículo",
+    "vista": "estrutura",
+    "zonas": [
+      "soleira",
+      "assoalho",
+      "longarina-t",
+      "caixa-roda-d"
+    ],
+    "capitulo": 6,
+    "onde_fica": "Onde a água se acumula: soleiras e drenos, assoalho (sob o carpete e por baixo), caixas de roda, berço do estepe, longarinas traseiras e uniões de chapas com selador. Veículos de litoral, frota ou enchente pedem atenção extra.",
+    "por_que_importa": "Corrosão perfurante reduz a espessura da chapa e a resistência da estrutura. Superficial é manutenção; perfurante em peça de sustentação é N4. Corrosão sob selador ou massa pode esconder reparo anterior ou dano por enchente.",
+    "de_fabrica": [
+      "Proteção anticorrosiva e selador contínuos, sem bolhas ou descascamento",
+      "Drenos desobstruídos, sem acúmulo de terra",
+      "Chapa com espessura íntegra; eventual oxidação só em pó superficial",
+      "Mesma condição em pontos equivalentes dos dois lados"
+    ],
+    "sinais": [
+      {
+        "sinal": "Corrosão perfurante (furo ou perda de material) em peça estrutural",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Chapa estrutural que cede à pressão leve dos dedos",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Oxidação uniforme em toda a parte baixa e sob o carpete (ver enchente)",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Bolhas sob selador ou proteção em peça estrutural",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Corrosão em peça de revestimento (portas, tampa, para-lamas)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Oxidação superficial em pó, sem perda de material",
+        "nivel": "N1"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo elevado, percorra soleiras, assoalho, caixas de roda e longarinas.",
+      "Pressione levemente com os dedos (com luva) áreas oxidadas; não use ferramenta pontiaguda.",
+      "Classifique cada ponto: superficial, com bolha ou perfurante; anote a peça.",
+      "Verifique drenos, tampões e o berço do estepe.",
+      "Relacione o padrão da corrosão com a ficha de enchente (cap. 11) se for uniforme."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Luvas",
+      "Elevador ou macaco com cavaletes",
+      "Espelho de inspeção"
+    ],
+    "foto": "Cada ponto de corrosão em close, com referência de posição na peça, e foto aberta da região para localização.",
+    "armadilhas": [
+      "Corrosão superficial em escapamento, discos e suspensão é normal e não é estrutural.",
+      "Perfurar a chapa para 'testar' é destrutivo: registre como 'suspeita de perda de material' se não houver certeza.",
+      "Descrever tudo como 'ferrugem': indique peça, extensão e tipo (superficial/bolha/perfurante)."
+    ],
+    "frase_conforme": "Não foi constatada corrosão perfurante nas peças estruturais visíveis sem desmontagem; oxidação superficial pontual em [local], sem perda de material. Fotos [n].",
+    "frase_achado": "Constatada corrosão perfurante em [peça/posição], com perda de material, conforme fotos [n]. Compromete peça de estrutura de sustentação.",
+    "limite": "Exame visual e não destrutivo: não mede a espessura residual da chapa nem detecta corrosão interna em perfis fechados ou sob acabamentos não removidos."
+  }
+]

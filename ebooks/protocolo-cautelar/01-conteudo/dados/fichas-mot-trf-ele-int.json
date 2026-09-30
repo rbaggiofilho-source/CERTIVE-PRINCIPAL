@@ -1,0 +1,1218 @@
+[
+  {
+    "codigo": "PC-MOT-01",
+    "sistema": "MOT",
+    "itens": [
+      "MOT-01"
+    ],
+    "titulo": "Partida a frio e marcha lenta",
+    "subtitulo": "Primeira partida do dia, ruídos e estabilidade",
+    "vista": "cofre",
+    "zonas": [
+      "motor",
+      "bateria"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Avaliação feita com o motor em temperatura ambiente: toque o cabeçote, o bloco e a mangueira superior do radiador antes de girar a chave. Ouça pelo cofre aberto e pelo escapamento, e observe o conta-giros no painel.",
+    "por_que_importa": "O motor frio revela o que o motor quente esconde: partida difícil, batidas de corrente ou tuchos, fumaça inicial e marcha lenta instável. Um veículo entregue já aquecido pode ter sido ligado para mascarar esses sintomas; por isso a condição térmica na chegada deve constar no laudo.",
+    "de_fabrica": [
+      "Partida em poucos segundos, sem necessidade de acelerar",
+      "Rotação inicial mais alta que se estabiliza gradualmente conforme o motor aquece",
+      "Ruído mecânico uniforme; ruído de corrente, quando existe, some em poucos segundos",
+      "Luzes de advertência apagam logo após a partida",
+      "Sem fumaça visível persistente após o primeiro minuto"
+    ],
+    "sinais": [
+      {
+        "sinal": "Motor já quente ao toque na chegada ao pátio, sem justificativa do apresentante",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Partida demorada, com várias tentativas ou necessidade de acelerar",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Ruído metálico (batida/chocalho) que persiste após o aquecimento inicial",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Marcha lenta oscilante, falhando ou com vibração excessiva na carroceria",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Luz de injeção ou de pressão do óleo permanece acesa após a partida",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Fumaça azulada ou branca densa que persiste com o motor aquecido",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Antes de tudo, toque cabeçote e mangueira superior e registre: frio, morno ou quente",
+      "Abra o capô e peça que ninguém ligue o motor até você autorizar",
+      "Gire a chave na posição de contato e observe o acendimento das luzes do painel",
+      "Dê a partida sem acelerar; cronometre e ouça o cofre nos primeiros 30 segundos",
+      "Observe o conta-giros e a fumaça no escapamento por 2 a 3 minutos",
+      "Registre a condição e siga para a Ficha de Teste T-08"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Cronômetro do celular",
+      "Scanner OBD2"
+    ],
+    "foto": "Painel de instrumentos logo após a partida, com conta-giros e luzes visíveis; vídeo curto de 15 s do cofre em marcha lenta, quando possível.",
+    "armadilhas": [
+      "Rotação alta na partida a frio é normal (fase de aquecimento); não confunda com defeito de marcha lenta.",
+      "Vapor d'água branco e ralo no escapamento em dia frio é normal e some; fumaça densa e persistente é outra coisa.",
+      "Motores com injeção direta e alguns diesel têm ruído característico; compare com o padrão do modelo antes de apontar."
+    ],
+    "frase_conforme": "Motor encontrado frio ao toque na chegada. Partida realizada sem dificuldade, marcha lenta estável e sem ruídos anormais perceptíveis durante a observação em pátio.",
+    "frase_achado": "Constatada partida com [número] tentativas / ruído metálico persistente após [tempo] / marcha lenta oscilante. Condição térmica na chegada: [frio/morno/quente]. Recomenda-se avaliação por oficina especializada.",
+    "limite": "A vistoria não mede compressão, pressão de óleo nem folgas internas. Ruído ouvido não identifica com certeza a peça de origem; sem desmontagem não se afirma causa."
+  },
+  {
+    "codigo": "PC-MOT-02",
+    "sistema": "MOT",
+    "itens": [
+      "MOT-02"
+    ],
+    "titulo": "Vazamentos de óleo do motor",
+    "subtitulo": "Tampa de válvulas, cárter, retentores e juntas",
+    "vista": "cofre",
+    "zonas": [
+      "motor"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Parte superior: junta da tampa de válvulas, tampa de abastecimento, sensores. Laterais: retentores das árvores, filtro de óleo. Parte inferior (lanterna por baixo, sem elevar): cárter, bujão, junta do câmbio.",
+    "por_que_importa": "Vazamento indica junta ou retentor com desgaste e pode levar a baixo nível de óleo. Óleo gotejando sobre o escapamento é risco de incêndio. Motor lavado recentemente pode esconder vazamento ativo, e deve ser registrado como limitação.",
+    "de_fabrica": [
+      "Superfícies do bloco e da tampa de válvulas secas, com poeira uniforme",
+      "Juntas e retentores sem acúmulo de óleo com sujeira grudada",
+      "Cárter seco ou apenas com poeira de estrada",
+      "Nenhuma mancha nova no piso sob o motor após funcionamento"
+    ],
+    "sinais": [
+      {
+        "sinal": "Suor (película úmida sem gotejamento) em junta ou retentor",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Vazamento leve com borra acumulada, sem gotejamento ativo",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Gotejamento ativo no piso após funcionamento",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Óleo escorrendo sobre o coletor ou o escapamento",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Motor lavado recentemente, impedindo avaliar vazamentos (registrar limitação)",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Mancha de óleo no piso do local onde o veículo estava estacionado",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Com o motor frio, ilumine a tampa de válvulas e a região das juntas por cima",
+      "Passe a lanterna em ângulo pelas laterais do bloco e pelo filtro de óleo",
+      "Agache e ilumine o cárter e a junção motor-câmbio por baixo, sem elevar o veículo",
+      "Após a partida e o test drive, olhe o piso sob o motor por gotas novas",
+      "Diferencie óleo (âmbar/escuro, oleoso) de líquido de arrefecimento e de freio",
+      "Fotografe o ponto com a lanterna rasante para mostrar o brilho do óleo"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Papel toalha branco"
+    ],
+    "foto": "Ponto do vazamento em close com luz rasante, e uma foto aberta que mostre a posição no motor; se houver gota no piso, foto da mancha.",
+    "armadilhas": [
+      "Suor leve em motores com muitos anos é comum; não trate como vazamento ativo.",
+      "Resíduo de produto de limpeza ou de silicone de acabamento brilha como óleo; toque com papel toalha para conferir.",
+      "Pingos de água do ar-condicionado sob o painel não são vazamento do motor."
+    ],
+    "frase_conforme": "Não foram constatados vazamentos de óleo nas áreas visíveis do motor sem desmontagem e sem elevação do veículo, no momento da vistoria.",
+    "frase_achado": "Constatado [suor/vazamento/gotejamento ativo] de óleo na região de [junta da tampa de válvulas/cárter/retentor], com [acúmulo de borra/gota no piso]. Recomenda-se diagnóstico em oficina.",
+    "limite": "Sem elevação e sem desmontagem, pontos altos do câmbio e retentores internos podem não ser visíveis. Motor lavado reduz a confiabilidade da observação."
+  },
+  {
+    "codigo": "PC-MOT-03",
+    "sistema": "MOT",
+    "itens": [
+      "MOT-03"
+    ],
+    "titulo": "Óleo do motor: nível e aspecto",
+    "subtitulo": "Vareta, tampa de abastecimento e cheiro",
+    "vista": "cofre",
+    "zonas": [
+      "motor"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Vareta de nível (alça geralmente amarela ou laranja) e tampa de abastecimento sobre a tampa de válvulas. Alguns modelos não têm vareta e mostram o nível no painel ou só por scanner.",
+    "por_que_importa": "O óleo mostra a qualidade da manutenção. Borra indica trocas atrasadas; emulsão clara ('maionese') pode indicar mistura com líquido de arrefecimento; cheiro de combustível sugere diluição. São sinais, não diagnóstico, mas orientam a decisão de compra.",
+    "de_fabrica": [
+      "Nível entre as marcas de mínimo e máximo da vareta, com motor frio e nivelado",
+      "Óleo translúcido âmbar a escuro, fluido, sem partículas visíveis",
+      "Face interna da tampa limpa ou com película uniforme de óleo",
+      "Etiqueta de troca, quando existente, com data e km coerentes"
+    ],
+    "sinais": [
+      {
+        "sinal": "Óleo escuro, compatível com troca próxima do vencimento",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Nível abaixo do mínimo na vareta",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Nível acima do máximo (excesso)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Borra espessa na tampa ou na vareta",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Emulsão clara ou marrom-leitosa na tampa ou na vareta",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Cheiro forte de combustível no óleo",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Partículas metálicas brilhantes visíveis no óleo",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo em piso plano e motor frio, retire a vareta, limpe e reinsira",
+      "Retire de novo e leia o nível contra as marcas; fotografe a ponta",
+      "Pingue uma gota em papel toalha branco e observe cor, partículas e halo",
+      "Abra a tampa de abastecimento e ilumine a face interna e o bocal",
+      "Cheire o óleo na vareta: queimado, combustível ou normal",
+      "Confira a etiqueta de troca de óleo e anote data e km para a ficha PC-INT-04"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Papel toalha branco"
+    ],
+    "foto": "Ponta da vareta sobre papel branco mostrando nível e cor; face interna da tampa de abastecimento iluminada.",
+    "armadilhas": [
+      "Leve condensação na tampa em veículo usado só em trajetos curtos e clima frio pode formar resíduo claro; avalie com o arrefecimento (PC-MOT-04).",
+      "Óleo escuro em motor diesel é normal logo após a troca; cor não mede vida útil.",
+      "Ler o nível logo após desligar o motor quente dá leitura baixa; espere o óleo escorrer."
+    ],
+    "frase_conforme": "Nível de óleo entre as marcas da vareta no momento da vistoria. Não foram constatados borra, emulsão ou odor de combustível no óleo e na tampa de abastecimento.",
+    "frase_achado": "Constatado [nível abaixo do mínimo / borra / resíduo de aspecto emulsionado] em [vareta/tampa de abastecimento]. O achado não permite determinar a causa; recomenda-se análise em oficina especializada.",
+    "limite": "A inspeção visual não substitui análise laboratorial de óleo nem teste de pressão. Não é possível afirmar a origem de emulsão ou de diluição sem diagnóstico."
+  },
+  {
+    "codigo": "PC-MOT-04",
+    "sistema": "MOT",
+    "itens": [
+      "MOT-04"
+    ],
+    "titulo": "Arrefecimento: nível, cor, reservatório",
+    "subtitulo": "Líquido, reservatório de expansão e mangueiras",
+    "vista": "cofre",
+    "zonas": [
+      "reservatorios",
+      "radiador"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Reservatório de expansão (plástico translúcido com marcas MIN/MAX), radiador na frente do cofre, mangueiras superior e inferior, bomba d'água junto às correias e válvula termostática no cabeçote.",
+    "por_que_importa": "Falhas no arrefecimento causam superaquecimento, que pode danificar cabeçote e junta. Óleo no líquido é sinal de possível falha interna grave. Reservatório sujo e água no lugar do aditivo indicam manutenção deficiente.",
+    "de_fabrica": [
+      "Nível entre MIN e MAX com motor frio",
+      "Líquido límpido na cor do aditivo especificado, sem partículas",
+      "Reservatório translúcido, sem manchas de óleo ou crosta de ferrugem",
+      "Mangueiras firmes, sem rachaduras, inchaços ou abraçadeiras improvisadas"
+    ],
+    "sinais": [
+      {
+        "sinal": "Nível pouco abaixo do mínimo, sem vazamento aparente",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Líquido turvo, com ferrugem ou sem cor de aditivo",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Vazamento leve (crosta seca de aditivo) em mangueira, radiador ou bomba",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Mangueira ressecada, inchada ou com abraçadeira improvisada",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Película ou manchas de óleo no reservatório ou no líquido",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Bolhas contínuas no reservatório com motor em funcionamento",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Temperatura acima do normal no painel ou eletroventilador sem acionar",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Confirme que o motor está frio; NUNCA abra a tampa do reservatório com motor quente",
+      "Leia o nível pelo lado de fora do reservatório contra as marcas MIN/MAX",
+      "Ilumine o líquido por trás do reservatório e observe cor, óleo e partículas",
+      "Aperte levemente as mangueiras frias e procure trincas, inchaços e crostas",
+      "Inspecione radiador e bomba d'água com lanterna por crosta de aditivo seco",
+      "Com motor ligado, acompanhe temperatura e eletroventilador (Teste T-09)"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Papel toalha branco",
+      "Scanner OBD2"
+    ],
+    "foto": "Reservatório iluminado mostrando nível e aspecto do líquido; close de qualquer crosta, vazamento ou mancha de óleo.",
+    "armadilhas": [
+      "Aditivos de cores diferentes existem por fabricante; cor diferente do esperado não é, sozinha, defeito.",
+      "Reservatório plástico amarelado pelo tempo não significa contaminação; olhe o líquido, não o plástico.",
+      "Reservatório recém-completado pode esconder consumo; pergunte e registre a informação do apresentante."
+    ],
+    "frase_conforme": "Nível do líquido de arrefecimento entre as marcas do reservatório, com aspecto límpido. Não foram constatados vazamentos nas áreas visíveis nem elevação anormal de temperatura durante a vistoria.",
+    "frase_achado": "Constatado [nível abaixo do mínimo / líquido turvo / resíduo de aspecto oleoso no reservatório / crosta de aditivo em (local)]. Recomenda-se teste de estanqueidade e diagnóstico em oficina.",
+    "limite": "Sem teste de pressão e análise química, a vistoria não confirma falha de junta de cabeçote nem estanqueidade do sistema. Termostato só é avaliado indiretamente."
+  },
+  {
+    "codigo": "PC-MOT-05",
+    "sistema": "MOT",
+    "itens": [
+      "MOT-05"
+    ],
+    "titulo": "Fumaça no escapamento",
+    "subtitulo": "Cor, momento e persistência da fumaça",
+    "vista": "lateral",
+    "zonas": [
+      "parachoque-t"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Saída do escapamento, na traseira. Observe na partida a frio, em marcha lenta, em acelerações a partir da lenta e durante o test drive (pelo retrovisor ou com um ajudante).",
+    "por_que_importa": "A cor e a persistência da fumaça indicam o que está sendo queimado: óleo (azulada), líquido de arrefecimento (branca densa, cheiro adocicado) ou excesso de combustível (preta). É um dos poucos sinais internos do motor visíveis sem desmontagem.",
+    "de_fabrica": [
+      "Sem fumaça visível com motor aquecido",
+      "Vapor branco e ralo na partida a frio que desaparece em minutos",
+      "Pingos de água condensada na ponteira em motor frio",
+      "Diesel moderno: sem fumaça preta visível em aceleração normal"
+    ],
+    "sinais": [
+      {
+        "sinal": "Fumaça azulada breve só na partida, que desaparece",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Fumaça azulada persistente ou em acelerações com motor quente",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Fumaça branca densa e persistente com motor aquecido, cheiro adocicado",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Fumaça preta em acelerações (gasolina/flex) ou excessiva (diesel)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Ponteira com crosta oleosa preta e úmida",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Cheiro forte de combustível no escapamento",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Posicione-se ou posicione um ajudante atrás do veículo, fora da linha do escape",
+      "Observe a fumaça na partida a frio e no primeiro minuto",
+      "Com o motor quente, faça 3 acelerações da lenta até ~3.000 rpm e observe",
+      "Passe o dedo com luva ou papel na ponteira e verifique resíduo oleoso",
+      "Observe pelo retrovisor em acelerações e retomadas no test drive",
+      "Registre cor, momento e se a fumaça persiste"
+    ],
+    "ferramentas": [
+      "Luvas",
+      "Papel toalha branco",
+      "Lanterna"
+    ],
+    "foto": "Vídeo curto (10 s) da saída do escapamento durante aceleração; foto do resíduo da ponteira no papel.",
+    "armadilhas": [
+      "Vapor de condensação em dia frio ou úmido parece fumaça branca; ele é ralo e some com o aquecimento.",
+      "Diesel antigo pode emitir alguma fumaça em acelerações bruscas; compare com o padrão da categoria.",
+      "Não acelere com o motor frio para 'testar'; espere aquecer."
+    ],
+    "frase_conforme": "Não foi constatada emissão de fumaça visível no escapamento com o motor aquecido, em marcha lenta e em acelerações realizadas durante a vistoria.",
+    "frase_achado": "Constatada emissão de fumaça de coloração [azulada/branca densa/preta] no escapamento, [na partida/com motor aquecido/em acelerações], persistente por [tempo]. Recomenda-se diagnóstico em oficina.",
+    "limite": "A cor da fumaça é indício, não diagnóstico. A vistoria não mede emissões nem determina a peça responsável sem testes específicos."
+  },
+  {
+    "codigo": "PC-TRF-01",
+    "sistema": "TRF",
+    "itens": [
+      "TRF-01"
+    ],
+    "titulo": "Embreagem: acionamento e patinação",
+    "subtitulo": "Ponto do pedal, trepidação, ruídos e patinação",
+    "vista": "interior",
+    "zonas": [
+      "pedais"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Pedal da embreagem (esquerdo) em veículos de câmbio manual. O acionamento pode ser por cabo ou hidráulico; o reservatório hidráulico costuma ser o mesmo do fluido de freio ou ficar ao lado dele.",
+    "por_que_importa": "A embreagem é item de desgaste caro. Ponto de acionamento muito alto, patinação e trepidação indicam troca próxima. Desgaste acentuado em km baixa também alimenta a análise de coerência de quilometragem.",
+    "de_fabrica": [
+      "Pedal com curso livre suave, sem ruídos e retorno completo",
+      "Ponto de acionamento aproximadamente no meio do curso (varia por modelo)",
+      "Saída em 1ª sem trepidação e sem cheiro de queimado",
+      "Sem ruído de rolamento ao pressionar o pedal"
+    ],
+    "sinais": [
+      {
+        "sinal": "Ponto de acionamento alto, próximo ao fim do curso do pedal",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Patinação: rotação sobe sem ganho proporcional de velocidade",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Trepidação ao sair com o veículo",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Ruído de rolamento com o pedal pressionado ou solto",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pedal pesado, que não retorna ou que afunda",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Cheiro de material queimado após manobras normais",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Com o motor desligado, pressione o pedal e sinta curso, peso e retorno",
+      "Ligue o motor, pressione e solte o pedal em ponto morto ouvindo ruídos",
+      "Saia em 1ª em piso plano, devagar, e observe trepidação e ponto de acionamento",
+      "No test drive, em 3ª ou 4ª a baixa rotação, acelere fundo e compare rotação e velocidade",
+      "Observe cheiro de queimado após as manobras",
+      "Registre o resultado na Ficha de Teste T-12"
+    ],
+    "ferramentas": [
+      "Scanner OBD2 (opcional, para rotação)"
+    ],
+    "foto": "Não obrigatória. Registre em texto o ponto de acionamento (baixo, médio, alto) e o resultado do teste de patinação.",
+    "armadilhas": [
+      "Embreagens com ajuste automático ou kits de outro padrão têm ponto diferente; não aponte só pelo ponto se não houver patinação.",
+      "Trepidação pode vir de coxins do motor; confira os coxins (MOT-07) antes de atribuir à embreagem.",
+      "Motorista inexperiente causa tranco na saída; faça o teste você mesmo, quando autorizado."
+    ],
+    "frase_conforme": "Embreagem com acionamento regular, sem patinação, trepidação ou ruídos perceptíveis nas condições do test drive realizado.",
+    "frase_achado": "Constatado [ponto de acionamento alto / patinação em aceleração em (marcha) / trepidação na saída / ruído com pedal acionado]. Indicativo de desgaste do conjunto; recomenda-se avaliação em oficina.",
+    "limite": "Sem desmontagem, não se mede a espessura do disco nem o estado do platô e do volante. O percurso do test drive limita a reprodução de defeitos intermitentes."
+  },
+  {
+    "codigo": "PC-TRF-02",
+    "sistema": "TRF",
+    "itens": [
+      "TRF-03"
+    ],
+    "titulo": "Câmbio automático e CVT",
+    "subtitulo": "Engates, trocas, trancos e fluido quando acessível",
+    "vista": "estrutura",
+    "zonas": [
+      "tunel"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Seletor no console ou na coluna; caixa de câmbio ao lado do motor. Muitos câmbios não têm vareta; quando existe, fica no cofre. Códigos de falha são lidos pelo scanner no módulo da transmissão.",
+    "por_que_importa": "Reparo de câmbio automático ou CVT é um dos mais caros do veículo. Trancos, demora ao engatar e patinação costumam aparecer antes da falha total. Códigos da transmissão apagados antes da vistoria podem ser sugeridos por monitores não prontos.",
+    "de_fabrica": [
+      "Engate de D e R em cerca de 1 segundo, com leve assentamento",
+      "Trocas suaves, sem subida brusca de rotação entre marchas",
+      "CVT: rotação progressiva, sem ruído de zumbido ou solavancos",
+      "Sem luz de advertência nem mensagem de transmissão no painel"
+    ],
+    "sinais": [
+      {
+        "sinal": "Engate de D ou R com leve demora, sem tranco",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Tranco perceptível ao engatar ou nas trocas",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Rotação sobe sem ganho de velocidade (patinação) ou trocas atrasadas",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Ruído de zumbido ou uivo que varia com a velocidade (CVT)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Fluido escuro com cheiro de queimado, quando acessível",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Código de falha ou luz/mensagem de transmissão",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Modo de emergência: veículo preso em uma marcha",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Com o freio pressionado, passe P-R-N-D e conte o tempo de cada engate",
+      "Saia devagar e observe as primeiras trocas com aceleração leve",
+      "No test drive, faça aceleração moderada até a 3ª/4ª e uma retomada",
+      "Teste a redução ao desacelerar até parar, sentindo trancos",
+      "Leia os códigos do módulo da transmissão com o scanner, quando disponível",
+      "Se houver vareta, confira nível e aspecto conforme o manual do veículo"
+    ],
+    "ferramentas": [
+      "Scanner OBD2",
+      "Lanterna",
+      "Papel toalha branco"
+    ],
+    "foto": "Tela do scanner com o resultado do módulo da transmissão; painel se houver mensagem de falha.",
+    "armadilhas": [
+      "Câmbios de dupla embreagem têm comportamento próprio em manobras lentas; compare com o padrão do modelo.",
+      "Algumas transmissões só medem o fluido quente e em procedimento específico; não conclua pelo nível sem seguir o manual.",
+      "Câmbio frio pode trocar mais tarde; avalie com o conjunto já aquecido."
+    ],
+    "frase_conforme": "Transmissão automática com engates e trocas regulares, sem trancos, patinação ou mensagens de falha nas condições do test drive realizado.",
+    "frase_achado": "Constatado [tranco ao engatar (marcha) / demora de (tempo) no engate / patinação / código de falha (código) no módulo da transmissão]. Recomenda-se diagnóstico em oficina especializada em transmissões.",
+    "limite": "Sem desmontagem e sem equipamento do fabricante, não se avalia o estado interno do câmbio. Defeitos intermitentes podem não se manifestar no percurso."
+  },
+  {
+    "codigo": "PC-TRF-03",
+    "sistema": "TRF",
+    "itens": [
+      "TRF-05"
+    ],
+    "titulo": "Discos e pastilhas de freio",
+    "subtitulo": "Espessura visível, degrau no disco e vibração",
+    "vista": "pneu",
+    "zonas": [
+      "roda"
+    ],
+    "capitulo": 9,
+    "onde_fica": "Atrás das rodas: disco e pinça visíveis entre os raios da roda. Pastilha vista pela janela da pinça. Atrás, alguns veículos usam tambor, que não permite inspeção visual sem desmontagem.",
+    "por_que_importa": "Freio é item de segurança. Pastilha no limite ou disco com degrau acentuado exigem troca imediata. Vibração ao frear indica disco empenado ou irregular. Item de segurança fora de condição é N3 no critério.",
+    "de_fabrica": [
+      "Pista do disco lisa, sem degrau pronunciado na borda externa",
+      "Pastilha com material de atrito visivelmente espesso (varia por fabricante)",
+      "Frenagem retilínea, sem vibração no pedal ou no volante",
+      "Sem luz de advertência de freio ou de desgaste de pastilha"
+    ],
+    "sinais": [
+      {
+        "sinal": "Pastilha a meia vida ou disco com leve degrau",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Degrau acentuado na borda do disco ou sulcos profundos",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Vibração no pedal ou no volante durante a frenagem",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pastilha próxima do mínimo ou ruído do indicador de desgaste",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pastilha abaixo do mínimo, contato metal com metal ou luz de desgaste",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Veículo desvia na frenagem ou pedal baixo/esponjoso",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Esterce o volante totalmente para ver melhor os freios dianteiros",
+      "Ilumine a pinça pela roda e estime a espessura da pastilha",
+      "Passe a lanterna rasante pela borda do disco para ver o degrau",
+      "Com a unha (disco frio), sinta o degrau e os sulcos na pista",
+      "No test drive, faça frenagens moderadas e uma mais firme em local seguro",
+      "Registre na Ficha de Teste T-10"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "foto": "Disco e pinça vistos através da roda, com lanterna mostrando a borda do disco e a pastilha, uma foto por roda dianteira.",
+    "armadilhas": [
+      "Oxidação leve na pista do disco após chuva ou dias parado é normal e sai nas primeiras frenagens.",
+      "Rodas de raios estreitos escondem a pastilha; registre 'não visível' em vez de estimar.",
+      "Vibração ao frear também pode vir de folgas de suspensão; cruze com o Teste T-13."
+    ],
+    "frase_conforme": "Discos e pastilhas visíveis sem desmontagem com espessura aparentemente adequada e sem degrau acentuado. Frenagem retilínea e sem vibração nas condições do teste realizado.",
+    "frase_achado": "Constatado [degrau acentuado no disco (roda) / pastilha com espessura aparentemente próxima ou abaixo do mínimo / vibração na frenagem / desvio de trajetória]. Recomenda-se revisão do sistema de freios antes do uso.",
+    "limite": "Sem remover rodas, a espessura é estimada visualmente. Tambores, fluido interno, cilindros e servofreio não são avaliados sem desmontagem."
+  },
+  {
+    "codigo": "PC-ELE-01",
+    "sistema": "ELE",
+    "itens": [
+      "ELE-01"
+    ],
+    "titulo": "Luzes de advertência na partida",
+    "subtitulo": "Autoteste do painel e apagamento após a partida",
+    "vista": "interior",
+    "zonas": [
+      "painel"
+    ],
+    "capitulo": 10,
+    "onde_fica": "Painel de instrumentos. Com a chave na posição de contato (ou botão sem pisar no freio), as luzes de advertência acendem para autoteste e devem apagar após a partida ou poucos segundos depois.",
+    "por_que_importa": "As luzes resumem o que os módulos detectaram: injeção, óleo, bateria, freio, ABS, airbag, estabilidade. Uma luz que não acende no autoteste impede saber se o sistema está bem e, em itens de segurança, deve ser tratada com rigor.",
+    "de_fabrica": [
+      "Todas as luzes de advertência acendem no autoteste",
+      "Luzes apagam logo após a partida (algumas em poucos segundos)",
+      "Sem mensagens de falha na central de informações",
+      "Nenhuma luz acende durante o test drive"
+    ],
+    "sinais": [
+      {
+        "sinal": "Aviso de manutenção programada vencida",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Luz de injeção acesa após a partida",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Luz de pressão do óleo ou de temperatura acesa com motor ligado",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Luz de airbag, ABS, freio ou controle de estabilidade acesa",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Luz de segurança que não acende no autoteste",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Luz que acende de forma intermitente no test drive",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Gire a chave para contato e aguarde o autoteste, sem dar partida",
+      "Fotografe o painel com todas as luzes acesas",
+      "Confira individualmente airbag, ABS, freio, óleo, bateria e injeção",
+      "Dê a partida e verifique se todas apagam em poucos segundos",
+      "Fotografe o painel após a partida",
+      "Observe o painel durante o test drive e na volta ao pátio"
+    ],
+    "ferramentas": [
+      "Scanner OBD2",
+      "Câmera do celular"
+    ],
+    "foto": "Duas fotos do painel: autoteste (chave em contato, luzes acesas) e após a partida (luzes apagadas), com quilometragem legível.",
+    "armadilhas": [
+      "Em alguns modelos a luz de airbag ou ABS apaga só após alguns segundos; espere antes de apontar.",
+      "Painel digital configurável pode não exibir todas as luzes ao mesmo tempo; consulte o manual do modelo.",
+      "Luz de bateria pode acender com o motor desligado e ignição ligada; o que importa é após a partida."
+    ],
+    "frase_conforme": "No autoteste do painel, as luzes de advertência verificadas acenderam e apagaram após a partida. Não foram exibidas mensagens de falha durante a vistoria.",
+    "frase_achado": "Constatada luz de advertência de [sistema] [permanecendo acesa após a partida / não acendendo no autoteste / acendendo durante o test drive]. Recomenda-se diagnóstico antes do uso.",
+    "limite": "A vistoria observa o comportamento das luzes, não testa o funcionamento real de airbag, ABS ou estabilidade em situação de emergência."
+  },
+  {
+    "codigo": "PC-ELE-02",
+    "sistema": "ELE",
+    "itens": [
+      "ELE-02"
+    ],
+    "titulo": "Leitura com scanner OBD2",
+    "subtitulo": "Códigos de falha, monitores e dados dos módulos",
+    "vista": "interior",
+    "zonas": [
+      "painel"
+    ],
+    "capitulo": 10,
+    "onde_fica": "Conector de diagnóstico de 16 pinos, geralmente abaixo do painel do lado do motorista, perto da coluna de direção ou atrás de uma tampa no console. Posição varia por modelo.",
+    "por_que_importa": "O scanner mostra códigos de falha que não acendem luz e os monitores de prontidão. Monitores 'não prontos' com km alta sugerem apagamento recente de códigos ou bateria desconectada, o que deve ser registrado.",
+    "de_fabrica": [
+      "Comunicação estabelecida com os módulos acessíveis",
+      "Sem códigos ativos, pendentes ou permanentes",
+      "Monitores de prontidão suportados em estado 'pronto'",
+      "Quilometragem registrada em módulos, quando disponível, coerente com o painel"
+    ],
+    "sinais": [
+      {
+        "sinal": "Monitores 'não prontos' sem explicação (bateria trocada, reparo recente)",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Código pendente ou histórico de motor, sem luz acesa",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Código ativo de motor, transmissão ou emissões",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Módulo que não comunica com o scanner",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Código ativo ou histórico de airbag (família B) ou de freio/ABS (família C)",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Quilometragem registrada em módulo divergente do painel",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Com ignição desligada, conecte o scanner ao conector de diagnóstico",
+      "Ligue a ignição, identifique o veículo e faça varredura de todos os módulos",
+      "Anote códigos ativos, pendentes e permanentes com descrição",
+      "Registre o estado de cada monitor de prontidão",
+      "Consulte a quilometragem gravada nos módulos, quando o scanner permitir",
+      "Salve ou fotografe as telas; NÃO apague códigos sem autorização"
+    ],
+    "ferramentas": [
+      "Scanner OBD2",
+      "Câmera do celular"
+    ],
+    "foto": "Tela do scanner com a lista de códigos e a tela de monitores de prontidão; se houver relatório, anexe ao laudo.",
+    "armadilhas": [
+      "Nem todos os monitores são suportados em todos os veículos; 'não suportado' não é 'não pronto'.",
+      "Scanners genéricos leem só o módulo de motor; ausência de códigos B, C e U pode ser limitação do equipamento.",
+      "Troca recente de bateria zera monitores; pergunte ao apresentante e registre a resposta."
+    ],
+    "frase_conforme": "Realizada leitura por scanner OBD2 nos módulos acessíveis pelo equipamento utilizado, sem códigos de falha registrados. Monitores de prontidão suportados em estado 'pronto'.",
+    "frase_achado": "Constatado(s) código(s) [código – descrição], em estado [ativo/pendente/permanente], no módulo [módulo]. Monitores [lista] em estado 'não pronto'. Recomenda-se diagnóstico especializado.",
+    "limite": "A leitura mostra o que os módulos registram no momento. Não prova ausência de defeito, não recupera códigos apagados e depende da cobertura do scanner usado."
+  },
+  {
+    "codigo": "PC-ELE-03",
+    "sistema": "ELE",
+    "itens": [
+      "ELE-03"
+    ],
+    "titulo": "Bateria: tensão, data e bornes",
+    "subtitulo": "Repouso, partida, carga, fixação e corrosão",
+    "vista": "cofre",
+    "zonas": [
+      "bateria"
+    ],
+    "capitulo": 10,
+    "onde_fica": "Geralmente no cofre, junto ao para-lama ou à parede corta-fogo. Em alguns modelos fica no porta-malas ou sob o banco. A data de fabricação vem gravada ou em etiqueta na carcaça.",
+    "por_que_importa": "Bateria fraca causa falhas de partida e mensagens elétricas falsas. Tensão de carga fora da faixa indica problema no alternador ou regulador. A data ajuda a estimar a vida restante e a coerência com o histórico.",
+    "de_fabrica": [
+      "Tensão em repouso aproximada de 12,4 a 12,7 V (varia por tipo e fabricante)",
+      "Bornes limpos, apertados e com capa de proteção no positivo",
+      "Bateria fixada pelo suporte original, sem movimento",
+      "Carcaça sem trincas, estufamento ou vazamento"
+    ],
+    "sinais": [
+      {
+        "sinal": "Bateria com data antiga (idade acima da média de uso do tipo)",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Corrosão (pó branco ou esverdeado) nos bornes",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Tensão em repouso abaixo de ~12,2 V (orientativo)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Queda na partida abaixo de ~9,6 V (orientativo)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Tensão de carga fora da faixa de ~13,5–14,7 V (orientativo)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Bateria solta, sem fixação ou com carcaça estufada",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Com motor desligado há alguns minutos, meça a tensão nos bornes",
+      "Localize e fotografe a data de fabricação e a especificação (Ah)",
+      "Meça a tensão durante a partida com um ajudante ou pelo scanner",
+      "Com motor ligado, meça a tensão de carga; repita com faróis e ventilação ligados",
+      "Verifique fixação, capa do positivo, corrosão e estado da carcaça",
+      "Registre as leituras na Ficha de Teste T-03"
+    ],
+    "ferramentas": [
+      "Multímetro",
+      "Luvas",
+      "Lanterna"
+    ],
+    "foto": "Bateria inteira mostrando fixação e bornes; close da data de fabricação; tela do multímetro nas leituras fora da faixa.",
+    "armadilhas": [
+      "Sistemas de carga inteligente variam a tensão de propósito; leitura baixa ou alta momentânea pode ser normal.",
+      "Tensão medida logo após desligar o motor sai alta (carga superficial); espere alguns minutos.",
+      "Veículo parado há dias pode ter bateria só descarregada, não defeituosa; registre a condição."
+    ],
+    "frase_conforme": "Bateria fixada, bornes sem corrosão relevante, data de fabricação [mês/ano]. Tensões em repouso, na partida e de carga dentro das faixas orientativas adotadas.",
+    "frase_achado": "Constatada [tensão em repouso de (V) / queda na partida para (V) / tensão de carga de (V) / corrosão nos bornes / fixação ausente]. Valores orientativos; recomenda-se teste de bateria e do sistema de carga.",
+    "limite": "O multímetro mede tensão, não a capacidade real da bateria. Teste de carga completo e análise do alternador exigem equipamento específico."
+  },
+  {
+    "codigo": "PC-ELE-04",
+    "sistema": "ELE",
+    "itens": [
+      "ELE-05"
+    ],
+    "titulo": "Chicotes e conectores",
+    "subtitulo": "Emendas, isolamento, oxidação e fixação",
+    "vista": "cofre",
+    "zonas": [
+      "motor",
+      "bateria"
+    ],
+    "capitulo": 10,
+    "onde_fica": "Cofre (chicote principal, módulo de motor, caixa de fusíveis, faróis), interior (sob o painel, colunas, sob bancos e carpete) e porta-malas (lanternas, bomba de combustível sob o banco traseiro).",
+    "por_que_importa": "Emendas amadoras causam falhas intermitentes e risco de curto e incêndio. Oxidação esverdeada em conectores baixos e sob os bancos é um dos indícios de enchente. Chicote novo no cofre de carro usado pode indicar reparo pós-incêndio.",
+    "de_fabrica": [
+      "Chicotes com capa corrugada ou fita de tecido uniforme",
+      "Conectores com travas íntegras e sem oxidação",
+      "Fixação por presilhas originais, afastados de partes quentes",
+      "Terminais e fusíveis com aparência coerente com a idade do veículo"
+    ],
+    "sinais": [
+      {
+        "sinal": "Acessório instalado com derivações sem proteção adequada",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Emenda com fita isolante, conector improvisado ou fio exposto",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Fusível de amperagem diferente do indicado ou ponte improvisada",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Chicote derretido, com marcas de aquecimento ou fuligem",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Oxidação esverdeada em vários conectores de áreas baixas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Chicote novo em trecho do cofre, com demais componentes antigos",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Siga o chicote principal no cofre com a lanterna, do módulo à bateria",
+      "Abra a caixa de fusíveis do cofre e compare com a legenda da tampa",
+      "Ilumine conectores dos faróis, das lanternas e sob o painel",
+      "Levante a forração sob os bancos, quando possível, e veja conectores",
+      "Compare cor, textura e desgaste dos trechos de chicote entre si",
+      "Se houver oxidação ou fuligem, aplique o Protocolo T-06 ou PC-INT-05"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "foto": "Close de cada emenda, oxidação ou trecho substituído, com uma foto aberta que mostre a posição no veículo.",
+    "armadilhas": [
+      "Veículos de região litorânea têm oxidação leve generalizada; enchente deixa padrão por altura, em áreas baixas.",
+      "Chicote substituído em recall ou garantia é legítimo; peça documento e registre.",
+      "Acessórios bem instalados (alarme, rastreador) não são defeito; aponte só a instalação irregular."
+    ],
+    "frase_conforme": "Chicotes e conectores visíveis sem desmontagem sem emendas improvisadas, oxidação relevante ou sinais de aquecimento no momento da vistoria.",
+    "frase_achado": "Constatada [emenda com fita isolante / oxidação em conectores de (local) / trecho de chicote com marcas de aquecimento] em [local]. Recomenda-se inspeção por eletricista automotivo.",
+    "limite": "Grande parte dos chicotes fica sob acabamentos e não é visível sem desmontagem. A vistoria não mede isolamento nem continuidade elétrica."
+  },
+  {
+    "codigo": "PC-INT-01",
+    "sistema": "INT",
+    "itens": [
+      "INT-01"
+    ],
+    "titulo": "Airbags: luz e acabamentos",
+    "subtitulo": "Luz de advertência, tampas, costuras e painel",
+    "vista": "interior",
+    "zonas": [
+      "airbag",
+      "volante",
+      "painel"
+    ],
+    "capitulo": 11,
+    "onde_fica": "Volante (motorista), painel à frente do passageiro, bancos dianteiros (laterais), colunas e teto (cortina) e, em alguns modelos, abaixo do painel (joelho). A identificação 'AIRBAG/SRS' fica gravada nas tampas.",
+    "por_que_importa": "Airbag é segurança passiva. Luz acesa indica sistema possivelmente inoperante. Tampas trocadas ou painel remontado podem indicar acionamento anterior, compatível com impacto significativo.",
+    "de_fabrica": [
+      "Luz de airbag acende no autoteste e apaga após poucos segundos",
+      "Tampa do volante com textura, cor e encaixe iguais ao restante",
+      "Painel sem marcas de desmontagem, com linhas de rasgo invisíveis",
+      "Etiquetas e gravações 'AIRBAG/SRS' presentes e coerentes"
+    ],
+    "sinais": [
+      {
+        "sinal": "Pequenos riscos de manuseio nos acabamentos próximos",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Presilhas quebradas ou marcas de ferramenta no painel",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Tampa do airbag com cor, textura ou encaixe diferente",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Luz de airbag acesa ou que não acende no autoteste",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Costura ou revestimento do banco refeito na região do airbag lateral",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Código de falha de airbag registrado no scanner",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Faça o autoteste do painel e confirme a luz de airbag (PC-ELE-01)",
+      "Compare a tampa do volante com o restante: cor, brilho, textura e folgas",
+      "Ilumine o painel do passageiro em ângulo para ver linhas e ondulações",
+      "Observe costuras laterais dos bancos dianteiros e acabamentos das colunas",
+      "Leia o módulo de airbag com scanner que acesse esse sistema",
+      "Cruze com a análise de estrutura frontal e de colunas"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Scanner OBD2",
+      "Câmera do celular"
+    ],
+    "foto": "Volante e painel do passageiro em luz rasante; painel de instrumentos no autoteste mostrando a luz de airbag.",
+    "armadilhas": [
+      "Volante substituído por desgaste (revestimento) pode ter tampa de lote diferente; registre e cruze com os demais indícios.",
+      "Painéis com a sujeira limpa de forma desigual criam falsas diferenças de brilho; compare também textura e folgas.",
+      "Alguns modelos desativam o airbag do passageiro por chave; confira a posição antes de apontar a luz."
+    ],
+    "frase_conforme": "Luz de advertência do airbag acendeu no autoteste e apagou após a partida. Não foram constatados sinais de substituição ou remontagem nas tampas e acabamentos visíveis.",
+    "frase_achado": "Constatada [luz de airbag acesa após a partida / tampa do airbag do (local) com textura e encaixe divergentes / sinais de desmontagem no painel]. Recomenda-se diagnóstico do sistema de retenção.",
+    "limite": "A vistoria não testa o acionamento nem confirma a presença interna das bolsas. Sinais de troca são indícios; não provam acionamento anterior."
+  },
+  {
+    "codigo": "PC-INT-02",
+    "sistema": "INT",
+    "itens": [
+      "INT-02"
+    ],
+    "titulo": "Cintos de segurança",
+    "subtitulo": "Travamento, recolhimento, etiqueta e pré-tensionador",
+    "vista": "interior",
+    "zonas": [
+      "cintos",
+      "etiqueta-coluna"
+    ],
+    "capitulo": 11,
+    "onde_fica": "Retratores nas colunas B e C e no banco traseiro; fivelas junto aos bancos. A etiqueta do fabricante, com data, costuma ficar costurada na fita, perto do retrator ou da ancoragem inferior.",
+    "por_que_importa": "O cinto é o primeiro item de retenção. Cinto que não trava ou não recolhe está fora de condição. Datas de etiqueta posteriores à fabricação do veículo, sobretudo nos dianteiros, podem indicar troca após acionamento do pré-tensionador.",
+    "de_fabrica": [
+      "Trava ao puxar a fita com um tranco rápido",
+      "Recolhimento completo e suave",
+      "Fita sem cortes, desfiados, queimados ou manchas de umidade",
+      "Etiquetas com datas próximas entre si e anteriores à fabricação do veículo"
+    ],
+    "sinais": [
+      {
+        "sinal": "Fita levemente desbotada ou com desgaste de uso",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Recolhimento lento ou incompleto",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Etiqueta ausente ou ilegível",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Etiqueta com data posterior à fabricação do veículo",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Cinto que não trava no tranco ou fivela que não prende",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Fita cortada, desfiada ou com marcas de lodo/oxidação na ferragem",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Anote a data de fabricação do veículo (etiqueta da coluna ou documento)",
+      "Puxe cada cinto com um tranco rápido e confirme o travamento",
+      "Estenda toda a fita e observe cortes, desfiados e manchas",
+      "Solte e confirme o recolhimento completo",
+      "Leia e fotografe a etiqueta de cada cinto; compare as datas",
+      "Encaixe e solte todas as fivelas, inclusive as traseiras"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Câmera do celular"
+    ],
+    "foto": "Etiqueta legível de cada cinto dianteiro; cinto estendido quando houver dano na fita.",
+    "armadilhas": [
+      "Veículos montados perto da virada do ano podem ter cintos de meses anteriores; diferença pequena é normal.",
+      "Cinto trocado por desgaste ou recall existe; peça documento e registre a informação.",
+      "Poeira na fita aparenta lodo; olhe as ferragens e a parte interna do retrator antes de concluir."
+    ],
+    "frase_conforme": "Cintos verificados com travamento e recolhimento regulares, fitas íntegras e etiquetas com datas coerentes com a fabricação do veículo.",
+    "frase_achado": "Constatado cinto do [posição] [sem travamento / com recolhimento incompleto / com etiqueta datada de (mês/ano), posterior à fabricação do veículo]. Item de segurança; recomenda-se avaliação.",
+    "limite": "A vistoria não testa o pré-tensionador nem o limitador de carga. Data de etiqueta diferente é indício de substituição, não prova de acidente."
+  },
+  {
+    "codigo": "PC-INT-03",
+    "sistema": "INT",
+    "itens": [
+      "INT-03"
+    ],
+    "titulo": "Sinais de enchente",
+    "subtitulo": "Lodo, oxidação, marcas de nível, umidade e odor",
+    "vista": "interior",
+    "zonas": [
+      "carpete",
+      "trilhos",
+      "bancos",
+      "pedais"
+    ],
+    "capitulo": 11,
+    "onde_fica": "Áreas baixas e ocultas: sob o carpete, trilhos e parafusos dos bancos, base dos pedais, sob o banco traseiro, estepe e fundo do porta-malas, conectores baixos, forro das portas, cintos traseiros e luzes internas.",
+    "por_que_importa": "Enchente compromete eletrônica, chicotes, módulos e o interior de forma progressiva e às vezes oculta. Indícios de enchente são N4 no critério e reprovam o veículo. O histórico nem sempre registra o evento.",
+    "de_fabrica": [
+      "Carpete firme, seco e com cola e fixações originais",
+      "Trilhos e parafusos com oxidação compatível com a idade",
+      "Porta-malas e poço do estepe secos, sem areia ou lodo",
+      "Cheiro interno neutro, sem mofo ou umidade"
+    ],
+    "sinais": [
+      {
+        "sinal": "Oxidação leve isolada em trilho, compatível com idade e região",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Umidade isolada com causa aparente (borracha de porta, dreno)",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Carpete ou forração trocados sem causa aparente, cheiro de mofo",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Lodo, areia ou folhas em áreas ocultas e baixas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Marca horizontal de nível d'água em forros, espumas ou cofre",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Oxidação generalizada em parafusos, trilhos e conectores baixos",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Umidade ou condensação em lanternas, painel e luzes internas",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Ao abrir o veículo, cheire o interior antes de ventilar",
+      "Levante as bordas do carpete e ilumine a base; toque para sentir umidade",
+      "Ilumine trilhos, parafusos dos bancos e base dos pedais",
+      "Retire o estepe e ilumine o fundo do porta-malas",
+      "Olhe conectores baixos, cintos traseiros e forros por marcas de nível",
+      "Aplique o roteiro completo do Protocolo de Enchente (T-06)"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "foto": "Close de cada indício com luz rasante e foto aberta mostrando a altura em relação ao piso; poço do estepe sem o estepe.",
+    "armadilhas": [
+      "Veículo lavado por dentro pode ter umidade recente; pergunte e procure lodo e oxidação, que a lavagem não explica.",
+      "Maresia gera oxidação em toda a carroceria, não em faixa de altura; olhe o padrão.",
+      "Um único indício isolado pede mais busca antes de classificar; registre todos os pontos examinados."
+    ],
+    "frase_conforme": "Não foram constatados indícios de enchente (lodo, marcas de nível, oxidação anormal ou umidade) nas áreas examinadas sem desmontagem, listadas no roteiro anexo.",
+    "frase_achado": "Constatados indícios compatíveis com alagamento: [lodo sob o carpete / oxidação em trilhos e conectores baixos / marca de nível em (local)]. Achado crítico (N4). Recomenda-se não prosseguir sem avaliação especializada.",
+    "limite": "A vistoria aponta indícios; não afirma data, altura exata nem extensão do dano interno. Limpeza profissional pode remover sinais visíveis."
+  },
+  {
+    "codigo": "PC-INT-04",
+    "sistema": "INT",
+    "itens": [
+      "INT-04",
+      "DOC-10"
+    ],
+    "titulo": "Coerência de quilometragem",
+    "subtitulo": "Desgaste interno x painel x registros",
+    "vista": "interior",
+    "zonas": [
+      "volante",
+      "pedais",
+      "bancos",
+      "painel"
+    ],
+    "capitulo": 11,
+    "onde_fica": "Painel de instrumentos (hodômetro), volante, manopla, pedais, banco do motorista, etiqueta de troca de óleo, manual de revisões, notas fiscais, consultas de histórico e, quando disponível, km registrado em módulos eletrônicos.",
+    "por_que_importa": "A quilometragem define o preço e a expectativa de desgaste. Divergência entre painel, registros e desgaste pode indicar hodômetro com leitura não confiável. O vistoriador registra a incoerência; não conclui adulteração.",
+    "de_fabrica": [
+      "Desgaste de volante, manopla, pedais e banco compatível com a km do painel",
+      "Registros de revisão em ordem crescente de data e de km",
+      "Etiqueta de troca de óleo coerente com a km atual",
+      "Painel sem marcas de desmontagem; km em módulos coerente, quando disponível"
+    ],
+    "sinais": [
+      {
+        "sinal": "Registros incompletos ou ausentes, sem outra divergência",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Desgaste interno acima do esperado para a km do painel",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Peças de desgaste (volante, pedais, manopla) novas em veículo de km alta",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Registro de revisão ou consulta com km maior que a do painel",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Km em módulo eletrônico divergente da km do painel",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Painel de instrumentos com marcas de desmontagem e outra divergência",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Fotografe o hodômetro com a data e a hora da vistoria",
+      "Observe volante, manopla, pedais e banco do motorista em luz natural",
+      "Liste as km dos registros (revisões, notas, etiqueta de óleo, consultas)",
+      "Consulte km em módulos com o scanner, quando disponível",
+      "Coloque tudo em ordem cronológica e procure km que diminui",
+      "Aplique a Ficha de Teste T-11 e registre cada fonte"
+    ],
+    "ferramentas": [
+      "Scanner OBD2",
+      "Câmera do celular",
+      "Lanterna"
+    ],
+    "foto": "Hodômetro legível; volante, pedais e banco do motorista; etiqueta de troca de óleo e páginas do manual de revisões (sem dados pessoais).",
+    "armadilhas": [
+      "Uso em aplicativo ou frota desgasta o interior mais rápido; considere o perfil de uso informado.",
+      "Painel trocado em garantia ou reparo pode ter km diferente; peça documento do serviço.",
+      "Erros de digitação em notas e consultas existem; uma única divergência pequena pede cautela."
+    ],
+    "frase_conforme": "Quilometragem do painel ([km]) compatível com o desgaste interno observado e com os registros apresentados, conforme tabela de fontes anexa.",
+    "frase_achado": "Constatada divergência entre a km do painel ([km]) e [registro/fonte] ([km], data). Desgaste interno [compatível/incompatível]. Não é possível confirmar a km real; recomenda-se apuração do histórico.",
+    "limite": "A vistoria cautelar não afirma a quilometragem real nem conclui adulteração. Registra divergências e orienta a apuração pelas vias competentes."
+  },
+  {
+    "codigo": "PC-INT-05",
+    "sistema": "INT",
+    "itens": [
+      "INT-07"
+    ],
+    "titulo": "Sinais de incêndio",
+    "subtitulo": "Fuligem, plásticos deformados e chicotes",
+    "vista": "cofre",
+    "zonas": [
+      "motor",
+      "bateria",
+      "etiqueta-cofre"
+    ],
+    "capitulo": 11,
+    "onde_fica": "Cofre (parede corta-fogo, chicotes, caixa de fusíveis, reservatórios, capô por dentro), interior (painel, sob o painel, forro de teto, carpete) e região de escapamento e tanque por baixo.",
+    "por_que_importa": "Incêndio, mesmo localizado, pode afetar chicotes, módulos, plásticos e a resistência de peças metálicas. Indícios de incêndio são N4 no critério e reprovam o veículo.",
+    "de_fabrica": [
+      "Plásticos do cofre com forma e cor uniformes, sem bolhas",
+      "Chicotes e conectores com aparência coerente com a idade",
+      "Isolamento do capô e da parede corta-fogo íntegro, sem escurecimento",
+      "Sem cheiro de queimado no cofre ou no interior"
+    ],
+    "sinais": [
+      {
+        "sinal": "Mancha localizada de calor em plástico junto ao escapamento",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Cheiro de queimado persistente no cofre ou no interior",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Chicote ou componentes novos em área restrita, com demais peças antigas",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Fuligem em áreas protegidas (atrás de peças, dobras, isolamentos)",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Plásticos derretidos, deformados ou com bolhas",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Pintura com bolhas de calor ou metal descolorido por calor",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Abra o capô e cheire o cofre antes de ligar o motor",
+      "Ilumine a parede corta-fogo e o isolamento sob o capô",
+      "Procure fuligem em dobras, atrás de reservatórios e da caixa de fusíveis",
+      "Compare cor e textura de chicotes, conectores e plásticos entre si",
+      "Ilumine sob o painel e o forro de teto por escurecimento",
+      "Fotografe cada indício com uma foto de posição e uma de detalhe"
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "foto": "Detalhe de fuligem, deformação ou chicote substituído com foto aberta de posição; isolamento do capô.",
+    "armadilhas": [
+      "Poeira escura de motor com vazamento de óleo parece fuligem; fuligem é seca, fina e marca o dedo de preto.",
+      "Plástico próximo ao coletor pode escurecer pelo calor normal ao longo dos anos; olhe se há derretimento.",
+      "Cofre lavado e pintado de preto pode esconder sinais; registre como limitação."
+    ],
+    "frase_conforme": "Não foram constatados indícios de incêndio (fuligem, deformação térmica de plásticos ou chicotes com marcas de aquecimento) nas áreas visíveis sem desmontagem.",
+    "frase_achado": "Constatados indícios compatíveis com exposição a fogo ou calor intenso: [fuligem em (local) / plásticos deformados em (local) / chicote substituído em (local)]. Achado crítico (N4).",
+    "limite": "A vistoria não determina a origem, data ou extensão de um incêndio nem avalia a integridade interna de módulos e chicotes ocultos."
+  }
+]

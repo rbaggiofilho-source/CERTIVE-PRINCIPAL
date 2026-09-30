@@ -1,0 +1,118 @@
+/* Protocolo Cautelar — diagramação A4 do Manual */
+@page {
+  size: A4;
+  margin: 18mm 17mm 20mm 17mm;
+  @bottom-left { content: "PROTOCOLO CAUTELAR  ·  Manual do Vistoriador"; font: 600 7pt "Inter", sans-serif; letter-spacing: .12em; color: #7A8591; }
+  @bottom-right { content: counter(page); font: 800 9pt "Archivo", sans-serif; color: #0F1318; }
+}
+@page capa { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
+@page escura { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family: var(--f-texto); font-size: 9.6pt; line-height: 1.55; color: var(--texto); background: #fff; hyphens: auto; }
+p { margin: 0 0 .65em; orphans: 3; widows: 3; }
+strong { font-weight: 700; color: #0F1318; }
+a { color: inherit; text-decoration: none; }
+code { font-family: var(--f-mono); font-size: .88em; background: var(--papel-2); padding: .05em .35em; border-radius: 3px; }
+blockquote { margin: .6em 0 .9em; padding: .55em .9em; border-left: 3px solid var(--ambar); background: var(--papel-2); font-style: italic; color: var(--texto-2); }
+blockquote p:last-child { margin: 0; }
+ul, ol { margin: 0 0 .8em; padding-left: 1.3em; }
+li { margin: .18em 0; }
+li::marker { color: var(--ambar-escuro); font-weight: 700; }
+pre { font-family: var(--f-mono); font-size: 8.4pt; background: var(--carbono); color: var(--ambar); padding: 12px 14px; border-radius: 6px; white-space: pre-wrap; text-align: center; break-inside: avoid; }
+pre code { background: none; color: inherit; padding: 0; }
+
+/* ---------- Capa ---------- */
+.capa { page: capa; width: 210mm; height: 297mm; position: relative; overflow: hidden; background: radial-gradient(120% 80% at 80% 10%, #243040 0%, #0F1318 55%, #080a0d 100%); color: #fff; }
+.capa .faixa { position: absolute; left: 0; top: 0; bottom: 0; width: 9mm; background: repeating-linear-gradient(-45deg, #F2A900 0 7mm, #0F1318 7mm 14mm); }
+.capa .topo { position: absolute; left: 22mm; right: 18mm; top: 20mm; display: flex; justify-content: space-between; align-items: center; }
+.capa .selo { font: 700 7.5pt var(--f-mono); letter-spacing: .18em; color: #F2A900; border: 1.2px solid #F2A900; padding: 5px 9px; border-radius: 3px; }
+.capa .titulo { position: absolute; left: 22mm; right: 18mm; top: 62mm; }
+.capa .sobre { font: 700 9.5pt var(--f-mono); letter-spacing: .3em; color: #F2A900; margin-bottom: 6mm; }
+.capa h1 { color: #fff; break-before: avoid; padding: 0; font: 900 50pt/0.95 var(--f-titulo); margin: 0; letter-spacing: -.01em; text-transform: uppercase; }
+.capa h1 span { color: #F2A900; display: block; }
+.capa .sub { font: 500 14pt/1.35 var(--f-texto); color: #C9D1DA; margin-top: 7mm; max-width: 150mm; }
+.capa .arte { position: absolute; left: 12mm; right: 6mm; top: 150mm; height: 90mm; }
+.capa .arte svg { width: 100%; height: 100%; }
+.capa .rodape { position: absolute; left: 22mm; right: 18mm; bottom: 16mm; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(242,169,0,.35); padding-top: 5mm; }
+.capa .rodape .itens { font: 600 8.2pt var(--f-texto); color: #C9D1DA; letter-spacing: .04em; line-height: 1.7; }
+.capa .rodape .itens b { color: #F2A900; }
+.capa .rodape .ed { font: 700 8pt var(--f-mono); color: #7A8591; text-align: right; }
+
+/* ---------- Página de créditos ---------- */
+.creditos { break-before: page; font-size: 8.3pt; color: var(--texto-2); }
+.creditos h2 { font: 800 11pt var(--f-titulo); color: var(--carbono); margin: 0 0 3mm; border: 0; padding: 0; }
+.creditos h2::before { display: none; }
+.creditos .bloco { border-top: 1px solid var(--linha); padding-top: 4mm; margin-top: 5mm; }
+.creditos .aviso { background: var(--papel-2); border-left: 4px solid var(--box-atencao); padding: 4mm 5mm; margin-top: 6mm; color: var(--texto); }
+
+/* ---------- Sumário ---------- */
+.sumario { break-before: page; }
+.sumario h1 { font: 900 30pt var(--f-titulo); margin: 0 0 5mm; color: var(--carbono); }
+.sumario h1 span { color: var(--ambar); }
+.sumario ol { list-style: none; padding: 0; margin: 0; }
+.sumario li { display: flex; align-items: baseline; gap: 3mm; padding: 1.05mm 0; border-bottom: 1px solid var(--linha); margin: 0; break-inside: avoid; }
+.sumario .n { font: 900 13pt var(--f-titulo); color: var(--ambar-escuro); width: 11mm; }
+.sumario .t { flex: 1; font: 700 10.5pt var(--f-titulo); color: var(--carbono); }
+.sumario .t small { display: block; font: 400 7.4pt var(--f-texto); color: var(--texto-3); margin-top: .5mm; }
+.sumario .p { font: 800 10.5pt var(--f-titulo); color: var(--carbono); min-width: 9mm; text-align: right; }
+.sumario li.parte { border: 0; padding-top: 2.6mm; padding-bottom: .4mm; }
+.sumario li.parte .t { font: 700 7.5pt var(--f-mono); letter-spacing: .22em; color: var(--texto-3); text-transform: uppercase; }
+
+/* ---------- Capítulos ---------- */
+h1 { break-before: page; font: 900 25pt/1.08 var(--f-titulo); color: var(--carbono); margin: 0 0 6mm; letter-spacing: -.005em; }
+h1.cap { position: relative; padding-top: 30mm; margin-top: 0; }
+h1.cap::before { content: attr(data-n); position: absolute; left: -1mm; top: -4mm; font: 900 72pt/1 var(--f-titulo); color: transparent; -webkit-text-stroke: 1.6px var(--ambar); letter-spacing: -.02em; }
+h1.cap::after { content: "CAPÍTULO " attr(data-n); position: absolute; left: 0; top: 23mm; font: 700 7.5pt var(--f-mono); letter-spacing: .3em; color: var(--ambar-escuro); }
+h1.sem-numero { padding-top: 8mm; border-top: 5px solid var(--ambar); padding-top: 6mm; }
+h2 { font: 800 14pt/1.2 var(--f-titulo); color: var(--carbono); margin: 7mm 0 3mm; padding-left: 4mm; position: relative; break-after: avoid; }
+h2::before { content: ""; position: absolute; left: 0; top: .15em; bottom: .15em; width: 1.4mm; background: var(--ambar); border-radius: 1px; }
+h3 { font: 800 11pt/1.25 var(--f-titulo); color: var(--carbono); margin: 5mm 0 2mm; break-after: avoid; }
+h4 { font: 700 9.6pt var(--f-texto); margin: 4mm 0 1.5mm; break-after: avoid; }
+
+/* ---------- Tabelas ---------- */
+.tabela { margin: 2mm 0 5mm; border-radius: 5px; overflow: hidden; border: 1px solid var(--linha); break-inside: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 8.3pt; line-height: 1.4; }
+thead { display: table-header-group; }
+th { background: var(--carbono); color: #fff; font: 700 7.8pt var(--f-texto); text-align: left; padding: 2.2mm 2.6mm; letter-spacing: .02em; }
+td { padding: 2mm 2.6mm; border-top: 1px solid var(--linha); vertical-align: top; }
+tr { break-inside: avoid; }
+tbody tr:nth-child(even) td { background: #F8F9FA; }
+td strong { white-space: nowrap; }
+
+/* ---------- Boxes ---------- */
+.box { border-radius: 6px; padding: 3.4mm 4.2mm 2.4mm; margin: 4mm 0 5mm; background: var(--bg); border-left: 4px solid var(--c); break-inside: avoid; }
+.box-t { display: flex; align-items: center; gap: 2.2mm; font: 800 9pt var(--f-titulo); color: var(--c); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 1.8mm; }
+.box-i { width: 4.6mm; height: 4.6mm; display: inline-flex; }
+.box-i svg { width: 100%; height: 100%; }
+.box-c { font-size: 9pt; }
+.box-c > :last-child { margin-bottom: .6mm; }
+.box-atencao { --c: var(--box-atencao); --bg: #FDF1F1; }
+.box-pratica { --c: var(--box-pratica); --bg: #EEF7F4; }
+.box-alerta { --c: var(--box-alerta); --bg: #FEF3EC; }
+.box-dica { --c: var(--box-dica); --bg: var(--ambar-claro); }
+.box-lei { --c: var(--box-lei); --bg: #F1F3F6; }
+.box-caso { --c: #4F5B6B; --bg: #F5F6F8; border-left-style: dashed; }
+.box-caso .box-c { font-style: italic; color: #333B45; }
+.box-resumo { --c: var(--ambar); background: var(--carbono); color: #E6EAEF; border: 0; padding: 4.5mm 5.5mm 3mm; margin: 0 0 7mm; }
+.box-resumo .box-c li { color: #E6EAEF; }
+.box-resumo .box-c li::marker { color: var(--ambar); }
+.box-checklist { --c: var(--carbono); background: #fff; border: 1.6px solid var(--carbono); border-top: 6px solid var(--ambar); padding: 4mm 5mm 3mm; margin-top: 8mm; }
+.box-checklist ul { list-style: none; padding: 0; }
+.box-checklist li { display: flex; gap: 2.6mm; align-items: flex-start; margin: 1.4mm 0; }
+.cb { flex: 0 0 auto; width: 3.8mm; height: 3.8mm; border: 1.5px solid var(--carbono); border-radius: 1mm; margin-top: .6mm; background: #fff; }
+
+/* sim / não */
+.duas-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 3mm 0 6mm; }
+.duas-colunas .box { margin: 0; }
+.box-sim { --c: var(--n0); --bg: #EEF8F2; }
+.box-nao { --c: var(--n4); --bg: #FDF1F1; }
+
+/* glossário */
+.glossario { columns: 2; column-gap: 7mm; font-size: 8.5pt; }
+.glossario p { break-inside: avoid; margin: 0 0 2.4mm; }
+.glossario strong { color: var(--ambar-escuro); }
+
+/* níveis inline */
+.nivel { display: inline-block; font: 800 7.5pt var(--f-mono); padding: .3mm 1.6mm; border-radius: 2mm; color: #fff; }

@@ -1,0 +1,1535 @@
+[
+  {
+    "codigo": "PC-CAR-01",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-01"
+    ],
+    "titulo": "Vãos e faceamento entre peças",
+    "subtitulo": "Folgas, alinhamento e simetria da carroceria",
+    "vista": "lateral",
+    "zonas": [
+      "capo",
+      "paralama-d",
+      "porta-d",
+      "porta-t",
+      "tampa",
+      "parachoque-d"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Em todas as juntas entre peças: capô x para-lamas, para-lama x porta, porta x porta, porta x lateral traseira, tampa x lanternas e para-choques x carroceria. Compare sempre o lado esquerdo com o direito.",
+    "por_que_importa": "O vão é a primeira pista de peça removida, substituída ou realinhada após impacto. Folga irregular ou faceamento desnivelado orienta onde medir espessura e onde procurar reparo estrutural. Sozinho não prova reparo, mas define a prioridade da inspeção.",
+    "de_fabrica": [
+      "Folga constante ao longo de toda a junta, sem abrir numa ponta e fechar na outra.",
+      "Mesmo vão no lado esquerdo e no direito, na mesma junta.",
+      "Faceamento: superfícies das peças vizinhas no mesmo plano, sem degrau perceptível.",
+      "Linhas de vinco (nervuras) contínuas de uma peça para a outra."
+    ],
+    "sinais": [
+      {
+        "sinal": "Vão que abre ou fecha ao longo da mesma junta (formato de cunha).",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Diferença clara de vão entre lado esquerdo e direito na mesma junta.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Degrau de faceamento entre peças ou vinco da lataria desencontrado.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Capô desalinhado com painel frontal e faróis, somado a outros sinais na frente.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Porta que exige força para fechar ou raspa no batente/coluna.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Desalinhamento que acompanha deformação em coluna, soleira ou teto.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Posicione-se a 2–3 m na diagonal de cada canto e observe as linhas de junta e de vinco.",
+      "Percorra cada junta com o dedo ou com calibrador de folga, no início, meio e fim.",
+      "Compare a mesma junta do lado oposto e anote a diferença.",
+      "Abra e feche portas, capô e tampa: observe esforço, raspagem e encaixe da fechadura.",
+      "Marque no mapa as peças com vão anormal e priorize-as na medição de espessura."
+    ],
+    "ferramentas": [
+      "Calibrador de folga (lâminas)",
+      "Lanterna",
+      "Fita métrica"
+    ],
+    "foto": "Junta com vão anormal em close, com referência de escala, e foto da junta simétrica do outro lado para comparação.",
+    "armadilhas": [
+      "Alguns modelos saem de fábrica com vãos pouco uniformes; compare com outra unidade do mesmo modelo antes de apontar.",
+      "Batentes de borracha gastos e dobradiças cansadas por uso alteram o vão sem haver colisão."
+    ],
+    "frase_conforme": "Vãos e faceamento entre peças da carroceria verificados visualmente, apresentando-se uniformes e simétricos nas áreas inspecionadas.",
+    "frase_achado": "Constatada irregularidade de vão/faceamento entre [peça A] e [peça B], lado [E/D], com diferença perceptível em relação ao lado oposto. Indício de remoção ou realinhamento de peça; ver demais achados da região.",
+    "limite": "O vão isolado não permite afirmar colisão, substituição de peça ou dano estrutural; indica apenas onde aprofundar a inspeção."
+  },
+  {
+    "codigo": "PC-CAR-02",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-02"
+    ],
+    "titulo": "Parafusos de fixação",
+    "subtitulo": "Para-lamas, portas, capô e tampa traseira",
+    "vista": "lateral",
+    "zonas": [
+      "paralama-d",
+      "porta-d",
+      "porta-t",
+      "capo",
+      "tampa"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Parafusos superiores do para-lama (sob o capô), dobradiças de portas (abrindo a porta), dobradiças do capô e da tampa traseira, e fixações do para-lama junto à coluna A e ao para-choque.",
+    "por_que_importa": "Em muitos modelos, peças aparafusadas são montadas e pintadas junto com a carroceria. Pintura rompida, marca de chave ou parafuso diferente indicam que a peça foi solta: para reparo, troca ou realinhamento. É um dos sinais mais objetivos da carroceria.",
+    "de_fabrica": [
+      "Cabeça do parafuso com pintura contínua, na cor da carroceria, sem trincas na borda.",
+      "Arruelas e parafusos iguais entre lado esquerdo e direito.",
+      "Sem marcas de ferramenta no sextavado nem riscos em volta.",
+      "Em alguns modelos os parafusos são montados após a pintura: compare com o lado oposto."
+    ],
+    "sinais": [
+      {
+        "sinal": "Pintura trincada ou lascada em volta da cabeça do parafuso.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Marca de chave no sextavado ou parafuso sem pintura onde o par está pintado.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Parafuso diferente, faltando ou com arruela não original.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Dobradiça de porta com marcas de ferramenta e porta com vão alterado.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Parafusos de capô, para-lamas e painel frontal todos com sinais de remoção.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Abra o capô e ilumine os parafusos superiores dos dois para-lamas.",
+      "Abra cada porta e examine os parafusos das dobradiças e do batente.",
+      "Verifique as dobradiças do capô e da tampa traseira.",
+      "Compare sempre o parafuso com seu par do lado oposto.",
+      "Fotografe os parafusos alterados e relacione com a peça no mapa."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Lupa"
+    ],
+    "foto": "Close do parafuso com pintura rompida, com a peça identificável no quadro, e o parafuso equivalente do lado oposto.",
+    "armadilhas": [
+      "Algumas montadoras pintam antes e outras montam depois da pintura; parafuso sem tinta dos dois lados pode ser de fábrica.",
+      "Retrabalho na linha de montagem ou ajuste de alinhamento de porta pode marcar parafuso sem que tenha havido colisão."
+    ],
+    "frase_conforme": "Parafusos de fixação de para-lamas, portas, capô e tampa traseira sem sinais visíveis de remoção nas áreas inspecionadas.",
+    "frase_achado": "Constatados sinais de remoção nos parafusos de fixação de [peça], lado [E/D] (pintura rompida/marcas de ferramenta). Indício de que a peça foi removida ou realinhada.",
+    "limite": "Não é possível afirmar o motivo da remoção (reparo, troca, manutenção ou ajuste) nem se a peça é original apenas pelo parafuso."
+  },
+  {
+    "codigo": "PC-CAR-03",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-03"
+    ],
+    "titulo": "Medição de espessura peça a peça",
+    "subtitulo": "Grade de pontos, calibração e leitura comparativa",
+    "vista": "lateral",
+    "zonas": [
+      "capo",
+      "paralama-d",
+      "porta-d",
+      "porta-t",
+      "lateral-t",
+      "teto",
+      "tampa",
+      "coluna-a",
+      "coluna-b",
+      "soleira"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Todas as peças metálicas pintadas: capô, teto, tampa, para-lamas, portas, laterais traseiras, colunas e soleiras. Para-choques e peças plásticas não são medidos com o medidor de espessura.",
+    "por_que_importa": "A espessura da tinta é a evidência mensurável de repintura ou massa. Valores ORIENTATIVOS: original muitas vezes entre ~80 e ~180 µm, conforme fabricante; repintura costuma elevar; valores muito altos sugerem massa. A comparação com as peças do próprio carro vale mais que o número absoluto.",
+    "de_fabrica": [
+      "Leituras homogêneas dentro da peça e semelhantes entre peças vizinhas do mesmo carro.",
+      "Faixa típica varia por fabricante, modelo e cor; não existe número universal de originalidade.",
+      "Teto e capô costumam servir de referência por raramente serem repintados.",
+      "Peças de alumínio exigem modo NFe; chapa de aço usa modo Fe. Plástico não mede."
+    ],
+    "sinais": [
+      {
+        "sinal": "Peça com leituras claramente acima da média das demais do mesmo carro.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Leitura baixa e uniforme diferente das vizinhas (possível peça substituída).",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pico localizado muito alto dentro da peça: indício de massa.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Repintura em várias peças contíguas de um mesmo canto do veículo.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Massa ou repintura em coluna, soleira ou caixa de roda.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Calibre o medidor com lâmina de referência sobre chapa nua antes do primeiro carro do dia.",
+      "Meça teto e capô primeiro para obter a referência do próprio veículo.",
+      "Faça grade mínima de 5 pontos por peça (4 cantos + centro); em peça suspeita, adense.",
+      "Use NFe em alumínio; não meça plástico, fibra ou compósito.",
+      "Registre no mapa de pintura a média e o maior valor de cada peça.",
+      "Compare cada peça com a vizinha e com a simétrica do outro lado."
+    ],
+    "ferramentas": [
+      "Medidor de espessura Fe/NFe",
+      "Lâmina de calibração",
+      "Mapa de pintura"
+    ],
+    "foto": "Medidor apoiado na peça com o visor legível e a peça identificável; incluir a leitura de referência do teto ou capô.",
+    "armadilhas": [
+      "Retrabalho de pintura na linha de montagem pode dar leituras altas em carro sem colisão; descreva, não especule causa.",
+      "Leitura sobre borda, dobra ou vinco distorce o valor; meça a 2–3 cm das bordas, em área plana.",
+      "Medidor sem calibração ou em modo errado (Fe em alumínio) gera leitura falsa."
+    ],
+    "frase_conforme": "Espessura de pintura medida em grade de pontos nas peças metálicas, com leituras homogêneas e compatíveis entre si. Valores de referência são orientativos e variam por fabricante.",
+    "frase_achado": "Constatada espessura de pintura acima da média do veículo em [peça], com leituras entre [x] e [y] µm contra referência de [z] µm no [teto/capô]. Indício de repintura [e de massa em área localizada].",
+    "limite": "A medição não identifica a causa da repintura nem a qualidade do reparo sob a tinta; não se aplica a peças plásticas."
+  },
+  {
+    "codigo": "PC-CAR-04",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-04"
+    ],
+    "titulo": "Diferença de tonalidade e textura",
+    "subtitulo": "Cor, brilho, casca de laranja e metamerismo",
+    "vista": "lateral",
+    "zonas": [
+      "capo",
+      "paralama-d",
+      "porta-d",
+      "porta-t",
+      "lateral-t",
+      "tampa",
+      "parachoque-d",
+      "parachoque-t"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Em toda a superfície pintada, com atenção às transições entre peças vizinhas: para-choque x para-lama, para-lama x porta, porta x lateral, capô x para-lamas.",
+    "por_que_importa": "Tinta aplicada fora da fábrica raramente reproduz exatamente cor, brilho e textura originais. A diferença visual confirma a medição de espessura e revela repintura em peças plásticas, que o medidor não alcança.",
+    "de_fabrica": [
+      "Mesma tonalidade em todas as peças, sob luz natural e sob luz de lanterna.",
+      "Textura (casca de laranja) leve e igual entre peças vizinhas.",
+      "Brilho uniforme; verniz sem poeira incrustada nem escorrimento.",
+      "Plásticos pintados podem ter leve diferença de fábrica; compare com a peça simétrica."
+    ],
+    "sinais": [
+      {
+        "sinal": "Diferença de tonalidade entre peças vizinhas vista em mais de um ângulo.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Casca de laranja mais acentuada ou mais lisa que a das peças vizinhas.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Poeira ou fiapo incrustado no verniz, escorrimento ou marca de polimento.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Metamerismo: cor igual numa luz e diferente em outra (sol x sombra x LED).",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Esmaecimento (degradê) de tinta dentro da peça, típico de retoque parcial.",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Examine com luz natural difusa, de preferência sem sol direto.",
+      "Agache e olhe cada peça em ângulo rasante, comparando com a vizinha.",
+      "Passe a lanterna em luz rasante para evidenciar textura, poeira e escorrimento.",
+      "Repita sob outra fonte de luz para detectar metamerismo.",
+      "Cruze o resultado com as leituras de espessura antes de registrar."
+    ],
+    "ferramentas": [
+      "Lanterna de luz branca",
+      "Medidor de espessura Fe/NFe",
+      "Pano de microfibra"
+    ],
+    "foto": "Foto em ângulo abrangendo as duas peças vizinhas na mesma imagem, com a diferença de cor ou textura visível.",
+    "armadilhas": [
+      "Sujeira, cera, polimento recente ou película de proteção alteram brilho e parecem repintura.",
+      "Cores metálicas e perolizadas mudam com o ângulo de visão; compare sempre no mesmo ângulo."
+    ],
+    "frase_conforme": "Tonalidade, brilho e textura da pintura homogêneos entre as peças inspecionadas, sob luz natural e rasante.",
+    "frase_achado": "Constatada diferença de tonalidade/textura em [peça], em relação a [peça vizinha], perceptível sob luz natural e rasante. Indício de repintura.",
+    "limite": "A inspeção visual não permite afirmar a extensão do reparo sob a tinta nem a sua causa; depende das condições de luz no local."
+  },
+  {
+    "codigo": "PC-CAR-05",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-05"
+    ],
+    "titulo": "Overspray em borrachas e frisos",
+    "subtitulo": "Névoa de tinta em vedações, plásticos e vidros",
+    "vista": "lateral",
+    "zonas": [
+      "porta-d",
+      "porta-t",
+      "vidros",
+      "retrovisor",
+      "farol",
+      "lanterna",
+      "capo"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Borrachas de porta e de vidro, frisos, emblemas, maçanetas, carcaças de retrovisor, lentes de faróis e lanternas, borda de vidros e mangueiras/etiquetas próximas à peça pintada.",
+    "por_que_importa": "Na repintura em oficina, peças próximas nem sempre são removidas ou mascaradas. A névoa de tinta que fica nelas é evidência visual direta de pintura fora da linha de montagem e mostra até onde a pintura avançou.",
+    "de_fabrica": [
+      "Borrachas pretas, foscas e uniformes, sem pontos coloridos.",
+      "Frisos, emblemas e maçanetas limpos na borda.",
+      "Vidros e lentes sem pontos de tinta junto às bordas.",
+      "Etiquetas e plaquetas do fabricante legíveis e sem névoa."
+    ],
+    "sinais": [
+      {
+        "sinal": "Pontos ou película de tinta da cor do carro em borracha de porta ou vidro.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Névoa de tinta em frisos, emblemas, maçanetas ou lentes.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Linha de fita de mascaramento visível na tinta ou na borracha.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Etiqueta de identificação coberta por tinta ou névoa.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Abra cada porta e examine a borracha de vedação e o batente.",
+      "Ilumine a borda de vidros, lentes e frisos em ângulo rasante.",
+      "Verifique maçanetas, emblemas e carcaças de retrovisor.",
+      "Sob o capô, olhe mangueiras, etiquetas e borrachas junto aos para-lamas.",
+      "Relacione cada overspray com a peça pintada mais próxima no mapa."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Lupa",
+      "Espelho de inspeção"
+    ],
+    "foto": "Close da borracha ou friso com a névoa de tinta visível, mostrando a peça pintada adjacente como referência.",
+    "armadilhas": [
+      "Resíduo de produto de limpeza, cera ou pretinho de pneu pode parecer névoa; confirme com a lanterna e o toque.",
+      "Retoque de pequenos riscos com caneta deixa pontos localizados que não indicam repintura da peça."
+    ],
+    "frase_conforme": "Não foram constatados resíduos de tinta (overspray) em borrachas, frisos, emblemas e vidros nas áreas inspecionadas.",
+    "frase_achado": "Constatado resíduo de tinta (overspray) em [borracha/friso/lente] adjacente a [peça], compatível com repintura da peça sem remoção completa dos componentes vizinhos.",
+    "limite": "O overspray indica repintura na região, mas não permite afirmar qual peça foi reparada nem a extensão do reparo."
+  },
+  {
+    "codigo": "PC-CAR-06",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-06"
+    ],
+    "titulo": "Massa, ondulação e marcas de lixa",
+    "subtitulo": "Reflexo, tato e leituras localizadas",
+    "vista": "lateral",
+    "zonas": [
+      "paralama-d",
+      "porta-d",
+      "porta-t",
+      "lateral-t",
+      "capo",
+      "tampa",
+      "soleira"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Áreas planas e grandes das peças metálicas, com atenção às regiões baixas das portas, laterais traseiras junto às caixas de roda, bordas de para-lamas e soleiras.",
+    "por_que_importa": "Massa é aplicada para nivelar amassados: revela reparo de funilaria, não só repintura. Em excesso, trinca, retém umidade e favorece corrosão. Massa em área de absorção indica impacto de maior energia.",
+    "de_fabrica": [
+      "Reflexo de linhas retas contínuo e sem distorção ao longo da peça.",
+      "Superfície lisa ao tato, sem ondas ou degraus.",
+      "Espessura homogênea na grade de medição, sem picos localizados.",
+      "Sem riscos circulares ou lineares de lixa sob o verniz."
+    ],
+    "sinais": [
+      {
+        "sinal": "Ondulação ou distorção do reflexo de linhas retas em área localizada.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Marca de lixa (riscos finos) visível sob verniz em luz rasante.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pico de espessura muito acima da peça, restrito a uma região: indício de massa.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Trinca fina, bolha ou contorno da massa aparente na pintura.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Massa em coluna, soleira ou caixa de roda.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Posicione-se para refletir uma linha reta (beiral, poste, faixa de luz) ao longo da peça.",
+      "Caminhe devagar e observe se a linha refletida entorta ou ondula.",
+      "Passe a palma da mão espalmada, sem pressão, em movimentos longos.",
+      "Adense a medição de espessura na área suspeita e compare com a borda da peça.",
+      "Examine com lanterna rasante para achar marcas de lixa e contornos."
+    ],
+    "ferramentas": [
+      "Medidor de espessura Fe/NFe",
+      "Lanterna",
+      "Pano de microfibra"
+    ],
+    "foto": "Foto do reflexo distorcido de linha reta sobre a peça e foto do medidor sobre o ponto de maior leitura.",
+    "armadilhas": [
+      "Pequenos amassados de estacionamento sem reparo também distorcem o reflexo; confirme com a espessura.",
+      "Chapas de grandes superfícies (teto, capô) podem ter leve ondulação de estampagem original."
+    ],
+    "frase_conforme": "Não foram constatados sinais de ondulação, marcas de lixa ou espessura localizada compatível com massa nas peças inspecionadas.",
+    "frase_achado": "Constatada ondulação/distorção de reflexo em [peça], com espessura localizada de [x] µm contra [y] µm no restante da peça. Indício de reparo com aplicação de massa.",
+    "limite": "Não é possível afirmar a espessura real da massa, o estado da chapa por baixo ou a presença de corrosão sem ensaio destrutivo."
+  },
+  {
+    "codigo": "PC-CAR-07",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-07"
+    ],
+    "titulo": "Bordas e dobras internas",
+    "subtitulo": "Selador, dobra da chapa e acabamento interno",
+    "vista": "lateral",
+    "zonas": [
+      "porta-d",
+      "porta-t",
+      "capo",
+      "tampa"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Face interna de portas, capô e tampa traseira: dobra (bainha) da borda da chapa, cordão de selador ao longo da dobra, cantos inferiores e furos de drenagem das portas.",
+    "por_que_importa": "A borda interna mostra se a peça é a montada em fábrica, se foi substituída ou reparada. O selador de fábrica é aplicado de forma automatizada; o de oficina costuma ser manual e irregular. Complementa a medição externa para distinguir repintura de substituição.",
+    "de_fabrica": [
+      "Cordão de selador contínuo, com largura e textura uniformes.",
+      "Dobra da chapa regular, sem marcas de martelo ou alicate.",
+      "Pintura interna com mesma cor e acabamento do restante do vão.",
+      "Etiquetas e marcações de fábrica presentes onde o modelo as tem."
+    ],
+    "sinais": [
+      {
+        "sinal": "Corrosão iniciando na dobra ou nos drenos, sem outros sinais.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Selador irregular, com marca de dedo ou pincel, ou diferente do da peça simétrica.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pintura interna de tonalidade diferente ou com overspray.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Dobra da chapa deformada ou com marcas de ferramenta.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Peça sem selador ou com acabamento típico de peça de reposição.",
+        "nivel": "N2"
+      }
+    ],
+    "como_verificar": [
+      "Abra totalmente cada porta e ilumine a borda inferior e traseira internas.",
+      "Compare o selador com o da porta simétrica do outro lado.",
+      "Levante o capô e examine a dobra frontal e as laterais da face interna.",
+      "Abra a tampa traseira e verifique dobras e cantos.",
+      "Registre no mapa se a peça tem indício de reparo ou de substituição."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Lupa"
+    ],
+    "foto": "Close do cordão de selador na borda interna da peça suspeita e o mesmo ponto da peça simétrica para comparação.",
+    "armadilhas": [
+      "Selador de fábrica varia entre modelos e anos; compare com a peça simétrica do mesmo carro, não com outro modelo.",
+      "Selador ressecado ou trincado pelo tempo não é, por si, sinal de reparo."
+    ],
+    "frase_conforme": "Bordas, dobras e selador das faces internas de portas, capô e tampa com aspecto uniforme e compatível entre peças simétricas.",
+    "frase_achado": "Constatado selador com aspecto de aplicação manual/irregular na face interna de [peça], divergente da peça simétrica. Indício de reparo ou substituição da peça.",
+    "limite": "Não é possível afirmar se a peça é original de fábrica ou de reposição apenas pelo selador; o exame não remove forros ou revestimentos."
+  },
+  {
+    "codigo": "PC-CAR-08",
+    "sistema": "CAR",
+    "itens": [
+      "CAR-08"
+    ],
+    "titulo": "Para-choques e fixações plásticas",
+    "subtitulo": "Presilhas, reparo plástico e repintura",
+    "vista": "lateral",
+    "zonas": [
+      "parachoque-d",
+      "parachoque-t",
+      "farol",
+      "lanterna"
+    ],
+    "capitulo": 7,
+    "onde_fica": "Para-choques dianteiro e traseiro, suas presilhas e suportes laterais, grades, defletores inferiores e face interna visível pela caixa de roda e por baixo do veículo.",
+    "por_que_importa": "Os para-choques recebem o primeiro contato e são as peças mais reparadas. Presilhas quebradas ou reparo plástico mostram impacto; somados a faróis e painel frontal alterados, indicam colisão de maior energia. O medidor de espessura não mede plástico.",
+    "de_fabrica": [
+      "Encaixe alinhado com faróis, lanternas e para-lamas, sem degrau.",
+      "Presilhas e suportes inteiros, parafusos presentes.",
+      "Face interna com textura uniforme do plástico injetado e marcações de fábrica.",
+      "Pintura com tonalidade compatível com a carroceria sob diferentes luzes."
+    ],
+    "sinais": [
+      {
+        "sinal": "Presilha quebrada, suporte faltando ou fixação improvisada (arame, abraçadeira).",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Repintura do para-choque (tonalidade, textura, overspray).",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Reparo plástico por solda ou grampos na face interna.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Desalinhamento do para-choque com farol e para-lama.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Alma (viga) de impacto deformada, substituída ou ausente.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Olhe o encaixe do para-choque com faróis, lanternas e para-lamas pelos dois lados.",
+      "Compare cor e textura com a carroceria sob luz natural e lanterna.",
+      "Pela caixa de roda e por baixo, ilumine a face interna e as presilhas.",
+      "Procure marcas de solda plástica, grampos metálicos e fissuras.",
+      "Se visível sem desmontar, verifique a alma de impacto atrás da capa."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Luvas"
+    ],
+    "foto": "Visão geral do para-choque e close da presilha quebrada ou do reparo plástico na face interna.",
+    "armadilhas": [
+      "Presilha quebrada por manutenção rotineira (troca de lâmpada, farol) não é sinal de colisão por si.",
+      "Para-choque com textura fosca ou preto sem pintura é original em muitas versões."
+    ],
+    "frase_conforme": "Para-choques alinhados com peças vizinhas, sem sinais visíveis de reparo plástico, repintura ou fixações danificadas nas áreas inspecionadas.",
+    "frase_achado": "Constatado(a) [repintura/reparo plástico/presilhas danificadas] no para-choque [dianteiro/traseiro]. [Alinhamento irregular com farol/para-lama lado E/D.]",
+    "limite": "Sem desmontagem, não é possível avaliar integralmente a alma de impacto, suportes internos e absorvedores atrás da capa."
+  },
+  {
+    "codigo": "PC-VID-01",
+    "sistema": "VID",
+    "itens": [
+      "VID-01"
+    ],
+    "titulo": "Para-brisa",
+    "subtitulo": "Trincas, delaminação, marcação e data",
+    "vista": "lateral",
+    "zonas": [
+      "vidros",
+      "coluna-a"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Vidro dianteiro, entre as colunas A. A marcação (serigrafia) fica em geral num canto inferior; a moldura e o cordão de cola ficam no contorno, visíveis por fora e pelo painel.",
+    "por_que_importa": "O para-brisa é item de segurança e contribui para a rigidez da cabine. Trinca no campo de visão do condutor compromete a condição de uso. Troca com data divergente pode ser pedrada, mas também impacto frontal ou capotamento: cruze com colunas e teto.",
+    "de_fabrica": [
+      "Laminado, sem trincas, com marcação legível do fabricante e de conformidade.",
+      "Data compatível com os demais vidros e com o ano de fabricação do veículo.",
+      "Moldura e borracha uniformes, sem cola aparente fora do cordão.",
+      "Sem bolhas ou manchas leitosas entre as camadas (delaminação)."
+    ],
+    "sinais": [
+      {
+        "sinal": "Pequeno impacto (\"estrela\") fora do campo de visão, sem trinca.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Para-brisa substituído (data ou marca diferentes), instalação regular.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Cola aparente, moldura irregular ou marcas de ferramenta nas colunas A.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Delaminação nas bordas ou manchas leitosas entre camadas.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Trinca no campo de visão do condutor ou trinca em expansão.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Para-brisa trocado junto com reparo nas colunas A ou no teto.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Examine o vidro por fora e por dentro, com luz de frente e em ângulo.",
+      "Localize trincas e impactos e verifique se estão no campo de visão do condutor.",
+      "Leia a marcação: fabricante, código e data; compare com os demais vidros.",
+      "Verifique moldura, cordão de cola e colunas A por fora e por dentro.",
+      "Se trocado, cruze com a espessura de pintura das colunas A e do teto."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Lupa",
+      "Medidor de espessura Fe/NFe"
+    ],
+    "foto": "Foto geral do para-brisa com a trinca ou impacto indicado e close legível da marcação com a data.",
+    "armadilhas": [
+      "Troca por pedrada é comum e não indica colisão; só relacione com impacto se houver outros sinais.",
+      "Película, adesivo de pedágio ou sensor de chuva podem ocultar a marcação; procure nos quatro cantos."
+    ],
+    "frase_conforme": "Para-brisa sem trincas no campo de visão, com marcação legível e data compatível com os demais vidros do veículo.",
+    "frase_achado": "Constatado para-brisa com [trinca/impacto] em [região] e/ou marcação com data [x] divergente dos demais vidros, indicando substituição. [Ver achados em colunas A e teto.]",
+    "limite": "Não é possível afirmar o motivo da substituição nem a qualidade da colagem; a inspeção não avalia a resistência do vidro."
+  },
+  {
+    "codigo": "PC-VID-02",
+    "sistema": "VID",
+    "itens": [
+      "VID-02",
+      "VID-03"
+    ],
+    "titulo": "Datas e coerência dos vidros",
+    "subtitulo": "Leitura da codificação e vidro trocado isolado",
+    "vista": "lateral",
+    "zonas": [
+      "vidros",
+      "porta-d",
+      "porta-t",
+      "lateral-t",
+      "tampa"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Marcação (serigrafia) em um canto de cada vidro: para-brisa, laterais das portas, vigias/quebra-ventos e vidro traseiro. Nos vidros de porta, suba ou desça o vidro se a marcação estiver oculta.",
+    "por_que_importa": "Os vidros saem de fábrica com datas próximas entre si e anteriores à fabricação do veículo. Vidro com data posterior ou marca diferente indica substituição. Isolado, pode ser furto ou pedrada; somado a outros sinais da mesma região, orienta a busca por impacto.",
+    "de_fabrica": [
+      "Mesmo fabricante de vidro em todo o veículo (com exceções de fábrica).",
+      "Datas próximas entre si e, em geral, alguns meses anteriores à fabricação do veículo.",
+      "Codificação comum: 1 dígito = final do ano; pontos antes ou depois indicam mês/semestre.",
+      "O padrão de pontos varia por fabricante; confirme sempre pela coerência entre os vidros."
+    ],
+    "sinais": [
+      {
+        "sinal": "Um vidro com data posterior ou fabricante diferente dos demais.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Vidro sem marcação ou com marcação ilegível/removida.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Película com transmitância fora do permitido [VERIFICAR Resolução CONTRAN vigente].",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Vidros trocados de um mesmo lado, somados a repintura de portas/colunas.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Vidros de um lado ou do teto trocados com reparo em coluna ou teto.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Anote marca e código de cada vidro na ordem: para-brisa, lado E, lado D, traseiro.",
+      "Leia o dígito do ano e, pelo lado e quantidade de pontos, estime o mês ou semestre.",
+      "Resolva a década pelo ano do veículo (o dígito se repete a cada 10 anos).",
+      "Compare todos os vidros entre si e com a data de fabricação do veículo.",
+      "Para cada vidro divergente, inspecione as peças da mesma região."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Lupa",
+      "Tabela de datas de vidros"
+    ],
+    "foto": "Close legível da marcação de cada vidro divergente e de um vidro original para comparação.",
+    "armadilhas": [
+      "Vidro de reposição pode ter a mesma marca do original; a data é que denuncia a troca.",
+      "Algumas montadoras usam fornecedores distintos na mesma linha; marca diferente com data coerente pode ser de fábrica.",
+      "Leitura de pontos invertida é erro comum; na dúvida, registre só o ano e a divergência."
+    ],
+    "frase_conforme": "Vidros com marcações legíveis e datas coerentes entre si e com a fabricação do veículo, sem indícios de substituição.",
+    "frase_achado": "Constatado vidro [posição] com marcação [fabricante/data] divergente dos demais vidros do veículo, indicando substituição. Motivo não determinável na vistoria.",
+    "limite": "A codificação varia por fabricante e a leitura do mês é aproximada; a vistoria não determina o motivo da substituição."
+  },
+  {
+    "codigo": "PC-VID-03",
+    "sistema": "VID",
+    "itens": [
+      "VID-04"
+    ],
+    "titulo": "Faróis",
+    "subtitulo": "Lente, fixação, umidade e data",
+    "vista": "lateral",
+    "zonas": [
+      "farol",
+      "parachoque-d",
+      "paralama-d",
+      "capo"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Conjuntos ópticos dianteiros: lente externa, carcaça, suportes de fixação (visíveis com o capô aberto) e marcação moldada na carcaça, com data em relógio ou código.",
+    "por_que_importa": "O farol fica na zona de impacto frontal. Farol trocado de um só lado, suporte quebrado ou reparado e data divergente sugerem impacto frontal lateral. Umidade interna e lente opaca afetam a iluminação e a segurança.",
+    "de_fabrica": [
+      "Par de faróis de mesma marca, modelo e data próxima.",
+      "Suportes de fixação inteiros, sem cola, solda plástica ou parafuso improvisado.",
+      "Lente sem trincas, com amarelamento semelhante nos dois lados.",
+      "Sem condensação persistente ou água acumulada no interior."
+    ],
+    "sinais": [
+      {
+        "sinal": "Lente amarelada ou opaca por desgaste, igual nos dois lados.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Condensação persistente ou água acumulada dentro do farol.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Farol de um lado com data ou marca diferente do outro.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Suporte quebrado, colado ou com fixação improvisada.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Lente trincada ou farol sem funcionar.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Farol trocado junto com para-lama, painel frontal ou longarina reparados.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Compare os dois faróis por fora: lente, cor, amarelamento e encaixe.",
+      "Acione baixo, alto e setas e confira funcionamento e altura aparente do facho.",
+      "Abra o capô e examine suportes, parafusos e etiquetas das carcaças.",
+      "Leia a data/código de cada farol e compare entre os lados.",
+      "Se trocado de um lado, cruze com painel frontal e longarina do mesmo lado."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Lupa"
+    ],
+    "foto": "Frente do veículo mostrando os dois faróis e close da data/etiqueta da carcaça divergente ou do suporte reparado.",
+    "armadilhas": [
+      "Farol trocado por furto, pedrada ou mudança de iluminação é comum; descreva sem concluir impacto.",
+      "Polimento de lente em só um lado cria diferença de aparência sem troca."
+    ],
+    "frase_conforme": "Faróis com lentes íntegras, fixações sem sinais de reparo, datas compatíveis entre si e funcionamento verificado.",
+    "frase_achado": "Constatado farol [E/D] com [data/marca divergente do lado oposto / suporte reparado / umidade interna]. Indício de substituição; ver achados da região frontal [E/D].",
+    "limite": "Não é possível verificar a regulagem precisa do facho sem equipamento próprio nem afirmar o motivo da troca."
+  },
+  {
+    "codigo": "PC-RSP-01",
+    "sistema": "RSP",
+    "itens": [
+      "RSP-01"
+    ],
+    "titulo": "Profundidade de sulco",
+    "subtitulo": "Quatro pneus e estepe; TWI como limite",
+    "vista": "pneu",
+    "zonas": [
+      "banda"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Banda de rodagem de cada pneu, em três pontos transversais (borda interna, centro, borda externa) e em ao menos três posições da circunferência. O TWI é o ressalto no fundo do sulco, indicado por marca no ombro.",
+    "por_que_importa": "O sulco garante drenagem de água e aderência. Com 1,6 mm (TWI) o pneu atinge o limite legal [VERIFICAR número da Resolução CONTRAN vigente sobre desgaste] e é item de segurança fora de condição. Diferenças entre pneus revelam trocas isoladas e geometria fora.",
+    "de_fabrica": [
+      "Pneu novo de passeio: sulco em geral entre ~7 e ~9 mm; orientativo, varia por fabricante.",
+      "Desgaste uniforme em toda a largura da banda e igual entre pneus do mesmo eixo.",
+      "TWI ainda abaixo do nível da banda, sem estar faceado com ela.",
+      "Estepe com sulco compatível e sem ressecamento."
+    ],
+    "sinais": [
+      {
+        "sinal": "Sulco com vida remanescente moderada (ex.: 3–5 mm), desgaste uniforme.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Sulco próximo ao TWI (ex.: 2–3 mm): troca necessária em breve.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Pneus do mesmo eixo com diferença grande de sulco.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Sulco no TWI (1,6 mm) ou abaixo, em qualquer ponto da banda.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Lona ou arame aparente, bolha ou corte no pneu.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Esterce as rodas dianteiras para expor a banda inteira.",
+      "Meça com profundímetro nos sulcos principais: interno, centro e externo.",
+      "Mova o veículo ou gire a roda e repita em mais dois pontos da circunferência.",
+      "Localize o TWI pela marca no ombro e compare-o com a banda.",
+      "Repita no estepe e registre a menor medida de cada pneu."
+    ],
+    "ferramentas": [
+      "Profundímetro",
+      "Lanterna",
+      "Giz de marcação"
+    ],
+    "foto": "Profundímetro inserido no sulco com escala legível e, quando crítico, close do TWI faceado com a banda.",
+    "armadilhas": [
+      "Medir sobre o TWI ou sobre uma lamela dá leitura falsa; meça no sulco principal.",
+      "Pneu remoldado exige atenção à conformidade; registre o tipo sem supor qualidade."
+    ],
+    "frase_conforme": "Sulco dos pneus e do estepe acima do indicador de desgaste (TWI), com desgaste uniforme. Menor medida: [x] mm (valor orientativo).",
+    "frase_achado": "Constatado pneu [posição] com sulco de [x] mm no ponto [interno/centro/externo], [no nível do/abaixo do] indicador de desgaste TWI (1,6 mm).",
+    "limite": "A medição não avalia a estrutura interna do pneu, a aderência do composto nem danos no lado interno não visível."
+  },
+  {
+    "codigo": "PC-RSP-02",
+    "sistema": "RSP",
+    "itens": [
+      "RSP-02"
+    ],
+    "titulo": "DOT: idade dos pneus",
+    "subtitulo": "Semana e ano de fabricação e coerência",
+    "vista": "pneu",
+    "zonas": [
+      "dot",
+      "flanco"
+    ],
+    "capitulo": 8,
+    "onde_fica": "No flanco, ao final da sequência iniciada por \"DOT\": os 4 últimos dígitos, em geral num retângulo em alto-relevo. Pode estar só num lado do pneu; esterce a roda ou olhe pelo lado interno.",
+    "por_que_importa": "A borracha envelhece mesmo sem rodar: resseca, trinca e perde aderência. O DOT informa a idade e revela trocas: pneus de datas muito diferentes no mesmo eixo, ou mais novos só de um lado, podem acompanhar outros achados.",
+    "de_fabrica": [
+      "4 dígitos: os 2 primeiros são a semana e os 2 últimos o ano (ex.: 2319 = semana 23 de 2019).",
+      "Pneus originais com datas próximas entre si e anteriores à fabricação do veículo.",
+      "Pneus do mesmo eixo com mesma marca, modelo, medida e idade próxima.",
+      "Flanco sem rachaduras de ressecamento."
+    ],
+    "sinais": [
+      {
+        "sinal": "Pneus com idade avançada e flanco íntegro (limite de idade é orientativo).",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Pneus do mesmo eixo com marca, modelo ou idade muito diferentes.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Ressecamento com fissuras visíveis no flanco ou entre sulcos.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Medida diferente da prevista pelo fabricante ou entre pneus do mesmo eixo.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Fissuras profundas, bolha ou deformação no flanco.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Localize a sequência DOT no flanco externo; se incompleta, procure no lado interno.",
+      "Leia os 4 dígitos finais e anote semana/ano de cada pneu e do estepe.",
+      "Anote também marca, modelo e medida de cada pneu.",
+      "Compare pneus do mesmo eixo entre si e com a fabricação do veículo.",
+      "Examine o flanco com lanterna em busca de fissuras e bolhas."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Giz de marcação"
+    ],
+    "foto": "Close legível do código DOT (4 dígitos) de cada pneu, com a posição do pneu identificada na legenda.",
+    "armadilhas": [
+      "Códigos de 3 dígitos são de pneus muito antigos (padrão anterior); não os confunda com o formato atual.",
+      "Pneu mais novo que os demais pode ser simples reposição por furo; não conclua impacto só pelo DOT."
+    ],
+    "frase_conforme": "Pneus com datas de fabricação (DOT) coerentes entre si, mesma especificação por eixo e flancos sem fissuras visíveis.",
+    "frase_achado": "Constatado pneu [posição] com DOT [ssaa], [divergente do pneu do mesmo eixo / com ressecamento visível no flanco]. Recomenda-se avaliação especializada.",
+    "limite": "A idade não determina sozinha a condição do pneu; a vistoria não avalia estrutura interna nem reparos feitos por dentro."
+  },
+  {
+    "codigo": "PC-RSP-03",
+    "sistema": "RSP",
+    "itens": [
+      "RSP-03"
+    ],
+    "titulo": "Desgaste irregular dos pneus",
+    "subtitulo": "O que o padrão de desgaste indica",
+    "vista": "pneu",
+    "zonas": [
+      "banda",
+      "flanco"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Banda de rodagem de cada pneu, observando a largura inteira (borda interna, centro, borda externa) e a circunferência. As bordas internas dos dianteiros exigem esterçar a roda.",
+    "por_que_importa": "O desgaste é o registro do uso: revela geometria fora, pressão errada, amortecedor fraco ou componentes empenados. Desgaste irregular num só canto pode acompanhar impacto na suspensão e orienta a inspeção de bandejas, pivôs e alinhamento.",
+    "de_fabrica": [
+      "Desgaste uniforme em toda a largura da banda.",
+      "Pneus do mesmo eixo com desgaste semelhante.",
+      "Blocos sem degraus (\"escamado\") nem cavidades.",
+      "Sem regiões lisas localizadas (manchas de frenagem)."
+    ],
+    "sinais": [
+      {
+        "sinal": "Centro mais gasto que as bordas: indício de pressão acima da ideal.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Ambas as bordas gastas: indício de pressão abaixo da ideal.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Uma borda (interna ou externa) mais gasta: indício de cambagem/convergência fora.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Escamado (dente de serra) nos blocos: indício de convergência fora.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Cavidades em intervalos: indício de amortecedor ou balanceamento.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Desgaste severo num só canto junto com componentes de suspensão alterados.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Esterce as rodas e observe com lanterna a banda inteira dos dianteiros.",
+      "Meça o sulco nas bordas e no centro para quantificar a diferença.",
+      "Passe a mão a favor e contra o sentido de rodagem para sentir escamado.",
+      "Compare os pneus do mesmo eixo e os dois eixos entre si.",
+      "Registre o padrão e leve a observação para a inspeção de suspensão."
+    ],
+    "ferramentas": [
+      "Profundímetro",
+      "Lanterna",
+      "Calibrador de pressão"
+    ],
+    "foto": "Banda inteira do pneu com o padrão de desgaste visível e profundímetro indicando a diferença entre borda e centro.",
+    "armadilhas": [
+      "Rodízio de pneus recente mascara a origem do desgaste; o padrão pode ter vindo de outra posição.",
+      "Veículos com cambagem negativa de projeto desgastam mais a borda interna; compare com o outro lado."
+    ],
+    "frase_conforme": "Pneus com desgaste uniforme na banda de rodagem, sem padrões irregulares nas áreas inspecionadas.",
+    "frase_achado": "Constatado desgaste irregular no pneu [posição], concentrado na [borda interna/borda externa/centro/em padrão escamado]. Recomenda-se verificação de geometria e suspensão.",
+    "limite": "O padrão sugere causas prováveis, mas a vistoria visual não mede geometria nem confirma a causa sem equipamento de alinhamento."
+  },
+  {
+    "codigo": "PC-RSP-04",
+    "sistema": "RSP",
+    "itens": [
+      "RSP-06"
+    ],
+    "titulo": "Bandejas, pivôs, buchas e terminais",
+    "subtitulo": "Folgas, deformação e sinais de impacto",
+    "vista": "estrutura",
+    "zonas": [
+      "suspensao-d",
+      "suspensao-t",
+      "longarina-d"
+    ],
+    "capitulo": 8,
+    "onde_fica": "Sob o veículo, atrás de cada roda: bandejas (braços de controle), pivôs, buchas de fixação, terminais e barras de direção, bieletas e braços da suspensão traseira.",
+    "por_que_importa": "Esses componentes mantêm a geometria da roda. Bandeja empenada, peça trocada de um só lado ou fixação com marcas recentes pode indicar impacto na roda. Folgas afetam dirigibilidade e frenagem: são item de segurança.",
+    "de_fabrica": [
+      "Braços retos, simétricos entre lados, com pintura/proteção uniforme.",
+      "Buchas de borracha inteiras, sem rachaduras ou deslocamento.",
+      "Coifas de pivôs e terminais íntegras, sem vazamento de graxa.",
+      "Peças com idade e aparência semelhantes nos dois lados."
+    ],
+    "sinais": [
+      {
+        "sinal": "Bucha ou coifa ressecada, sem folga perceptível.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Coifa rasgada, bucha rachada ou folga leve em pivô/terminal.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Peças novas apenas de um lado, com porcas marcadas por ferramenta.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Folga acentuada em pivô ou terminal de direção.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Bandeja ou braço empenado, amassado ou com solda.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Ponto de fixação da suspensão na carroceria deformado ou reparado.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo seguro (elevador ou rampa), ilumine cada braço por baixo.",
+      "Compare formato, cor e idade das peças do lado esquerdo e do direito.",
+      "Examine buchas, coifas e porcas de fixação na carroceria/subchassi.",
+      "Com a roda suspensa, force-a em 12h–6h e 3h–9h para sentir folgas.",
+      "Registre peças trocadas de um lado e cruze com roda e pneu do mesmo canto."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Macaco e cavaletes ou elevador",
+      "Alavanca de inspeção"
+    ],
+    "foto": "Braço ou bandeja com o achado em close e a peça equivalente do lado oposto para comparação.",
+    "armadilhas": [
+      "Troca preventiva de buchas ou bandejas é manutenção comum; peça nova não prova impacto.",
+      "Folga de rolamento de roda pode ser confundida com folga de pivô; observe onde está o movimento."
+    ],
+    "frase_conforme": "Bandejas, pivôs, buchas e terminais sem deformações visíveis e sem folgas perceptíveis no teste manual, nas áreas acessíveis sem desmontagem.",
+    "frase_achado": "Constatado(a) [folga/deformação/substituição recente] em [componente] da suspensão [dianteira/traseira] lado [E/D]. Recomenda-se avaliação em oficina especializada.",
+    "limite": "Sem desmontagem e equipamento, não é possível medir folgas com precisão, avaliar trincas internas nem confirmar a geometria."
+  },
+  {
+    "codigo": "PC-MOTO-01",
+    "sistema": "MOTO",
+    "itens": [
+      "MOTO-01"
+    ],
+    "titulo": "Número do quadro e do motor",
+    "subtitulo": "Conferência com o documento e cautela",
+    "vista": "moto",
+    "zonas": [
+      "numero-quadro",
+      "motor-moto",
+      "quadro"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Número do quadro: em geral gravado na coluna de direção do quadro, conforme o fabricante. Número do motor: gravado na carcaça do motor, em local definido pelo fabricante. Consulte o manual do modelo.",
+    "por_que_importa": "A identificação vincula a moto ao documento. Divergência, ilegibilidade ou sinais de intervenção na região da gravação são achados críticos. O vistoriador cautelar não conclui adulteração: registra a divergência e orienta perícia oficial ou autoridade competente.",
+    "de_fabrica": [
+      "Gravação no local previsto pelo fabricante, com caracteres alinhados e profundidade regular.",
+      "Número idêntico ao do documento, caractere por caractere.",
+      "Superfície em volta com pintura e acabamento iguais aos da região vizinha.",
+      "Etiquetas e demais identificações do fabricante presentes onde o modelo as tem."
+    ],
+    "sinais": [
+      {
+        "sinal": "Gravação suja ou com oxidação leve, legível após limpeza com pano seco.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Gravação ilegível ou inacessível sem desmontagem: item não verificado (INCONCLUSIVO).",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Pintura, massa, solda ou marcas de lixa na região da gravação.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Caracteres com alinhamento, profundidade ou fonte irregulares.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Qualquer divergência entre gravação e documento.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Confira primeiro o documento: número do quadro, do motor, placa e características.",
+      "Localize a gravação do quadro, limpe apenas com pano seco e ilumine em ângulo.",
+      "Leia caractere por caractere e compare com o documento.",
+      "Localize o número do motor e faça a mesma conferência.",
+      "Observe a superfície ao redor: pintura, acabamento e uniformidade com a região vizinha.",
+      "Havendo divergência, registre, fotografe e oriente perícia oficial."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Lupa",
+      "Pano limpo"
+    ],
+    "foto": "Gravações do quadro e do motor inteiras e legíveis, com luz rasante; documento fotografado na mesma sessão, com dados pessoais ocultos.",
+    "armadilhas": [
+      "Não raspe, lixe nem aplique produtos na gravação: você pode danificar evidência e ser responsabilizado.",
+      "Não escreva \"adulterado\": o laudo descreve a divergência; a conclusão cabe à perícia oficial.",
+      "Se a identificação não pôde ser verificada, o resultado é INCONCLUSIVO, nunca APROVADO."
+    ],
+    "frase_conforme": "Números de quadro e motor localizados nos pontos indicados pelo fabricante, legíveis e coincidentes com o documento apresentado.",
+    "frase_achado": "Constatada [divergência/ilegibilidade/intervenção visível na superfície] na gravação do [quadro/motor]. Achado registrado sem conclusão; recomenda-se exame por perícia oficial.",
+    "limite": "A vistoria cautelar não afirma adulteração nem autenticidade; faz conferência visual e não destrutiva. A conclusão cabe à perícia oficial."
+  },
+  {
+    "codigo": "PC-MOTO-02",
+    "sistema": "MOTO",
+    "itens": [
+      "MOTO-02"
+    ],
+    "titulo": "Quadro da moto",
+    "subtitulo": "Soldas, trincas, pintura e alinhamento",
+    "vista": "moto",
+    "zonas": [
+      "quadro",
+      "balanca",
+      "garfo"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Coluna de direção, tubos/vigas principais, berço do motor, suportes de pedaleira, subquadro traseiro e fixação da balança. Boa parte fica visível removendo o banco e olhando por baixo.",
+    "por_que_importa": "O quadro é a estrutura de sustentação da moto, equivalente às longarinas de um carro. Solda fora de padrão, trinca, dobra ou realinhamento comprometem estabilidade e segurança. Repintura do quadro, inteiro ou em trechos, pode encobrir reparo.",
+    "de_fabrica": [
+      "Cordões de solda regulares, simétricos entre lados, com a mesma pintura do quadro.",
+      "Pintura uniforme, sem escorrimento, massa ou diferença de tonalidade entre trechos.",
+      "Tubos retos, sem amassados, dobras ou ondulações.",
+      "Rodas dianteira e traseira no mesmo plano, vistas por trás."
+    ],
+    "sinais": [
+      {
+        "sinal": "Riscos ou pintura lascada no quadro, sem deformação.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Repintura do quadro inteiro ou de trechos, sem outros sinais.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Subquadro traseiro aparafusado empenado ou com reparo.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Solda fora de padrão, emenda ou reforço no quadro principal.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Trinca, dobra ou amassado na coluna de direção ou nos tubos principais.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Rodas visivelmente fora do mesmo plano com componentes íntegros.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Remova o banco (se possível sem ferramenta) e ilumine todo o quadro.",
+      "Examine a coluna de direção e as junções soldadas, comparando os lados.",
+      "Procure trincas finas na pintura em volta de soldas e suportes.",
+      "Olhe por trás, com a moto reta: rodas no mesmo plano e guidão centralizado.",
+      "Registre repintura, reparo ou deformação no mapa da moto."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Medidor de espessura Fe/NFe"
+    ],
+    "foto": "Visão geral do quadro sem o banco e close do achado (solda, trinca, reparo) com referência de posição.",
+    "armadilhas": [
+      "Quadros de alumínio costumam ter soldas largas aparentes de fábrica; compare com o lado simétrico.",
+      "Suportes de acessórios (bagageiro, protetor) instalados depois não são reparo estrutural, mas descreva."
+    ],
+    "frase_conforme": "Quadro sem sinais visíveis de solda fora de padrão, trincas, deformações ou repintura nas áreas acessíveis sem desmontagem.",
+    "frase_achado": "Constatado(a) [solda/emenda/trinca/deformação/repintura] no quadro, na região [coluna de direção/tubo/berço/subquadro]. Achado em estrutura de sustentação.",
+    "limite": "Sem desmontagem e equipamento de medição de quadro, não é possível confirmar o alinhamento geométrico nem trincas internas."
+  },
+  {
+    "codigo": "PC-MOTO-03",
+    "sistema": "MOTO",
+    "itens": [
+      "MOTO-03",
+      "MOTO-04"
+    ],
+    "titulo": "Garfo, mesas e caixa de direção",
+    "subtitulo": "Retentores, tubos, alinhamento e rolamentos",
+    "vista": "moto",
+    "zonas": [
+      "garfo",
+      "quadro",
+      "balanca"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Suspensão dianteira: tubos e bainhas do garfo, retentores, mesas superior e inferior, caixa de direção (rolamentos na coluna do quadro) e articulação da balança traseira.",
+    "por_que_importa": "Impacto frontal costuma empenar o garfo, torcer as mesas e marcar os rolamentos da caixa de direção. Esses componentes definem estabilidade e frenagem; vazamento e folga são itens de segurança. Mesa desalinhada é forte indício de impacto.",
+    "de_fabrica": [
+      "Tubos do garfo paralelos, lisos, sem riscos ou pontos de corrosão.",
+      "Retentores secos, sem óleo escorrendo pelas bainhas.",
+      "Guidão centralizado com a roda reta; mesas alinhadas.",
+      "Direção gira livre de batente a batente, sem pontos \"marcados\"."
+    ],
+    "sinais": [
+      {
+        "sinal": "Umidade leve de óleo no retentor, sem escorrimento.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Retentor vazando ou tubo riscado/com corrosão na área de trabalho.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Folga na caixa de direção ou na balança.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Direção com ponto marcado (trava no centro) ao girar.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Guidão fora de esquadro com roda reta, ou mesa desalinhada.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Tubo do garfo empenado ou bainha trincada.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Com a moto no cavalete, olhe os tubos de frente: devem estar paralelos.",
+      "Passe o dedo nos retentores e examine as bainhas procurando óleo.",
+      "Alinhe a roda reta e confira se o guidão está no esquadro.",
+      "Gire a direção lentamente de batente a batente e sinta pontos marcados.",
+      "Com a roda suspensa, force o garfo para frente/trás e a roda traseira de lado."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Cavalete",
+      "Pano limpo"
+    ],
+    "foto": "Frente da moto com garfo e guidão enquadrados e close do retentor vazando ou do tubo riscado.",
+    "armadilhas": [
+      "Guidão desalinhado pode ser só guidão torto ou solto na abraçadeira; confira as mesas antes de apontar impacto.",
+      "Óleo no retentor pode vir do lubrificante de corrente ou de limpeza; limpe e observe após comprimir o garfo."
+    ],
+    "frase_conforme": "Garfo sem vazamentos nos retentores, tubos sem riscos, guidão centralizado e direção girando sem folga ou ponto marcado.",
+    "frase_achado": "Constatado(a) [vazamento no retentor/tubo riscado/folga/ponto marcado/desalinhamento] no conjunto dianteiro. Recomenda-se avaliação em oficina especializada.",
+    "limite": "Não é possível medir empeno do garfo nem desgaste interno dos rolamentos sem desmontagem e instrumentos."
+  },
+  {
+    "codigo": "PC-MOTO-04",
+    "sistema": "MOTO",
+    "itens": [
+      "MOTO-08",
+      "MOTO-05"
+    ],
+    "titulo": "Sinais de queda e kit de transmissão",
+    "subtitulo": "Pedaleiras, manetes, carenagens, corrente e coroa",
+    "vista": "moto",
+    "zonas": [
+      "transmissao",
+      "motor-moto",
+      "garfo",
+      "rodas-moto"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Pontos de contato em queda: manetes, ponteiras do guidão, pedaleiras, pedais de câmbio e freio, retrovisores, carenagens, tampas do motor e escapamento. Kit de transmissão: pinhão, corrente e coroa.",
+    "por_que_importa": "Queda deixa marcas típicas agrupadas num mesmo lado e orienta a inspeção de garfo, mesas e quadro. O kit de transmissão mostra manutenção e uso; desgaste excessivo afeta segurança e gera custo imediato.",
+    "de_fabrica": [
+      "Manetes, ponteiras e pedaleiras íntegras e iguais entre os lados.",
+      "Carenagens sem riscos profundos, trincas ou fixações quebradas.",
+      "Dentes da coroa e do pinhão com perfil simétrico, sem ponta afiada.",
+      "Corrente lubrificada, com folga uniforme em toda a volta."
+    ],
+    "sinais": [
+      {
+        "sinal": "Riscos leves em ponteira ou manete, sem deformação.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Riscos agrupados num mesmo lado: manete, pedaleira, escapamento e carenagem.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Manete ou pedal torto, carenagem trincada ou fixação quebrada.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Coroa com dentes pontudos ou corrente com folga irregular/elos travados.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Tampa lateral do motor raspada ou trincada, com vazamento.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Sinais de queda somados a garfo, mesas ou quadro alterados.",
+        "nivel": "N3"
+      }
+    ],
+    "como_verificar": [
+      "Percorra o lado esquerdo e depois o direito: manete, ponteira, retrovisor, pedaleira, pedal.",
+      "Examine carenagens, tampas do motor e escapamento com lanterna rasante.",
+      "Agrupe no mapa os sinais do mesmo lado e relacione com o conjunto dianteiro.",
+      "Gire a roda traseira e verifique a folga da corrente em vários pontos.",
+      "Observe os dentes da coroa e tente afastar a corrente da coroa na parte traseira."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Cavalete",
+      "Régua ou trena",
+      "Luvas"
+    ],
+    "foto": "Lateral inteira do lado com sinais de queda e close da coroa mostrando o perfil dos dentes.",
+    "armadilhas": [
+      "Tombo com a moto parada deixa riscos leves e localizados; não confunda com queda em movimento, mas registre.",
+      "Manete ou retrovisor novo de um lado pode ser só personalização; descreva sem concluir queda."
+    ],
+    "frase_conforme": "Não foram constatados sinais de queda em manetes, pedaleiras, carenagens e escapamento; kit de transmissão com desgaste compatível com o uso.",
+    "frase_achado": "Constatados riscos/deformações em [componentes] no lado [E/D], compatíveis com contato com o solo. [Kit de transmissão com desgaste acentuado/folga irregular.]",
+    "limite": "Não é possível afirmar quando ou como ocorreu o contato com o solo, nem a extensão de danos internos sem desmontagem."
+  },
+  {
+    "codigo": "PC-UTL-01",
+    "sistema": "UTL",
+    "itens": [
+      "UTL-01"
+    ],
+    "titulo": "Chassi longarina",
+    "subtitulo": "Soldas, reforços, emendas e trincas",
+    "vista": "chassi",
+    "zonas": [
+      "longarina-chassi",
+      "travessa",
+      "suportes"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Duas longarinas paralelas de ponta a ponta sob picapes, utilitários e caminhões leves: da ponteira dianteira (suporte do para-choque) até a traseira (engate), incluindo curvas sobre os eixos e pontos de suporte.",
+    "por_que_importa": "No chassi longarina, cabine e caçamba se apoiam nas longarinas: elas são a estrutura de sustentação. Solda, emenda ou reforço indicam dano por impacto, sobrecarga ou fadiga. A gravação do número do chassi costuma ficar numa das longarinas.",
+    "de_fabrica": [
+      "Longarinas retas, simétricas, com proteção anticorrosiva e pintura uniformes.",
+      "Soldas de fábrica regulares, apenas nas junções previstas com travessas e suportes.",
+      "Furos e rebites de fábrica alinhados, sem furos novos sem função.",
+      "Sem chapas sobrepostas ou reforços aparafusados/soldados fora de projeto."
+    ],
+    "sinais": [
+      {
+        "sinal": "Corrosão superficial sem perda de material.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Repintura ou aplicação recente de proteção em apenas um trecho.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Corrosão com perda de material ou furos na longarina.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Solda fora de padrão, emenda ou chapa de reforço aplicada.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Trinca junto a suportes, furos ou curvas sobre o eixo.",
+        "nivel": "N4"
+      },
+      {
+        "sinal": "Longarina torta, amassada ou com diferença visível entre lados.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo seguro (elevador ou rampa), percorra cada longarina de ponta a ponta.",
+      "Ilumine em ângulo as faces interna, externa e inferior.",
+      "Procure cordões de solda, chapas sobrepostas e trechos com pintura diferente.",
+      "Examine com atenção as curvas sobre os eixos e os pontos de suporte.",
+      "Compare longarina esquerda e direita e fotografe todo achado com referência."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Elevador ou rampa",
+      "Fita métrica"
+    ],
+    "foto": "Trecho da longarina com o achado em close e foto de contexto mostrando a posição em relação ao eixo ou à roda.",
+    "armadilhas": [
+      "Proteção emborrachada espessa pode encobrir tudo; registre o trecho como não verificável em vez de conforme.",
+      "Alguns modelos têm suportes soldados de fábrica para acessórios; compare com o lado oposto."
+    ],
+    "frase_conforme": "Longarinas do chassi sem sinais visíveis de solda fora de padrão, emendas, reforços ou trincas nas áreas acessíveis sem desmontagem.",
+    "frase_achado": "Constatado(a) [solda/emenda/reforço/trinca/deformação] na longarina [E/D] do chassi, região [dianteira/central/traseira]. Achado em estrutura de sustentação.",
+    "limite": "Sem remover carroceria, protetores e revestimentos, não é possível inspecionar integralmente as longarinas nem medir o alinhamento do chassi."
+  },
+  {
+    "codigo": "PC-UTL-02",
+    "sistema": "UTL",
+    "itens": [
+      "UTL-02",
+      "UTL-03"
+    ],
+    "titulo": "Travessas, suportes e caçamba/baú",
+    "subtitulo": "Fixação da carroceria de carga e deformações",
+    "vista": "chassi",
+    "zonas": [
+      "travessa",
+      "suportes",
+      "cacamba"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Travessas entre as longarinas, suportes (coxins) da cabine e da caçamba/baú, parafusos de fixação, assoalho da caçamba e alinhamento entre cabine e caçamba, vistos por cima e por baixo.",
+    "por_que_importa": "Sobrecarga e impactos transmitem esforço a suportes e travessas. Trincas, reforços ou parafusos faltando indicam uso severo ou reparo. Caçamba desalinhada com a cabine pode revelar colisão traseira ou chassi deformado.",
+    "de_fabrica": [
+      "Travessas retas, com soldas ou rebites de fábrica íntegros.",
+      "Todos os parafusos e coxins de fixação presentes e iguais entre si.",
+      "Vão uniforme entre cabine e caçamba/baú, dos dois lados.",
+      "Assoalho da caçamba sem ondulações profundas nem reparos soldados."
+    ],
+    "sinais": [
+      {
+        "sinal": "Assoalho da caçamba com riscos e amassados leves de uso.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Parafuso ou coxim de fixação faltando, trocado ou improvisado.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Caçamba/baú desalinhado com a cabine, vão irregular.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Assoalho da caçamba com deformação forte ou reparo soldado.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Suporte trincado, reforçado ou com solda fora de padrão.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Travessa trincada, emendada ou deformada.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Por fora, olhe o vão cabine x caçamba dos dois lados e de cima.",
+      "Examine o assoalho da caçamba/baú com lanterna rasante.",
+      "Por baixo, percorra cada travessa e cada suporte procurando trincas e soldas.",
+      "Confira a presença e o estado de parafusos e coxins de fixação.",
+      "Registre os achados e cruze com a inspeção das longarinas."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Espelho de inspeção",
+      "Elevador ou rampa"
+    ],
+    "foto": "Vão cabine x caçamba com a irregularidade visível e close do suporte ou da travessa com o achado.",
+    "armadilhas": [
+      "Protetor de caçamba pode esconder deformações; se não sai sem ferramenta, registre a limitação.",
+      "Baú ou carroceria de implementador têm fixações próprias; confira o registro no documento e não confunda com reparo."
+    ],
+    "frase_conforme": "Travessas, suportes e fixações da caçamba/baú sem trincas, reforços ou peças faltantes visíveis; alinhamento cabine x caçamba uniforme.",
+    "frase_achado": "Constatado(a) [trinca/reforço/parafuso faltante/desalinhamento] em [travessa/suporte/fixação da caçamba], região [x]. [Ver achados das longarinas.]",
+    "limite": "Sem remover caçamba, baú ou protetores, não é possível inspecionar integralmente os suportes nem as faces superiores das travessas."
+  },
+  {
+    "codigo": "PC-UTL-03",
+    "sistema": "UTL",
+    "itens": [
+      "UTL-05",
+      "UTL-07",
+      "UTL-04"
+    ],
+    "titulo": "Suspensão de carga e modificações",
+    "subtitulo": "Feixes de mola, calços e alterações sem registro",
+    "vista": "chassi",
+    "zonas": [
+      "feixe-mola",
+      "longarina-chassi",
+      "suportes"
+    ],
+    "capitulo": 12,
+    "onde_fica": "Feixes de mola e seus grampos, jumelos e suportes na longarina, amortecedores traseiros, batentes, engate de reboque e qualquer alteração de suspensão, rodas, pneus ou carroceria.",
+    "por_que_importa": "Molas quebradas, calços e suspensão alterada revelam sobrecarga ou modificação. Alterar característica exige autorização prévia, inspeção e registro no documento [VERIFICAR Resolução CONTRAN vigente sobre modificações]. Sem isso, há irregularidade.",
+    "de_fabrica": [
+      "Feixe com todas as lâminas inteiras, alinhadas e com grampos originais.",
+      "Altura igual dos dois lados; veículo nivelado conforme especificação, sem carga.",
+      "Sem calços entre mola e eixo nem lâminas adicionais fora de projeto.",
+      "Rodas, pneus e suspensão conforme especificação do fabricante e documento."
+    ],
+    "sinais": [
+      {
+        "sinal": "Lâminas com corrosão superficial ou buchas de jumelo ressecadas.",
+        "nivel": "N1"
+      },
+      {
+        "sinal": "Engate instalado sem registro, quando exigido [VERIFICAR norma vigente].",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Amortecedor vazando ou batente destruído.",
+        "nivel": "N2"
+      },
+      {
+        "sinal": "Lâmina de mola quebrada, deslocada ou grampo solto.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Calço, lâmina extra ou suspensão elevada/rebaixada sem registro no documento.",
+        "nivel": "N3"
+      },
+      {
+        "sinal": "Modificação estrutural (entre-eixos, chassi alongado) sem registro.",
+        "nivel": "N4"
+      }
+    ],
+    "como_verificar": [
+      "Com o veículo vazio em piso plano, compare a altura dos dois lados e o nivelamento.",
+      "Por baixo, conte e examine as lâminas de cada feixe e os grampos.",
+      "Procure calços entre mola e eixo e lâminas adicionais.",
+      "Verifique amortecedores, batentes e o engate, se houver.",
+      "Compare suspensão, rodas e pneus com o documento e a especificação do fabricante."
+    ],
+    "ferramentas": [
+      "Lanterna",
+      "Fita métrica",
+      "Elevador ou rampa"
+    ],
+    "foto": "Feixe de mola inteiro com o achado (lâmina quebrada, calço) e foto lateral do veículo mostrando a altura.",
+    "armadilhas": [
+      "Veículo com peso na caçamba parece rebaixado atrás; inspecione vazio.",
+      "Muitos utilitários saem de fábrica com a traseira mais alta para compensar carga; compare com a especificação."
+    ],
+    "frase_conforme": "Feixes de mola e suspensão de carga sem lâminas quebradas, calços ou alterações visíveis; características compatíveis com o documento apresentado.",
+    "frase_achado": "Constatado(a) [lâmina quebrada/calço/suspensão alterada/engate] em [posição]. [Alteração não consta do documento apresentado; recomenda-se verificar a regularização junto ao órgão de trânsito.]",
+    "limite": "A vistoria não certifica a regularidade de modificações nem a capacidade de carga; verifica a compatibilidade visual com o documento."
+  }
+]

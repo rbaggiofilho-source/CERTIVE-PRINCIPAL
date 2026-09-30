@@ -1,0 +1,204 @@
+{
+  "versao": "1.0",
+  "niveis": [
+    {"id": "N0", "nome": "Conforme", "cor": "#2E9E5B", "definicao": "Sem anormalidade observável."},
+    {"id": "N1", "nome": "Observação", "cor": "#6B8FB3", "definicao": "Desgaste natural, estético leve ou manutenção de rotina."},
+    {"id": "N2", "nome": "Apontamento", "cor": "#E0A100", "definicao": "Repintura, peça de revestimento substituída ou reparada, manutenção necessária em breve."},
+    {"id": "N3", "nome": "Apontamento relevante", "cor": "#E0661B", "definicao": "Reparo que indica impacto significativo, reparo em área de absorção, item de segurança fora de condição ou falha funcional relevante."},
+    {"id": "N4", "nome": "Crítico", "cor": "#C62828", "definicao": "Dano ou reparo em estrutura de sustentação, indícios de enchente ou incêndio, divergência na identificação veicular."}
+  ],
+  "classificacao": [
+    {"id": "INCONCLUSIVO", "regra": "Algum item de identificação não pôde ser verificado.", "cor": "#5A6472"},
+    {"id": "REPROVADO", "regra": "Pelo menos um achado N4.", "cor": "#C62828"},
+    {"id": "APROVADO COM APONTAMENTOS", "regra": "Pelo menos um achado N2 ou N3 (N3 em destaque).", "cor": "#E0A100"},
+    {"id": "APROVADO", "regra": "Somente achados N0 ou N1.", "cor": "#2E9E5B"}
+  ],
+  "sistemas": [
+    {
+      "id": "DOC", "n": 1, "nome": "Documentação e histórico",
+      "objetivo": "Confirmar que o veículo apresentado é o do documento e levantar o histórico antes de olhar a lataria.",
+      "itens": [
+        {"id": "DOC-01", "item": "CRLV-e apresentado e legível", "verificar": "Documento digital ou impresso, dados completos, exercício de licenciamento.", "foto": true, "ficha": "PC-DOC-01"},
+        {"id": "DOC-02", "item": "Placa, chassi e RENAVAM do documento anotados", "verificar": "Transcrever os três para conferência cruzada no sistema IDV.", "foto": false},
+        {"id": "DOC-03", "item": "Marca/modelo, ano, cor e combustível conferem com o veículo", "verificar": "Cor e combustível divergentes do documento exigem registro.", "foto": false},
+        {"id": "DOC-04", "item": "Consulta de restrições (judicial, administrativa, roubo/furto)", "verificar": "Fonte oficial ou provedor contratado; anexar comprovante com data e hora.", "foto": false, "ficha": "PC-DOC-02"},
+        {"id": "DOC-05", "item": "Gravame / alienação fiduciária", "verificar": "Registro ativo ou baixado; anotar a instituição.", "foto": false},
+        {"id": "DOC-06", "item": "Histórico de leilão e sinistro", "verificar": "Passagem por leilão, indenização integral, classificação de dano quando disponível.", "foto": false, "ficha": "PC-DOC-03"},
+        {"id": "DOC-07", "item": "Débitos (IPVA, licenciamento, multas)", "verificar": "Informar ao cliente; não é impeditivo técnico, mas é risco do negócio.", "foto": false},
+        {"id": "DOC-08", "item": "Recall pendente", "verificar": "Consulta pelo chassi no canal oficial do fabricante/governo.", "foto": false},
+        {"id": "DOC-09", "item": "Manual, chave reserva e registros de manutenção", "verificar": "Coerência de datas e quilometragem nas revisões.", "foto": true},
+        {"id": "DOC-10", "item": "Quilometragem declarada x registros", "verificar": "Comparar painel, revisões, etiquetas de troca de óleo e consultas.", "foto": true, "ficha": "PC-INT-04"}
+      ]
+    },
+    {
+      "id": "IDV", "n": 2, "nome": "Identificação veicular",
+      "objetivo": "Conferir, elemento por elemento, se o veículo é o que o documento diz. Divergência é registrada, nunca concluída como adulteração.",
+      "itens": [
+        {"id": "IDV-01", "item": "VIN gravado no chassi/monobloco localizado e legível", "verificar": "Local previsto pelo fabricante; 17 caracteres; confere com o documento.", "foto": true, "critico": true, "ficha": "PC-IDV-01"},
+        {"id": "IDV-02", "item": "Região da gravação sem sinais de intervenção", "verificar": "Superfície, pintura e acabamento da área coerentes com o entorno.", "foto": true, "critico": true, "ficha": "PC-IDV-02"},
+        {"id": "IDV-03", "item": "Etiquetas de identificação (autodestrutivas) presentes e íntegras", "verificar": "Coluna, cofre, assoalho conforme o fabricante; conferir sequência.", "foto": true, "critico": true, "ficha": "PC-IDV-03"},
+        {"id": "IDV-04", "item": "Gravação do VIN nos vidros", "verificar": "Presença e coerência da gravação em cada vidro; vidro sem gravação é registrado.", "foto": true, "ficha": "PC-IDV-04"},
+        {"id": "IDV-05", "item": "Número do motor localizado e conferido", "verificar": "Local do fabricante; confere com cadastro quando disponível.", "foto": true, "critico": true, "ficha": "PC-IDV-05"},
+        {"id": "IDV-06", "item": "Plaqueta/etiqueta do fabricante (ano, modelo, pintura)", "verificar": "Coerência com o documento; ausência é registrada.", "foto": true},
+        {"id": "IDV-07", "item": "Placas: padrão, fixação e lacre/QR Code", "verificar": "Padrão vigente, legibilidade, QR Code quando aplicável.", "foto": true, "ficha": "PC-IDV-06"},
+        {"id": "IDV-08", "item": "Ano de fabricação coerente com os componentes datados", "verificar": "Vidros, cintos, pneus originais e etiquetas compatíveis com o ano.", "foto": false},
+        {"id": "IDV-09", "item": "Conferência cruzada concluída", "verificar": "Todos os elementos convergem? Se algum não pôde ser verificado, a classificação é INCONCLUSIVO.", "foto": false, "critico": true}
+      ]
+    },
+    {
+      "id": "EST", "n": 3, "nome": "Estrutura",
+      "objetivo": "Encontrar reparos e deformações nas peças que sustentam o veículo e absorvem impacto.",
+      "itens": [
+        {"id": "EST-01", "item": "Longarinas dianteiras (ponteiras e corpo)", "verificar": "Pontos de solda de fábrica, vincos, cortes, massa, pintura fora do padrão.", "foto": true, "critico": true, "ficha": "PC-EST-01"},
+        {"id": "EST-02", "item": "Painel frontal (quadro do radiador) e travessa", "verificar": "Fixação original (solda ponto ou parafuso), alinhamento, peça nova.", "foto": true, "ficha": "PC-EST-02"},
+        {"id": "EST-03", "item": "Torres de suspensão dianteiras", "verificar": "Simetria, soldas, rugas, selador e pintura.", "foto": true, "critico": true, "ficha": "PC-EST-03"},
+        {"id": "EST-04", "item": "Caixas de roda dianteiras e aventais", "verificar": "Vincos, emendas, massa, desalinhamento.", "foto": true, "ficha": "PC-EST-04"},
+        {"id": "EST-05", "item": "Painel corta-fogo", "verificar": "Deformações, soldas e selador fora de padrão.", "foto": true, "critico": true, "ficha": "PC-EST-05"},
+        {"id": "EST-06", "item": "Colunas A, B e C", "verificar": "Emendas, solda contínua, massa sob borrachas e acabamentos.", "foto": true, "critico": true, "ficha": "PC-EST-06"},
+        {"id": "EST-07", "item": "Soleiras (caixas de ar)", "verificar": "Amassados, emendas, pontos de macaco deformados, corrosão.", "foto": true, "critico": true, "ficha": "PC-EST-07"},
+        {"id": "EST-08", "item": "Assoalho e túnel central", "verificar": "Vincos, soldas, remendos, corrosão perfurante.", "foto": true, "critico": true, "ficha": "PC-EST-08"},
+        {"id": "EST-09", "item": "Longarinas traseiras e assoalho do porta-malas", "verificar": "Ondulações, emendas, estepe deformado, selador fora de padrão.", "foto": true, "critico": true, "ficha": "PC-EST-09"},
+        {"id": "EST-10", "item": "Painel traseiro (saia) e travessa traseira", "verificar": "Solda, massa e alinhamento com lanternas e tampa.", "foto": true, "ficha": "PC-EST-10"},
+        {"id": "EST-11", "item": "Teto e colunas internas (sob o forro)", "verificar": "Ondulação, emenda, repintura do teto.", "foto": true, "critico": true, "ficha": "PC-EST-11"},
+        {"id": "EST-12", "item": "Pontos de fixação da suspensão traseira", "verificar": "Deformação, solda, suportes desalinhados.", "foto": true, "critico": true},
+        {"id": "EST-13", "item": "Corrosão estrutural", "verificar": "Diferenciar corrosão superficial de perfurante em peça estrutural.", "foto": true, "critico": true, "ficha": "PC-EST-12"}
+      ]
+    },
+    {
+      "id": "CAR", "n": 4, "nome": "Carroceria e pintura",
+      "objetivo": "Mapear peça por peça o que é original, repintado, reparado ou substituído.",
+      "itens": [
+        {"id": "CAR-01", "item": "Vãos e faceamento entre peças", "verificar": "Folgas uniformes e simétricas nos dois lados.", "foto": true, "ficha": "PC-CAR-01"},
+        {"id": "CAR-02", "item": "Parafusos de fixação (paralamas, portas, capô, tampa)", "verificar": "Pintura intacta na cabeça do parafuso; marcas de ferramenta.", "foto": true, "ficha": "PC-CAR-02"},
+        {"id": "CAR-03", "item": "Medição de espessura peça a peça", "verificar": "Grade de medição, comparação entre peças do próprio veículo.", "foto": true, "ficha": "PC-CAR-03"},
+        {"id": "CAR-04", "item": "Diferença de tonalidade e textura", "verificar": "Luz rasante e ângulos; casca de laranja, brilho diferente.", "foto": true, "ficha": "PC-CAR-04"},
+        {"id": "CAR-05", "item": "Overspray (névoa de tinta) em borrachas, frisos e vidros", "verificar": "Bordas, borrachas, plásticos, emblemas.", "foto": true, "ficha": "PC-CAR-05"},
+        {"id": "CAR-06", "item": "Massa, ondulação e marcas de lixa", "verificar": "Reflexo de linhas retas na lataria; tato com a palma da mão.", "foto": true, "ficha": "PC-CAR-06"},
+        {"id": "CAR-07", "item": "Bordas e dobras internas das peças móveis", "verificar": "Selador de fábrica x selador aplicado à mão; dobra da chapa.", "foto": true, "ficha": "PC-CAR-07"},
+        {"id": "CAR-08", "item": "Para-choques e fixações plásticas", "verificar": "Presilhas quebradas, reparo plástico, repintura.", "foto": true, "ficha": "PC-CAR-08"},
+        {"id": "CAR-09", "item": "Portas: dobradiças e batentes", "verificar": "Dobradiças com marca de ferramenta, batente reposicionado.", "foto": true},
+        {"id": "CAR-10", "item": "Capô e tampa traseira: dobradiças e fechaduras", "verificar": "Alinhamento, parafusos, amortecedores.", "foto": true},
+        {"id": "CAR-11", "item": "Emblemas, frisos e adesivos", "verificar": "Posição, cola, ausência sem justificativa.", "foto": false},
+        {"id": "CAR-12", "item": "Granizo, riscos e amassados sem pintura", "verificar": "Luz rasante; registrar como N1 ou N2 conforme extensão.", "foto": true}
+      ]
+    },
+    {
+      "id": "VID", "n": 5, "nome": "Vidros, iluminação e sinalização",
+      "objetivo": "Conferir originalidade, datas e funcionamento dos itens de visibilidade.",
+      "itens": [
+        {"id": "VID-01", "item": "Para-brisa: trincas, delaminação e marcação", "verificar": "Trincas no campo de visão, marca do fabricante, data.", "foto": true, "ficha": "PC-VID-01"},
+        {"id": "VID-02", "item": "Datas dos vidros coerentes entre si e com o ano", "verificar": "Vidro com data divergente indica substituição — investigar o motivo.", "foto": true, "ficha": "PC-VID-02"},
+        {"id": "VID-03", "item": "Vidros laterais e traseiro", "verificar": "Marca, data, gravação, película dentro do permitido.", "foto": true},
+        {"id": "VID-04", "item": "Faróis: lente, fixação, umidade e data", "verificar": "Farol trocado de um só lado indica impacto frontal lateral.", "foto": true, "ficha": "PC-VID-03"},
+        {"id": "VID-05", "item": "Lanternas, luz de freio e ré", "verificar": "Funcionamento e originalidade.", "foto": false},
+        {"id": "VID-06", "item": "Setas, pisca-alerta e luz de placa", "verificar": "Funcionamento.", "foto": false},
+        {"id": "VID-07", "item": "Retrovisores e limpadores", "verificar": "Regulagem, espelho, palhetas, esguicho.", "foto": false},
+        {"id": "VID-08", "item": "Buzina", "verificar": "Funcionamento.", "foto": false}
+      ]
+    },
+    {
+      "id": "RSP", "n": 6, "nome": "Rodas, pneus, suspensão e direção",
+      "objetivo": "Ler o que o desgaste dos pneus e a suspensão contam sobre o uso e sobre impactos.",
+      "itens": [
+        {"id": "RSP-01", "item": "Profundidade de sulco (4 pneus + estepe)", "verificar": "Medir com profundímetro; TWI é o limite legal.", "foto": true, "ficha": "PC-RSP-01"},
+        {"id": "RSP-02", "item": "DOT: idade dos pneus", "verificar": "Semana e ano de fabricação; pneus desiguais no mesmo eixo.", "foto": true, "ficha": "PC-RSP-02"},
+        {"id": "RSP-03", "item": "Desgaste irregular", "verificar": "Borda interna/externa, centro, escamado — relacionar com geometria e suspensão.", "foto": true, "ficha": "PC-RSP-03"},
+        {"id": "RSP-04", "item": "Rodas: empeno, trinca, solda, reparo", "verificar": "Face e aro interno.", "foto": true},
+        {"id": "RSP-05", "item": "Amortecedores: vazamento e batentes", "verificar": "Óleo no corpo, coifas, teste de balanço.", "foto": true},
+        {"id": "RSP-06", "item": "Bandejas, pivôs, buchas e terminais", "verificar": "Folgas, buchas rachadas, bandeja empenada.", "foto": true, "ficha": "PC-RSP-04"},
+        {"id": "RSP-07", "item": "Caixa de direção e coifas", "verificar": "Vazamento, folga, coifa rasgada.", "foto": true},
+        {"id": "RSP-08", "item": "Geometria aparente (roda alinhada ao para-lama)", "verificar": "Posição da roda no vão dos dois lados; cambagem visível.", "foto": true},
+        {"id": "RSP-09", "item": "Estepe, macaco, chave de roda e triângulo", "verificar": "Presença e estado (triângulo é obrigatório).", "foto": true}
+      ]
+    },
+    {
+      "id": "MOT", "n": 7, "nome": "Motor, arrefecimento e alimentação",
+      "objetivo": "Avaliar visualmente e em funcionamento o conjunto motor, sem desmontagem.",
+      "itens": [
+        {"id": "MOT-01", "item": "Partida a frio e marcha lenta", "verificar": "Motor frio ao toque antes da partida; ruídos e estabilidade.", "foto": false, "ficha": "PC-MOT-01"},
+        {"id": "MOT-02", "item": "Vazamentos de óleo", "verificar": "Tampa de válvulas, cárter, retentores; distinguir suor de vazamento ativo.", "foto": true, "ficha": "PC-MOT-02"},
+        {"id": "MOT-03", "item": "Óleo: nível, aspecto e tampa de abastecimento", "verificar": "Borra, emulsão (\"maionese\"), cheiro de combustível.", "foto": true, "ficha": "PC-MOT-03"},
+        {"id": "MOT-04", "item": "Arrefecimento: nível, cor e reservatório", "verificar": "Óleo no líquido, ferrugem, reservatório sujo, mangueiras.", "foto": true, "ficha": "PC-MOT-04"},
+        {"id": "MOT-05", "item": "Fumaça no escapamento", "verificar": "Azulada, branca persistente, preta.", "foto": false, "ficha": "PC-MOT-05"},
+        {"id": "MOT-06", "item": "Correias e acessórios", "verificar": "Trincas, ruído, tensor.", "foto": true},
+        {"id": "MOT-07", "item": "Coxins do motor e câmbio", "verificar": "Borracha rachada, vibração excessiva ao engatar.", "foto": false},
+        {"id": "MOT-08", "item": "Radiador, condensador e eletroventilador", "verificar": "Aletas amassadas (impacto frontal), suportes, funcionamento.", "foto": true},
+        {"id": "MOT-09", "item": "Sistema de combustível e GNV", "verificar": "Cheiro, vazamentos; GNV exige registro no documento e selo/inspeção válidos.", "foto": true},
+        {"id": "MOT-10", "item": "Escapamento e catalisador", "verificar": "Vazamentos, suportes, catalisador presente.", "foto": true}
+      ]
+    },
+    {
+      "id": "TRF", "n": 8, "nome": "Transmissão e freios",
+      "objetivo": "Checar embreagem, câmbio e o conjunto de freios quanto a desgaste e segurança.",
+      "itens": [
+        {"id": "TRF-01", "item": "Embreagem: ponto de acionamento e patinação", "verificar": "Ponto alto indica desgaste; teste de patinação.", "foto": false, "ficha": "PC-TRF-01"},
+        {"id": "TRF-02", "item": "Câmbio manual: engates e ruídos", "verificar": "Arranhando, saltando marcha, ruído de rolamento.", "foto": false},
+        {"id": "TRF-03", "item": "Câmbio automático/CVT: trocas e trancos", "verificar": "Trancos, demora no engate, patinação; nível/cor do fluido quando acessível.", "foto": false, "ficha": "PC-TRF-02"},
+        {"id": "TRF-04", "item": "Homocinéticas e coifas", "verificar": "Estalos em curva, coifa rasgada com graxa espalhada.", "foto": true},
+        {"id": "TRF-05", "item": "Discos e pastilhas", "verificar": "Degrau no disco, espessura da pastilha, vibração na frenagem.", "foto": true, "ficha": "PC-TRF-03"},
+        {"id": "TRF-06", "item": "Fluido de freio: nível e aspecto", "verificar": "Nível, cor escura, vazamentos em flexíveis.", "foto": true},
+        {"id": "TRF-07", "item": "Freio de estacionamento", "verificar": "Segura o veículo em rampa; curso da alavanca.", "foto": false},
+        {"id": "TRF-08", "item": "ABS e controle de estabilidade", "verificar": "Luzes acendem na partida e apagam.", "foto": false}
+      ]
+    },
+    {
+      "id": "ELE", "n": 9, "nome": "Elétrica, eletrônica e diagnóstico",
+      "objetivo": "Ler o que a eletrônica registra e conferir o funcionamento dos sistemas elétricos.",
+      "itens": [
+        {"id": "ELE-01", "item": "Painel: luzes de advertência na partida", "verificar": "Todas acendem no teste e apagam após a partida.", "foto": true, "ficha": "PC-ELE-01"},
+        {"id": "ELE-02", "item": "Leitura com scanner OBD2", "verificar": "Códigos ativos, pendentes e históricos; monitores de prontidão.", "foto": true, "ficha": "PC-ELE-02"},
+        {"id": "ELE-03", "item": "Bateria: tensão, data e bornes", "verificar": "Tensão em repouso e na partida; corrosão; data de fabricação.", "foto": true, "ficha": "PC-ELE-03"},
+        {"id": "ELE-04", "item": "Sistema de carga (alternador)", "verificar": "Tensão com motor ligado e com cargas acionadas.", "foto": false},
+        {"id": "ELE-05", "item": "Chicotes e conectores", "verificar": "Emendas amadoras, fita isolante, oxidação (sinal de enchente).", "foto": true, "ficha": "PC-ELE-04"},
+        {"id": "ELE-06", "item": "Ar-condicionado e ventilação", "verificar": "Temperatura na saída, compressor, cheiro.", "foto": false},
+        {"id": "ELE-07", "item": "Vidros e travas elétricos, retrovisores elétricos", "verificar": "Funcionamento em todas as portas.", "foto": false},
+        {"id": "ELE-08", "item": "Central multimídia, câmeras e sensores", "verificar": "Funcionamento e mensagens de erro.", "foto": false}
+      ]
+    },
+    {
+      "id": "INT", "n": 10, "nome": "Interior, segurança passiva e sinais de enchente",
+      "objetivo": "Verificar itens de segurança, coerência de uso e sinais de alagamento.",
+      "itens": [
+        {"id": "INT-01", "item": "Airbags: luz de advertência e acabamentos", "verificar": "Luz apaga após o teste; tampas, costuras e painel sem sinais de troca.", "foto": true, "ficha": "PC-INT-01"},
+        {"id": "INT-02", "item": "Cintos de segurança: travamento, recolhimento e etiqueta", "verificar": "Trava no puxão; etiqueta com data coerente; pré-tensionador.", "foto": true, "ficha": "PC-INT-02"},
+        {"id": "INT-03", "item": "Sinais de enchente", "verificar": "Lodo e areia em áreas ocultas, oxidação em trilhos e parafusos, marca d'água, cheiro.", "foto": true, "critico": true, "ficha": "PC-INT-03"},
+        {"id": "INT-04", "item": "Coerência desgaste x quilometragem", "verificar": "Volante, manopla, pedais, banco do motorista.", "foto": true, "ficha": "PC-INT-04"},
+        {"id": "INT-05", "item": "Bancos, trilhos e regulagens", "verificar": "Funcionamento, oxidação nos trilhos.", "foto": false},
+        {"id": "INT-06", "item": "Carpetes e forração", "verificar": "Umidade, carpete trocado, cola nova.", "foto": true},
+        {"id": "INT-07", "item": "Sinais de incêndio", "verificar": "Fuligem, plásticos derretidos, chicote substituído no cofre.", "foto": true, "critico": true, "ficha": "PC-INT-05"},
+        {"id": "INT-08", "item": "Painel de instrumentos e acabamentos", "verificar": "Presilhas quebradas, desmontagem recente.", "foto": false}
+      ]
+    }
+  ],
+  "anexos": [
+    {
+      "id": "MOTO", "nome": "Motocicletas",
+      "objetivo": "Roteiro específico para motos: identificação, quadro e conjunto de transmissão.",
+      "itens": [
+        {"id": "MOTO-01", "item": "Número do quadro (chassi) e do motor", "verificar": "Local do fabricante, legibilidade, conferência com o documento.", "foto": true, "critico": true},
+        {"id": "MOTO-02", "item": "Quadro: soldas, trincas, alinhamento", "verificar": "Solda fora de padrão, pintura do quadro, desalinhamento de rodas.", "foto": true, "critico": true},
+        {"id": "MOTO-03", "item": "Garfo e mesas", "verificar": "Retentores vazando, tubos riscados/empenados, mesas desalinhadas.", "foto": true},
+        {"id": "MOTO-04", "item": "Balança e rolamentos da caixa de direção", "verificar": "Folgas, marcação na caixa de direção.", "foto": false},
+        {"id": "MOTO-05", "item": "Kit de transmissão (corrente, coroa, pinhão)", "verificar": "Dentes pontudos, corrente com folga irregular.", "foto": true},
+        {"id": "MOTO-06", "item": "Pneus e rodas (raios/liga)", "verificar": "Sulco, DOT, raios soltos, aro empenado.", "foto": true},
+        {"id": "MOTO-07", "item": "Freios (disco/tambor) e fluido", "verificar": "Espessura, fluido, flexíveis.", "foto": true},
+        {"id": "MOTO-08", "item": "Carenagens e sinais de queda", "verificar": "Pedaleiras, manetes, ponteiras de guidão, riscos em carenagem e escapamento.", "foto": true},
+        {"id": "MOTO-09", "item": "Motor: partida, ruídos, fumaça e vazamentos", "verificar": "Partida a frio, embreagem, fumaça.", "foto": false},
+        {"id": "MOTO-10", "item": "Elétrica e iluminação", "verificar": "Faróis, setas, buzina, painel.", "foto": false}
+      ]
+    },
+    {
+      "id": "UTL", "nome": "Utilitários, picapes e veículos com chassi",
+      "objetivo": "Pontos adicionais para veículos com chassi longarina e uso de carga.",
+      "itens": [
+        {"id": "UTL-01", "item": "Chassi: longarinas em toda a extensão", "verificar": "Solda, reforço aplicado, emenda, trinca próxima a suportes.", "foto": true, "critico": true},
+        {"id": "UTL-02", "item": "Travessas e suportes da carroceria", "verificar": "Trincas, reforços, parafusos faltando.", "foto": true},
+        {"id": "UTL-03", "item": "Caçamba/baú: fixação e deformações", "verificar": "Alinhamento com a cabine, assoalho da caçamba.", "foto": true},
+        {"id": "UTL-04", "item": "Engate e sinais de reboque pesado", "verificar": "Engate registrado quando exigido, desgaste do conjunto.", "foto": true},
+        {"id": "UTL-05", "item": "Feixes de mola e suspensão de carga", "verificar": "Molas quebradas, calços, suspensão alterada.", "foto": true},
+        {"id": "UTL-06", "item": "Tração 4x4 e reduzida", "verificar": "Engate, ruídos, luzes; diferencial e cardã.", "foto": false},
+        {"id": "UTL-07", "item": "Modificações (suspensão, rodas, carroceria)", "verificar": "Alteração de característica exige regularização e registro no documento.", "foto": true}
+      ]
+    }
+  ]
+}
