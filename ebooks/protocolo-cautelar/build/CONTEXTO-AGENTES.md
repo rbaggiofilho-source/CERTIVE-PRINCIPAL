@@ -3,7 +3,7 @@
 Leia antes: `ebooks/protocolo-cautelar/00-briefing.md`, `01-conteudo/dados/sistemas.json`, `02-design/tema.css`.
 
 ## Regras inegociáveis
-- NUNCA escrever "Certive" nem citar qualquer empresa, vistoriadora, concorrente ou marca de ferramenta.
+- NUNCA citar qualquer empresa real, vistoriadora, concorrente ou marca de ferramenta (nem a empresa do dono do projeto).
 - Público: vistoriadores cautelares (atuais e iniciantes), lojas, frotas. Português do Brasil, técnico e direto.
 - Critério único: níveis N0 (Conforme), N1 (Observação), N2 (Apontamento), N3 (Apontamento relevante), N4 (Crítico). Classificação: INCONCLUSIVO > REPROVADO (qualquer N4) > APROVADO COM APONTAMENTOS (qualquer N2/N3) > APROVADO (só N0/N1).
 - Identificação veicular: ensinar a CONFERIR e a reconhecer INDÍCIOS/DIVERGÊNCIAS em alto nível. PROIBIDO descrever técnicas de adulteração, remarcação, como esconder avaria ou como "passar" em vistoria. O vistoriador cautelar não conclui adulteração: registra divergência e orienta perícia oficial/autoridade.

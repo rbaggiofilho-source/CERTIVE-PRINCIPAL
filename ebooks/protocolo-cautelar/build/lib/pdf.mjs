@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const require = createRequire(import.meta.url);
-const puppeteer = require('/home/user/CERTIVE-PRINCIPAL/node_modules/puppeteer');
+const puppeteer = require('puppeteer');
 
 export function chromePath() {
   const base = '/opt/pw-browsers';

@@ -1,7 +1,7 @@
 // Markdown do Protocolo -> HTML: blocos ":::" aninhados, atributos de título {#id .classe}
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { marked } = require('/home/user/CERTIVE-PRINCIPAL/js/vendor/marked-18.0.14.umd.js');
+const { marked } = require(new URL('../../../../js/vendor/marked-18.0.14.umd.js', import.meta.url).pathname);
 
 marked.setOptions({ gfm: true, breaks: false });
 

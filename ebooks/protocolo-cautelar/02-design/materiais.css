@@ -1,0 +1,124 @@
+/* Protocolo Cautelar — materiais imprimíveis (fichas, testes, checklists) */
+@page { size: A4; margin: 11mm 11mm 14mm 11mm;
+  @bottom-left { content: var(--rodape, "PROTOCOLO CAUTELAR"); font: 600 6.8pt "Inter", sans-serif; letter-spacing: .12em; color: #7A8591; }
+  @bottom-right { content: counter(page); font: 800 8pt "Archivo", sans-serif; color: #0F1318; } }
+@page capa { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 7.75pt/1.36 var(--f-texto); color: var(--texto); }
+ul, ol { margin: 0; padding-left: 1.2em; } li { margin: .12em 0; }
+p { margin: 0 0 .4em; }
+.pagina { break-after: page; position: relative; }
+.pagina:last-child { break-after: auto; }
+
+/* capa de caderno */
+.capa { page: capa; width: 210mm; height: 297mm; background: radial-gradient(120% 80% at 80% 10%, #243040 0%, #0F1318 55%, #080a0d 100%); color: #fff; position: relative; overflow: hidden; break-after: page; }
+.capa .faixa { position: absolute; left: 0; top: 0; bottom: 0; width: 9mm; background: repeating-linear-gradient(-45deg, #F2A900 0 7mm, #0F1318 7mm 14mm); }
+.capa .topo { position: absolute; left: 22mm; top: 20mm; }
+.capa .t { position: absolute; left: 22mm; right: 18mm; top: 70mm; }
+.capa .sobre { font: 700 9.5pt var(--f-mono); letter-spacing: .3em; color: #F2A900; margin-bottom: 6mm; }
+.capa h1 { font: 900 44pt/0.98 var(--f-titulo); margin: 0; text-transform: uppercase; }
+.capa h1 span { color: #F2A900; display: block; }
+.capa .sub { font: 500 13pt/1.4 var(--f-texto); color: #C9D1DA; margin-top: 7mm; max-width: 150mm; }
+.capa .arte { position: absolute; left: 14mm; right: 8mm; top: 160mm; height: 80mm; }
+.capa .arte svg { width: 100%; height: 100%; }
+.capa .rod { position: absolute; left: 22mm; right: 18mm; bottom: 16mm; border-top: 1px solid rgba(242,169,0,.35); padding-top: 4mm; font: 600 8pt var(--f-texto); color: #9aa3ae; display: flex; justify-content: space-between; }
+
+/* índice */
+.indice h2 { font: 900 22pt var(--f-titulo); margin: 0 0 4mm; }
+.indice h2 span { color: var(--ambar); }
+.indice .grupo { font: 700 7pt var(--f-mono); letter-spacing: .2em; color: var(--texto-3); margin: 3.5mm 0 1mm; text-transform: uppercase; }
+.indice .cols { columns: 2; column-gap: 8mm; }
+.indice a { display: flex; gap: 2mm; padding: .9mm 0; border-bottom: 1px solid var(--linha); break-inside: avoid; }
+.indice a b { font: 700 7.6pt var(--f-mono); color: var(--ambar-escuro); width: 17mm; flex: none; }
+.indice a span { flex: 1; } .indice a span.nv { flex: none; } .indice a i { font-style: normal; font-weight: 800; }
+.intro-box { background: var(--papel-2); border-left: 4px solid var(--ambar); padding: 3mm 4mm; margin: 0 0 4mm; font-size: 8.4pt; }
+
+/* cabeçalho de ficha */
+.cab { background: var(--carbono); color: #fff; border-radius: 5px; padding: 2.8mm 4.5mm 2.6mm; display: grid; grid-template-columns: 1fr auto; gap: 2mm 6mm; align-items: end; border-bottom: 3px solid var(--ambar); }
+.cab .cod { font: 800 9pt var(--f-mono); color: var(--ambar); letter-spacing: .08em; }
+.cab .sis { font: 600 7.2pt var(--f-mono); color: #9aa3ae; letter-spacing: .14em; margin-left: 3mm; text-transform: uppercase; }
+.cab h1 { font: 900 15pt/1.05 var(--f-titulo); margin: 1.2mm 0 .6mm; color: #fff; }
+.cab .st { color: #C9D1DA; font-size: 8.6pt; }
+.cab .dir { text-align: right; font: 600 7.2pt var(--f-mono); color: #9aa3ae; line-height: 1.8; }
+.cab .dir b { color: #fff; }
+
+.grade { display: grid; gap: 2.2mm; margin-top: 2.2mm; }
+.g2 { grid-template-columns: 1fr 1fr; }
+.g-mapa { grid-template-columns: .95fr 1.1fr; align-items: center; }
+.card { border: 1px solid var(--linha); border-radius: 5px; padding: 2mm 2.8mm; break-inside: avoid; background: #fff; }
+.card h3 { font: 800 7.2pt var(--f-titulo); text-transform: uppercase; letter-spacing: .08em; color: var(--carbono); margin: 0 0 1.1mm; display: flex; align-items: center; gap: 1.6mm; }
+.card h3::before { content: ""; width: 2.2mm; height: 2.2mm; border-radius: .5mm; background: var(--k, var(--ambar)); }
+.mapa-card { padding: 1.5mm; background: #fff; }
+.mapa-card svg { width: 100%; height: auto; display: block; }
+.card.verde { --k: var(--n0); background: #F4FAF6; border-color: #CFE8D8; }
+.card.verde li::marker { content: "✓  "; color: var(--n0); font-weight: 800; }
+.card.laranja { --k: var(--n3); background: #FEF6F0; border-color: #F6D7C2; }
+.card.cinza { --k: var(--inc); background: var(--papel-2); }
+.card.escuro { --k: var(--ambar); background: var(--carbono); color: #E6EAEF; border: 0; }
+.card.escuro h3 { color: var(--ambar); }
+.card.escuro .fr { color: #E6EAEF; }
+.card.escuro .fr b { color: var(--ambar); font: 700 6.8pt var(--f-mono); letter-spacing: .12em; display: block; margin-bottom: .6mm; }
+ol.passos { counter-reset: p; list-style: none; padding: 0; }
+ol.passos li { counter-increment: p; display: flex; gap: 2mm; margin: .6mm 0; }
+ol.passos li::before { content: counter(p); flex: none; width: 4.4mm; height: 4.4mm; border-radius: 50%; background: var(--carbono); color: var(--ambar); font: 800 6.8pt/4.4mm var(--f-titulo); text-align: center; }
+
+/* sinais com nível */
+table.sinais { width: 100%; border-collapse: collapse; }
+table.sinais td { padding: .7mm 1mm; border-bottom: 1px solid #F1E1D5; vertical-align: top; }
+table.sinais tr:last-child td { border-bottom: 0; }
+.nv { display: inline-block; min-width: 8mm; text-align: center; font: 800 6.8pt/1 var(--f-mono); color: #fff; padding: 1mm 1.2mm; border-radius: 1.2mm; }
+.N0 { background: var(--n0); } .N1 { background: var(--n1); } .N2 { background: var(--n2); color: #1a1f26; } .N3 { background: var(--n3); } .N4 { background: var(--n4); } .NA { background: #9AA3AE; }
+.chips { display: flex; flex-wrap: wrap; gap: 1.2mm; }
+.chip { font: 600 7pt var(--f-texto); background: var(--papel-2); border: 1px solid var(--linha); border-radius: 10px; padding: .5mm 2.2mm; }
+
+/* testes: campos de registro */
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 2.2mm 5mm; }
+.campo { border-bottom: 1px solid #9AA3AE; padding-bottom: 4mm; font: 600 7.2pt var(--f-texto); color: var(--texto-2); }
+table.ref { width: 100%; border-collapse: collapse; font-size: 7.9pt; }
+table.ref th { background: var(--carbono); color: #fff; text-align: left; padding: 1.4mm 2mm; font: 700 7pt var(--f-texto); }
+table.ref td { padding: 1.3mm 2mm; border-bottom: 1px solid var(--linha); vertical-align: top; }
+.idvf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 3mm; }
+.idvf .campo { padding-bottom: 4mm; }
+
+/* checklists */
+.ck-cab { display: grid; grid-template-columns: 1fr auto; align-items: end; border-bottom: 3px solid var(--ambar); padding-bottom: 2mm; margin-bottom: 2.5mm; }
+.ck-cab h1 { font: 900 16pt/1.05 var(--f-titulo); margin: 0; }
+.ck-cab h1 small { display: block; font: 700 7pt var(--f-mono); color: var(--ambar-escuro); letter-spacing: .2em; margin-bottom: 1mm; }
+.ck-cab .obj { font-size: 7.8pt; color: var(--texto-2); max-width: 125mm; margin-top: 1mm; }
+.dados { display: grid; grid-template-columns: 1.1fr 1.3fr 1fr 1fr; gap: 1.5mm 4mm; margin-bottom: 2.5mm; }
+.dados .campo { padding-bottom: 3.2mm; font-size: 6.6pt; }
+table.ck { width: 100%; border-collapse: collapse; font-size: 7.4pt; }
+table.ck th { background: var(--carbono); color: #fff; font: 700 6.6pt var(--f-texto); padding: 1.3mm 1.2mm; text-align: center; }
+table.ck th.e { text-align: left; }
+table.ck td { border-bottom: 1px solid var(--linha); padding: 1mm 1.2mm; vertical-align: middle; }
+table.ck tr.sis td { background: var(--papel-2); font: 800 7.4pt var(--f-titulo); color: var(--carbono); border-top: 1.5px solid var(--carbono); }
+table.ck td.cod { font: 700 6.6pt var(--f-mono); color: var(--texto-3); white-space: nowrap; }
+table.ck td.cod.crit { color: var(--n4); }
+table.ck td.bx { width: 6mm; text-align: center; }
+table.ck td.bx span { display: inline-block; width: 3.4mm; height: 3.4mm; border: 1.2px solid #5A6472; border-radius: .7mm; }
+table.ck td.ob { width: 30mm; border-left: 1px dashed var(--linha); }
+table.ck .ver { display: block; font-size: 6.6pt; color: var(--texto-3); line-height: 1.3; margin-top: .3mm; }
+table.ck.det td { padding: 1.5mm 1.2mm; }
+table.ck.det td.ob { width: 44mm; }
+th.n0 { background: var(--n0) !important; } th.n1 { background: var(--n1) !important; } th.n2 { background: var(--n2) !important; color: #1a1f26 !important; } th.n3 { background: var(--n3) !important; } th.n4 { background: var(--n4) !important; }
+.rodape-ck { display: grid; grid-template-columns: 1.3fr 1fr; gap: 3mm; margin-top: 3mm; }
+.matriz { font-size: 7.2pt; }
+.matriz div { display: flex; gap: 2mm; align-items: center; padding: .8mm 0; border-bottom: 1px solid var(--linha); }
+.matriz div:last-child { border: 0; }
+.matriz .cl { font: 800 6.6pt var(--f-mono); color: #fff; border-radius: 1mm; padding: .8mm 1.6mm; width: 38mm; text-align: center; flex: none; }
+.cont { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.5mm; text-align: center; }
+.cont div { border: 1px solid var(--linha); border-radius: 1.5mm; padding: 1mm 0 5mm; font: 800 7pt var(--f-mono); }
+.leg { font-size: 6.6pt; color: var(--texto-3); margin-top: 1.5mm; }
+/* folha de pátio compacta (frente e verso) */
+table.ck.patio { font-size: 6.3pt; }
+table.ck.patio td { padding: .18mm 1mm; line-height: 1.15; }
+table.ck.patio th { padding: .9mm 1mm; }
+table.ck.patio tr.sis td { font-size: 6.6pt; padding: .45mm 1mm; }
+table.ck.patio td.bx span { width: 2.7mm; height: 2.7mm; vertical-align: middle; }
+table.ck.patio td.ob { width: 34mm; }
+.patio-pg .ck-cab h1 { font-size: 13pt; }
+.patio-pg .dados .campo { padding-bottom: 2.4mm; }
+.patio-pg .rodape-ck { margin-top: 2mm; }
+.patio-pg .leg { margin-top: 1mm; }
+svg.cam { width: 2.6mm; height: 2.6mm; vertical-align: -0.35mm; }

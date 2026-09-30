@@ -1,7 +1,7 @@
 # Briefing — Protocolo Cautelar
 
 > Nome de trabalho da marca: **Protocolo Cautelar** (trocável: todo o design lê a marca de uma variável única).
-> Nenhuma menção à Certive em nenhum material desta linha.
+> Nenhuma menção a empresas de vistoria em nenhum material desta linha.
 
 ## 1. O produto em uma frase
 **O sistema completo do vistoriador cautelar:** o manual que ensina o *critério* + as ferramentas que aplicam esse critério no pátio (fichas, checklists, testes, modelos, planilhas e um app de vistoria que funciona offline).

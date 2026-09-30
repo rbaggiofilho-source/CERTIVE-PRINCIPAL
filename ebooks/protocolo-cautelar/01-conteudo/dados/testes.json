@@ -1228,14 +1228,14 @@
       "Tenha a lista de 24 fotos à vista e marque cada uma ao fazer"
     ],
     "passos": [
-      "1–4: frente 3/4 esquerda, frente, 3/4 direita e lateral direita",
-      "5–8: traseira 3/4 direita, traseira, 3/4 esquerda e lateral esquerda",
-      "9–11: teto, capô aberto (vista geral do cofre) e porta-malas aberto",
-      "12–14: VIN no cofre, número do motor e etiqueta da coluna",
-      "15–17: VIN do para-brisa, gravação dos vidros e poço do estepe",
-      "18–20: painel no autoteste, painel após a partida (km) e tela do scanner",
-      "21–22: interior dianteiro (volante, pedais, banco) e traseiro",
-      "23–24: pneu dianteiro com DOT e disco/pastilha visíveis pela roda"
+      "1–4: frente 45° esquerda, lateral esquerda, traseira 45° esquerda e traseira reta",
+      "5–8: traseira 45° direita, lateral direita, frente 45° direita e frente reta",
+      "9–12: documento (CRLV-e), gravação do VIN, etiquetas de identificação e número do motor",
+      "13–16: cofre (visão geral), longarina e torre esquerdas, longarina e torre direitas, painel frontal",
+      "17–18: porta-malas sem carpete (poço do estepe) e soleiras/colunas com as portas abertas",
+      "19–21: painel com motor ligado (km e luzes), interior dianteiro e interior traseiro",
+      "22–24: pneus (DOT e sulco, um por eixo), tela do scanner e parte inferior acessível",
+      "Achados N2 a N4: sempre duas fotos a mais, de posição (aberta) e de detalhe (close)"
     ],
     "referencias": [
       {

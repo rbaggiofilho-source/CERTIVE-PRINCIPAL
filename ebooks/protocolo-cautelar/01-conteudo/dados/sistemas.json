@@ -2,7 +2,7 @@
   "versao": "1.0",
   "niveis": [
     {"id": "N0", "nome": "Conforme", "cor": "#2E9E5B", "definicao": "Sem anormalidade observável."},
-    {"id": "N1", "nome": "Observação", "cor": "#6B8FB3", "definicao": "Desgaste natural, estético leve ou manutenção de rotina."},
+    {"id": "N1", "nome": "Observação", "cor": "#4F7FB0", "definicao": "Desgaste natural, estético leve ou manutenção de rotina."},
     {"id": "N2", "nome": "Apontamento", "cor": "#E0A100", "definicao": "Repintura, peça de revestimento substituída ou reparada, manutenção necessária em breve."},
     {"id": "N3", "nome": "Apontamento relevante", "cor": "#E0661B", "definicao": "Reparo que indica impacto significativo, reparo em área de absorção, item de segurança fora de condição ou falha funcional relevante."},
     {"id": "N4", "nome": "Crítico", "cor": "#C62828", "definicao": "Dano ou reparo em estrutura de sustentação, indícios de enchente ou incêndio, divergência na identificação veicular."}
