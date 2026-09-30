@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antes de Fechar Negócio · Guia para comprar carro usado</title>
+<meta name="description" content="O guia do vistoriador para quem vai comprar carro usado: um método em 5 etapas para reduzir riscos antes de pagar, com checklist imprimível, planilhas e modelos de recibo e contrato.">
+<meta property="og:title" content="Antes de Fechar Negócio · Guia para comprar carro usado">
+<meta property="og:description" content="Saiba o que olhar, o que perguntar, o que consultar e quando chamar um profissional, antes de pagar.">
+<meta property="og:image" content="img/mockup.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carbono:#0F1318;--grafite:#1B222B;--aco:#2A3440;--ambar:#F2A900;--ambar-e:#B87F00;--ambar-c:#FFF4D6;
+  --papel:#fff;--papel-2:#F5F6F8;--linha:#DDE1E6;--texto:#1A1F26;--texto-2:#4E5864;--texto-3:#7A8591;
+  --n0:#2E9E5B;--n1:#4F7FB0;--n2:#E0A100;--n3:#E0661B;--n4:#C62828;--inc:#5A6472;
+  --ft:"Archivo","Arial Black",sans-serif;--fx:"Inter","Segoe UI",Arial,sans-serif;--fm:"JetBrains Mono",Consolas,monospace;
+  --max:1120px;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font:17px/1.6 var(--fx);color:var(--texto);background:var(--papel);overflow-x:hidden}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 20px}
+section{padding:84px 0}
+.escuro{background:var(--carbono);color:#E6EAEF}
+.cinza{background:var(--papel-2)}
+.k{font:700 13px var(--fm);letter-spacing:.24em;text-transform:uppercase;color:var(--ambar-e);margin:0 0 14px}
+.escuro .k,.hero .k{color:var(--ambar)}
+h1,h2,h3{font-family:var(--ft);line-height:1.08;margin:0 0 18px;letter-spacing:-.01em;overflow-wrap:break-word}
+h1{font-size:clamp(34px,5.6vw,62px);font-weight:900}
+h2{font-size:clamp(28px,4.2vw,44px);font-weight:900;color:var(--carbono)}
+.escuro h2{color:#fff}
+h3{font-size:21px;font-weight:800}
+em{font-style:normal;color:var(--ambar)}
+h2 em{color:var(--ambar-e)}.escuro h2 em,.hero h2 em{color:var(--ambar)}
+.lead{font-size:clamp(18px,2.2vw,21px);color:#C9D1DA;max-width:640px}
+.sub{font-size:19px;color:var(--texto-2);max-width:760px}
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--ambar);color:var(--carbono);font:900 19px var(--ft);padding:19px 30px;border-radius:12px;text-decoration:none;box-shadow:0 10px 30px rgba(242,169,0,.25);transition:transform .15s;text-align:center;justify-content:center;max-width:100%}
+.btn:hover{transform:translateY(-2px)}
+.nota{font-size:14px;color:var(--texto-3);margin-top:12px}
+.escuro .nota,.hero .nota{color:#8b95a1}
+.faixa{height:12px;background:repeating-linear-gradient(-45deg,var(--ambar) 0 14px,var(--carbono) 14px 28px)}
+/* topo */
+.topo{position:sticky;top:0;z-index:20;background:rgba(15,19,24,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(242,169,0,.2)}
+.topo .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}
+.marca{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font:900 15px var(--ft);letter-spacing:.05em;line-height:1.15}
+.marca small{display:block;font:800 10px var(--ft);letter-spacing:.36em;color:var(--ambar)}
+.topo .btn{padding:11px 18px;font-size:15px;box-shadow:none}
+/* hero */
+.hero{background:radial-gradient(110% 70% at 80% 0%,#27354a 0%,#0F1318 55%,#07090c 100%);color:#fff;padding:70px 0 48px;position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(242,169,0,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(242,169,0,.06) 1px,transparent 1px);background-size:48px 48px;-webkit-mask-image:radial-gradient(70% 60% at 70% 40%,#000 20%,transparent 80%);mask-image:radial-gradient(70% 60% at 70% 40%,#000 20%,transparent 80%)}
+.hero .g{display:grid;grid-template-columns:1.1fr 1fr;gap:34px;align-items:center;position:relative}
+.hero .selos{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 30px}
+.hero .selos span{border:1.5px solid rgba(242,169,0,.55);border-radius:40px;padding:6px 14px;font:600 14px var(--fx);color:#fff}
+/* imagens com substituto (a página não quebra sem os arquivos) */
+.ph{position:relative;margin:0}
+.ph .alt{display:none}
+.ph.sem-img{border-radius:10px;background:linear-gradient(160deg,var(--grafite),var(--carbono));border:1px solid var(--aco);display:flex;align-items:center;justify-content:center;padding:22px;text-align:center}
+.ph.sem-img .alt{display:block;color:#fff;font:900 20px/1.15 var(--ft)}
+.ph.sem-img .alt small{display:block;margin-top:10px;font:700 11px var(--fm);letter-spacing:.2em;color:var(--ambar);text-transform:uppercase}
+.ph.sem-img .alt:before{content:"";display:block;width:54px;height:6px;background:var(--ambar);margin:0 auto 16px;border-radius:3px}
+.ph-mock.sem-img{aspect-ratio:4/3;max-width:460px;margin:0 auto}
+.ph-pag.sem-img{aspect-ratio:1/1.414}
+/* cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+.card{background:#fff;border:1px solid var(--linha);border-radius:16px;padding:26px;min-width:0}
+.escuro .card{background:var(--grafite);border-color:var(--aco)}
+.card .n{font:900 44px var(--ft);color:var(--ambar-e);line-height:1;margin-bottom:10px}
+.escuro .card .n{color:var(--ambar)}
+.card p{margin:8px 0 0;color:var(--texto-2);font-size:16px}
+.escuro .card p{color:#AEB7C2}
+.card .cap{display:inline-block;margin-top:12px;font:700 12px var(--fm);letter-spacing:.1em;color:var(--ambar);text-transform:uppercase}
+.risco{border-top:5px solid var(--n4)}
+.risco:nth-child(2){border-top-color:var(--n3)}.risco:nth-child(3){border-top-color:var(--n2)}
+.risco .tag{font:700 12px var(--fm);letter-spacing:.16em;text-transform:uppercase;color:var(--texto-3)}
+.risco ul{margin:12px 0 0;padding-left:20px;color:var(--texto-2);font-size:16px}
+.risco li{margin:6px 0}
+.caso{border-left:4px solid var(--ambar);background:var(--ambar-c);padding:18px 22px;border-radius:0 12px 12px 0;margin:26px 0 34px;font-size:17px;color:var(--texto)}
+.caso small{display:block;margin-top:8px;color:var(--texto-3);font-size:13px}
+/* entregáveis */
+.item{display:grid;grid-template-columns:170px 1fr;gap:26px;align-items:center;background:#fff;border:1px solid var(--linha);border-radius:18px;padding:22px;margin-bottom:18px}
+.item .ph img{border-radius:8px;box-shadow:0 12px 30px rgba(15,19,24,.18);border:1px solid var(--linha)}
+.item .ico{width:100%;aspect-ratio:1/1;max-width:170px;border-radius:14px;background:var(--carbono);display:flex;align-items:center;justify-content:center}
+.item .tag{display:inline-block;font:700 12px var(--fm);letter-spacing:.14em;color:var(--ambar-e);text-transform:uppercase}
+.item h3{margin:6px 0 8px}
+.item ul{margin:8px 0 0;padding-left:20px;color:var(--texto-2);font-size:16px}
+.caps{columns:2;column-gap:28px}
+.caps li{break-inside:avoid}
+/* tabela */
+table{width:100%;border-collapse:collapse;font-size:16px}
+th{background:var(--carbono);color:#fff;text-align:left;padding:12px 14px;font:700 14px var(--fx)}
+td{padding:12px 14px;border-bottom:1px solid var(--linha);vertical-align:top}
+.tabela{border:1px solid var(--linha);border-radius:14px;overflow-x:auto;background:#fff}
+.tabela td:first-child{font:800 15px var(--fm);color:var(--ambar-e);width:44px;text-align:center}
+.tabela td b{display:block}
+.pare{display:inline-block;margin-left:6px;font:800 11px var(--fm);letter-spacing:.08em;color:#fff;background:var(--n4);border-radius:6px;padding:2px 7px;vertical-align:2px}
+/* para quem */
+.sim li::marker{content:"✓  ";color:var(--n0);font-weight:900}
+.nao li::marker{content:"✕  ";color:var(--n4);font-weight:900}
+.sim,.nao{padding-left:22px;margin:0}.sim li,.nao li{margin:9px 0}
+/* honestidade */
+.limite{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:26px}
+.vs{border:1px solid var(--aco);border-radius:14px;padding:20px;background:var(--grafite)}
+.vs h3{font-size:18px;color:#fff;margin-bottom:8px}
+.vs p{margin:0;color:#AEB7C2;font-size:16px}
+/* oferta */
+.oferta{max-width:760px;margin:0 auto;background:#fff;color:var(--texto);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.oferta .cab{background:var(--carbono);color:#fff;padding:26px 30px;border-bottom:4px solid var(--ambar)}
+.oferta .corpo{padding:28px 30px}
+.oferta li{margin:8px 0}
+.preco{font:900 64px var(--ft);color:var(--carbono);line-height:1;margin:18px 0 4px}
+.preco small{font:700 18px var(--fx);color:var(--texto-3)}
+.bump{border:1.5px dashed var(--ambar-e);background:var(--ambar-c);border-radius:12px;padding:16px;font-size:15px;margin:14px 0 22px}
+.bump b{display:block;font:800 17px var(--ft);margin-bottom:4px}
+.bump ul{margin:8px 0 0;padding-left:20px}
+.bump li{margin:4px 0}
+.garantia{display:grid;grid-template-columns:120px 1fr;gap:24px;align-items:center}
+.selo{width:120px;height:120px;border-radius:50%;border:4px solid var(--ambar);display:flex;flex-direction:column;align-items:center;justify-content:center;font:900 44px/1 var(--ft);color:var(--carbono)}
+.selo small{font:800 12px var(--fm);letter-spacing:.14em}
+/* faq */
+details{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:18px 20px;margin-bottom:10px}
+summary{cursor:pointer;font:800 18px/1.3 var(--ft);list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--ambar-e);font-size:24px;line-height:1}
+details[open] summary::after{content:"–"}
+details p{margin:12px 0 0;color:var(--texto-2)}
+footer{background:#07090c;color:#8b95a1;font-size:13.5px;padding:40px 0}
+footer a{color:#C9D1DA}
+/* consentimento */
+#lgpd{position:fixed;left:16px;right:16px;bottom:16px;z-index:50;max-width:720px;margin:0 auto;background:#fff;color:var(--texto);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.35);padding:16px 18px;display:none;gap:14px;align-items:center;font-size:14px}
+#lgpd .bts{display:flex;gap:8px;flex:none}
+#lgpd button{border:0;border-radius:10px;padding:10px 14px;font:700 14px var(--fx);cursor:pointer}
+#lgpd .ok{background:var(--ambar)}#lgpd .no{background:var(--papel-2)}
+@media (max-width:1000px){
+  .grid5{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:900px){
+  .hero .g,.grid2,.grid3,.limite{grid-template-columns:1fr}
+  .grid5{grid-template-columns:1fr 1fr}
+  .item{grid-template-columns:1fr}.item .ph,.item .ico{max-width:200px}
+  .caps{columns:1}
+  section{padding:60px 0}
+  .garantia{grid-template-columns:1fr}
+  .topo .btn{display:none}
+  .preco small{display:block;margin-top:6px}
+}
+@media (max-width:560px){
+  .grid5{grid-template-columns:1fr}
+  .btn{padding:17px 22px;font-size:18px;width:100%}
+  .oferta .cab,.oferta .corpo{padding:22px 20px}
+  .preco{font-size:56px}
+  #lgpd{flex-direction:column;align-items:stretch}
+  #lgpd .bts button{flex:1}
+  .tabela table{font-size:15px}
+  td{padding:10px 10px}
+}
+</style>
+</head>
+<body>
+
+<header class="topo"><div class="wrap">
+  <a class="marca" href="#"><svg width="34" height="34" viewBox="0 0 76 80" aria-hidden="true"><path d="M38 4 L72 22 L72 58 L38 76 L4 58 L4 22 Z" fill="none" stroke="#F2A900" stroke-width="5"/><path d="M24 54 L24 26 L40 26 C48 26 52 31 52 37 C52 43 48 48 40 48 L24 48" fill="none" stroke="#F2A900" stroke-width="6" stroke-linejoin="round"/><path d="M42 56 l6 6 l12 -14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>ANTES DE FECHAR NEGÓCIO<small>PROTOCOLO CAUTELAR</small></span></a>
+  <a class="btn" href="#oferta">Quero o guia</a>
+</div></header>
+
+<!-- HERO -->
+<section class="hero"><div class="wrap g">
+  <div>
+    <p class="k">Para quem vai comprar carro usado</p>
+    <h1>Antes de pagar, saiba <em>o que olhar, o que perguntar e quando chamar um profissional.</em></h1>
+    <p class="lead">O guia do vistoriador para quem vai comprar carro usado: um método em 5 etapas para reduzir riscos, do anúncio à transferência. Com checklist para imprimir, planilhas e modelos de recibo e contrato.</p>
+    <div class="selos"><span>Guia de 37 p.</span><span>9 capítulos</span><span>Checklist de 48 itens</span><span>2 planilhas</span><span>3 modelos editáveis</span></div>
+    <a class="btn" href="#oferta">Quero o guia por R$ 27 →</a>
+    <p class="nota">Material digital · Acesso por e-mail após a confirmação do pagamento · Garantia de 7 dias</p>
+  </div>
+  <figure class="ph ph-mock"><img src="img/mockup.png" alt="O guia Antes de Fechar Negócio, o checklist do comprador, as planilhas e os modelos" width="1200" height="900" onerror="this.parentNode.classList.add('sem-img');this.remove()"><figcaption class="alt">Antes de Fechar Negócio<small>Guia + checklist + planilhas + modelos</small></figcaption></figure>
+</div></section>
+<div class="faixa"></div>
+
+<!-- DOR -->
+<section><div class="wrap">
+  <p class="k">O problema</p>
+  <h2>Os riscos de comprar um usado cabem em <em>três grupos.</em></h2>
+  <p class="sub">Nem toda compra ruim é golpe. Muitas vezes o carro existe e o vendedor é honesto, mas há um reparo que ninguém mencionou, um débito no documento ou uma restrição que impede a transferência. O guia trata dos três grupos, na ordem em que aparecem na vida real.</p>
+  <div class="caso">Um sedã com preço 18% abaixo de anúncios parecidos, vendedor "de mudança", pedido de sinal antes da visita e o carro "com um parente". Quatro sinais de alerta na mesma conversa. Pedir para ver o carro com uma vistoria profissional encerrou a negociação ali.<small>Caso ilustrativo da introdução do guia. Nenhuma pessoa ou veículo real é identificado.</small></div>
+  <div class="grid3">
+    <div class="card risco"><span class="tag">Grupo 1</span><h3 style="margin-top:6px">Fraude</h3><p>O carro não é o que parece, ou o negócio nem existe.</p>
+      <ul><li>Anúncio copiado, com preço muito abaixo</li><li>Sinal pedido antes de ver o carro</li><li>Pagamento para quem não é o dono</li><li>Documento só por foto</li></ul></div>
+    <div class="card risco"><span class="tag">Grupo 2</span><h3 style="margin-top:6px">Veículo</h3><p>O que o anúncio não conta.</p>
+      <ul><li>Batida com reparo que não aparece nas fotos</li><li>Sinais de enchente depois de uma boa limpeza</li><li>Desgaste que não combina com a quilometragem</li><li>Luz de advertência que fica acesa</li></ul></div>
+    <div class="card risco"><span class="tag">Grupo 3</span><h3 style="margin-top:6px">Papel</h3><p>O que trava a transferência ou vira dívida.</p>
+      <ul><li>Débitos de IPVA, licenciamento e multas</li><li>Financiamento ativo (gravame)</li><li>Restrições judiciais ou administrativas</li><li>Erros na transferência e no prazo</li></ul></div>
+  </div>
+</div></section>
+
+<!-- MÉTODO -->
+<section class="escuro"><div class="wrap">
+  <p class="k">O método</p>
+  <h2>5 etapas, na ordem de uma <em>compra bem feita.</em></h2>
+  <p class="lead" style="margin-bottom:36px">Você não precisa virar especialista em carros. Precisa de ordem, e de saber a hora de chamar quem examina carros todos os dias.</p>
+  <div class="grid5">
+    <div class="card"><div class="n">1</div><h3>Filtrar</h3><p>Os 12 sinais de alerta e as 10 perguntas antes de sair de casa.</p><span class="cap">Capítulo 1</span></div>
+    <div class="card"><div class="n">2</div><h3>Planejar</h3><p>O custo total: dia da compra, transferência, primeiras semanas e primeiro ano.</p><span class="cap">Capítulo 2</span></div>
+    <div class="card"><div class="n">3</div><h3>Conferir</h3><p>Documento digital pelo QR Code e as consultas pela placa e pelo chassi.</p><span class="cap">Capítulo 3</span></div>
+    <div class="card"><div class="n">4</div><h3>Examinar</h3><p>O que um leigo consegue observar por fora, por dentro e no test drive.</p><span class="cap">Capítulos 4 a 6</span></div>
+    <div class="card"><div class="n">5</div><h3>Fechar</h3><p>Laudo profissional, negociação, pagamento, contrato e transferência.</p><span class="cap">Capítulos 7 a 9</span></div>
+  </div>
+</div></section>
+
+<!-- ENTREGÁVEIS -->
+<section class="cinza"><div class="wrap">
+  <p class="k">O que você recebe</p>
+  <h2>Um guia para ler e ferramentas para usar na compra.</h2>
+  <p class="sub" style="margin-bottom:34px">Cada capítulo termina com um checklist curto. No fim, as ferramentas para imprimir e preencher.</p>
+
+  <div class="item"><figure class="ph ph-pag"><img src="img/capa.jpg" alt="Capa do guia Antes de Fechar Negócio" width="595" height="842" loading="lazy" onerror="this.parentNode.classList.add('sem-img');this.remove()"><figcaption class="alt">Antes de Fechar Negócio<small>Guia · 37 páginas</small></figcaption></figure>
+    <div><span class="tag">E-book em PDF · 37 páginas · 9 capítulos</span><h3>O guia, do anúncio à transferência</h3>
+      <ul class="caps">
+        <li>1. Sinais de alerta e golpes comuns</li>
+        <li>2. O custo total da compra</li>
+        <li>3. Documento e consultas</li>
+        <li>4. Por fora: o que o leigo consegue observar</li>
+        <li>5. Por dentro: painel, sinais de enchente, motor</li>
+        <li>6. O test drive essencial</li>
+        <li>7. Quando chamar um profissional e como ler o laudo</li>
+        <li>8. Negociar, pagar e assinar</li>
+        <li>9. Transferência e seus direitos depois da compra</li>
+      </ul></div></div>
+
+  <div class="item"><figure class="ph ph-pag"><img src="img/pagina-checklist.jpg" alt="Página do checklist do comprador" width="774" height="1095" loading="lazy" onerror="this.parentNode.classList.add('sem-img');this.remove()"><figcaption class="alt">Checklist do comprador<small>48 itens · 5 etapas</small></figcaption></figure>
+    <div><span class="tag">Checklist do comprador · para imprimir</span><h3>48 itens em 5 etapas, para levar na visita</h3>
+      <ul><li>Antes de sair de casa (10) · Na visita, por fora (10) · Na visita, por dentro (11) · Test drive (8) · Antes de pagar (9)</li><li>Com o vendedor do lado, é fácil esquecer metade do que você queria olhar. A folha lembra por você.</li></ul></div></div>
+
+  <div class="item"><div class="ico"><svg width="84" height="84" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="8" width="36" height="32" rx="3" fill="none" stroke="#F2A900" stroke-width="3"/><path d="M6 18h36M6 28h36M18 8v32M30 8v32" stroke="#F2A900" stroke-width="2"/></svg></div>
+    <div><span class="tag">2 planilhas editáveis</span><h3>Comparativo de veículos e Custo total da compra</h3>
+      <ul><li><b>Comparativo de veículos:</b> até 4 carros lado a lado, com alerta de preço e o resultado do laudo</li><li><b>Custo total da compra:</b> dia da compra, transferência, financiamento e custo do primeiro ano</li></ul></div></div>
+
+  <div class="item"><div class="ico"><svg width="84" height="84" viewBox="0 0 48 48" aria-hidden="true"><path d="M12 4h17l9 9v31H12z" fill="none" stroke="#F2A900" stroke-width="3" stroke-linejoin="round"/><path d="M29 4v9h9M17 22h16M17 29h16M17 36h10" stroke="#F2A900" stroke-width="2.5" stroke-linecap="round"/></svg></div>
+    <div><span class="tag">3 modelos editáveis</span><h3>Recibo, contrato e roteiro de perguntas</h3>
+      <ul><li><b>Recibo de sinal:</b> valor total, prazo e condições de devolução</li><li><b>Contrato particular de compra e venda</b>, com termo de entrega (data, hora e quilometragem)</li><li><b>Roteiro de perguntas ao vendedor:</b> 25 perguntas em três momentos, com espaço para anotar</li><li>São referências: em negócios de valor alto ou com particularidades, vale a orientação de um advogado</li></ul></div></div>
+</div></section>
+
+<!-- AMOSTRA -->
+<section><div class="wrap grid2" style="align-items:start">
+  <div>
+    <p class="k">Uma amostra do capítulo 1</p>
+    <h2>Sinais de alerta do anúncio e da conversa</h2>
+    <p class="sub" style="font-size:17px">São 12 no guia. Nenhum, sozinho, prova que há algo errado. <b>Dois ou mais juntos</b> pedem que você desacelere, e os marcados com <span class="pare">PARE</span> justificam encerrar a conversa.</p>
+    <div class="tabela" style="margin-top:22px"><table>
+      <tr><th>#</th><th>Sinal e por que preocupa</th></tr>
+      <tr><td>1</td><td><b>Preço muito abaixo da referência de mercado</b>É a isca mais usada em golpes e também comum em carros com histórico ruim.</td></tr>
+      <tr><td>2</td><td><b>Pressa: "tem outros três interessados"</b>Pressa impede você de conferir.</td></tr>
+      <tr><td>3</td><td><b>Sinal antes de ver o carro <span class="pare">PARE</span></b>É o coração da maioria dos golpes.</td></tr>
+      <tr><td>4</td><td><b>Pagamento para quem não é o dono do documento <span class="pare">PARE</span></b>Padrão do golpe do intermediário.</td></tr>
+      <tr><td>5</td><td><b>Documento só por foto</b>Foto pode ser editada; o documento digital tem QR Code.</td></tr>
+      <tr><td>6</td><td><b>Recusa de vistoria ou de test drive <span class="pare">PARE</span></b>Quem não tem o que esconder deixa olhar.</td></tr>
+    </table></div>
+  </div>
+  <div>
+    <figure class="ph ph-pag" style="max-width:420px;margin:0 auto"><img src="img/pagina-sinais.jpg" alt="Página do guia com a tabela dos 12 sinais de alerta" width="774" height="1095" loading="lazy" onerror="this.parentNode.classList.add('sem-img');this.remove()"><figcaption class="alt">Os 12 sinais de alerta<small>Capítulo 1</small></figcaption></figure>
+    <div class="card" style="margin-top:22px;background:var(--ambar-c);border-color:#E8D9A8">
+      <h3 style="font-size:18px">A regra de ouro do pagamento</h3>
+      <p style="color:var(--texto)">Pague <b>somente ao titular do documento</b> (ou, na loja, à empresa vendedora), por meio rastreável, depois de ver o carro, o documento e a pessoa, e de combinar o valor total diretamente com ela.</p>
+      <span class="cap" style="color:var(--ambar-e)">Capítulo 8</span>
+    </div>
+  </div>
+</div></section>
+
+<!-- PARA QUEM -->
+<section class="cinza"><div class="wrap">
+  <p class="k">Para quem é</p>
+  <h2>Feito para quem vai comprar, não para quem conserta.</h2>
+  <div class="grid2" style="margin-top:26px">
+    <div class="card"><h3>É para você se…</h3><ul class="sim">
+      <li>Vai comprar um carro usado, de particular ou de loja, e quer reduzir o risco de fazer um mau negócio</li>
+      <li>Vai negociar pela internet e quer reconhecer os sinais de golpe antes de sair de casa</li>
+      <li>Quer saber o que perguntar, o que consultar e o que olhar, mesmo sem entender de mecânica</li>
+      <li>Quer chegar à vistoria profissional sabendo o que pedir e como ler o laudo</li></ul></div>
+    <div class="card"><h3>Não é para você se…</h3><ul class="nao">
+      <li>Procura um curso de mecânica ou de funilaria</li>
+      <li>Quer dispensar a vistoria cautelar profissional: o guia não a substitui</li>
+      <li>Espera uma garantia: nenhum guia, ferramenta ou profissional garante que um usado não tem problema</li>
+      <li>Procura atalhos para esconder avaria ou "passar" um carro em vistoria</li></ul></div>
+  </div>
+</div></section>
+
+<!-- HONESTIDADE -->
+<section class="escuro"><div class="wrap">
+  <p class="k">Com honestidade</p>
+  <h2>O guia não substitui o vistoriador. <em>Ele diz quando chamar um.</em></h2>
+  <p class="lead">Com método, você observa muita coisa. Mas há três áreas que o olho não alcança, e é exatamente isso que a vistoria cautelar profissional examina.</p>
+  <div class="grid3" style="margin-top:30px">
+    <div class="card"><h3>Estrutura</h3><p>Longarinas, colunas, assoalho: onde estão os reparos que mais importam, escondidos atrás de peças e acabamentos.</p></div>
+    <div class="card"><h3>Espessura da pintura</h3><p>Uma repintura bem feita engana o olho. Só um medidor mostra, peça a peça.</p></div>
+    <div class="card"><h3>Eletrônica</h3><p>As falhas ficam registradas na memória do carro, não no painel. Só um scanner lê.</p></div>
+  </div>
+  <div class="limite">
+    <div class="vs"><h3>Vistoria cautelar</h3><p>Serviço privado que <b>você</b> contrata para conhecer a condição do carro antes de comprar. O capítulo 7 mostra como escolher um vistoriador independente e o que fazer com cada resultado do laudo.</p></div>
+    <div class="vs"><h3>Vistoria de transferência</h3><p>Exigida pelo órgão de trânsito para registrar o carro no seu nome. Não tem o objetivo de dizer se o carro é um bom negócio. Uma não substitui a outra.</p></div>
+  </div>
+  <p class="nota" style="margin-top:22px">O guia também não substitui a orientação de um advogado. Os modelos de recibo e contrato são referências.</p>
+</div></section>
+
+<!-- OFERTA -->
+<section class="cinza" id="oferta"><div class="wrap">
+  <p class="k" style="text-align:center">A oferta</p>
+  <h2 style="text-align:center">Tudo o que você usa do anúncio à transferência.</h2>
+  <div class="oferta" style="margin-top:34px">
+    <div class="cab"><div class="k" style="margin:0;color:var(--ambar)">Protocolo Cautelar</div><h3 style="margin:6px 0 0;font-size:26px">Antes de Fechar Negócio</h3></div>
+    <div class="corpo">
+      <ul class="sim">
+        <li><b>Guia em PDF</b>: 37 páginas, 9 capítulos, método em 5 etapas</li>
+        <li><b>Checklist do comprador</b> para imprimir: 48 itens em 5 etapas</li>
+        <li><b>Planilhas editáveis</b>: Comparativo de veículos e Custo total da compra</li>
+        <li><b>Modelos editáveis</b>: recibo de sinal, contrato particular de compra e venda com termo de entrega e roteiro de perguntas ao vendedor</li>
+      </ul>
+      <div class="preco">R$ 27 <small>pagamento único</small></div>
+      <p class="nota" style="margin-top:0">[OU PARCELAMENTO CONFORME A PLATAFORMA]</p>
+      <p style="font-size:15px;color:var(--texto-2);margin:18px 0 0">No checkout, você pode adicionar, se quiser:</p>
+      <div class="bump"><b>Test Drive Técnico + Checklist de Moto · R$ 12</b>Um roteiro de bolso para imprimir e levar na visita:
+        <ul><li><b>Test Drive Técnico:</b> 21 verificações em 3 blocos (parado, em baixa velocidade e em via livre), com o que cada sintoma pode indicar</li><li><b>Checklist de moto usada:</b> 13 pontos próprios das motos, do quadro à corrente</li></ul></div>
+      <a class="btn" href="[LINK_CHECKOUT]" style="width:100%">Quero o guia por R$ 27 →</a>
+      <p class="nota" style="text-align:center">Acesso por e-mail após a confirmação · Pagamento processado pela plataforma [PLATAFORMA]</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- GARANTIA -->
+<section><div class="wrap garantia">
+  <div class="selo">7<small>DIAS</small></div>
+  <div><h2 style="font-size:32px">Garantia incondicional de 7 dias</h2>
+  <p class="sub">Leia, imprima o checklist, abra as planilhas. Se não for útil para a sua compra, peça o reembolso em até 7 dias pela própria plataforma de pagamento e receba de volta o valor integral, sem perguntas (Código de Defesa do Consumidor, art. 49).</p></div>
+</div></section>
+
+<!-- FAQ -->
+<section class="cinza"><div class="wrap" style="max-width:840px">
+  <p class="k">Dúvidas frequentes</p>
+  <h2>O que costumam perguntar antes de comprar</h2>
+  <details><summary>Serve para moto?</summary><p>Em boa parte, sim: os capítulos sobre sinais de alerta e golpes, custo total, documento e consultas, pagamento, contrato e transferência valem igualmente para motos. A parte de examinar o veículo foi escrita para carros. Para motos, o complemento opcional de R$ 12 traz um checklist de moto usada com 13 pontos próprios (quadro, garfo, caixa de direção, sinais de queda, corrente e outros).</p></details>
+  <details><summary>Serve para comprar de loja?</summary><p>Sim. O método é o mesmo, com duas diferenças que o guia explica: na loja, o pagamento vai para a empresa vendedora, e os seus direitos depois da compra seguem o Código de Defesa do Consumidor, enquanto entre particulares vale o Código Civil. O capítulo 9 resume os prazos de cada caso.</p></details>
+  <details><summary>Serve em qualquer estado?</summary><p>Sim. O método vale em todo o Brasil. Os procedimentos de transferência, as taxas e a forma de assinatura variam de estado para estado, e o guia marca esses pontos para você confirmar no órgão de trânsito do seu estado.</p></details>
+  <details><summary>Preciso entender de mecânica?</summary><p>Não. O guia foi escrito para quem não é da área: ensina a observar, anotar e perguntar, e não a diagnosticar. O que exige ferramenta e experiência fica para o vistoriador, e o guia mostra quando chamá-lo.</p></details>
+  <details><summary>O guia substitui a vistoria cautelar?</summary><p>Não, e diz isso com todas as letras, no início, no capítulo 7 e no fim. Ele também não substitui a vistoria de transferência do órgão de trânsito nem a orientação de um advogado. O que ele faz é ajudar você a filtrar os anúncios, chegar à vistoria sabendo o que pedir e decidir com o laudo em mãos.</p></details>
+  <details><summary>Como recebo o material?</summary><p>Logo após a confirmação do pagamento, você recebe por e-mail o acesso aos arquivos para baixar: o guia em PDF, o checklist, as planilhas e os modelos.</p></details>
+  <details><summary>Os arquivos são editáveis?</summary><p>As planilhas e os modelos de recibo, contrato e roteiro de perguntas são editáveis e abrem nos editores de planilha e de texto mais comuns, inclusive gratuitos. O guia e o checklist são PDFs prontos para ler e imprimir.</p></details>
+  <details><summary>Funciona no celular?</summary><p>Sim. O guia em PDF abre em qualquer celular, com sumário clicável. O checklist rende mais impresso, para levar na visita. As planilhas e os modelos também abrem no celular, mas são mais confortáveis de preencher no computador.</p></details>
+  <details><summary>E se eu não gostar?</summary><p>Você tem 7 dias de garantia incondicional. É só pedir o reembolso pela plataforma de pagamento dentro do prazo.</p></details>
+  <details><summary>Tem planilha?</summary><p>Tem duas. O <b>Comparativo de veículos</b> coloca até 4 carros lado a lado, com alerta de preço e o resultado do laudo. O <b>Custo total da compra</b> soma o dia da compra, a transferência, o financiamento (se houver) e o custo do primeiro ano.</p></details>
+</div></section>
+
+<!-- CTA FINAL -->
+<section class="hero" style="padding:80px 0;text-align:center"><div class="wrap" style="position:relative">
+  <h2 style="color:#fff">O melhor negócio é aquele em que você <em>sabe o que está comprando.</em></h2>
+  <p class="lead" style="margin:0 auto 28px">Filtrar, planejar, conferir, examinar e fechar. E saber a hora de chamar um profissional.</p>
+  <a class="btn" href="#oferta">Quero o guia por R$ 27 →</a>
+  <p class="nota">Garantia de 7 dias · Material digital</p>
+</div></section>
+<div class="faixa"></div>
+
+<footer><div class="wrap">
+  <p><b style="color:#fff">Antes de Fechar Negócio</b> · linha Protocolo Cautelar · [RAZÃO SOCIAL] · CNPJ [00.000.000/0000-00] · [E-MAIL DE SUPORTE]</p>
+  <p><b>Aviso legal:</b> guia de finalidade educativa. Não substitui a vistoria cautelar profissional, a vistoria oficial do órgão de trânsito nem a orientação jurídica. Os modelos de recibo e contrato são referências. Procedimentos, prazos e normas mudam e variam por estado: confira no órgão de trânsito do seu estado. Nenhum resultado é garantido. Este site não é afiliado a órgãos de trânsito nem a qualquer empresa do setor automotivo. Os casos citados são ilustrativos.</p>
+  <p><a href="[LINK_PRIVACIDADE]">Política de privacidade</a> · <a href="[LINK_TERMOS]">Termos de uso</a> · © 2026</p>
+</div></footer>
+
+<div id="lgpd" role="dialog" aria-label="Aviso de cookies">
+  <span>Usamos cookies de medição para entender o desempenho dos anúncios. Você pode aceitar ou recusar. <a href="[LINK_PRIVACIDADE]">Saiba mais</a>.</span>
+  <div class="bts"><button class="no" onclick="consent(false)">Recusar</button><button class="ok" onclick="consent(true)">Aceitar</button></div>
+</div>
+<script>
+// Pixel carregado somente após consentimento (LGPD). Substitua [PIXEL_ID].
+function carregarPixel(){ /* cole aqui o código base do pixel da Meta e da tag do Google, usando [PIXEL_ID] */ }
+function consent(ok){ try{localStorage.setItem('afn_consent', ok?'1':'0')}catch(e){} document.getElementById('lgpd').style.display='none'; if(ok) carregarPixel(); }
+(function(){ var c=null; try{c=localStorage.getItem('afn_consent')}catch(e){} if(c===null){document.getElementById('lgpd').style.display='flex'} else if(c==='1'){carregarPixel()} })();
+</script>
+</body>
+</html>
