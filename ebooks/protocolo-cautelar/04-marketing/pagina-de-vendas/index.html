@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protocolo Cautelar · O sistema completo do vistoriador cautelar</title>
+<meta name="description" content="Manual técnico, 60 fichas de ponto crítico, 15 fichas de teste, checklists e um app offline que classifica e gera o laudo. O critério da vistoria cautelar, do pátio ao laudo.">
+<meta property="og:title" content="Protocolo Cautelar · O critério da vistoria cautelar">
+<meta property="og:description" content="Método de pátio, escala N0–N4, fichas técnicas e app de laudo offline.">
+<meta property="og:image" content="img/mockup.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carbono:#0F1318;--grafite:#1B222B;--aco:#2A3440;--ambar:#F2A900;--ambar-e:#B87F00;--ambar-c:#FFF4D6;
+  --papel:#fff;--papel-2:#F5F6F8;--linha:#DDE1E6;--texto:#1A1F26;--texto-2:#4E5864;--texto-3:#7A8591;
+  --n0:#2E9E5B;--n1:#4F7FB0;--n2:#E0A100;--n3:#E0661B;--n4:#C62828;--inc:#5A6472;
+  --ft:"Archivo","Arial Black",sans-serif;--fx:"Inter","Segoe UI",Arial,sans-serif;--fm:"JetBrains Mono",Consolas,monospace;
+  --max:1120px;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font:17px/1.6 var(--fx);color:var(--texto);background:var(--papel)}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 20px}
+section{padding:84px 0}
+.escuro{background:var(--carbono);color:#E6EAEF}
+.cinza{background:var(--papel-2)}
+.k{font:700 13px var(--fm);letter-spacing:.24em;text-transform:uppercase;color:var(--ambar-e);margin:0 0 14px}
+.escuro .k{color:var(--ambar)}
+h1,h2,h3{font-family:var(--ft);line-height:1.08;margin:0 0 18px;letter-spacing:-.01em}
+h1{font-size:clamp(38px,6vw,68px);font-weight:900}
+h2{font-size:clamp(30px,4.2vw,46px);font-weight:900;color:var(--carbono)}
+.escuro h2{color:#fff}
+h3{font-size:21px;font-weight:800}
+em{font-style:normal;color:var(--ambar)}
+.lead{font-size:clamp(18px,2.2vw,21px);color:#C9D1DA;max-width:640px}
+.sub{font-size:19px;color:var(--texto-2);max-width:760px}
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--ambar);color:var(--carbono);font:900 19px var(--ft);padding:19px 30px;border-radius:12px;text-decoration:none;box-shadow:0 10px 30px rgba(242,169,0,.25);transition:transform .15s}
+.btn:hover{transform:translateY(-2px)}
+.nota{font-size:14px;color:var(--texto-3);margin-top:12px}
+.escuro .nota{color:#8b95a1}
+.faixa{height:12px;background:repeating-linear-gradient(-45deg,var(--ambar) 0 14px,var(--carbono) 14px 28px)}
+/* topo */
+.topo{position:sticky;top:0;z-index:20;background:rgba(15,19,24,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(242,169,0,.2)}
+.topo .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.marca{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font:900 16px var(--ft);letter-spacing:.06em}
+.marca small{display:block;font:800 11px var(--ft);letter-spacing:.42em;color:var(--ambar)}
+.topo .btn{padding:11px 18px;font-size:15px;box-shadow:none}
+/* hero */
+.hero{background:radial-gradient(110% 70% at 80% 0%,#27354a 0%,#0F1318 55%,#07090c 100%);color:#fff;padding:70px 0 40px;position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(242,169,0,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(242,169,0,.06) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(70% 60% at 70% 40%,#000 20%,transparent 80%)}
+.hero .g{display:grid;grid-template-columns:1.05fr 1fr;gap:30px;align-items:center;position:relative}
+.hero .selos{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 30px}
+.hero .selos span{border:1.5px solid rgba(242,169,0,.55);border-radius:40px;padding:6px 14px;font:600 14px var(--fx);color:#fff}
+/* cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.card{background:#fff;border:1px solid var(--linha);border-radius:16px;padding:26px}
+.escuro .card{background:var(--grafite);border-color:var(--aco)}
+.card .n{font:900 44px var(--ft);color:var(--ambar-e);line-height:1}
+.escuro .card .n{color:var(--ambar)}
+.card p{margin:8px 0 0;color:var(--texto-2);font-size:16px}
+.escuro .card p{color:#AEB7C2}
+.dor li{margin:10px 0}
+.dor{padding-left:22px}
+.dor li::marker{content:"✕  ";color:var(--n4);font-weight:900}
+/* entregáveis */
+.item{display:grid;grid-template-columns:160px 1fr;gap:24px;align-items:center;background:#fff;border:1px solid var(--linha);border-radius:18px;padding:22px;margin-bottom:18px}
+.item img{border-radius:8px;box-shadow:0 12px 30px rgba(15,19,24,.18);border:1px solid var(--linha)}
+.item .tag{display:inline-block;font:700 12px var(--fm);letter-spacing:.14em;color:var(--ambar-e);text-transform:uppercase}
+.item h3{margin:6px 0 8px}
+.item ul{margin:8px 0 0;padding-left:20px;color:var(--texto-2);font-size:16px}
+/* matriz */
+.nv{display:inline-block;min-width:56px;text-align:center;font:800 15px var(--fm);color:#fff;padding:6px 10px;border-radius:8px}
+.N0{background:var(--n0)}.N1{background:var(--n1)}.N2{background:var(--n2);color:#1a1f26}.N3{background:var(--n3)}.N4{background:var(--n4)}
+table{width:100%;border-collapse:collapse;font-size:16px}
+th{background:var(--carbono);color:#fff;text-align:left;padding:12px 14px;font:700 14px var(--fx)}
+td{padding:12px 14px;border-bottom:1px solid var(--linha);vertical-align:top}
+.tabela{border:1px solid var(--linha);border-radius:14px;overflow-x:auto;background:#fff}
+.comp table{min-width:620px}
+.cls{display:flex;flex-direction:column;gap:10px}
+.cls div{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--linha);border-radius:12px;padding:12px 14px;font-size:16px}
+.cls b{flex:none;width:250px;text-align:center;color:#fff;border-radius:8px;padding:8px;font:800 13px var(--fm);letter-spacing:.04em}
+/* app */
+.telas{display:flex;gap:16px;justify-content:center}
+.tela{width:210px;border-radius:30px;background:#050608;padding:8px;box-shadow:0 30px 60px rgba(0,0,0,.5),0 0 0 1.5px var(--aco)}
+.tela img{border-radius:23px}
+.tela:nth-child(2){transform:translateY(26px)}
+/* para quem */
+.sim li::marker{content:"✓  ";color:var(--n0);font-weight:900}
+.nao li::marker{content:"✕  ";color:var(--n4);font-weight:900}
+.sim,.nao{padding-left:22px;margin:0}.sim li,.nao li{margin:9px 0}
+/* comparação */
+.comp td:first-child{font-weight:600;width:30%}
+.comp td:nth-child(2){color:var(--texto-3)}
+.comp td:nth-child(3){color:var(--carbono);font-weight:600;background:#FFFBEF}
+/* oferta */
+.oferta{max-width:760px;margin:0 auto;background:#fff;color:var(--texto);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.oferta .cab{background:var(--carbono);color:#fff;padding:26px 30px;border-bottom:4px solid var(--ambar)}
+.oferta .corpo{padding:28px 30px}
+.oferta li{margin:8px 0}
+.preco{font:900 64px var(--ft);color:var(--carbono);line-height:1;margin:14px 0 4px}
+.preco small{font:700 18px var(--fx);color:var(--texto-3)}
+.bumps{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}
+.bump{border:1.5px dashed var(--ambar-e);background:var(--ambar-c);border-radius:12px;padding:14px;font-size:15px}
+.bump b{display:block;font:800 16px var(--ft)}
+.garantia{display:grid;grid-template-columns:120px 1fr;gap:24px;align-items:center}
+.selo{width:120px;height:120px;border-radius:50%;border:4px solid var(--ambar);display:flex;flex-direction:column;align-items:center;justify-content:center;font:900 44px/1 var(--ft);color:var(--carbono)}
+.selo small{font:800 12px var(--fm);letter-spacing:.14em}
+/* faq */
+details{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:18px 20px;margin-bottom:10px}
+summary{cursor:pointer;font:800 18px var(--ft);list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::after{content:"+";color:var(--ambar-e);font-size:24px;line-height:1}
+details[open] summary::after{content:"–"}
+details p{margin:12px 0 0;color:var(--texto-2)}
+footer{background:#07090c;color:#8b95a1;font-size:13.5px;padding:40px 0}
+footer a{color:#C9D1DA}
+/* consentimento */
+#lgpd{position:fixed;left:16px;right:16px;bottom:16px;z-index:50;max-width:720px;margin:0 auto;background:#fff;color:var(--texto);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.35);padding:16px 18px;display:none;gap:14px;align-items:center;font-size:14px}
+#lgpd button{border:0;border-radius:10px;padding:10px 14px;font:700 14px var(--fx);cursor:pointer}
+#lgpd .ok{background:var(--ambar)}#lgpd .no{background:var(--papel-2)}
+@media (max-width:900px){
+  .hero .g,.grid2,.grid3,.grid4,.bumps{grid-template-columns:1fr}
+  .item{grid-template-columns:1fr}.item img{max-width:220px}
+  .cls b{width:auto;min-width:150px}
+  .telas{overflow-x:auto;justify-content:flex-start;padding-bottom:30px}.tela{flex:none;width:190px}
+  section{padding:60px 0}
+  .garantia{grid-template-columns:1fr}
+  .topo .btn{display:none}
+  .preco small{display:block;margin-top:6px}
+}
+</style>
+</head>
+<body>
+
+<header class="topo"><div class="wrap">
+  <a class="marca" href="#"><svg width="34" height="34" viewBox="0 0 76 80" aria-hidden="true"><path d="M38 4 L72 22 L72 58 L38 76 L4 58 L4 22 Z" fill="none" stroke="#F2A900" stroke-width="5"/><path d="M24 54 L24 26 L40 26 C48 26 52 31 52 37 C52 43 48 48 40 48 L24 48" fill="none" stroke="#F2A900" stroke-width="6" stroke-linejoin="round"/><path d="M42 56 l6 6 l12 -14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>PROTOCOLO<small>CAUTELAR</small></span></a>
+  <a class="btn" href="#oferta">Quero o Protocolo</a>
+</div></header>
+
+<!-- HERO -->
+<section class="hero"><div class="wrap g">
+  <div>
+    <p class="k">Para quem faz vistoria cautelar</p>
+    <h1>O critério da vistoria cautelar, <em>do pátio ao laudo.</em></h1>
+    <p class="lead">Manual técnico, 60 fichas de ponto crítico, checklists e um app que funciona offline no celular, classifica e gera o laudo com a sua marca. Tudo com a mesma escala de níveis.</p>
+    <div class="selos"><span>Manual 66 p.</span><span>60 fichas</span><span>15 testes</span><span>Checklists</span><span>App offline</span><span>Planilhas</span></div>
+    <a class="btn" href="#oferta">Quero o Protocolo Cautelar →</a>
+    <p class="nota">Material digital · Acesso por e-mail após a confirmação do pagamento · Garantia de 7 dias</p>
+  </div>
+  <div><img src="img/mockup.png" alt="Manual, fichas, checklists e o app Painel de Vistoria no celular" width="1400" height="1000"></div>
+</div></section>
+<div class="faixa"></div>
+
+<!-- DOR -->
+<section><div class="wrap grid2" style="align-items:center">
+  <div>
+    <p class="k">O problema</p>
+    <h2>Dois vistoriadores. O mesmo carro. Dois laudos diferentes.</h2>
+    <p class="sub">Os dois viram as mesmas coisas. O que mudou foi o critério, que estava só na cabeça de cada um. Critério que não está escrito não se explica ao cliente, não se ensina à equipe e não se defende quando o vendedor liga bravo na segunda-feira.</p>
+  </div>
+  <div class="card">
+    <h3>Sinais de que falta critério</h3>
+    <ul class="dor">
+      <li>A classificação de um carro depende de quem vistoriou, ou do dia.</li>
+      <li>O laudo diz "tem uns detalhes", e o cliente não sabe se é um risco ou um arranhão.</li>
+      <li>Quando o vendedor questiona, falta a foto, a medição ou a regra que sustenta a conclusão.</li>
+      <li>A equipe nova leva meses para "pegar o olho", porque não há nada escrito para ensinar.</li>
+      <li>As anotações do pátio viram laudo à noite, passadas a limpo no computador.</li>
+    </ul>
+  </div>
+</div></section>
+
+<!-- O QUE É -->
+<section class="escuro"><div class="wrap">
+  <p class="k">O que é</p>
+  <h2>Não é só um pacote de fichas. <em>É método com ferramenta.</em></h2>
+  <p class="lead" style="margin-bottom:36px">Cada ficha, item de checklist e tela do app remete ao capítulo que explica o porquê. Você recebe a ferramenta <b>e</b> o critério que a faz funcionar.</p>
+  <div class="grid4">
+    <div class="card"><div class="n">12</div><h3>Etapas de pátio</h3><p>Uma rotina fixa, do agendamento ao laudo, que impede de pular a parte que esconde o problema.</p></div>
+    <div class="card"><div class="n">N0–N4</div><h3>Escala única</h3><p>Cinco níveis para qualquer achado e uma matriz que leva à classificação final, sempre igual.</p></div>
+    <div class="card"><div class="n">24</div><h3>Fotos padrão</h3><p>Roteiro fotográfico e evidência em cada achado: o que torna o laudo defensável.</p></div>
+    <div class="card"><div class="n">1</div><h3>Laudo que se sustenta</h3><p>Redação descritiva, limites claros e frases-modelo prontas para cada tipo de achado.</p></div>
+  </div>
+</div></section>
+
+<!-- ENTREGÁVEIS -->
+<section class="cinza"><div class="wrap">
+  <p class="k">O que você recebe</p>
+  <h2>Tudo com a mesma numeração: manual, fichas, checklist, planilha e app.</h2>
+  <p class="sub" style="margin-bottom:34px">O item <b>EST-01</b> (longarinas dianteiras) é o mesmo em todo lugar. Você nunca procura duas vezes.</p>
+
+  <div class="item"><img src="img/manual-pagina.jpg" alt="Página do Manual: escala de níveis" loading="lazy">
+    <div><span class="tag">Manual do Vistoriador · 66 páginas · 15 capítulos</span><h3>O critério, explicado de ponta a ponta</h3>
+      <ul><li>Limites da vistoria cautelar, CDC e LGPD aplicados ao seu serviço</li><li>As 12 etapas de pátio e a escala N0–N4 com 24 exemplos classificados</li><li>Identificação veicular, estrutura (como a energia de uma colisão percorre o carro), pintura com leitura relativa, vidros, pneus, mecânica, OBD2, enchente e incêndio, motos e utilitários</li><li>Fotografia de evidência, redação defensiva do laudo e o negócio: formalização, preço e parcerias</li></ul></div></div>
+
+  <div class="item"><img src="img/ficha.jpg" alt="Ficha de Ponto Crítico: painel frontal" loading="lazy">
+    <div><span class="tag">60 Fichas de Ponto Crítico</span><h3>Uma página por ponto que decide o laudo</h3>
+      <ul><li>Mapa de localização, como é de fábrica e os sinais de intervenção com nível sugerido</li><li>Passo a passo de verificação, ferramentas e a foto obrigatória</li><li>Armadilhas (falsos positivos), o limite da vistoria e a frase-modelo para o laudo</li><li>Inclui motos e utilitários com chassi</li></ul></div></div>
+
+  <div class="item"><img src="img/teste.jpg" alt="Ficha de teste: scanner OBD2" loading="lazy">
+    <div><span class="tag">15 Fichas de Teste</span><h3>Procedimentos com referência e interpretação</h3>
+      <ul><li>Espessura de pintura, OBD2 com monitores de prontidão, bateria e carga, pneus e DOT, datas de vidros, protocolo de enchente, test drive técnico e outros</li><li>Valores orientativos, o que cada leitura indica e campos para preencher no pátio</li></ul></div></div>
+
+  <div class="item"><img src="img/checklist.jpg" alt="Checklist de pátio" loading="lazy">
+    <div><span class="tag">Checklists</span><h3>Folha de pátio frente e verso + 12 detalhados</h3>
+      <ul><li>Os 10 sistemas do veículo, mais os anexos de motos e utilitários</li><li>Colunas N0–N4, N/A e "não verificável", foto obrigatória marcada e matriz no rodapé</li></ul></div></div>
+
+  <div class="item"><img src="img/app-05-resumo.png" alt="App Painel de Vistoria: resumo e classificação" loading="lazy" style="max-width:120px;justify-self:center">
+    <div><span class="tag">App Painel de Vistoria · offline</span><h3>Do pátio ao laudo, no celular</h3>
+      <ul><li>Roteiro por sistema com níveis, observações e fotos</li><li>Mapa de pintura com referência do próprio veículo e semáforo</li><li>Classificação automática pela matriz e laudo em PDF com a <b>sua</b> logo</li><li>Funciona sem internet; os dados ficam só no seu aparelho</li></ul></div></div>
+
+  <div class="item" style="grid-template-columns:1fr">
+    <div><span class="tag">Planilhas Excel</span><h3>Registro de apontamentos e mapa de pintura</h3>
+      <ul><li>Classificação automática pela matriz, contagem por sistema e semáforo de pintura com referência do próprio veículo</li></ul></div></div>
+</div></section>
+
+<!-- CRITÉRIO -->
+<section><div class="wrap grid2">
+  <div>
+    <p class="k">Como o critério funciona</p>
+    <h2>Cada achado tem um nível. Cada laudo, uma regra.</h2>
+    <div class="tabela" style="margin-top:22px"><table>
+      <tr><th>Achado constatado</th><th style="width:90px">Nível</th></tr>
+      <tr><td>Riscos superficiais sem repintura</td><td><span class="nv N1">N1</span></td></tr>
+      <tr><td>Para-choque dianteiro repintado</td><td><span class="nv N2">N2</span></td></tr>
+      <tr><td>Painel frontal substituído com solda fora do padrão</td><td><span class="nv N3">N3</span></td></tr>
+      <tr><td>Luz do airbag não acende no autoteste</td><td><span class="nv N3">N3</span></td></tr>
+      <tr><td>Emenda no corpo da longarina</td><td><span class="nv N4">N4</span></td></tr>
+      <tr><td>Lodo seco e oxidação sob o carpete</td><td><span class="nv N4">N4</span></td></tr>
+    </table></div>
+  </div>
+  <div>
+    <p class="k">A matriz (nesta ordem)</p>
+    <div class="cls" style="margin-top:4px">
+      <div><b style="background:var(--inc)">INCONCLUSIVO</b>Algum item de identificação não pôde ser verificado</div>
+      <div><b style="background:var(--n4)">REPROVADO</b>Pelo menos um achado N4</div>
+      <div><b style="background:var(--n2);color:#1a1f26">APROVADO COM APONTAMENTOS</b>Pelo menos um N2 ou N3</div>
+      <div><b style="background:var(--n0)">APROVADO</b>Somente N0 ou N1</div>
+    </div>
+    <p class="sub" style="font-size:16px;margin-top:18px">O resultado <b>INCONCLUSIVO</b> protege você: quando a identificação não pôde ser verificada, o laudo não afirma o que você não viu. "Aprovado" classifica o exame técnico visual naquele momento; não aprova a compra nem garante o veículo.</p>
+  </div>
+</div></section>
+
+<!-- APP -->
+<section class="escuro"><div class="wrap grid2" style="align-items:center">
+  <div>
+    <p class="k">App Painel de Vistoria</p>
+    <h2>O laudo sai pronto <em>antes de você sair do pátio.</em></h2>
+    <p class="lead">Um arquivo que abre no navegador do celular e funciona sem internet. Você marca os níveis, tira as fotos, mede a pintura e o app aplica a matriz. No fim, gera o PDF com a sua logo e os seus dados.</p>
+    <ul class="sim" style="color:#C9D1DA;margin-top:18px">
+      <li>Carro, moto e utilitário</li><li>Bloqueia o laudo se faltar item</li><li>Backup e importação em um toque</li><li>Sem cadastro e sem mensalidade</li>
+    </ul>
+  </div>
+  <div class="telas">
+    <div class="tela"><img src="img/app-03-roteiro.png" alt="Roteiro com níveis N0 a N4" loading="lazy"></div>
+    <div class="tela"><img src="img/app-04-pintura.png" alt="Mapa de pintura" loading="lazy"></div>
+    <div class="tela"><img src="img/app-06-laudo.png" alt="Laudo pronto" loading="lazy"></div>
+  </div>
+</div></section>
+
+<!-- PARA QUEM -->
+<section class="cinza"><div class="wrap">
+  <p class="k">Para quem é</p>
+  <h2>Feito para quem vistoria, ou quer começar a vistoriar, com método.</h2>
+  <div class="grid2" style="margin-top:26px">
+    <div class="card"><h3>É para você se…</h3><ul class="sim">
+      <li>Já faz vistoria cautelar ou avaliação de usados e quer padronizar o critério e ganhar tempo</li>
+      <li>Quer começar a oferecer vistoria de compra com um método completo</li>
+      <li>É mecânico, funileiro, pintor ou avaliador e quer transformar o que sabe em um serviço com laudo</li>
+      <li>Trabalha em loja, repasse, locadora ou frota e precisa de um padrão de entrada de veículos</li></ul></div>
+    <div class="card"><h3>Não é para você se…</h3><ul class="nao">
+      <li>Quer fazer vistoria de transferência do órgão de trânsito: ela é exclusiva de empresas credenciadas (ECV)</li>
+      <li>Procura um curso de mecânica ou funilaria do zero</li>
+      <li>Espera que uma ferramenta descubra batida sozinha: quem conclui é você</li>
+      <li>Procura atalhos para esconder avaria ou "passar" um carro em vistoria</li></ul></div>
+  </div>
+</div></section>
+
+<!-- COMPARAÇÃO -->
+<section><div class="wrap">
+  <p class="k">A diferença</p>
+  <h2>Fichas soltas ou um sistema com critério?</h2>
+  <div class="tabela comp" style="margin-top:24px"><table>
+    <tr><th></th><th>Fichas e modelos soltos</th><th>Protocolo Cautelar</th></tr>
+    <tr><td>Critério de classificação</td><td>Implícito, varia de ficha para ficha</td><td>Escala N0–N4 e matriz escrita, igual em tudo</td></tr>
+    <tr><td>Porquê de cada verificação</td><td>Não explicado</td><td>Manual de 66 páginas referenciado em cada ficha</td></tr>
+    <tr><td>Quando não dá para verificar</td><td>Aprovar ou reprovar "no escuro"</td><td>Resultado INCONCLUSIVO, com o motivo</td></tr>
+    <tr><td>Pintura</td><td>Número solto</td><td>Referência do próprio veículo e leitura relativa</td></tr>
+    <tr><td>Laudo</td><td>Modelo em branco</td><td>App que classifica e gera o PDF, com frases-modelo por achado</td></tr>
+    <tr><td>Proteção do vistoriador</td><td>Genérica</td><td>Limites, termo de ciência, LGPD e redação defensiva</td></tr>
+  </table></div>
+</div></section>
+
+<!-- OFERTA -->
+<section class="escuro" id="oferta"><div class="wrap">
+  <p class="k" style="text-align:center">A oferta</p>
+  <h2 style="text-align:center">Comece hoje com o Protocolo completo de pátio.</h2>
+  <div class="oferta" style="margin-top:34px">
+    <div class="cab"><div class="k" style="margin:0">Protocolo Cautelar</div><h3 style="margin:6px 0 0;font-size:26px">O sistema do vistoriador cautelar</h3></div>
+    <div class="corpo">
+      <ul class="sim">
+        <li><b>Manual do Vistoriador</b>: 66 páginas, 15 capítulos</li>
+        <li><b>60 Fichas de Ponto Crítico</b> com mapa de localização e frase-modelo de laudo</li>
+        <li><b>15 Fichas de Teste</b> com valores de referência</li>
+        <li><b>Checklists</b>: folha de pátio frente e verso + 12 detalhados</li>
+        <li><b>App Painel de Vistoria</b>, offline, com laudo em PDF e a sua marca</li>
+        <li><b>Planilhas</b> de apontamentos e mapa de pintura</li>
+      </ul>
+      <div class="preco">R$ 37 <small>pagamento único</small></div>
+      <p class="nota" style="margin-top:0">[OU PARCELAMENTO CONFORME A PLATAFORMA]</p>
+      <p style="font-size:15px;color:var(--texto-2);margin:18px 0 0">No checkout, você pode adicionar:</p>
+      <div class="bumps">
+        <div class="bump"><b>Pacote Jurídico e Comercial · R$ 19</b>9 modelos Word: laudo, termo de autorização e ciência, proposta, contratos, recibo, aviso LGPD, política de classificação e 18 mensagens de WhatsApp.</div>
+        <div class="bump"><b>Planilhas de Gestão · R$ 14</b>Precificação por custo/hora, controle de vistorias e caixa, agenda e rota, comparativo anúncio x veículo.</div>
+      </div>
+      <a class="btn" href="[LINK_CHECKOUT]" style="width:100%;justify-content:center">Quero o Protocolo Cautelar →</a>
+      <p class="nota" style="text-align:center">Acesso imediato por e-mail · Pagamento processado pela plataforma [PLATAFORMA]</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- GARANTIA -->
+<section class="cinza"><div class="wrap garantia">
+  <div class="selo">7<small>DIAS</small></div>
+  <div><h2 style="font-size:32px">Garantia incondicional de 7 dias</h2>
+  <p class="sub">Abra o material, use numa vistoria, teste o app. Se não for o que você esperava, peça o reembolso em até 7 dias pela própria plataforma de compra e receba 100% do valor pago, sem perguntas.</p></div>
+</div></section>
+
+<!-- FAQ -->
+<section><div class="wrap" style="max-width:840px">
+  <p class="k">Dúvidas frequentes</p>
+  <h2>O que costumam perguntar antes de comprar</h2>
+  <details><summary>Preciso de alguma certificação para fazer vistoria cautelar?</summary><p>A vistoria cautelar é um serviço privado, contratado livremente entre as partes, e não depende do credenciamento exigido para a vistoria de transferência. Mesmo assim, recomendamos formalizar a atividade, contratar seguro de responsabilidade civil e buscar capacitação contínua. Confirme também as regras do seu município e estado [VERIFICAR].</p></details>
+  <details><summary>O Protocolo habilita para a vistoria de transferência (ECV)?</summary><p>Não. A vistoria de identificação para transferência é exclusiva de empresas credenciadas pelo órgão de trânsito. O Protocolo é um material técnico de apoio à vistoria cautelar e não é curso credenciado.</p></details>
+  <details><summary>Serve para moto e utilitário?</summary><p>Sim. Há checklists, fichas de ponto crítico e um roteiro no app específicos para motos e para veículos com chassi (picapes e utilitários).</p></details>
+  <details><summary>Os arquivos são editáveis?</summary><p>Os checklists, fichas e o manual são PDFs prontos para imprimir e consultar. As planilhas são Excel editáveis. Os modelos de documento (laudo, contratos, termo) são Word editáveis e vêm no Pacote Jurídico e Comercial.</p></details>
+  <details><summary>Posso usar a minha marca?</summary><p>Sim. O app gera o laudo com a sua logo e os seus dados, sem a marca do Protocolo. Os modelos de documento têm espaço para a sua logo.</p></details>
+  <details><summary>O app precisa de internet? Funciona no iPhone?</summary><p>Não precisa de internet: é um arquivo que abre no navegador e guarda os dados só no seu aparelho. Funciona em Android e no computador. No iPhone, ele deve ser aberto por um navegador (a pré-visualização do app Arquivos não executa o painel); o guia de uso explica o passo a passo.</p></details>
+  <details><summary>Como recebo o material?</summary><p>Logo após a confirmação do pagamento, você recebe por e-mail o acesso à área de membros, com os arquivos para baixar.</p></details>
+  <details><summary>Serve para quem está começando?</summary><p>Sim, desde que você tenha interesse técnico e disposição para praticar. O manual começa pelos fundamentos e pelos limites do serviço, e o plano de 30 dias organiza os primeiros passos. O material não promete renda: o resultado depende do seu mercado e da qualidade do seu trabalho.</p></details>
+  <details><summary>Os valores de referência valem para todo carro?</summary><p>Não. Espessura de pintura, tensões de bateria e outras faixas são orientativas e variam por fabricante e modelo. Por isso o Protocolo ensina a comparar com o próprio veículo e a confirmar com sinais visuais.</p></details>
+  <details><summary>Recebo atualizações?</summary><p>[DEFINIR POLÍTICA: por exemplo, atualizações da edição 1.x sem custo durante 12 meses.]</p></details>
+  <details><summary>E se eu não gostar?</summary><p>Você tem 7 dias de garantia incondicional. É só pedir o reembolso pela plataforma de compra.</p></details>
+</div></section>
+
+<!-- CTA FINAL -->
+<section class="hero" style="padding:80px 0;text-align:center"><div class="wrap" style="position:relative">
+  <h2 style="color:#fff">A sua próxima vistoria pode ter <em>critério escrito.</em></h2>
+  <p class="lead" style="margin:0 auto 28px">Método, fichas, checklists e o app que fecha o laudo no pátio.</p>
+  <a class="btn" href="#oferta">Quero o Protocolo Cautelar →</a>
+</div></section>
+<div class="faixa"></div>
+
+<footer><div class="wrap">
+  <p><b style="color:#fff">Protocolo Cautelar</b> · [RAZÃO SOCIAL] · CNPJ [00.000.000/0000-00] · [E-MAIL DE SUPORTE]</p>
+  <p><b>Aviso:</b> material técnico de apoio à vistoria cautelar, serviço privado de exame visual e não destrutivo. Não habilita para a vistoria de identificação veicular do órgão de trânsito, não é curso credenciado e não substitui a legislação vigente, a perícia oficial ou a assessoria jurídica. Valores técnicos são orientativos. Nenhum resultado financeiro é prometido. Este site não é afiliado a órgãos de trânsito.</p>
+  <p><a href="[LINK_PRIVACIDADE]">Política de privacidade</a> · <a href="[LINK_TERMOS]">Termos de uso</a> · © 2026</p>
+</div></footer>
+
+<div id="lgpd" role="dialog" aria-label="Aviso de cookies">
+  <span>Usamos cookies de medição para entender o desempenho dos anúncios. Você pode aceitar ou recusar. <a href="[LINK_PRIVACIDADE]">Saiba mais</a>.</span>
+  <button class="no" onclick="consent(false)">Recusar</button><button class="ok" onclick="consent(true)">Aceitar</button>
+</div>
+<script>
+// Pixel carregado somente após consentimento (LGPD). Substitua [PIXEL_ID].
+function carregarPixel(){ /* cole aqui o código base do pixel da Meta e da tag do Google, usando [PIXEL_ID] */ }
+function consent(ok){ try{localStorage.setItem('pc_consent', ok?'1':'0')}catch(e){} document.getElementById('lgpd').style.display='none'; if(ok) carregarPixel(); }
+(function(){ var c=null; try{c=localStorage.getItem('pc_consent')}catch(e){} if(c===null){document.getElementById('lgpd').style.display='flex'} else if(c==='1'){carregarPixel()} })();
+</script>
+</body>
+</html>

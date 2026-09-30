@@ -5,7 +5,7 @@
 
 | # | Produto | Público | Status | Pasta |
 |---|---|---|---|---|
-| 1 | **Protocolo Cautelar**: o sistema completo do vistoriador (manual + fichas + checklists + testes + modelos + planilhas + app offline) | Vistoriadores cautelares, iniciantes, lojas e frotas | **Em produção (piloto)** | `protocolo-cautelar/` |
+| 1 | **Protocolo Cautelar**: o sistema completo do vistoriador (manual + fichas + checklists + testes + modelos + planilhas + app offline) | Vistoriadores cautelares, iniciantes, lojas e frotas | **Piloto pronto: aguardando revisão** | `protocolo-cautelar/` |
 | 2 | **Antes de Fechar Negócio**: o checklist do vistoriador para comprar carro usado | Comprador de carro usado | Aprovado para produzir depois do piloto | — |
 | 3 | Batido ou Não? Sinais de batida, repintura e reparo estrutural | Comprador | Banco de ideias | — |
 | 4 | Leilão, Sinistro e Recuperado | Comprador de leilão | Banco de ideias | — |
