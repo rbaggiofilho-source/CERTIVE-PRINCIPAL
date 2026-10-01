@@ -1878,6 +1878,19 @@
                                         <textarea id="cfg-part-obs" placeholder="Contatos do financeiro, observações gerais de pagamentos, gerência comercial, etc..." style="height: 60px; font-family: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
                                     </div>
 
+                                    <!-- Mensalidade fixa (ex.: aluguel do pátio), cobrada no fechamento da fatura -->
+                                    <label class="form-section-title">MENSALIDADE FIXA NA FATURA (OPCIONAL)</label>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="cfg-part-mensalidade-desc">Descrição da cobrança</label>
+                                            <input type="text" id="cfg-part-mensalidade-desc" maxlength="80" placeholder="Ex.: Aluguel do pátio lateral">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-part-mensalidade-valor">Valor mensal (R$)</label>
+                                            <input type="number" step="0.01" min="0" id="cfg-part-mensalidade-valor" placeholder="Em branco = sem mensalidade">
+                                        </div>
+                                    </div>
+
                                     <!-- Valores do Combo (A.1) -->
                                     <label class="form-section-title">VALORES DO COMBO (SHOPPING / LOJISTAS)</label>
                                     <div class="form-row">
@@ -2355,8 +2368,28 @@
                         </div>
                         <div>
                             <label style="font-size: 9px;">Fim</label>
-                            <input type="date" id="fat-modal-fim" required>
+                            <input type="date" id="fat-modal-fim" required onchange="atualizarMensalidadeFatModal()">
                         </div>
+                    </div>
+                </div>
+                <div class="form-group" id="fat-modal-mens-box" style="display: none;">
+                    <label>Mensalidade do Parceiro</label>
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <label class="form-check" style="margin-bottom: 0;">
+                            <input type="checkbox" id="fat-modal-mens-incluir" onchange="recalcFatModalTotais()">
+                            <span>Incluir a mensalidade de <strong id="fat-modal-mens-comp">—</strong> nesta fatura</span>
+                        </label>
+                        <div class="form-row">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="fat-modal-mens-desc" style="font-size: 9px;">Descrição</label>
+                                <input type="text" id="fat-modal-mens-desc" maxlength="80">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="fat-modal-mens-valor" style="font-size: 9px;">Valor (R$)</label>
+                                <input type="number" step="0.01" min="0" id="fat-modal-mens-valor" oninput="recalcFatModalTotais()">
+                            </div>
+                        </div>
+                        <small id="fat-modal-mens-aviso" style="color: var(--text-secondary);"></small>
                     </div>
                 </div>
                 <div class="form-group">
@@ -2365,6 +2398,10 @@
                         <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary);">
                             <span>Total Bruto (Vistorias <span id="fat-modal-qtd">0</span>):</span>
                             <span id="fat-modal-total-bruto" style="font-weight: 600;">R$ 0,00</span>
+                        </div>
+                        <div id="fat-modal-linha-extras" style="display: none; justify-content: space-between; font-size: 13px; color: var(--text-secondary);">
+                            <span>Outras cobranças:</span>
+                            <span id="fat-modal-total-extras" style="font-weight: 600;">R$ 0,00</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--danger);">
                             <span>Créditos/Cortesias Disponíveis:</span>
@@ -3004,7 +3041,7 @@
     </div>
 
 <script src="supabase-db.js?v=20260928-fase4"></script>
-<script src="app_v8.js?v=20261001-fechamento-pendencias"></script>
+<script src="app_v8.js?v=20261001-mensalidade-parceiro"></script>
 <script src="laudo_pdf_v2.js?v=9.0.0"></script>
 <script src="js/laudo_certive.js?v=3.1.0"></script>
 <script>
