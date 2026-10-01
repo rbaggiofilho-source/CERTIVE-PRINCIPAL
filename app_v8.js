@@ -6733,6 +6733,8 @@ function printInvoiceById(invoiceId) {
     }
 
     const totalExtras = totalExtrasDaFatura(f);
+    const totalBrutoOS = oss.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
+    const totalCreditos = totalCreditosAbatidosFatura(f, totalBrutoOS);
     const printArea = document.getElementById('print-area');
     printArea.innerHTML = `
         <div class="print-header">
@@ -6766,7 +6768,9 @@ function printInvoiceById(invoiceId) {
                 <strong>Status de Pagamento:</strong> ${f.pago ? `PAGO EM ${formatDateBr(f.pagoEm)}` : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right;">
+                <span style="font-size: 11px;">Bruto O.S.: ${formatCurrency(totalBrutoOS)}</span><br>
                 ${totalExtras > 0 ? `<span style="font-size: 11px;">Outras cobranças: ${formatCurrency(totalExtras)}</span><br>` : ''}
+                ${totalCreditos > 0 ? `<span style="font-size: 11px;">Créditos/Descontos: - ${formatCurrency(totalCreditos)}</span><br>` : ''}
                 <span style="font-size: 14px; font-weight: 800; color: #000;">VALOR TOTAL: ${formatCurrency(f.valorTotal)}</span>
             </div>
         </div>
@@ -6795,6 +6799,8 @@ function printInvoiceById(invoiceId) {
         ` : ''}
 
         ${htmlOutrasCobrancasFatura(f)}
+
+        ${htmlCreditosAbatidosFatura(f)}
 
         ${buildPaymentInstructionsHtml(f)}
 
@@ -14355,6 +14361,38 @@ function htmlOutrasCobrancasFatura(f) {
         </div>`;
 }
 
+// Bloco dos créditos/cortesias abatidos na fatura (PDF e impressão)
+function htmlCreditosAbatidosFatura(f) {
+    const creditosAbatidos = (db.parceiros_creditos || []).filter(c => Number(c.faturaId) === Number(f.id));
+    if (!creditosAbatidos.length) return '';
+    const creditosRows = creditosAbatidos.map(c => `
+            <tr style="border-bottom: 1px dotted #ffcdd2; font-size: 11px; color: #b71c1c;">
+                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${escHtml(c.descricao)}</td>
+                <td style="padding: 6px; text-align: right; font-weight: 600;" colspan="2">- ${formatCurrency(c.valor)}</td>
+            </tr>
+        `).join('');
+    return `
+            <div style="border: 1px solid #e53935; border-radius: 4px; overflow: hidden; margin-bottom: 30px; margin-top: 15px;">
+                <div style="font-weight: 800; font-size: 12px; background: #ffebee; color: #c62828; padding: 10px 14px; border-bottom: 1px solid #e53935;">
+                    CRÉDITOS E CORTESIAS ABATIDOS NESTA FATURA
+                </div>
+                <div style="padding: 10px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <tbody>
+                            ${creditosRows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+}
+
+// Créditos efetivamente abatidos: bruto (O.S. + extras) menos o valor da fatura
+function totalCreditosAbatidosFatura(f, totalOS) {
+    const bruto = somaCentavos(totalOS, totalExtrasDaFatura(f));
+    return Math.max(0, Math.round((bruto - (Number(f.valorTotal) || 0)) * 100) / 100);
+}
+
 async function generateAndUploadInvoicePDF(f) {
     if (!window.useSupabase) return null;
 
@@ -14378,35 +14416,10 @@ async function generateAndUploadInvoicePDF(f) {
     }
 
     // Créditos e descontos aplicados nesta fatura
-    const creditosAbatidos = (db.parceiros_creditos || []).filter(c => c.faturaId === f.id);
-    const totalCreditos = creditosAbatidos.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     const totalBruto = oss.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
     const totalExtras = totalExtrasDaFatura(f);
-
-    let creditosHtml = '';
-    if (creditosAbatidos.length > 0) {
-        const creditosRows = creditosAbatidos.map(c => `
-            <tr style="border-bottom: 1px dotted #ffcdd2; font-size: 11px; color: #b71c1c;">
-                <td style="padding: 6px;" colspan="4"><strong>[${c.tipo === 'credito' ? 'CRÉDITO' : 'CORTESIA'}]</strong> ${escHtml(c.descricao)}</td>
-                <td style="padding: 6px; text-align: right; font-weight: 600;" colspan="2">- ${formatCurrency(c.valor)}</td>
-            </tr>
-        `).join('');
-
-        creditosHtml = `
-            <div style="border: 1px solid #e53935; border-radius: 4px; overflow: hidden; margin-bottom: 30px; margin-top: 15px;">
-                <div style="font-weight: 800; font-size: 12px; background: #ffebee; color: #c62828; padding: 10px 14px; border-bottom: 1px solid #e53935;">
-                    CRÉDITOS E CORTESIAS ABATIDOS NESTA FATURA
-                </div>
-                <div style="padding: 10px;">
-                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                        <tbody>
-                            ${creditosRows}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }
+    const totalCreditos = totalCreditosAbatidosFatura(f, totalBruto);
+    const creditosHtml = htmlCreditosAbatidosFatura(f);
 
     const div = document.createElement('div');
     div.style.padding = '40px';
