@@ -1396,6 +1396,14 @@ function submitOSForm() {
         const partnerId = partnerSelect ? parseInt(partnerSelect.value) : null;
         const parcelas = (pagamento === 'credito_parcelado' && parcelasEl) ? parseInt(parcelasEl.value) : null;
 
+        // Cliente parceiro sem parceiro escolhido: a OS ficava sem dono e nunca
+        // aparecia no fechamento da fatura (OS-0547, OS-0171).
+        if (currentClientType === 'parceiro' && (!partnerId || !db.parceiros.some(p => p.id === partnerId))) {
+            showToast("Selecione o parceiro (lojista) antes de registrar a O.S.", "error");
+            if (partnerSelect) { partnerSelect.focus(); partnerSelect.style.borderColor = 'var(--danger)'; }
+            return;
+        }
+
         // Placa fora do padrão trava aqui: uma placa errada não bate com o
         // relatório do DETRAN e inviabiliza a conferência da guia.
         if (placa && !placaValida(placa)) {
