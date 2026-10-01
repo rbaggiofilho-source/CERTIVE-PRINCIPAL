@@ -5910,6 +5910,25 @@ function openGirarFaturaModal() {
     atualizarMensalidadeFatModal();
 
     document.getElementById('modal-faturamento-fechar').classList.add('active');
+    atualizarCreditosFatModal(partner.id);
+}
+
+// Os créditos podem ter mudado desde que a tela foi aberta (outra pessoa
+// lançou, fatura desfeita...). O banco abate os créditos que estão livres na
+// hora de fechar, então o resumo do modal busca o saldo atualizado de lá.
+async function atualizarCreditosFatModal(parceiroId) {
+    if (!window.useSupabase || !window.onlineTables || !window.onlineTables['parceiros_creditos']) return;
+    try {
+        const { data, error } = await supabaseClient.from('parceiros_creditos').select('*').eq('parceiroId', parceiroId);
+        if (error || !Array.isArray(data)) return;
+        const frescos = data.map(c => normalizeRecord('parceiros_creditos', c));
+        db.parceiros_creditos = (db.parceiros_creditos || []).filter(c => c.parceiroId !== parceiroId).concat(frescos);
+        if (parseInt(document.getElementById('fat-modal-parceiro-id').value) !== parceiroId) return;
+        window.fatModalTotalCreditos = frescos.filter(c => !c.utilizado).reduce((s, c) => somaCentavos(s, c.valor), 0);
+        recalcFatModalTotais();
+    } catch (e) {
+        console.warn('Não foi possível atualizar os créditos do parceiro:', e);
+    }
 }
 
 
