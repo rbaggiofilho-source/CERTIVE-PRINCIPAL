@@ -14,7 +14,7 @@ const DECIMAL_FIELDS = {
     caixa_movimentos: ['valor'],
     contas_pagar: ['valor'],
     faturas: ['valorTotal'],
-    parceiros: ['precoCombo', 'precoComboTransferencia'],
+    parceiros: ['precoCombo', 'precoComboTransferencia', 'mensalidadeValor'],
     parceiros_creditos: ['valor'],
     pendencias_fechamento: ['valorTaxa'],
     baixas_faturas_pendentes: ['valor']

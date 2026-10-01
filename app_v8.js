@@ -2044,9 +2044,22 @@ async function changeOSStatus(id, newStatus) {
 }
 
 
+// A função _remover_os_da_fatura do banco ainda não considera as cobranças
+// extras (mensalidade): tirar uma O.S. de uma fatura com mensalidade faria a
+// mensalidade sumir do valor. Até a migração 20261001020000 ser aplicada,
+// essa operação fica bloqueada aqui. Depois de aplicada, trocar para true.
+const REMOVER_OS_CONSIDERA_EXTRAS = false;
+
+function bloqueioSaidaDaFatura(fat) {
+    if (REMOVER_OS_CONSIDERA_EXTRAS || !fat || !cobrancasExtrasDaFatura(fat).length) return null;
+    return `A fatura ${fat.codigo} tem mensalidade lançada; por enquanto a O.S. não pode sair dela. Peça ao administrador para ajustar a fatura.`;
+}
+
 // Tira a OS de uma fatura em aberto (cancela antes a cobrança do Asaas, cujo
 // valor deixaria de bater). Lança erro se não for possível.
 async function tirarOSDaFatura(os, fat) {
+    const bloqueio = bloqueioSaidaDaFatura(fat);
+    if (bloqueio) throw new Error(bloqueio);
     if (fat && fat.asaas_payment_id) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-asaas-billing`, {
             method: 'POST',
@@ -2075,6 +2088,7 @@ async function cancelOS(id) {
         showToast(`Esta O.S. está na fatura ${fatDaOS.codigo}, que já foi paga. Faça o acerto como crédito ao parceiro.`, "error");
         return;
     }
+    if (bloqueioSaidaDaFatura(fatDaOS)) { showToast(bloqueioSaidaDaFatura(fatDaOS), "error"); return; }
 
     // O que de fato entrou de dinheiro por esta OS (cada forma do pagamento
     // dividido separada), descontando estornos já feitos.
@@ -2353,6 +2367,11 @@ async function submitEditOSForm(event) {
         const caixa = db.caixa_diario.find(c => c.id === m.caixaId);
         return caixa && caixa.status === 'fechado';
     });
+    const fatDaEdicao = os.faturaId ? db.faturas.find(f => f.id === os.faturaId) : null;
+    if (mudouFinanceiro && bloqueioSaidaDaFatura(fatDaEdicao)) {
+        showToast(bloqueioSaidaDaFatura(fatDaEdicao), "error");
+        return;
+    }
     if (mudouFinanceiro && temCaixaFechado) {
         showToast("Esta OS tem lançamento em Caixa Diário FECHADO: valor e forma de pagamento não podem ser alterados aqui. Use \"Alterar forma de pagamento\" com justificativa.", "error");
         return;
@@ -5753,16 +5772,89 @@ function updateFatSelectedSummary() {
     // Check if we need to do anything (visual warning)
 }
 
-function openGirarFaturaModal() {
-    const checkboxes = document.querySelectorAll('input[name="fat-select-os"]:checked');
-    if (checkboxes.length === 0) {
-        showToast("Por favor, selecione pelo menos uma OS para faturar.", "error");
+// ---- Mensalidade fixa do parceiro (ex.: aluguel do pátio) ----
+// Cadastrada no parceiro e cobrada uma vez por mês de competência, junto com
+// as O.S., sem passar pelo atendimento. Fica em faturas.cobrancasExtras.
+function parceiroTemMensalidade(partner) {
+    return !!partner && Number(partner.mensalidadeValor) > 0;
+}
+
+function cobrancasExtrasDaFatura(f) {
+    return Array.isArray(f && f.cobrancasExtras) ? f.cobrancasExtras : [];
+}
+
+function totalExtrasDaFatura(f) {
+    return cobrancasExtrasDaFatura(f).reduce((s, e) => somaCentavos(s, Number(e.valor) || 0), 0);
+}
+
+function faturaDaMensalidade(parceiroId, competencia) {
+    return (db.faturas || []).find(f => f.parceiroId === parceiroId &&
+        cobrancasExtrasDaFatura(f).some(e => e.tipo === 'mensalidade' && e.competencia === competencia));
+}
+
+function rotuloCompetencia(competencia) {
+    const [a, m] = String(competencia || '').split('-');
+    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    return meses[Number(m) - 1] ? `${meses[Number(m) - 1]}/${a}` : String(competencia || '');
+}
+
+// A competência da mensalidade é o mês do fim do período da fatura
+function atualizarMensalidadeFatModal() {
+    const box = document.getElementById('fat-modal-mens-box');
+    const partner = db.parceiros.find(p => p.id === parseInt(document.getElementById('fat-modal-parceiro-id').value));
+    if (!parceiroTemMensalidade(partner)) {
+        box.style.display = 'none';
+        document.getElementById('fat-modal-mens-incluir').checked = false;
+        recalcFatModalTotais();
         return;
     }
+    box.style.display = '';
+    const fim = document.getElementById('fat-modal-fim').value || diaSP(new Date());
+    const competencia = fim.slice(0, 7);
+    const ja = faturaDaMensalidade(partner.id, competencia);
+    const chk = document.getElementById('fat-modal-mens-incluir');
+    document.getElementById('fat-modal-mens-comp').textContent = rotuloCompetencia(competencia);
+    document.getElementById('fat-modal-mens-aviso').textContent = ja
+        ? `A mensalidade de ${rotuloCompetencia(competencia)} já foi cobrada na fatura ${ja.codigo}.`
+        : 'Desmarque se este mês não deve ser cobrado. O valor pode ser ajustado só para esta fatura.';
+    chk.disabled = !!ja;
+    // Mês novo (ou modal recém-aberto): vem marcada; no mesmo mês respeita o operador
+    if (ja) chk.checked = false;
+    else if (window.fatModalMensCompetencia !== competencia) chk.checked = true;
+    window.fatModalMensCompetencia = competencia;
+    recalcFatModalTotais();
+}
 
+function mensalidadeSelecionadaFatModal() {
+    const chk = document.getElementById('fat-modal-mens-incluir');
+    if (!chk || !chk.checked || chk.disabled) return null;
+    return {
+        tipo: 'mensalidade',
+        descricao: document.getElementById('fat-modal-mens-desc').value.trim(),
+        valor: lerValorMonetario(document.getElementById('fat-modal-mens-valor').value) || 0,
+        competencia: window.fatModalMensCompetencia
+    };
+}
+
+function recalcFatModalTotais() {
+    const totalOS = window.fatModalTotalOS || 0;
+    const totalCreditos = window.fatModalTotalCreditos || 0;
+    const mens = mensalidadeSelecionadaFatModal();
+    const extras = mens ? mens.valor : 0;
+    const bruto = somaCentavos(totalOS, extras);
+    document.getElementById('fat-modal-total-bruto').textContent = formatCurrency(totalOS);
+    document.getElementById('fat-modal-linha-extras').style.display = mens ? 'flex' : 'none';
+    document.getElementById('fat-modal-total-extras').textContent = formatCurrency(extras);
+    document.getElementById('fat-modal-total-creditos').textContent = `- ${formatCurrency(Math.min(totalCreditos, bruto))}`;
+    document.getElementById('fat-modal-total-liquido').textContent = formatCurrency(Math.max(0, bruto - totalCreditos));
+}
+
+function openGirarFaturaModal() {
+    const checkboxes = document.querySelectorAll('input[name="fat-select-os"]:checked');
     const selectedIds = Array.from(checkboxes).map(el => parseInt(el.value));
     const selectedOSs = db.ordens_servico.filter(o => selectedIds.includes(o.id));
-    
+    const filtroParceiro = parseInt(document.getElementById('fat-parceiro-filter').value);
+
     // Ensure all belong to the SAME partner
     const partnerIds = [...new Set(selectedOSs.map(o => o.parceiroId))];
     if (partnerIds.length > 1) {
@@ -5770,37 +5862,52 @@ function openGirarFaturaModal() {
         return;
     }
 
-    const partner = db.parceiros.find(p => p.id === partnerIds[0]);
+    let partner;
+    if (selectedOSs.length === 0) {
+        // Sem O.S.: só dá para fechar a fatura da mensalidade do parceiro filtrado
+        partner = db.parceiros.find(p => p.id === filtroParceiro);
+        if (!parceiroTemMensalidade(partner)) {
+            showToast("Por favor, selecione pelo menos uma OS para faturar.", "error");
+            return;
+        }
+    } else {
+        partner = db.parceiros.find(p => p.id === partnerIds[0]);
+    }
+    if (!partner) {
+        showToast("Parceiro da O.S. não encontrado.", "error");
+        return;
+    }
+
     const totalVal = selectedOSs.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
 
     // Calcular créditos/cortesias disponíveis
     const creditosDisponiveis = (db.parceiros_creditos || []).filter(c => c.parceiroId === partner.id && !c.utilizado);
     const totalCreditos = creditosDisponiveis.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
-    const liquidoVal = Math.max(0, totalVal - totalCreditos);
 
     // Populate modal
     document.getElementById('fat-modal-parceiro').value = partner.nome;
     document.getElementById('fat-modal-parceiro-id').value = partner.id;
     document.getElementById('fat-modal-qtd').textContent = selectedOSs.length;
-    
-    // Atualiza os novos spans financeiros
-    const elBruto = document.getElementById('fat-modal-total-bruto');
-    const elCreditos = document.getElementById('fat-modal-total-creditos');
-    const elLiquido = document.getElementById('fat-modal-total-liquido');
-    
-    if (elBruto) elBruto.textContent = formatCurrency(totalVal);
-    if (elCreditos) elCreditos.textContent = `- ${formatCurrency(totalCreditos)}`;
-    if (elLiquido) elLiquido.textContent = formatCurrency(liquidoVal);
-    
-    // Autofill dates (oldest and newest of selected OSs)
-    const dates = selectedOSs.map(o => new Date(o.criadoEm));
-    const minDate = diaSP(new Date(Math.min(...dates)));
-    const maxDate = diaSP(new Date(Math.max(...dates)));
-    document.getElementById('fat-modal-inicio').value = minDate;
-    document.getElementById('fat-modal-fim').value = maxDate;
+
+    // Autofill dates (oldest and newest of selected OSs); só mensalidade = mês corrente
+    if (selectedOSs.length) {
+        const dates = selectedOSs.map(o => new Date(o.criadoEm));
+        document.getElementById('fat-modal-inicio').value = diaSP(new Date(Math.min(...dates)));
+        document.getElementById('fat-modal-fim').value = diaSP(new Date(Math.max(...dates)));
+    } else {
+        const hoje = diaSP(new Date());
+        document.getElementById('fat-modal-inicio').value = hoje.slice(0, 8) + '01';
+        document.getElementById('fat-modal-fim').value = hoje;
+    }
 
     // Save ids inside global window to fetch on submit
     window.selectedFatOSIds = selectedIds;
+    window.fatModalTotalOS = totalVal;
+    window.fatModalTotalCreditos = totalCreditos;
+    window.fatModalMensCompetencia = null;
+    document.getElementById('fat-modal-mens-desc').value = partner.mensalidadeDescricao || 'Mensalidade';
+    document.getElementById('fat-modal-mens-valor').value = parceiroTemMensalidade(partner) ? Number(partner.mensalidadeValor).toFixed(2) : '';
+    atualizarMensalidadeFatModal();
 
     document.getElementById('modal-faturamento-fechar').classList.add('active');
 }
@@ -5904,7 +6011,17 @@ async function submitGirarFatura(event) {
     const partnerId = parseInt(document.getElementById('fat-modal-parceiro-id').value);
     const dateIni = document.getElementById('fat-modal-inicio').value;
     const dateFim = document.getElementById('fat-modal-fim').value;
-    const selectedIds = window.selectedFatOSIds;
+    const selectedIds = window.selectedFatOSIds || [];
+    const mensalidade = mensalidadeSelecionadaFatModal();
+    if (mensalidade && (!(mensalidade.valor > 0) || !mensalidade.descricao)) {
+        showToast("Informe a descrição e o valor da mensalidade, ou desmarque-a.", "error");
+        return;
+    }
+    const extras = mensalidade ? [mensalidade] : [];
+    if (selectedIds.length === 0 && extras.length === 0) {
+        showToast("Nada a faturar: sem O.S. selecionada e sem mensalidade.", "error");
+        return;
+    }
 
     // Segunda barreira: nenhuma das OS pode já estar em outra fatura. Pega
     // também o caso de duas abas abertas ou de um F5 no meio do processo.
@@ -5934,7 +6051,8 @@ async function submitGirarFatura(event) {
         p_inicio: dateIni,
         p_fim: dateFim,
         p_os_ids: selectedIds,
-        p_criado_por: currentSession.nome
+        p_criado_por: currentSession.nome,
+        p_extras: extras
     });
     if (erroFat) {
         showToast("A fatura não foi gerada: " + erroFat.message, "error");
@@ -5973,7 +6091,7 @@ async function submitGirarFatura(event) {
     }
 
     showToast(`Fatura ${code} gerada com sucesso!`, "success");
-    logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value} (Créditos abatidos: ${formatCurrency(totalCreditosAbatidos)}).`);
+    logAudit("Faturamento Lote", `Faturou ${selectedOSs.length} OSs para ${document.getElementById('fat-modal-parceiro').value}${mensalidade ? ` + ${mensalidade.descricao} de ${rotuloCompetencia(mensalidade.competencia)} (${formatCurrency(mensalidade.valor)})` : ''} (Créditos abatidos: ${formatCurrency(totalCreditosAbatidos)}).`);
     
     closeFatModal();
     renderFaturamentoPage();
@@ -6595,6 +6713,7 @@ function printInvoiceById(invoiceId) {
         osRows = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: #666;">Nenhuma OS vinculada a esta fatura.</td></tr>`;
     }
 
+    const totalExtras = totalExtrasDaFatura(f);
     const printArea = document.getElementById('print-area');
     printArea.innerHTML = `
         <div class="print-header">
@@ -6628,10 +6747,12 @@ function printInvoiceById(invoiceId) {
                 <strong>Status de Pagamento:</strong> ${f.pago ? `PAGO EM ${formatDateBr(f.pagoEm)}` : 'AGUARDANDO PAGAMENTO'}
             </div>
             <div style="text-align: right;">
+                ${totalExtras > 0 ? `<span style="font-size: 11px;">Outras cobranças: ${formatCurrency(totalExtras)}</span><br>` : ''}
                 <span style="font-size: 14px; font-weight: 800; color: #000;">VALOR TOTAL: ${formatCurrency(f.valorTotal)}</span>
             </div>
         </div>
 
+        ${oss.length || !totalExtras ? `
         <div class="print-section" style="border: 1px solid #000; margin-bottom: 20px; border-radius: 4px; overflow: hidden;">
             <div class="print-section-title" style="font-weight: 800; font-size: 12px; background: #eee; padding: 8px 12px; border-bottom: 1px solid #000;">DEMONSTRATIVO DE SERVIÇOS PRESTADOS</div>
             <div style="padding: 8px;">
@@ -6652,6 +6773,9 @@ function printInvoiceById(invoiceId) {
                 </table>
             </div>
         </div>
+        ` : ''}
+
+        ${htmlOutrasCobrancasFatura(f)}
 
         ${buildPaymentInstructionsHtml(f)}
 
@@ -8891,6 +9015,12 @@ function submitConfigPartner(event) {
 
     const precoCombo = parseFloat(document.getElementById('cfg-part-preco-combo').value) || 0;
     const precoComboTransf = parseFloat(document.getElementById('cfg-part-preco-combo-transf').value) || 0;
+    const mensalidadeValor = lerValorMonetario(document.getElementById('cfg-part-mensalidade-valor').value);
+    const mensalidadeDescricao = document.getElementById('cfg-part-mensalidade-desc').value.trim();
+    if (mensalidadeValor > 0 && !mensalidadeDescricao) {
+        showToast("Informe a descrição da mensalidade (ex.: Aluguel do pátio lateral).", "warning");
+        return;
+    }
 
     const partnerPayload = {
         nome: nome,
@@ -8904,7 +9034,9 @@ function submitConfigPartner(event) {
         tabelaPrecos: customPrecos,
         parceiroShopping: shopping,
         precoCombo: precoCombo,
-        precoComboTransferencia: precoComboTransf
+        precoComboTransferencia: precoComboTransf,
+        mensalidadeDescricao: mensalidadeValor > 0 ? mensalidadeDescricao : null,
+        mensalidadeValor: mensalidadeValor > 0 ? mensalidadeValor : null
     };
 
     if (window.editingPartnerId) {
@@ -8968,6 +9100,8 @@ function editPartnerDetails(id) {
     document.getElementById('cfg-part-preco-combo').value = partner.precoCombo !== undefined ? partner.precoCombo : '';
     document.getElementById('cfg-part-preco-combo-transf').value = partner.precoComboTransferencia !== undefined ? partner.precoComboTransferencia : '';
     document.getElementById('cfg-part-obs').value = partner.observacoes || '';
+    document.getElementById('cfg-part-mensalidade-desc').value = partner.mensalidadeDescricao || '';
+    document.getElementById('cfg-part-mensalidade-valor').value = Number(partner.mensalidadeValor) > 0 ? Number(partner.mensalidadeValor).toFixed(2) : '';
 
     // Populate prices matrix (excluding Exotic Cars ID 6)
     db.servicos.filter(s => s.id !== 6).forEach(s => {
@@ -9898,6 +10032,10 @@ async function submitChangePayment(event) {
     const fatAtual = os.faturaId ? db.faturas.find(f => f.id == os.faturaId) : null;
     if (fatAtual && fatAtual.pago) {
         showToast(`A fatura ${fatAtual.codigo} já foi paga: a OS não pode sair dela. Faça o acerto como crédito ao parceiro.`, "error");
+        return;
+    }
+    if (bloqueioSaidaDaFatura(fatAtual)) {
+        showToast(bloqueioSaidaDaFatura(fatAtual), "error");
         return;
     }
 
@@ -14170,6 +14308,34 @@ async function submitConfigWhatsApp(event) {
     }
 }
 
+// Bloco "Outras cobranças" (mensalidade do parceiro etc.) da fatura impressa / PDF
+function htmlOutrasCobrancasFatura(f) {
+    const extras = cobrancasExtrasDaFatura(f);
+    if (!extras.length) return '';
+    const linhas = extras.map(e => `
+        <tr style="border-bottom: 1px solid #ddd; font-size: 11px;">
+            <td style="padding: 6px;"><strong>${escHtml(e.descricao || 'Cobrança')}</strong></td>
+            <td style="padding: 6px;">${e.competencia ? 'Referente a ' + escHtml(rotuloCompetencia(e.competencia)) : ''}</td>
+            <td style="padding: 6px; text-align: right; font-weight: 600;">${formatCurrency(Number(e.valor) || 0)}</td>
+        </tr>`).join('');
+    return `
+        <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 20px;">
+            <div style="font-weight: 800; font-size: 12px; background: #eee; padding: 10px 14px; border-bottom: 1px solid #000;">OUTRAS COBRANÇAS</div>
+            <div style="padding: 10px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000; font-size: 10px; text-transform: uppercase;">
+                            <th style="padding: 6px;">Descrição</th>
+                            <th style="padding: 6px;">Competência</th>
+                            <th style="padding: 6px; text-align: right;">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>${linhas}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
 async function generateAndUploadInvoicePDF(f) {
     if (!window.useSupabase) return null;
 
@@ -14196,6 +14362,7 @@ async function generateAndUploadInvoicePDF(f) {
     const creditosAbatidos = (db.parceiros_creditos || []).filter(c => c.faturaId === f.id);
     const totalCreditos = creditosAbatidos.reduce((sum, c) => somaCentavos(sum, c.valor), 0);
     const totalBruto = oss.reduce((sum, o) => somaCentavos(sum, o.valor), 0);
+    const totalExtras = totalExtrasDaFatura(f);
 
     let creditosHtml = '';
     if (creditosAbatidos.length > 0) {
@@ -14261,11 +14428,13 @@ async function generateAndUploadInvoicePDF(f) {
             </div>
             <div style="text-align: right; font-size: 13px; line-height: 1.4;">
                 <strong>Bruto OSs:</strong> ${formatCurrency(totalBruto)}<br>
+                ${totalExtras > 0 ? `<strong>Outras cobranças:</strong> ${formatCurrency(totalExtras)}<br>` : ''}
                 <strong>Créditos/Descontos:</strong> - ${formatCurrency(totalCreditos)}<br>
                 <span style="font-size: 16px; font-weight: 800; color: #2e7d32;">VALOR LÍQUIDO: ${formatCurrency(f.valorTotal)}</span>
             </div>
         </div>
 
+        ${oss.length || !totalExtras ? `
         <div style="border: 1px solid #000; border-radius: 4px; overflow: hidden; margin-bottom: 20px;">
             <div style="font-weight: 800; font-size: 12px; background: #eee; padding: 10px 14px; border-bottom: 1px solid #000;">
                 DEMONSTRATIVO DE SERVIÇOS PRESTADOS
@@ -14288,6 +14457,9 @@ async function generateAndUploadInvoicePDF(f) {
                 </table>
             </div>
         </div>
+        ` : ''}
+
+        ${htmlOutrasCobrancasFatura(f)}
 
         ${creditosHtml}
 
