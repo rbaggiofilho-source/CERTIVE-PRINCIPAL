@@ -1396,6 +1396,14 @@ function submitOSForm() {
         const partnerId = partnerSelect ? parseInt(partnerSelect.value) : null;
         const parcelas = (pagamento === 'credito_parcelado' && parcelasEl) ? parseInt(parcelasEl.value) : null;
 
+        // Cliente parceiro sem parceiro escolhido: a OS ficava sem dono e nunca
+        // aparecia no fechamento da fatura (OS-0547, OS-0171).
+        if (currentClientType === 'parceiro' && (!partnerId || !db.parceiros.some(p => p.id === partnerId))) {
+            showToast("Selecione o parceiro (lojista) antes de registrar a O.S.", "error");
+            if (partnerSelect) { partnerSelect.focus(); partnerSelect.style.borderColor = 'var(--danger)'; }
+            return;
+        }
+
         // Placa fora do padrão trava aqui: uma placa errada não bate com o
         // relatório do DETRAN e inviabiliza a conferência da guia.
         if (placa && !placaValida(placa)) {
@@ -4641,7 +4649,9 @@ function pendenciasDaAuditoria(auditoria, osAbertas) {
             tipo: 'os_aberta',
             chave: chavePendencia('os_aberta', o.numero),
             placa: o.placa,
-            descricao: `${o.numero} (${o.placa}) continua em aberto — finalize ou cancele`,
+            descricao: o.status === 'em_execucao'
+                ? `${o.numero} (${o.placa}) com vistoria iniciada e não finalizada — emita o laudo ou cancele (fica fora do faturamento até lá)`
+                : `${o.numero} (${o.placa}) continua em aberto — finalize ou cancele`,
             valorTaxa: 0,
             osId: o.id,
             osNumero: o.numero
@@ -4851,16 +4861,23 @@ function textoAuditoriaDetran(a) {
 // OS que ficaram sem finalizar. Uma OS parada em "aberta" some dos relatórios
 // e da base de cálculo da guia, mas o laudo já foi emitido e o DETRAN já cobrou.
 // Foi o caso da OS-0357 (MGV-0J98) e da OS-0484 (QHU-8I50) em agosto/2026.
+// OS não finalizadas: aberta, paga (sem vistoria) e em execução (vistoria
+// iniciada sem laudo emitido). Antes só "aberta" contava, e uma cautelar
+// iniciada e não finalizada passava pelo fechamento do caixa sem aviso e
+// ficava fora do faturamento do parceiro (OS-0723, 29/09).
+const STATUS_OS_NAO_FINALIZADA = ['aberta', 'paga', 'em_execucao'];
+const ROTULO_STATUS_PENDENTE = { aberta: 'aberta', paga: 'paga, sem vistoria', em_execucao: 'vistoria não finalizada' };
+
 function osEmAbertoDaUnidade(unidadeId) {
     return (db.ordens_servico || []).filter(o =>
-        o.unidadeId === unidadeId && o.status === 'aberta'
+        o.unidadeId === unidadeId && STATUS_OS_NAO_FINALIZADA.includes(o.status)
     ).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
 }
 
 function resumoOSEmAberto(lista) {
     return lista.map(o => {
         const dia = o.criadoEm ? new Date(o.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '--/--';
-        return `• ${o.numero} — ${o.placa || 'sem placa'} (${dia})`;
+        return `• ${o.numero} — ${o.placa || 'sem placa'} (${dia}) — ${ROTULO_STATUS_PENDENTE[o.status] || o.status}`;
     }).join('\n');
 }
 
@@ -4888,13 +4905,14 @@ async function submitFecharCaixa(event) {
 
     // Não deixa fechar o dia com OS pendente sem o operador ver.
     const pendentes = osEmAbertoDaUnidade(activeCaixa.unidadeId);
+    let pendenciasOSRegistradas = false;
     if (pendentes.length > 0) {
         const segue = confirm(
-            `Existem ${pendentes.length} Ordem(ns) de Serviço em aberto nesta unidade:\n\n` +
+            `Existem ${pendentes.length} Ordem(ns) de Serviço não finalizada(s) nesta unidade:\n\n` +
             resumoOSEmAberto(pendentes) +
-            `\n\nSe o laudo já foi emitido, o DETRAN vai cobrar a taxa mesmo assim — ` +
-            `e a OS em aberto não entra na conferência da guia.\n\n` +
-            `Finalize ou cancele antes de fechar o caixa.\n\n` +
+            `\n\nOS não finalizada não entra na conferência da guia do DETRAN nem no ` +
+            `faturamento do parceiro. Finalize ou cancele antes de fechar o caixa.\n\n` +
+            `Se fechar assim, elas ficam registradas como pendência do fechamento.\n\n` +
             `Fechar mesmo assim?`
         );
         if (!segue) return;
@@ -4984,6 +5002,7 @@ async function submitFecharCaixa(event) {
                 showToast(`${resolvidas} pendência(s) anterior(es) foram corrigidas e baixadas.`, "success");
             }
             window.__pendenciasFechamento = { novas, repetidas, resolvidas, total: itens.length };
+            pendenciasOSRegistradas = true;
         }
     } catch (err) {
         console.error('[Auditoria DETRAN] Falha ao ler o PDF:', err);
@@ -4993,6 +5012,15 @@ async function submitFecharCaixa(event) {
             'Fechar o caixa sem a conferência automática?'
         );
         if (!segue) return;
+    }
+
+    // Sem a conferência do DETRAN (arquivo errado ou ilegível), as OS não
+    // finalizadas ainda assim viram pendência do fechamento
+    if (!pendenciasOSRegistradas && pendentes.length) {
+        try {
+            await registrarPendencias(activeCaixa.unidadeId, pendenciasDaAuditoria({}, pendentes),
+                currentSession ? currentSession.nome : 'Sistema', diaSP());
+        } catch (e) { console.error('Pendências de OS não registradas:', e); }
     }
 
     // Confirm close
