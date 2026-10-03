@@ -154,11 +154,14 @@ Deno.serve(async (req) => {
       }).eq('id', fatura.id);
     }
 
-    // 3b. Buscar o QR Code PIX dinâmico da cobrança (com validade/expiração).
-    // Esse QR expira junto com o vencimento da cobrança — é o que dá validade
-    // real ao pagamento (o PIX estático montado no cliente nunca expira) e trava
-    // o valor exato da fatura. Falha aqui não impede a cobrança: o cliente cai
-    // no QR estático de fallback.
+    // Vencimento da cobrança (YYYY-MM-DD) para exibir "Vencimento DD/MM" na
+    // fatura. É a data que interessa ao parceiro; o QR do Asaas continua pagável
+    // depois (expira ~1 ano), então não mostramos a expiração real do QR.
+    const vencimentoStr = dueDate.toISOString().split('T')[0];
+
+    // 3b. Buscar o QR Code PIX dinâmico da cobrança. O QR trava o valor exato e
+    // a cobrança baixa sozinha pelo webhook. Falha aqui não impede a cobrança:
+    // o cliente cai no QR estático de fallback.
     let pixPayload: string | null = null;
     let pixQrImage: string | null = null;
     let pixExpira: string | null = null;
@@ -181,7 +184,8 @@ Deno.serve(async (req) => {
           await supabase.from('faturas').update({
             asaas_pix_qr: pixQrImage,
             asaas_pix_payload: pixPayload,
-            asaas_pix_expira: pixExpira
+            asaas_pix_expira: pixExpira,
+            asaas_vencimento: vencimentoStr
           }).eq('id', fatura.id);
         } else {
           console.warn(`⚠️ pixQrCode sem imagem para a cobrança ${paymentData.id}:`, JSON.stringify(pix));
@@ -252,6 +256,7 @@ Deno.serve(async (req) => {
         pixQrImage,
         pixPayload,
         pixExpira,
+        pixVencimento: vencimentoStr,
         zapStatus
       }),
       { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
