@@ -6441,7 +6441,9 @@ async function injetarMovimentoBaixa(caixa, invoice, partner, dataISO, forma) {
         tipo: "entrada",
         valor: invoice.valorTotal,
         descricao: `Recebimento Fatura ${invoice.codigo} — ${partner ? partner.nome : ''}`,
-        formaPagamento: forma || 'transferencia',
+        // "dinheiro" era o valor antigo da opção Dinheiro/Espécie da baixa; o
+        // caixa só conta como espécie a forma "especie".
+        formaPagamento: forma === 'dinheiro' ? 'especie' : (forma || 'transferencia'),
         data: dataISO,
         operador: currentSession ? currentSession.nome : 'Sistema',
         osId: null,
@@ -6824,7 +6826,7 @@ async function conciliarBaixaRetroativa(pend) {
         const invoice = db.faturas.find(f => f.id === pend.faturaId) || { id: pend.faturaId, codigo: '#' + pend.faturaId, valorTotal: pend.valor, parceiroId: null };
         const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
         const valor = Number(pend.valor) || 0;
-        const forma = pend.formaPagamento || 'transferencia';
+        const forma = pend.formaPagamento === 'dinheiro' ? 'especie' : (pend.formaPagamento || 'transferencia');
         const rotuloForma = (forma === 'especie' ? 'espécie' : forma).toUpperCase();
         const unidadeId = pend.unidadeId || activeUnitId;
 
@@ -6881,7 +6883,25 @@ async function conciliarBaixaRetroativa(pend) {
             logAudit("Baixa Retroativa", `Lançou a baixa da fatura ${invoice.codigo} (${formatCurrency(valor)}, ${rotuloForma}) no caixa de ${formatDateBr(caixa0.data)}${original ? ' (reaberto e fechado de novo)' : ''}.`);
             historico.push(`${formatDateBr(caixa0.data)}: entrada de ${formatCurrency(valor)} lançada${original ? '; caixa reaberto e fechado de novo' : '; caixa segue aberto para o fechamento do dia'}.`);
         } else {
-            historico.push(`${formatDateBr(caixa0.data)}: a entrada da fatura ${invoice.codigo} já estava lançada.`);
+            // Conciliação anterior interrompida: a entrada foi lançada e o caixa
+            // (que já tinha sido fechado) ficou reaberto esperando a conferência.
+            const ficouReaberto = caixa0.status === 'aberto' && caixa0.fechadoEm && caixa0.data < getLocalDateString(new Date());
+            if (ficouReaberto) {
+                const m = metricasCaixa(caixa0, caixa0.saldoAbertura);
+                const fechar = await perguntarConciliacao('Confira o caixa de ' + formatDateBr(caixa0.data), `
+                    <p>A entrada da fatura <strong>${escHtml(invoice.codigo)}</strong> já está lançada no caixa de <strong>${formatDateBr(caixa0.data)}</strong>, que ficou reaberto (a conciliação anterior não foi concluída).</p>
+                    ${tabelaConciliacao(m, m, caixa0)}
+                    <p style="margin-top:10px;">Confirmando, o caixa é fechado de novo.</p>`,
+                    [{ rotulo: 'Deixar aberto', valor: false }, { rotulo: '<i class="ri-check-line"></i> Confirmar e fechar o caixa', valor: true, classe: 'btn-success' }]);
+                if (fechar) {
+                    await refecharCaixaConciliacao(caixa0, { fechadoPor: caixa0.fechadoPor, fechadoEm: caixa0.fechadoEm }, `entrada da fatura ${invoice.codigo} conferida`);
+                    historico.push(`${formatDateBr(caixa0.data)}: a entrada da fatura ${invoice.codigo} já estava lançada; caixa conferido e fechado de novo.`);
+                } else {
+                    historico.push(`${formatDateBr(caixa0.data)}: a entrada da fatura ${invoice.codigo} já estava lançada; caixa deixado aberto.`);
+                }
+            } else {
+                historico.push(`${formatDateBr(caixa0.data)}: a entrada da fatura ${invoice.codigo} já estava lançada.`);
+            }
         }
 
         // Pendência resolvida
