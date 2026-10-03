@@ -132,12 +132,51 @@ Deno.serve(async (req) => {
       }
 
       paymentData = await paymentRes.json();
-      
+
       // Atualizar fatura no banco com os dados da cobrança
       await supabase.from('faturas').update({
         asaas_payment_id: paymentData.id,
         asaas_url: paymentData.invoiceUrl
       }).eq('id', fatura.id);
+    }
+
+    // 3b. Buscar o QR Code PIX dinâmico da cobrança (com validade/expiração).
+    // Esse QR expira junto com o vencimento da cobrança — é o que dá validade
+    // real ao pagamento (o PIX estático montado no cliente nunca expira) e trava
+    // o valor exato da fatura. Falha aqui não impede a cobrança: o cliente cai
+    // no QR estático de fallback.
+    let pixPayload: string | null = null;
+    let pixQrImage: string | null = null;
+    let pixExpira: string | null = null;
+    try {
+      const pixRes = await fetch(`${asaasUrl}/payments/${paymentData.id}/pixQrCode`, {
+        method: 'GET',
+        headers: {
+          'access_token': asaasKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (pixRes.ok) {
+        const pix = await pixRes.json();
+        if (pix && pix.success !== false && pix.encodedImage) {
+          pixQrImage = pix.encodedImage;      // PNG em base64 (sem prefixo data:)
+          pixPayload = pix.payload || null;   // "copia e cola"
+          pixExpira = pix.expirationDate || null;
+
+          await supabase.from('faturas').update({
+            asaas_pix_qr: pixQrImage,
+            asaas_pix_payload: pixPayload,
+            asaas_pix_expira: pixExpira
+          }).eq('id', fatura.id);
+        } else {
+          console.warn(`⚠️ pixQrCode sem imagem para a cobrança ${paymentData.id}:`, JSON.stringify(pix));
+        }
+      } else {
+        console.warn('⚠️ Falha ao obter pixQrCode no Asaas:', await pixRes.text());
+      }
+    } catch (err) {
+      console.error('❌ Erro ao buscar pixQrCode no Asaas:', err);
     }
 
     // 4. Enviar mensagem via ZAP-API
@@ -164,12 +203,12 @@ Deno.serve(async (req) => {
       if (zapResponse.ok) {
         await supabase.from('faturas').update({ notificacao_zap: true }).eq('id', fatura.id);
         zapStatus = 'enviado';
-        
+
         // Se temos um PDF para anexar, enviamos em seguida!
         if (pdfUrl) {
           // Pequeno delay para a mensagem de texto chegar antes do arquivo
           await new Promise(r => setTimeout(r, 1000));
-          
+
           await fetch(`https://api.zap-api.tech/v1/instances/${zapInstanceId}/send`, {
             method: 'POST',
             headers: {
@@ -184,7 +223,7 @@ Deno.serve(async (req) => {
             })
           });
         }
-        
+
       } else {
         zapStatus = 'erro';
         console.error('ZAP-API erro (text):', await zapResponse.text());
@@ -192,10 +231,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        message: 'Cobrança gerada com sucesso!', 
-        paymentId: paymentData.id, 
+      JSON.stringify({
+        message: 'Cobrança gerada com sucesso!',
+        paymentId: paymentData.id,
         url: paymentData.invoiceUrl,
+        pixQrImage,
+        pixPayload,
+        pixExpira,
         zapStatus
       }),
       { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }

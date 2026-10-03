@@ -557,9 +557,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.6.3';
+const APP_VERSION = '9.7.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.7.0',
+        data: '2026-10-03',
+        titulo: 'QR Code PIX da fatura agora tem validade (QR dinâmico do Asaas)',
+        resumo: 'O QR Code de pagamento da fatura passou a ser o QR dinâmico do Asaas, que tem validade real: expira junto com o vencimento da cobrança (5 dias), trava o valor exato da fatura e, quando pago, baixa sozinho pelo Asaas. Antes era um PIX estático, que nunca expirava e deixava o valor em aberto. A fatura mostra "Válido até DD/MM" embaixo do QR e também o PIX copia-e-cola. Faturas antigas sem cobrança Asaas continuam com o QR de antes.',
+        mudancas: [
+            {
+                area: 'Faturamento',
+                titulo: 'QR dinâmico com validade, valor travado e baixa automática',
+                oQueMudou: 'Ao gerar a cobrança Asaas (ou reenviar pelo WhatsApp), o sistema busca o QR PIX da cobrança no Asaas e guarda na fatura. O PDF/impressão passa a exibir esse QR com a data de validade e o copia-e-cola. Se o Asaas não responder, cai no QR estático de antes, para nunca ficar sem QR.',
+                comoUsar: 'Gere a cobrança da fatura normalmente. O QR que sai no PDF e no WhatsApp já é o dinâmico, com "Válido até". Depois do vencimento, o QR para de funcionar e basta gerar uma nova cobrança.'
+            }
+        ]
+    },
     {
         versao: '9.6.3',
         data: '2026-09-29',
@@ -15017,6 +15031,10 @@ async function sendInvoiceWhatsApp(faturaId, btn) {
 
         if (res.ok) {
             const data = await res.json();
+            // A função já gravou/renovou o kit PIX no banco; espelhamos no local.
+            if (data.pixQrImage) fatura.asaas_pix_qr = data.pixQrImage;
+            if (data.pixPayload) fatura.asaas_pix_payload = data.pixPayload;
+            if (data.pixExpira) fatura.asaas_pix_expira = data.pixExpira;
             if (data.zapStatus === 'enviado') {
                 fatura.notificacao_zap = true;
                 if (typeof saveDatabase === 'function') saveDatabase();
@@ -15081,6 +15099,11 @@ async function generateAsaasBillingForInvoice(faturaId, btn) {
             fatura.asaas_payment_id = data.paymentId;
             fatura.asaas_url = data.url;
             fatura.notificacao_zap = (data.zapStatus === 'enviado');
+            // A função já gravou o kit PIX no banco; só espelhamos no objeto
+            // local para o PDF gerado em seguida já sair com o QR dinâmico.
+            if (data.pixQrImage) fatura.asaas_pix_qr = data.pixQrImage;
+            if (data.pixPayload) fatura.asaas_pix_payload = data.pixPayload;
+            if (data.pixExpira) fatura.asaas_pix_expira = data.pixExpira;
 
             await sbUpdate('faturas', fatura.id, {
                 asaas_payment_id: fatura.asaas_payment_id,
@@ -15430,9 +15453,30 @@ function buildPaymentInstructionsHtml(f) {
     const c = getFaturamentoConfig();
     const unit = f ? db.unidades.find(u => u.id === f.unidadeId) : null;
 
-    // QR PIX (BR Code) gerado a partir da chave configurada + valor da fatura.
+    // PIX da fatura. Preferimos o QR DINÂMICO do Asaas (tem validade real, trava
+    // o valor e baixa sozinho pelo webhook). Só quando a fatura ainda não tem
+    // cobrança Asaas é que caímos no QR estático montado aqui (que nunca expira).
+    const usaAsaas = !!(f && f.asaas_pix_qr);
     let qrHtml = '';
-    if (c.pix) {
+    let copiaColaHtml = '';
+
+    if (usaAsaas) {
+        const validade = formatarValidadePix(f.asaas_pix_expira);
+        qrHtml = `
+                <div style="flex:none; text-align:center; padding-left:14px; border-left:1px dashed #bbb;">
+                    <img src="data:image/png;base64,${f.asaas_pix_qr}" alt="QR Code PIX" style="width:130px; height:130px; display:block;">
+                    <div style="font-size:10px; font-weight:800; color:${CERTIVE_NAVY}; margin-top:4px; letter-spacing:.03em;">PAGUE COM PIX</div>
+                    ${validade ? `<div style="font-size:9px; font-weight:700; color:#b00020; margin-top:2px;">Válido até ${validade}</div>` : ''}
+                </div>`;
+        if (f.asaas_pix_payload) {
+            copiaColaHtml = `
+            <div style="padding:8px 14px 12px; border-top:1px dashed #ccc;">
+                <div style="font-size:10px; font-weight:800; color:${CERTIVE_NAVY}; margin-bottom:3px;">PIX COPIA E COLA${validade ? ' — válido até ' + validade : ''}</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:9px; word-break:break-all; color:#333; line-height:1.4;">${escHtml(f.asaas_pix_payload)}</div>
+            </div>`;
+        }
+    } else if (c.pix) {
+        // Fallback: QR PIX estático (BR Code) da chave configurada + valor.
         const payload = buildPixBrCode({
             key: c.pix,
             name: c.favorecido,
@@ -15450,7 +15494,9 @@ function buildPaymentInstructionsHtml(f) {
         }
     }
 
-    const linhaPix = c.pix
+    // A chave PIX estática só aparece no fallback. Com o QR dinâmico do Asaas, o
+    // pagamento é pelo QR/copia-e-cola (com validade e reconciliação automática).
+    const linhaPix = (!usaAsaas && c.pix)
         ? `<tr><td style="padding: 3px 0; width: 130px; color:#555;">Chave PIX</td><td style="padding: 3px 0; font-weight: 700;">${c.pix}</td></tr>`
         : '';
 
@@ -15472,8 +15518,17 @@ function buildPaymentInstructionsHtml(f) {
                 </table>
                 ${qrHtml}
             </div>
+            ${copiaColaHtml}
         </div>
     `;
+}
+
+// Converte a data de expiração do PIX (como vem do Asaas, ex.: "2026-10-07
+// 23:59:59") para DD/MM/AAAA. Robusto a formatos com 'T' ou com fuso.
+function formatarValidadePix(expira) {
+    if (!expira) return '';
+    const m = String(expira).match(/(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
 function renderConfigFaturamento() {
