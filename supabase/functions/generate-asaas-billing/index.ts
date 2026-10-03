@@ -11,6 +11,20 @@ const asaasKey = Deno.env.get('ASAAS_API_KEY')!;
 const zapToken = Deno.env.get('ZAP_API_TOKEN')!;
 const zapInstanceId = Deno.env.get('ZAP_INSTANCE_ID')!;
 
+// Extrai a mensagem legível de um erro do Asaas. O Asaas responde
+// { "errors": [{ "code": "...", "description": "..." }] }; sem isso o operador
+// via o JSON cru. Ex.: "O valor mínimo para cobranças ... é R$ 5,00."
+function mensagemErroAsaas(prefixo: string, txt: string): string {
+  try {
+    const j = JSON.parse(txt);
+    if (j && Array.isArray(j.errors) && j.errors.length) {
+      const msg = j.errors.map((e: any) => e.description || e.code).filter(Boolean).join(' ');
+      if (msg) return msg;
+    }
+  } catch (_) { /* não era JSON: usa o texto cru abaixo */ }
+  return `${prefixo}: ${txt}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } });
@@ -62,7 +76,7 @@ Deno.serve(async (req) => {
       });
 
       if (!customerRes.ok) {
-        throw new Error(`Asaas Customer Error: ${await customerRes.text()}`);
+        throw new Error(mensagemErroAsaas('Erro ao criar cliente no Asaas', await customerRes.text()));
       }
 
       const customerData = await customerRes.json();
@@ -128,7 +142,7 @@ Deno.serve(async (req) => {
       });
 
       if (!paymentRes.ok) {
-        throw new Error(`Asaas Payment Error: ${await paymentRes.text()}`);
+        throw new Error(mensagemErroAsaas('Erro ao gerar cobrança no Asaas', await paymentRes.text()));
       }
 
       paymentData = await paymentRes.json();
