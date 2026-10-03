@@ -6436,6 +6436,7 @@ async function injetarMovimentoBaixa(caixa, invoice, partner, dataISO, forma) {
     if (window.useSupabase) {
         const inserted = await sbInsert('caixa_movimentos', newMov);
         db.caixa_movimentos.unshift(inserted);
+        return inserted;
     } else {
         newMov.id = db.caixa_movimentos.length + 1;
         db.caixa_movimentos.push(newMov);
@@ -6486,6 +6487,7 @@ async function submitBaixaFatura(event) {
 
     const btn = event.target.querySelector('button[type="submit"]');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    let pendRetroativa = null;
 
     try {
         const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
@@ -6560,13 +6562,16 @@ async function submitBaixaFatura(event) {
             };
             if (!db.baixas_faturas_pendentes) db.baixas_faturas_pendentes = [];
             if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
-                const saved = await sbInsert('baixas_faturas_pendentes', pend);
-                db.baixas_faturas_pendentes.unshift(saved);
+                pendRetroativa = await sbInsert('baixas_faturas_pendentes', pend);
+                db.baixas_faturas_pendentes.unshift(pendRetroativa);
             } else {
                 pend.id = db.baixas_faturas_pendentes.length + 1;
                 db.baixas_faturas_pendentes.unshift(pend);
+                pendRetroativa = pend;
             }
-            showToast(`Fatura ${invoice.codigo} baixada! Pendência criada: um Master precisa reabrir o caixa de ${formatDateBr(dataPagStr)}, lançar e re-fechar.`, "success");
+            showToast(isMasterSession()
+                ? `Fatura ${invoice.codigo} baixada! Agora a entrada vai para o caixa de ${formatDateBr(dataPagStr)}.`
+                : `Fatura ${invoice.codigo} baixada! Pendência criada: um Master precisa lançar a entrada no caixa de ${formatDateBr(dataPagStr)}.`, "success");
         }
 
         saveDatabase();
@@ -6574,6 +6579,8 @@ async function submitBaixaFatura(event) {
         atualizarBadgeCaixa();
         closeBaixaModal();
         renderFatFaturas();
+        // Pagamento em data passada: concilia o caixa daquele dia (e os seguintes)
+        if (pendRetroativa && isMasterSession()) await conciliarBaixaRetroativa(pendRetroativa);
     } catch (err) {
         console.error("Erro ao dar baixa:", err);
         showToast("Erro ao processar a baixa da fatura: " + (err.message || err), "error");
@@ -6624,7 +6631,7 @@ function renderBaixasPendentes() {
     tbody.innerHTML = lista.map(b => {
         const inv = db.faturas.find(f => f.id === b.faturaId);
         const acao = master
-            ? `<button class="btn btn-danger btn-sm" onclick="resolverBaixaPendente(${b.id})"><i class="ri-lock-unlock-line"></i> Reabrir e lançar</button>`
+            ? `<button class="btn btn-danger btn-sm" onclick="resolverBaixaPendente(${b.id})"><i class="ri-lock-unlock-line"></i> Conciliar caixa</button>`
             : `<span style="font-size:11px; color:var(--text-muted);">Aguardando Master</span>`;
         return `
             <tr style="border-top: 1px solid var(--border);">
@@ -6671,36 +6678,263 @@ async function resolverBaixaPendente(pendId) {
         return;
     }
 
-    if (!confirm(`Reabrir o caixa de ${formatDateBr(pend.dataPagamento)} e lançar ${formatCurrency(pend.valor)} (Fatura ${invoice ? invoice.codigo : ''})?\n\nApós lançar, o caixa ficará ABERTO no "Modo Dia Reaberto" para você conferir e re-fechar.`)) return;
+    await conciliarBaixaRetroativa(pend);
+}
 
+// ==========================================================
+// CONCILIAÇÃO DE CAIXA — baixa de fatura com data passada
+// ----------------------------------------------------------
+// O dinheiro tem que entrar no caixa do DIA DO PAGAMENTO. O sistema:
+//  1. pede autorização para reabrir o caixa daquele dia (se fechado);
+//  2. lança a entrada;
+//  3. mostra o resultado e pede confirmação;
+//  4. fecha o caixa de novo, como estava;
+//  5. confere os caixas seguintes até hoje: se o saldo de abertura (espécie)
+//     mudou, repete reabrir → corrigir → conferir → fechar em cada um.
+// "Desfazer" em qualquer passo devolve aquele caixa ao estado anterior e
+// encerra a conciliação; a pendência continua no Caixa Diário.
+// ==========================================================
+
+function perguntarConciliacao(titulo, html, botoes) {
+    return new Promise(resolve => {
+        document.getElementById('conc-titulo').textContent = titulo;
+        document.getElementById('conc-corpo').innerHTML = html;
+        const area = document.getElementById('conc-botoes');
+        area.innerHTML = '';
+        botoes.forEach(b => {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'btn ' + (b.classe || 'btn-secondary');
+            el.innerHTML = b.rotulo;
+            el.onclick = () => { document.getElementById('modal-conciliacao-caixa').classList.remove('active'); resolve(b.valor); };
+            area.appendChild(el);
+        });
+        document.getElementById('modal-conciliacao-caixa').classList.add('active');
+    });
+}
+
+function avisoConciliacao(titulo, html) {
+    return perguntarConciliacao(titulo, html, [{ rotulo: 'Ok', valor: true, classe: 'btn-primary' }]);
+}
+
+// Números de um caixa (com o saldo de abertura informado)
+function metricasCaixa(caixa, abertura) {
+    const movs = db.caixa_movimentos.filter(m => m.caixaId === caixa.id);
+    const soma = lista => lista.reduce((t, m) => somaCentavos(t, m.valor), 0);
+    const r = resumoVendasCaixa(caixa);
+    const entEspecie = soma(movs.filter(m => m.tipo === 'entrada' && m.formaPagamento === 'especie'));
+    const saiEspecie = soma(movs.filter(m => m.tipo === 'saida' && m.formaPagamento === 'especie'));
+    const ab = Number(abertura) || 0;
+    return { abertura: ab, recebido: r.recebido, aFaturar: r.aFaturar, saidas: r.saidas, resultado: r.resultado,
+             especieFinal: (paraCentavos(ab) + paraCentavos(entEspecie) - paraCentavos(saiEspecie)) / 100 };
+}
+
+function tabelaConciliacao(antes, depois, caixa) {
+    const linha = (rotulo, a, d) => {
+        const mudou = paraCentavos(a) !== paraCentavos(d);
+        return `<tr style="border-top:1px solid var(--border);${mudou ? ' font-weight:700;' : ''}">
+            <td style="padding:6px 8px;">${rotulo}</td>
+            <td style="padding:6px 8px; text-align:right; color:var(--text-secondary);">${formatCurrency(a)}</td>
+            <td style="padding:6px 8px; text-align:right;${mudou ? ' color:var(--success);' : ''}">${formatCurrency(d)}</td></tr>`;
+    };
+    const informado = caixa && caixa['saldoEspécieInformado'] != null ? Number(caixa['saldoEspécieInformado']) : null;
+    return `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:13px;">
+        <thead><tr style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">
+            <th style="text-align:left; padding:6px 8px;">Caixa de ${formatDateBr(caixa.data)}</th>
+            <th style="text-align:right; padding:6px 8px;">Antes</th><th style="text-align:right; padding:6px 8px;">Depois</th></tr></thead>
+        <tbody>
+            ${linha('Saldo de abertura (espécie)', antes.abertura, depois.abertura)}
+            ${linha('Recebido no caixa', antes.recebido, depois.recebido)}
+            ${linha('A faturar (parceiros)', antes.aFaturar, depois.aFaturar)}
+            ${linha('Saídas', antes.saidas, depois.saidas)}
+            ${linha('Resultado em caixa', antes.resultado, depois.resultado)}
+            ${linha('Saldo físico esperado (espécie)', antes.especieFinal, depois.especieFinal)}
+        </tbody></table>
+        ${informado != null && informado > 0 ? `<div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Espécie contada no fechamento original: <strong>${formatCurrency(informado)}</strong> (diferença para o esperado: ${formatCurrency(depois.especieFinal - informado)}).</div>` : ''}`;
+}
+
+// Traz do banco os caixas da unidade a partir de uma data e os movimentos deles
+async function carregarCaixasDesde(unidadeId, dataInicial) {
+    if (!window.useSupabase) return;
+    const colunas = 'id, "unidadeId", data, status, "saldoAbertura", "saldoEspécieInformado", "abertoPor", "fechadoPor", "fechadoEm"';
+    let { data: caixas, error } = await supabaseClient.from('caixa_diario').select(colunas)
+        .eq('unidadeId', unidadeId).gte('data', dataInicial).order('data');
+    if (error) {
+        ({ data: caixas, error } = await supabaseClient.from('caixa_diario')
+            .select('id, "unidadeId", data, status, "saldoAbertura", "abertoPor", "fechadoPor", "fechadoEm"')
+            .eq('unidadeId', unidadeId).gte('data', dataInicial).order('data'));
+    }
+    if (error) throw error;
+    (caixas || []).forEach(c => {
+        const rec = prepareRecordFromDb('caixa_diario', c);
+        const atual = db.caixa_diario.find(x => x.id === rec.id);
+        if (atual) Object.assign(atual, rec); else db.caixa_diario.push(rec);
+    });
+    const ids = (caixas || []).map(c => c.id);
+    if (!ids.length) return;
+    const { data: movs, error: e2 } = await supabaseClient.from('caixa_movimentos').select('*').in('caixaId', ids);
+    if (e2) throw e2;
+    const idsSet = new Set(ids);
+    db.caixa_movimentos = db.caixa_movimentos.filter(m => !idsSet.has(m.caixaId))
+        .concat((movs || []).map(m => prepareRecordFromDb('caixa_movimentos', m)));
+}
+
+async function reabrirCaixaConciliacao(caixa, motivo) {
+    const original = { fechadoPor: caixa.fechadoPor || null, fechadoEm: caixa.fechadoEm || null };
+    await sbUpdate('caixa_diario', caixa.id, { status: 'aberto' });
+    caixa.status = 'aberto';
+    logAudit("Reabertura Caixa", `Reabriu o caixa de ${formatDateBr(caixa.data)} para conciliação: ${motivo}.`);
+    return original;
+}
+
+// Fecha de novo mantendo quem fechou e quando (a conciliação fica na auditoria)
+async function refecharCaixaConciliacao(caixa, original, motivo) {
+    await sbUpdate('caixa_diario', caixa.id, { status: 'fechado', fechadoPor: original.fechadoPor, fechadoEm: original.fechadoEm });
+    Object.assign(caixa, { status: 'fechado', fechadoPor: original.fechadoPor, fechadoEm: original.fechadoEm });
+    logAudit("Fechamento Caixa Reaberto", `Fechou de novo o caixa de ${formatDateBr(caixa.data)} após conciliação: ${motivo}.`);
+}
+
+async function conciliarBaixaRetroativa(pend) {
+    if (!isMasterSession()) {
+        showToast("Apenas operadores Master podem reabrir caixas para conciliar a baixa.", "error");
+        return false;
+    }
+    if (window.modoDiaReaberto) {
+        showToast("Saia do Modo Dia Reaberto antes de conciliar a baixa.", "error");
+        return false;
+    }
+    if (window.__conciliandoCaixa) return false;
+    window.__conciliandoCaixa = true;
+    const historico = [];
     try {
-        // 1) Lança a entrada no caixa daquele dia (back-dated).
-        const dataISO = instanteNoDiaSP(pend.dataPagamento);
-        await injetarMovimentoBaixa(caixa, invoice || { id: pend.faturaId, codigo: '', valorTotal: pend.valor }, partner, dataISO, pend.formaPagamento);
+        const invoice = db.faturas.find(f => f.id === pend.faturaId) || { id: pend.faturaId, codigo: '#' + pend.faturaId, valorTotal: pend.valor, parceiroId: null };
+        const partner = db.parceiros.find(p => p.id === invoice.parceiroId);
+        const valor = Number(pend.valor) || 0;
+        const forma = pend.formaPagamento || 'transferencia';
+        const rotuloForma = (forma === 'especie' ? 'espécie' : forma).toUpperCase();
+        const unidadeId = pend.unidadeId || activeUnitId;
 
-        // 2) Marca a pendência como resolvida.
-        pend.resolvido = true;
-        pend.resolvidoEm = new Date().toISOString();
-        pend.resolvidoPor = currentSession ? currentSession.nome : 'Master';
-        if (window.useSupabase && window.onlineTables['baixas_faturas_pendentes']) {
-            await sbUpdate('baixas_faturas_pendentes', pend.id, {
-                resolvido: true, resolvidoEm: pend.resolvidoEm, resolvidoPor: pend.resolvidoPor
-            });
+        await carregarCaixasDesde(unidadeId, pend.dataPagamento);
+        const caixa0 = db.caixa_diario.find(c => c.id === pend.caixaId)
+            || db.caixa_diario.find(c => c.unidadeId === unidadeId && c.data === pend.dataPagamento);
+        if (!caixa0) {
+            await avisoConciliacao('Sem caixa no dia do pagamento', `Não há caixa registrado em ${formatDateBr(pend.dataPagamento)}. Use "Conciliar caixa" no Caixa Diário para lançar a entrada no caixa de hoje.`);
+            return false;
         }
-        saveDatabase();
+
+        // A entrada já existe (aviso do Asaas, tentativa anterior interrompida)?
+        const { data: ja } = await supabaseClient.from('caixa_movimentos').select('id, "caixaId"')
+            .eq('faturaId', pend.faturaId).eq('tipo', 'entrada').limit(1);
+        let entradaJaExistia = !!(ja && ja.length);
+
+        // ---- Passo 1: caixa do dia do pagamento ----
+        const estavaFechado = caixa0.status === 'fechado';
+        const resumoFatura = `<strong>${escHtml(invoice.codigo)}</strong>${partner ? ' — ' + escHtml(partner.nome) : ''}: <strong>${formatCurrency(valor)}</strong> (${escHtml(rotuloForma)}), pago em <strong>${formatDateBr(pend.dataPagamento)}</strong>.`;
+        if (!entradaJaExistia) {
+            const ok = await perguntarConciliacao('Lançar no caixa do dia do pagamento', `
+                <p>${resumoFatura}</p>
+                <p>${estavaFechado
+                    ? `O caixa de <strong>${formatDateBr(caixa0.data)}</strong> está <strong>fechado</strong>. Autoriza o sistema a reabri-lo, lançar esta entrada e, depois da sua conferência, fechá-lo de novo?`
+                    : `O caixa de <strong>${formatDateBr(caixa0.data)}</strong> ainda está <strong>aberto</strong>. Autoriza o sistema a lançar esta entrada nele?`}</p>
+                <p style="font-size:12px; color:var(--text-secondary);">Depois o sistema confere os caixas seguintes até hoje.</p>`,
+                [{ rotulo: 'Agora não', valor: false }, { rotulo: `<i class="ri-lock-unlock-line"></i> ${estavaFechado ? 'Autorizar e reabrir' : 'Autorizar e lançar'}`, valor: true, classe: 'btn-warning' }]);
+            if (!ok) { showToast("Conciliação adiada. A baixa continua pendente no Caixa Diário.", "info"); return false; }
+
+            const antes = metricasCaixa(caixa0, caixa0.saldoAbertura);
+            const original = estavaFechado ? await reabrirCaixaConciliacao(caixa0, `baixa da fatura ${invoice.codigo}`) : null;
+            let mov;
+            try {
+                mov = await injetarMovimentoBaixa(caixa0, { ...invoice, valorTotal: valor }, partner, instanteNoDiaSP(pend.dataPagamento), forma);
+            } catch (e) {
+                if (original) await refecharCaixaConciliacao(caixa0, original, 'lançamento não gravado');
+                throw e;
+            }
+            const depois = metricasCaixa(caixa0, caixa0.saldoAbertura);
+
+            const confirmou = await perguntarConciliacao('Confira o caixa de ' + formatDateBr(caixa0.data), `
+                <p>Entrada lançada: <strong>Recebimento Fatura ${escHtml(invoice.codigo)}</strong> — ${formatCurrency(valor)} (${escHtml(rotuloForma)}).</p>
+                ${tabelaConciliacao(antes, depois, caixa0)}
+                <p style="margin-top:10px;">${estavaFechado ? 'Confirmando, o caixa é fechado de novo.' : 'Confirmando, a entrada fica no caixa, que continua aberto para o fechamento normal do dia.'}</p>`,
+                [{ rotulo: 'Desfazer', valor: false, classe: 'btn-danger' }, { rotulo: `<i class="ri-check-line"></i> ${estavaFechado ? 'Confirmar e fechar o caixa' : 'Confirmar'}`, valor: true, classe: 'btn-success' }]);
+            if (!confirmou) {
+                await sbDelete('caixa_movimentos', mov.id);
+                db.caixa_movimentos = db.caixa_movimentos.filter(m => m.id !== mov.id);
+                if (original) await refecharCaixaConciliacao(caixa0, original, 'lançamento desfeito pelo operador');
+                showToast("Lançamento desfeito. O caixa voltou como estava e a baixa continua pendente.", "info");
+                return false;
+            }
+            if (original) await refecharCaixaConciliacao(caixa0, original, `entrada da fatura ${invoice.codigo} (${formatCurrency(valor)})`);
+            logAudit("Baixa Retroativa", `Lançou a baixa da fatura ${invoice.codigo} (${formatCurrency(valor)}, ${rotuloForma}) no caixa de ${formatDateBr(caixa0.data)}${original ? ' (reaberto e fechado de novo)' : ''}.`);
+            historico.push(`${formatDateBr(caixa0.data)}: entrada de ${formatCurrency(valor)} lançada${original ? '; caixa reaberto e fechado de novo' : '; caixa segue aberto para o fechamento do dia'}.`);
+        } else {
+            historico.push(`${formatDateBr(caixa0.data)}: a entrada da fatura ${invoice.codigo} já estava lançada.`);
+        }
+
+        // Pendência resolvida
+        const resolvidoEm = new Date().toISOString();
+        const resolvidoPor = currentSession ? currentSession.nome : 'Master';
+        if (pend.id && window.onlineTables && window.onlineTables['baixas_faturas_pendentes']) {
+            await sbUpdate('baixas_faturas_pendentes', pend.id, { resolvido: true, resolvidoEm, resolvidoPor });
+        }
+        Object.assign(pend, { resolvido: true, resolvidoEm, resolvidoPor });
         atualizarBadgeCaixa();
-        logAudit("Baixa Retroativa", `Lançou baixa retroativa da fatura ${invoice ? invoice.codigo : pend.faturaId} no caixa de ${formatDateBr(pend.dataPagamento)}.`);
 
-        // 3) Reabre o caixa daquele dia para conferência e re-fechamento (fluxo existente).
-        showToast("Entrada lançada. Reabrindo o caixa para conferência e re-fechamento...", "success");
-        if (typeof reopenCaixa === 'function' && caixa.status === 'fechado') {
-            await reopenCaixa(caixa.id);
-        } else if (typeof renderCaixaPage === 'function') {
-            renderCaixaPage();
+        // ---- Passo 2: caixas seguintes até hoje ----
+        const seguintes = db.caixa_diario
+            .filter(c => c.unidadeId === caixa0.unidadeId && c.data > caixa0.data)
+            .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+        let anterior = caixa0;
+        for (const cx of seguintes) {
+            const esperado = metricasCaixa(anterior, anterior.saldoAbertura).especieFinal;
+            const atual = Number(cx.saldoAbertura) || 0;
+            if (paraCentavos(esperado) === paraCentavos(atual)) {
+                historico.push(`${formatDateBr(cx.data)}: conferido, sem alteração (abertura ${formatCurrency(atual)}).`);
+                anterior = cx;
+                continue;
+            }
+            const antes = metricasCaixa(cx, atual);
+            const depois = metricasCaixa(cx, esperado);
+            const fechado = cx.status === 'fechado';
+            const ok = await perguntarConciliacao('Conciliar o caixa de ' + formatDateBr(cx.data), `
+                <p>O caixa de <strong>${formatDateBr(cx.data)}</strong> abriu com <strong>${formatCurrency(atual)}</strong> em espécie, mas o caixa anterior agora termina com <strong>${formatCurrency(esperado)}</strong>.</p>
+                <p>${fechado ? 'Autoriza o sistema a reabrir este caixa, corrigir o saldo de abertura e fechá-lo de novo depois da sua conferência?' : 'Este caixa está aberto. Autoriza corrigir o saldo de abertura?'}</p>`,
+                [{ rotulo: 'Parar aqui', valor: false }, { rotulo: `<i class="ri-lock-unlock-line"></i> ${fechado ? 'Autorizar e reabrir' : 'Autorizar'}`, valor: true, classe: 'btn-warning' }]);
+            if (!ok) { historico.push(`${formatDateBr(cx.data)}: não conciliado (interrompido pelo operador). Abertura segue ${formatCurrency(atual)}; deveria ser ${formatCurrency(esperado)}.`); break; }
+
+            const original = fechado ? await reabrirCaixaConciliacao(cx, `saldo de abertura ${formatCurrency(atual)} → ${formatCurrency(esperado)}`) : null;
+            await sbUpdate('caixa_diario', cx.id, { saldoAbertura: esperado });
+            cx.saldoAbertura = esperado;
+            const confirmou = await perguntarConciliacao('Confira o caixa de ' + formatDateBr(cx.data),
+                tabelaConciliacao(antes, depois, cx) + `<p style="margin-top:10px;">${fechado ? 'Confirmando, o caixa é fechado de novo.' : 'Confirmando, a correção fica gravada.'}</p>`,
+                [{ rotulo: 'Desfazer', valor: false, classe: 'btn-danger' }, { rotulo: `<i class="ri-check-line"></i> ${fechado ? 'Confirmar e fechar o caixa' : 'Confirmar'}`, valor: true, classe: 'btn-success' }]);
+            if (!confirmou) {
+                await sbUpdate('caixa_diario', cx.id, { saldoAbertura: atual });
+                cx.saldoAbertura = atual;
+                if (original) await refecharCaixaConciliacao(cx, original, 'correção desfeita pelo operador');
+                historico.push(`${formatDateBr(cx.data)}: correção desfeita pelo operador. Abertura segue ${formatCurrency(atual)}; deveria ser ${formatCurrency(esperado)}.`);
+                break;
+            }
+            if (original) await refecharCaixaConciliacao(cx, original, `saldo de abertura ${formatCurrency(atual)} → ${formatCurrency(esperado)}`);
+            logAudit("Conciliação Caixa", `Corrigiu o saldo de abertura do caixa de ${formatDateBr(cx.data)}: ${formatCurrency(atual)} → ${formatCurrency(esperado)} (baixa da fatura ${invoice.codigo}).`);
+            historico.push(`${formatDateBr(cx.data)}: abertura corrigida de ${formatCurrency(atual)} para ${formatCurrency(esperado)}${original ? '; caixa reaberto e fechado de novo' : ''}.`);
+            anterior = cx;
         }
+
+        saveDatabase();
+        await avisoConciliacao('Conciliação concluída', `
+            <p>${resumoFatura}</p>
+            <ul style="margin:8px 0 0 18px; padding:0;">${historico.map(h => `<li style="margin-bottom:4px;">${escHtml(h)}</li>`).join('')}</ul>`);
+        return true;
     } catch (err) {
-        console.error("Erro ao resolver baixa pendente:", err);
-        showToast("Erro ao lançar a baixa retroativa.", "error");
+        console.error("Erro na conciliação de caixa:", err);
+        await avisoConciliacao('A conciliação parou', `<p>Erro: ${escHtml(err.message || String(err))}</p>
+            ${historico.length ? `<p>O que já foi feito:</p><ul style="margin:0 0 0 18px; padding:0;">${historico.map(h => `<li>${escHtml(h)}</li>`).join('')}</ul>` : ''}
+            <p>Confira o Caixa Diário: se algum caixa ficou aberto, ele aparece no aviso de caixa de outro dia aberto.</p>`);
+        return false;
+    } finally {
+        window.__conciliandoCaixa = false;
+        if (document.getElementById('panel-caixa') && document.getElementById('panel-caixa').classList.contains('active')) renderCaixaPage();
+        if (typeof renderBaixasPendentes === 'function') renderBaixasPendentes();
     }
 }
 

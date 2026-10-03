@@ -2460,6 +2460,20 @@
 </div>
 
 <!-- ===== MODAL DE BAIXA DE FATURA ===== -->
+<!-- ===== CONCILIAÇÃO DE CAIXA (baixa com data passada) ===== -->
+<!-- Sem fechar por clique fora: cada passo termina por um dos botões -->
+<div class="modal-overlay" id="modal-conciliacao-caixa" style="z-index: 3000;">
+    <div class="modal" style="max-width: 560px;">
+        <div class="modal-header">
+            <h3 id="conc-titulo">Conciliação de caixa</h3>
+        </div>
+        <div class="modal-body">
+            <div id="conc-corpo" style="font-size: 13px; line-height: 1.5;"></div>
+            <div id="conc-botoes" style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="modal-fat-baixa" onclick="closeBaixaModal(event)">
     <div class="modal" onclick="event.stopPropagation()" style="max-width: 480px;">
         <div class="modal-header">
@@ -2515,7 +2529,7 @@
 
                 <div id="baixa-aviso-retroativo" style="display:none; background: var(--bg-primary); border:1px solid var(--warning); border-left:3px solid var(--warning); border-radius: var(--radius-sm); padding:10px 12px; margin-bottom:12px; font-size:12px; color:var(--text-secondary);">
                     <i class="ri-alert-line" style="color: var(--warning);"></i>
-                    Pagamento em data passada: o caixa daquele dia já está fechado. A baixa é registrada agora e fica uma <strong>pendência</strong> para um operador Master reabrir o caixa, lançar e re-fechar.
+                    Pagamento em data passada: a entrada vai para o caixa do dia do pagamento. Com usuário Master, o sistema pede autorização, reabre esse caixa, lança, mostra o resultado para conferência e fecha de novo, conferindo os caixas seguintes até hoje. Sem Master, fica uma <strong>pendência</strong> no Caixa Diário.
                 </div>
 
                 <button type="submit" class="btn btn-success" style="width: 100%; font-weight: 700; margin-top: 4px;">
@@ -3041,7 +3055,7 @@
     </div>
 
 <script src="supabase-db.js?v=20260928-fase4"></script>
-<script src="app_v8.js?v=20261001-impressao-creditos"></script>
+<script src="app_v8.js?v=20261003-conciliacao-caixa"></script>
 <script src="laudo_pdf_v2.js?v=9.0.0"></script>
 <script src="js/laudo_certive.js?v=3.1.0"></script>
 <script>
