@@ -3725,6 +3725,9 @@ async function autoSyncMissingOSMovements() {
 
 async function renderCaixaPage() {
     if (typeof renderPendencias === 'function') renderPendencias();
+    // Quadro "Baixas retroativas pendentes" (botão Conciliar caixa)
+    renderBaixasPendentes();
+    atualizarBadgeCaixa();
     const activeCaixa = getTodayOpenCaixa();
     
     // Auto-sincronizar lançamentos de hoje
