@@ -557,9 +557,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.7.1';
+const APP_VERSION = '9.8.0';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.8.0',
+        data: '2026-10-14',
+        titulo: 'QR de pagamento da fatura é gerado automaticamente (adeus QRFY)',
+        resumo: 'O QR Code de pagamento agora é criado automaticamente pelo Asaas toda vez que a fatura é baixada, impressa ou enviada — sem ninguém precisar clicar em "gerar cobrança" e sem depender de serviço externo de QR (como o QRFY). É um QR que paga de verdade, trava o valor da fatura e dá baixa sozinho quando pago. Faturas antigas em aberto passam a ter o QR certo assim que forem baixadas/reenviadas. A geração automática NÃO dispara WhatsApp — o envio continua sendo uma ação separada.',
+        mudancas: [
+            {
+                area: 'Faturamento',
+                titulo: 'Cobrança Asaas automática ao produzir a fatura',
+                oQueMudou: 'Ao baixar, imprimir ou enviar uma fatura (valor ≥ R$ 5,00) que ainda não tenha cobrança, o sistema gera a cobrança no Asaas e já coloca o QR dinâmico no documento. Se o Asaas não responder, cai no QR anterior sem travar a emissão.',
+                comoUsar: 'Não precisa fazer nada diferente: baixe/envie a fatura normalmente. Pare de usar o QRFY — o QR da própria fatura já funciona e dá baixa automática (com o webhook do Asaas ligado).'
+            }
+        ]
+    },
     {
         versao: '9.7.1',
         data: '2026-10-03',
@@ -6383,7 +6397,7 @@ function renderFatFaturas() {
                 <td>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <button class="btn btn-secondary btn-sm btn-icon" onclick="printInvoiceById(${f.id})" title="1. Imprimir / PDF da Fatura"><i class="ri-printer-line"></i></button>
-                        <button class="btn btn-secondary btn-sm btn-icon" onclick="forwardInvoice(${f.id}, this)" title="2. Encaminhar por E-mail + WhatsApp (sem cobrança)"><i class="ri-mail-send-line"></i></button>
+                        <button class="btn btn-secondary btn-sm btn-icon" onclick="forwardInvoice(${f.id}, this)" title="2. Encaminhar por E-mail + WhatsApp (com QR de pagamento)"><i class="ri-mail-send-line"></i></button>
                         ${asaasBtn}
                         ${zapBtn}
                         ${!f.pago ? `<button class="btn btn-success btn-sm" onclick="liquidateInvoice(${f.id})" title="4. Dar baixa (registrar pagamento)"><i class="ri-check-line"></i> Baixar</button>` : ''}
@@ -6989,12 +7003,15 @@ async function conciliarBaixaRetroativa(pend) {
     }
 }
 
-function printInvoiceById(invoiceId) {
+async function printInvoiceById(invoiceId) {
     const f = db.faturas.find(x => x.id === invoiceId);
     if (!f) {
         showToast("Fatura não localizada.", "error");
         return;
     }
+
+    // Garante o QR dinâmico do Asaas antes de montar a impressão da fatura.
+    await garantirCobrancaAsaas(f);
 
     const partner = db.parceiros.find(p => p.id === f.parceiroId);
     const unit = db.unidades.find(u => u.id === f.unidadeId);
@@ -14992,15 +15009,18 @@ async function forwardInvoice(faturaId, btn) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line spinning" style="font-size:14px;"></i>'; }
 
     try {
-        // Garante um PDF disponível (reusa o já gerado, senão gera agora).
-        let pdfUrl = fatura.pdf_url || null;
-        if (!pdfUrl) {
-            showToast("Gerando PDF da fatura para envio...", "info");
-            pdfUrl = await generateAndUploadInvoicePDF(fatura);
-            if (pdfUrl) {
-                fatura.pdf_url = pdfUrl;
-                try { await sbUpdate('faturas', fatura.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
-            }
+        // Garante o QR dinâmico do Asaas antes de enviar (gera a cobrança se
+        // faltar, sem disparar WhatsApp). Como o PDF em cache pode ter sido feito
+        // com o QR antigo, regeramos o documento para o cliente receber o QR que
+        // paga de verdade (com fallback ao cache se a geração falhar).
+        await garantirCobrancaAsaas(fatura);
+        showToast("Gerando PDF da fatura para envio...", "info");
+        let pdfUrl = await generateAndUploadInvoicePDF(fatura);
+        if (pdfUrl) {
+            fatura.pdf_url = pdfUrl;
+            try { await sbUpdate('faturas', fatura.id, { pdf_url: pdfUrl }); } catch (e) { /* coluna opcional */ }
+        } else {
+            pdfUrl = fatura.pdf_url || null;
         }
 
         const cfg = getFaturamentoConfig();
@@ -15482,6 +15502,43 @@ function getFaturamentoConfig() {
         emailAssunto: cfg.fatEmailAssunto || DEFAULT_FAT_EMAIL_ASSUNTO,
         emailCorpo: cfg.fatEmailCorpo || DEFAULT_FAT_EMAIL_CORPO
     };
+}
+
+// Garante que a fatura tenha uma cobrança Asaas (e o QR dinâmico) ANTES de
+// produzir o documento que o cliente recebe. Assim toda fatura sai com um QR que
+// paga de verdade, sem depender de serviço externo (QRFY) nem do operador clicar
+// em "gerar cobrança". NÃO dispara WhatsApp (enviarZap:false) — o envio segue
+// manual. Silenciosa: se o Asaas recusar (ex.: valor < R$5) ou a rede falhar,
+// cai no QR estático anterior sem travar a geração do PDF.
+async function garantirCobrancaAsaas(f) {
+    try {
+        if (!window.useSupabase || !f || f.pago) return;
+        if (f.asaas_payment_id && f.asaas_pix_qr) return;      // já tem QR dinâmico
+        if (!(Number(f.valorTotal) >= 5)) return;              // Asaas: mínimo R$ 5,00
+        showToast("Gerando cobrança no Asaas para o QR de pagamento...", "info");
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-asaas-billing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sbAuthToken()}` },
+            body: JSON.stringify({ faturaId: f.id, enviarZap: false })
+        });
+        if (!res.ok) {
+            let msg = ''; try { msg = (await res.json()).error || ''; } catch (e) {}
+            console.warn('garantirCobrancaAsaas: Asaas não gerou a cobrança.', msg);
+            return;
+        }
+        const data = await res.json();
+        if (data.paymentId) f.asaas_payment_id = data.paymentId;
+        if (data.url) f.asaas_url = data.url;
+        if (data.pixQrImage) f.asaas_pix_qr = data.pixQrImage;
+        if (data.pixPayload) f.asaas_pix_payload = data.pixPayload;
+        if (data.pixExpira) f.asaas_pix_expira = data.pixExpira;
+        if (data.pixVencimento) f.asaas_vencimento = data.pixVencimento;
+        // A função já gravou os campos PIX no banco; aqui só garantimos o vínculo
+        // da cobrança (id/url) na fatura, caso ainda não estivesse salvo.
+        try { await sbUpdate('faturas', f.id, { asaas_payment_id: f.asaas_payment_id, asaas_url: f.asaas_url }); } catch (e) {}
+    } catch (err) {
+        console.warn('garantirCobrancaAsaas falhou:', err);
+    }
 }
 
 // Bloco HTML com as instruções de pagamento (dados bancários) para o PDF da

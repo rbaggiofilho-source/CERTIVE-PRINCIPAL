@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { faturaId, pdfUrl } = await req.json();
+    const { faturaId, pdfUrl, enviarZap = true } = await req.json();
 
     if (!faturaId) {
       return new Response(JSON.stringify({ error: 'faturaId é obrigatório' }), { status: 400 });
@@ -197,9 +197,11 @@ Deno.serve(async (req) => {
       console.error('❌ Erro ao buscar pixQrCode no Asaas:', err);
     }
 
-    // 4. Enviar mensagem via ZAP-API
+    // 4. Enviar mensagem via ZAP-API. A geração automática da cobrança (ao
+    // produzir o PDF da fatura) chama com enviarZap=false para NÃO disparar
+    // WhatsApp — o envio continua sendo uma ação separada do operador.
     let zapStatus = 'nao_enviado';
-    if (parceiro.whatsapp) {
+    if (enviarZap && parceiro.whatsapp) {
       let phone = parceiro.whatsapp.replace(/\D/g, '');
       if (phone.length === 10 || phone.length === 11) phone = '55' + phone;
 
