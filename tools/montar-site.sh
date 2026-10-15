@@ -8,7 +8,7 @@ mkdir -p "$DESTINO"
 
 ARQUIVOS=(
   CNAME .nojekyll manifest.webmanifest
-  index.html app.html consulta-laudo.html privacidade.html termos.html curso.html
+  index.html app.html consulta-laudo.html politicas.html privacidade.html termos.html curso.html
   app_v8.js supabase-config.js supabase-db.js laudo_pdf_v2.js sw.js
   styles.css site.css
 )
