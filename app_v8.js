@@ -557,9 +557,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.8.0';
+const APP_VERSION = '9.8.1';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.8.1',
+        data: '2026-10-26',
+        titulo: 'Puxar a tela para baixo atualiza o sistema no celular',
+        resumo: 'No celular, em qualquer página do sistema, basta arrastar a tela para baixo com o dedo (estando no topo) e soltar: o sistema recarrega, igual a apertar F5 no computador. Aparece um círculo com uma setinha enquanto você puxa, e ele gira quando a atualização começa.',
+        mudancas: [
+            {
+                area: 'Celular',
+                titulo: 'Puxar para atualizar',
+                oQueMudou: 'Antes, no iPhone com o sistema instalado na tela inicial, arrastar a tela para baixo não fazia nada. Agora o gesto atualiza a página atual em qualquer tela. Só funciona com a tela no topo; se você rolou a página para baixo, arraste primeiro para cima até o topo. Não dispara dentro de janelas abertas, no menu lateral, na câmera da cautelar nem na assinatura, para você não perder o que está fazendo. Se houver um formulário preenchido e ainda não salvo, o sistema pergunta antes de atualizar.',
+                comoUsar: 'Com a página no topo, arraste o dedo para baixo até o círculo aparecer por inteiro e solte.'
+            }
+        ]
+    },
     {
         versao: '9.8.0',
         data: '2026-10-14',
@@ -15855,3 +15869,134 @@ async function analisarLaudoComIA() {
 
 
 
+
+// ==========================================
+// PUXAR PARA ATUALIZAR (celular)
+// ==========================================
+// No iPhone, com o app instalado na tela inicial, não existe o gesto nativo de
+// "puxar para atualizar". Aqui o gesto vale como F5 em QUALQUER página: com a
+// tela no topo, arrastar o dedo para baixo e soltar recarrega o sistema.
+// Só em tela de toque. Fica desligado dentro de modal, menu lateral, câmera da
+// cautelar e assinatura, com campo em foco, em gesto lateral ou quando algum
+// bloco da tela está rolado para dentro (aí o arrastar é para rolar de volta).
+// Se houver formulário digitado e ainda não salvo, pergunta antes de recarregar.
+(function iniciarPuxarParaAtualizar() {
+    const ehToque = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (!ehToque || window.__puxarParaAtualizar) return;
+    window.__puxarParaAtualizar = true;
+
+    const LIMITE = 70;        // quanto o indicador precisa descer para valer (px)
+    const MAXIMO = 110;       // quanto ele pode descer no máximo (px)
+    const RESISTENCIA = 0.5;  // o dedo anda 2 px para o indicador andar 1 px
+
+    // O gesto passa a ser nosso: tira o "puxar" nativo do Chrome para não haver
+    // dois recarregamentos, e o efeito elástico que empurra a página.
+    const estilo = document.createElement('style');
+    estilo.textContent = `
+        html, body { overscroll-behavior-y: contain; }
+        #ptr-indicador { position: fixed; top: env(safe-area-inset-top, 0px); left: 50%; width: 40px; height: 40px;
+            margin-left: -20px; border-radius: 50%; background: var(--bg-card, #111827); color: var(--accent, #d4a017);
+            border: 1px solid var(--border, rgba(255,255,255,.15)); box-shadow: 0 4px 14px rgba(0,0,0,.35);
+            display: flex; align-items: center; justify-content: center; font-size: 20px; z-index: 99990;
+            opacity: 0; pointer-events: none; transform: translateY(-60px); will-change: transform, opacity; }
+        #ptr-indicador.ptr-animando { transition: transform .2s ease, opacity .2s ease; }
+        #ptr-indicador.ptr-girando i { animation: ptr-giro .8s linear infinite; }
+        @keyframes ptr-giro { to { transform: rotate(360deg); } }`;
+    document.head.appendChild(estilo);
+
+    const indicador = document.createElement('div');
+    indicador.id = 'ptr-indicador';
+    indicador.innerHTML = '<i class="ri-refresh-line"></i>';
+    document.body.appendChild(indicador);
+
+    let ativo = false, decidido = false, x0 = 0, y0 = 0, puxada = 0;
+
+    function mostrar(px) {
+        indicador.classList.remove('ptr-animando');
+        indicador.style.transform = `translateY(${px - 60}px) rotate(${px * 4}deg)`;
+        indicador.style.opacity = String(Math.min(1, px / LIMITE));
+    }
+    function recolher() {
+        indicador.classList.add('ptr-animando');
+        indicador.classList.remove('ptr-girando');
+        indicador.style.transform = 'translateY(-60px)';
+        indicador.style.opacity = '0';
+    }
+
+    // Tela cheia por cima da página (modal, câmera, visualizador): não puxa.
+    function dentroDeTelaCheia(el) {
+        for (let n = el; n && n !== document.body && n.nodeType === 1; n = n.parentElement) {
+            if (n.id === 'ptr-indicador' || n.classList.contains('login-overlay')) continue;
+            if (getComputedStyle(n).position === 'fixed'
+                && n.offsetWidth >= window.innerWidth * 0.9 && n.offsetHeight >= window.innerHeight * 0.9) return true;
+        }
+        return false;
+    }
+    // Algum bloco já rolado para dentro: o arrastar é para voltar ao topo dele.
+    function blocoRolado(el) {
+        for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+            if (n.scrollTop > 0) return true;
+        }
+        return false;
+    }
+    function noTopo() {
+        const rolagem = window.scrollY || (document.scrollingElement && document.scrollingElement.scrollTop) || 0;
+        return rolagem <= 0;
+    }
+
+    // Formulário em que o usuário digitou e ainda não enviou.
+    const formsDigitados = new WeakSet();
+    document.addEventListener('input', e => { if (e.target && e.target.form) formsDigitados.add(e.target.form); }, true);
+    ['submit', 'reset'].forEach(ev => document.addEventListener(ev, e => formsDigitados.delete(e.target), true));
+    function formularioComDados() {
+        return Array.from(document.forms).some(f => formsDigitados.has(f) && f.offsetParent !== null);
+    }
+
+    function atualizar() {
+        ativo = false;
+        if (formularioComDados() && !confirm('Há dados digitados que ainda não foram salvos e serão perdidos.\n\nAtualizar mesmo assim?')) {
+            recolher();
+            return;
+        }
+        mostrar(LIMITE);
+        indicador.classList.add('ptr-animando', 'ptr-girando');
+        setTimeout(() => location.reload(), 150);
+    }
+
+    document.addEventListener('touchstart', e => {
+        ativo = false; decidido = false; puxada = 0;
+        if (e.touches.length !== 1 || !noTopo()) return;
+        const alvo = e.target;
+        if (alvo.closest && alvo.closest('input, textarea, select, canvas, video, [contenteditable="true"]')) return;
+        const foco = document.activeElement;
+        if (foco && /^(INPUT|TEXTAREA|SELECT)$/.test(foco.tagName)) return;
+        if (document.querySelector('.modal-overlay.active, .sidebar-overlay.active, #cautelar-camera-overlay')) return;
+        if (blocoRolado(alvo) || dentroDeTelaCheia(alvo)) return;
+        ativo = true;
+        x0 = e.touches[0].clientX;
+        y0 = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+        if (!ativo) return;
+        const dx = e.touches[0].clientX - x0;
+        const dy = e.touches[0].clientY - y0;
+        if (!decidido) {
+            if (dy < -4 || (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8)) { ativo = false; return; } // subindo ou lateral
+            if (dy <= 8) return;
+            decidido = true;
+        }
+        if (!noTopo()) { ativo = false; recolher(); return; }
+        puxada = Math.min(MAXIMO, Math.max(0, dy * RESISTENCIA));
+        if (e.cancelable) e.preventDefault();   // não deixa a página "esticar" junto
+        mostrar(puxada);
+    }, { passive: false });
+
+    function soltou() {
+        if (!ativo) return;
+        if (decidido && puxada >= LIMITE) atualizar();
+        else { ativo = false; recolher(); }
+    }
+    document.addEventListener('touchend', soltou, { passive: true });
+    document.addEventListener('touchcancel', () => { ativo = false; recolher(); }, { passive: true });
+})();
