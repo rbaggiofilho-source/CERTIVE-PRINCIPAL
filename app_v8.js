@@ -102,6 +102,18 @@ function formatCurrency(val) {
     return (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Etiqueta de origem da OS, para as listas: "PARTICULAR" ou, quando a OS é de
+// uma loja/despachante, "PARCEIRO · NOME DO PARCEIRO". O nome do cliente
+// (solicitante) continua sendo mostrado ao lado, como já era.
+function etiquetaClienteOS(os) {
+    if (!os) return '';
+    const ehParceiro = os.clienteTipo === 'parceiro';
+    const parceiro = ehParceiro ? (db.parceiros || []).find(p => p.id === os.parceiroId) : null;
+    const texto = ehParceiro ? 'Parceiro' + (parceiro && parceiro.nome ? ' · ' + parceiro.nome : '') : 'Particular';
+    const cor = ehParceiro ? 'var(--accent)' : 'var(--info, #38bdf8)';
+    return `<span style="display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .03em; padding: 1px 7px; border-radius: 10px; border: 1px solid ${cor}; color: ${cor}; text-transform: uppercase; white-space: nowrap;">${escHtml(texto)}</span>`;
+}
+
 // ---- Dinheiro em centavos ----
 // Somar reais em ponto flutuante acumula erro (0,1 + 0,2 = 0,30000000000000004)
 // e o total do caixa "não fecha" por um centavo. Toda soma de valores passa por
@@ -557,9 +569,29 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.8.1';
+const APP_VERSION = '9.8.2';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.8.2',
+        data: '2026-10-30',
+        titulo: 'Cada OS mostra se é Particular ou Parceiro (e o nome do parceiro)',
+        resumo: 'Nas listas de OS agora aparece, junto do nome do cliente, uma etiqueta "PARTICULAR" ou "PARCEIRO · NOME DO PARCEIRO". No Caixa Diário, os lançamentos que vêm de uma OS também mostram o cliente e a etiqueta.',
+        mudancas: [
+            {
+                area: 'Atendimento / Histórico Geral',
+                titulo: 'Etiqueta de origem na coluna Solicitante / Placa',
+                oQueMudou: 'Abaixo do nome do solicitante aparece a etiqueta "Particular" ou "Parceiro · nome do parceiro", ao lado da placa.',
+                comoUsar: 'Nada a fazer: aparece sozinho em todas as OS, novas e antigas.'
+            },
+            {
+                area: 'Caixa Diário',
+                titulo: 'Cliente e origem nos lançamentos de OS',
+                oQueMudou: 'Cada lançamento gerado por uma OS mostra, abaixo da descrição, o nome do cliente e a etiqueta Particular/Parceiro.',
+                comoUsar: 'Veja em Caixa Diário > Registro de Lançamentos de Hoje.'
+            }
+        ]
+    },
     {
         versao: '9.8.1',
         data: '2026-10-26',
@@ -1670,7 +1702,7 @@ function renderOSPipeline() {
                 <td>${time}</td>
                 <td>
                     <strong>${escHtml(os.clienteNome)}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
+                    ${etiquetaClienteOS(os)} <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
@@ -2617,7 +2649,7 @@ function renderHistorico() {
                 <td>${date} ${time}</td>
                 <td>
                     <strong>${escHtml(os.clienteNome)}</strong><br>
-                    <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
+                    ${etiquetaClienteOS(os)} <small style="color: var(--text-secondary); font-weight: 500;">PLACA: ${escHtml(os.placa)}</small>
                 </td>
                 <td>${os.servicoNome.split(' — ')[0]}</td>
                 <td style="font-weight: 600; color: var(--success);">${formatCurrency(os.valor)}</td>
@@ -4013,12 +4045,17 @@ function renderCaixaMovimentos(activeCaixa) {
         const valEntrada = m.tipo === 'entrada' ? formatCurrency(m.valor) : '—';
         const valSaida = m.tipo === 'saida' ? formatCurrency(m.valor) : '—';
         const isSystem = m.osId || m.faturaId;
+        // Lançamento de OS: mostra quem é o cliente e se é particular ou parceiro.
+        const osDoMov = m.osId ? (db.ordens_servico || []).find(o => o.id === m.osId) : null;
+        const clienteDoMov = osDoMov
+            ? `<br><small style="color: var(--text-secondary); font-weight: 500;">${escHtml(osDoMov.clienteNome || '')}</small> ${etiquetaClienteOS(osDoMov)}`
+            : '';
 
         return `
             <tr>
                 <td>${time}</td>
                 <td>
-                    <strong>${escHtml(m.descricao)}</strong>
+                    <strong>${escHtml(m.descricao)}</strong>${clienteDoMov}
                     ${isSystem ? `<br><small style="color: var(--accent);">Integrado pelo Sistema</small>` : ''}
                 </td>
                 <td><span style="text-transform: uppercase;">${escHtml(m.formaPagamento)}</span></td>
