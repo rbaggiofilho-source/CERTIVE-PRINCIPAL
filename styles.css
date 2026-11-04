@@ -1990,3 +1990,27 @@ select option {
     top: calc(16px + env(safe-area-inset-top));
   }
 }
+
+/* ===== Caixa Diário: cartões com bolha de explicação ===== */
+#caixa-kpis .kpi-card { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+/* Sem destaque amarelo ao passar/tocar: só o cartão com a bolha aberta fica marcado. */
+#caixa-kpis .kpi-card:hover { border-color: var(--border); transform: none; box-shadow: none; }
+#caixa-kpis .kpi-card:hover::after { background: transparent; }
+#caixa-kpis .kpi-card.kpi-dica-ativo { border-color: var(--accent); }
+#caixa-kpis .kpi-card.kpi-dica-ativo::after { background: var(--accent); }
+#kpi-dica-bolha {
+  display: none;
+  position: fixed;
+  z-index: 5500;
+  max-width: 280px;
+  padding: 9px 12px;
+  background: var(--navy-light);
+  color: var(--text-primary);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  pointer-events: none;
+}

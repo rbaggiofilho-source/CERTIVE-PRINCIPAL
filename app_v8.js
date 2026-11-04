@@ -569,9 +569,23 @@ function showToast(message, type = 'info') {
 // TOPO do array. A data é a de publicação.
 // ==========================================================
 
-const APP_VERSION = '9.8.2';
+const APP_VERSION = '9.8.3';
 
 const ATUALIZACOES = [
+    {
+        versao: '9.8.3',
+        data: '2026-11-04',
+        titulo: 'Caixa Diário: toque no cartão para ver o que o número significa',
+        resumo: 'Nos cartões do resumo do Caixa Diário, tocar em um cartão mostra uma bolha curta explicando em uma frase o que aquele valor representa; tocar de novo (ou fora) esconde a bolha. O contorno amarelo agora só aparece no cartão que está aberto.',
+        mudancas: [
+            {
+                area: 'Caixa Diário',
+                titulo: 'Bolha de explicação nos cartões',
+                oQueMudou: 'Cada cartão (Vendas do Dia, Recebido no Caixa, A Faturar, Saídas Totais, Saldo Físico, Resultado em Caixa) explica seu valor em uma frase. A bolha aparece fora do cartão, sem cobrir o número.',
+                comoUsar: 'Toque no cartão para ligar e toque de novo para desligar.'
+            }
+        ]
+    },
     {
         versao: '9.8.2',
         data: '2026-10-30',
@@ -952,6 +966,7 @@ function renderAtualizacoes() {
 }
 
 function navigateTo(pageId) {
+    fecharDicaKPI();
     // Check permission for navigation
     const navPermissions = {
         'atendimento': 'abertura_os',
@@ -3701,6 +3716,7 @@ function printContratoFirmado() {
 let currentCaixaTab = 'movimentos';
 
 function switchCaixaTab(tab, btn) {
+    fecharDicaKPI();
     currentCaixaTab = tab;
     document.querySelectorAll('#panel-caixa .tab-btn').forEach(el => el.classList.remove('active'));
     btn.classList.add('active');
@@ -3946,10 +3962,62 @@ function resumoVendasCaixa(caixa) {
     return { recebido, aFaturar, saidas, vendido: somaCentavos(recebido, aFaturar), resultado: (paraCentavos(recebido) - paraCentavos(saidas)) / 100 };
 }
 
+// Bolha de explicação dos cartões do Caixa Diário: toque liga, toque de novo
+// desliga. A bolha fica fora do cartão (abaixo, ou acima se não couber) para
+// nunca cobrir o número que a pessoa quer entender.
+let dicaKpiAtiva = null;
+
+function fecharDicaKPI() {
+    dicaKpiAtiva = null;
+    const bolha = document.getElementById('kpi-dica-bolha');
+    if (bolha) bolha.style.display = 'none';
+    document.querySelectorAll('#caixa-kpis .kpi-dica-ativo').forEach(c => c.classList.remove('kpi-dica-ativo'));
+}
+
+function posicionarDicaKPI() {
+    const bolha = document.getElementById('kpi-dica-bolha');
+    if (!bolha || !dicaKpiAtiva) return;
+    const card = document.querySelector(`#caixa-kpis .kpi-card[data-dica-id="${dicaKpiAtiva}"]`);
+    // Cartão sumiu ou a aba do caixa não está visível: some a bolha.
+    if (!card || card.offsetParent === null) { fecharDicaKPI(); return; }
+    document.querySelectorAll('#caixa-kpis .kpi-card').forEach(c => c.classList.toggle('kpi-dica-ativo', c === card));
+    bolha.textContent = card.getAttribute('data-dica');
+    bolha.style.display = 'block';
+    const r = card.getBoundingClientRect();
+    const margem = 8, folga = 8;
+    const largura = Math.min(bolha.offsetWidth, window.innerWidth - margem * 2);
+    let left = r.left + r.width / 2 - largura / 2;
+    left = Math.max(margem, Math.min(left, window.innerWidth - largura - margem));
+    let top = r.bottom + folga;
+    if (top + bolha.offsetHeight > window.innerHeight - margem) top = r.top - folga - bolha.offsetHeight;
+    bolha.style.left = left + 'px';
+    bolha.style.top = Math.max(margem, top) + 'px';
+}
+
+(function iniciarDicasKPI() {
+    document.addEventListener('click', e => {
+        const card = e.target.closest && e.target.closest('#caixa-kpis .kpi-card[data-dica]');
+        if (!card) { if (dicaKpiAtiva) fecharDicaKPI(); return; }
+        const id = card.getAttribute('data-dica-id');
+        if (dicaKpiAtiva === id) { fecharDicaKPI(); return; }
+        if (!document.getElementById('kpi-dica-bolha')) {
+            const b = document.createElement('div');
+            b.id = 'kpi-dica-bolha';
+            b.setAttribute('role', 'tooltip');
+            document.body.appendChild(b);
+        }
+        dicaKpiAtiva = id;
+        posicionarDicaKPI();
+    });
+    window.addEventListener('resize', posicionarDicaKPI);
+    window.addEventListener('scroll', posicionarDicaKPI, true);
+})();
+
 function renderCaixaKPIs(activeCaixa) {
     const kpiGrid = document.getElementById('caixa-kpis');
     if (!activeCaixa) {
         kpiGrid.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;"><h4>Caixa Fechado hoje para esta unidade.</h4></div>`;
+        fecharDicaKPI();
         return;
     }
 
@@ -3967,37 +4035,38 @@ function renderCaixaKPIs(activeCaixa) {
     const resumo = resumoVendasCaixa(activeCaixa);
 
     kpiGrid.innerHTML = `
-        <div class="kpi-card kpi-blue">
+        <div class="kpi-card kpi-blue" data-dica-id="vendas" data-dica="Tudo que foi vendido hoje: o que já entrou no caixa mais o que ficou para faturar dos parceiros.">
             <div class="kpi-icon"><i class="ri-shopping-bag-3-line"></i></div>
             <div class="kpi-value">${formatCurrency(resumo.vendido)}</div>
             <div class="kpi-label">Vendas do Dia</div>
         </div>
-        <div class="kpi-card kpi-green">
+        <div class="kpi-card kpi-green" data-dica-id="recebido" data-dica="Dinheiro que de fato entrou hoje (Pix, espécie, cartão...), sem contar o que ficou para faturar.">
             <div class="kpi-icon"><i class="ri-add-line"></i></div>
             <div class="kpi-value">${formatCurrency(totalEntradas)}</div>
             <div class="kpi-label">Recebido no Caixa</div>
         </div>
-        <div class="kpi-card kpi-purple">
+        <div class="kpi-card kpi-purple" data-dica-id="faturar" data-dica="Vistorias de parceiros no faturamento mensal: o dinheiro só entra quando a fatura for paga.">
             <div class="kpi-icon"><i class="ri-file-list-3-line"></i></div>
             <div class="kpi-value">${formatCurrency(resumo.aFaturar)}</div>
             <div class="kpi-label">A Faturar (Parceiros)</div>
         </div>
-        <div class="kpi-card kpi-red">
+        <div class="kpi-card kpi-red" data-dica-id="saidas" data-dica="Tudo que saiu do caixa hoje, como sangrias e despesas.">
             <div class="kpi-icon"><i class="ri-subtract-line"></i></div>
             <div class="kpi-value">${formatCurrency(totalSaidas)}</div>
             <div class="kpi-label">Saídas Totais</div>
         </div>
-        <div class="kpi-card kpi-green">
+        <div class="kpi-card kpi-green" data-dica-id="fisico" data-dica="Dinheiro em espécie que deve estar na gaveta: troco de abertura mais entradas em espécie menos saídas em espécie.">
             <div class="kpi-icon"><i class="ri-wallet-3-line"></i></div>
             <div class="kpi-value">${formatCurrency(finalCashInDrawer)}</div>
             <div class="kpi-label">Saldo Físico Estimado (Espécie)</div>
         </div>
-        <div class="kpi-card kpi-blue">
+        <div class="kpi-card kpi-blue" data-dica-id="resultado" data-dica="Quanto o caixa rendeu no dia: o que foi recebido menos as saídas, sem contar o troco de abertura.">
             <div class="kpi-icon"><i class="ri-funds-line"></i></div>
             <div class="kpi-value" style="color: ${totalBalance >= 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(totalBalance)}</div>
             <div class="kpi-label">Resultado em Caixa</div>
         </div>
     `;
+    posicionarDicaKPI();
 }
 
 function renderCaixaMovimentos(activeCaixa) {
